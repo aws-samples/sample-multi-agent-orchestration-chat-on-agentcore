@@ -1,0 +1,97 @@
+{
+  "name": "moca",
+  "version": "0.1.0",
+  "description": "Moca — Multi-agent Orchestration Chat on AgentCore",
+  "private": true,
+  "engines": {
+    "node": ">=22.12.0"
+  },
+  "workspaces": [
+    "packages/*",
+    "packages/libs/*",
+    "packages/lambda-tools/shared",
+    "packages/lambda-tools/tools/*",
+    "scripts"
+  ],
+  "scripts": {
+    "build:ts": "tsc -b tsconfig.build.json",
+    "build:frontend": "npm run build -w packages/frontend",
+    "build": "npm run build:ts && npm run build:frontend",
+    "typecheck": "tsc -b tsconfig.build.json --noEmit",
+    "test": "npm run build:ts && npm run test --workspaces --if-present && node --max-old-space-size=8192 node_modules/.bin/jest --config jest.config.cjs",
+    "lint": "npm run lint --workspaces --if-present",
+    "lint:fix": "npm run lint:fix --workspaces --if-present",
+    "format:check": "npm run format:check --workspaces --if-present",
+    "dev": "npm run build:ts && concurrently -n \"frontend,backend,agent\" -c \"cyan,magenta,yellow\" \"npm:dev:frontend\" \"npm:dev:backend\" \"npm:dev:agent\"",
+    "devw": "npm run setup-env && npm run dev",
+    "dev:frontend": "npm run dev -w packages/frontend",
+    "dev:backend": "npm run dev -w @moca/backend",
+    "dev:agent": "npm run dev -w @moca/agent",
+    "predeploy": "npm run build:ts",
+    "deploy": "npm run deploy -w @moca/cdk --",
+    "predeploy:dev": "npm run build:ts",
+    "deploy:dev": "npm run deploy:dev -w @moca/cdk --",
+    "predeploy:stg": "npm run build:ts",
+    "deploy:stg": "npm run deploy:stg -w @moca/cdk --",
+    "predeploy:prd": "npm run build:ts",
+    "deploy:prd": "npm run deploy:prd -w @moca/cdk --",
+    "destroy": "npm run destroy -w @moca/cdk",
+    "destroy:all": "npm run destroy:all -w @moca/cdk",
+    "setup-env": "tsx scripts/src/setup-env.ts",
+    "seed-system-agents": "tsx scripts/src/seed-system-agents.ts",
+    "cdk": "npm run cdk -w @moca/cdk",
+    "synth": "npm run synth -w @moca/cdk"
+  },
+  "devDependencies": {
+    "@eslint/compat": "^2.0.3",
+    "@eslint/js": "^10.0.0",
+    "@types/jest": "^29.5.0",
+    "@types/node": "^22.0.0",
+    "concurrently": "^9.1.2",
+    "dotenv": "^17.2.3",
+    "eslint": "^10.0.0",
+    "eslint-config-prettier": "^10.1.8",
+    "eslint-plugin-boundaries": "^6.0.2",
+    "eslint-plugin-import-x": "^4.16.0",
+    "eslint-plugin-prettier": "^5.5.4",
+    "eslint-plugin-react-hooks": "^7.0.1",
+    "eslint-plugin-react-refresh": "^0.4.26",
+    "globals": "^16.5.0",
+    "husky": "^9.1.7",
+    "jest": "^30.2.0",
+    "lint-staged": "^16.2.7",
+    "prettier": "^3.7.4",
+    "rimraf": "^5.0.5",
+    "ts-jest": "^29.4.6",
+    "ts-node": "^10.9.2",
+    "tsx": "^4.19.2",
+    "typescript": "~5.7.3",
+    "typescript-eslint": "^8.57.2"
+  },
+  "overrides": {
+    "test-exclude": "^7.0.1",
+    "glob": "^10.0.0",
+    "fast-xml-parser": ">=5.3.6",
+    "lodash-es": ">=4.18.0",
+    "chevrotain": {
+      "lodash-es": ">=4.18.0"
+    },
+    "@chevrotain/gast": {
+      "lodash-es": ">=4.18.0"
+    },
+    "@chevrotain/cst-dts-gen": {
+      "lodash-es": ">=4.18.0"
+    },
+    "serialize-javascript": ">=7.0.5",
+    "@opentelemetry/api": "1.9.1",
+    "eslint-plugin-react-hooks": {
+      "eslint": "$eslint"
+    }
+  },
+  "lint-staged": {
+    "packages/**/src/**/*.{ts,tsx,js,jsx}": [
+      "eslint --fix",
+      "prettier --write"
+    ]
+  }
+}

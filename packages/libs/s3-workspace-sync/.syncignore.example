@@ -1,0 +1,41 @@
+# =============================================================================
+# .syncignore — Files and directories to exclude from S3 workspace sync
+# Uses .gitignore-style patterns
+# =============================================================================
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Build output
+dist/
+build/
+target/
+*.pyc
+__pycache__/
+
+# Dependencies
+node_modules/
+.gradle/
+
+# IDE / Editor
+.idea/
+.vscode/
+*.iml
+*.swp
+*.swo
+*~
+
+# Logs
+*.log
+logs/
+
+# Temp files
+*.tmp
+*.temp
+.cache/
+
+# Secrets (add your own patterns below)
+# .env.local
+# *.pem
+# *.key

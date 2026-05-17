@@ -1,0 +1,23 @@
+{
+  "name": "@moca/lambda-tools-athena",
+  "version": "1.0.0",
+  "description": "AgentCore Gateway Lambda Target - Athena S3 Query Tools",
+  "type": "module",
+  "main": "dist/handler.js",
+  "scripts": {
+    "clean": "rimraf dist tsconfig.tsbuildinfo",
+    "test": "jest --passWithNoTests",
+    "lint": "eslint src/"
+  },
+  "dependencies": {
+    "@aws-sdk/client-athena": "^3.700.0",
+    "@aws-sdk/client-glue": "^3.700.0",
+    "@moca/lambda-tools-shared": "*"
+  },
+  "devDependencies": {
+    "@types/aws-lambda": "^8.10.145"
+  },
+  "engines": {
+    "node": ">=22.12.0"
+  }
+}

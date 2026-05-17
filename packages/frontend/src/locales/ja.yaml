@@ -1,0 +1,1190 @@
+# 日本語翻訳ファイル
+
+# 共通
+common:
+  loading: 読み込み中...
+  error: エラーが発生しました
+  errorOccurred: エラーが発生しました
+  save: 保存
+  saving: 保存中...
+  cancel: キャンセル
+  delete: 削除
+  deleting: 削除中...
+  moreOptions: その他のオプション
+  close: 閉じる
+  confirm: 確認
+  edit: 編集
+  create: 作成
+  update: 更新
+  search: 検索
+  filter: フィルター
+  clear: クリア
+  clearStorage: クリアする
+  copy: コピー
+  copyToClipboard: クリップボードにコピー
+  noFolders: フォルダがありません
+  inputParameters: 入力パラメータ
+  unsupportedContentType: '未対応のコンテンツタイプ: {{type}}'
+  yes: はい
+  no: いいえ
+  back: 戻る
+  backArrow: ←
+  next: 次へ
+  renderingDiagram: Rendering diagram...
+  diagramLoading: Mermaid diagram loading...
+  characters: '{{count}} 文字'
+  charactersWithStatus: '{{count}} 文字 • {{status}}'
+  iconsCount: '{{count}} 個のアイコン'
+  noIconsFound: '「{{query}}」に一致するアイコンが見つかりません'
+  searchIconsPlaceholder: アイコンを検索...
+  clickToSelectIcon: クリックしてアイコンを選択
+  success: 成功
+  errorStatus: エラー
+
+# 認証
+auth:
+  signIn: サインイン
+  signInAction: サインイン中...
+  signUp: 新規登録
+  signUpAction: 登録中...
+  confirmSignUp: アカウント確認
+  confirmAction: 確認中...
+  signOut: ログアウト
+  username: ユーザー名
+  usernameOrEmail: ユーザー名またはメールアドレス
+  password: パスワード
+  confirmPassword: パスワード（確認）
+  email: メールアドレス
+  verificationCode: 確認コード
+  authenticated: 認証済み
+  noAccount: アカウントをお持ちでない方は
+  hasAccount: アカウントをお持ちの方は
+  checkEmail: メールアドレスをご確認ください
+  enterVerificationCode: 確認コードを入力してアカウントを有効化してください
+  resendCode: コードを再送信
+  welcomeDescription: つくる。つなげる。まかせる。
+  welcomeDescriptionLine2: '"あなた" だけの AI エージェントチーム'
+  placeholderUsername: ユーザー名を入力
+  placeholderUsernameOrEmail: ユーザー名またはメールアドレスを入力
+  placeholderPassword: パスワードを入力
+  placeholderConfirmPassword: パスワードを再入力
+  placeholderEmail: メールアドレスを入力
+  placeholderCode: 確認コードを入力
+  createAccount: アカウント作成
+  createAccountDescription: アカウントを新しく作る
+  passwordRequirements: 8文字以上で、大文字・小文字・数字をそれぞれ1文字以上含める必要があります
+  emailVerification: メール認証
+  enterCodeSentTo: に送信された確認コードを入力してください
+  verificationCodeLabel: 確認コード（6桁）
+  verificationCodeDescription: メールに記載されている6桁の数字を入力してください
+  confirmAccount: アカウントを確認
+  resendCodeSuccess: 確認コードを再送信しました
+  backToSignUp: サインアップに戻る
+  forgotPassword:
+    title: パスワードを忘れた方
+    link: パスワードを忘れた方はこちら
+    description: パスワードをリセットするため、確認コードをメールアドレスに送信します
+    sendCode: 確認コードを送信
+    sendingCode: 送信中...
+    backToLogin: ログインに戻る
+    validEmail: 有効なメールアドレスを入力してください
+    validationError: バリデーションエラー
+    sendFailed: パスワードリセットコードの送信に失敗しました
+  resetPassword:
+    title: パスワードをリセット
+    description: メールに送信された確認コードを入力して、新しいパスワードを設定してください
+    code: 確認コード
+    newPassword: 新しいパスワード
+    confirmNewPassword: 新しいパスワード（確認）
+    resetButton: パスワードをリセット
+    resettingButton: リセット中...
+    backToForgotPassword: パスワードリセットに戻る
+    successTitle: パスワードをリセットしました
+    successDescription: 新しいパスワードでログインしてください
+    codeMinLength: 確認コードは6桁以上必要です
+    passwordMinLength: パスワードは8文字以上必要です
+    passwordUpperCase: パスワードには大文字を含む必要があります
+    passwordLowerCase: パスワードには小文字を含む必要があります
+    passwordNumber: パスワードには数字を含む必要があります
+    passwordMismatch: パスワードが一致しません
+    resetFailed: パスワードのリセットに失敗しました
+  forceChangePassword:
+    title: パスワードの変更が必要です
+    description: 管理者によって初期パスワードが設定されました。セキュリティのため、新しいパスワードを設定してください。
+    newPassword: 新しいパスワード
+    confirmNewPassword: 新しいパスワード（確認）
+    newPasswordPlaceholder: 新しいパスワードを入力
+    confirmNewPasswordPlaceholder: 新しいパスワードを再入力
+    changeButton: パスワードを変更
+    changingButton: 変更中...
+    successTitle: パスワードを変更しました
+    successDescription: 新しいパスワードでログインが完了しました
+    changeFailed: パスワードの変更に失敗しました
+    passwordMinLength: パスワードは8文字以上必要です
+    passwordUpperCase: パスワードには大文字を含む必要があります
+    passwordLowerCase: パスワードには小文字を含む必要があります
+    passwordNumber: パスワードには数字を含む必要があります
+    passwordMismatch: パスワードが一致しません
+
+# ナビゲーション
+navigation:
+  home: ホーム
+  chat: チャット
+  newChat: 新しいチャット
+  searchChat: チャットを検索
+  searchTools: ツールを検索
+  searchAgents: エージェントを検索
+  manageAgents: エージェント管理
+  myAgents: マイエージェント
+  events: イベント連携
+  settings: 設定
+  userMenu: ユーザーメニュー
+  toggleSidebar: サイドバーを切り替え
+  openSidebar: サイドバーを開く
+  closeSidebar: サイドバーを閉じる
+
+# コマンドパレット
+commandPalette:
+  placeholder: コマンドを入力または検索...
+  noResults: 該当する結果がありません
+  switchAgent: エージェントを切り替え
+  quickActions: クイックアクション
+  navigation: ナビゲーション
+  recentChats: 最近のチャット
+  toNavigate: 移動
+  toSelect: 選択
+  toToggle: 開閉
+  toToggleSidebar: サイドバーを開閉
+  toStartNewChat: 新しいチャット
+  toShowShortcuts: ショートカットを表示
+
+# キーボードショートカット ヘルプ
+shortcuts:
+  title: キーボードショートカット
+  description: 利用可能なキーボードショートカットの一覧です。
+  groups:
+    app: アプリ
+  items:
+    toggleCommandPalette: コマンドパレットを開閉
+    toggleSidebar: サイドバーを開閉
+    newChat: 新しいチャットを開く
+    showShortcuts: ショートカットを表示する
+
+# チャット
+chat:
+  sessionName: セッション名
+  sessionNameLabel: セッション名
+  subAgentSessionLabel: サブエージェント
+  noConversations: まだ会話がありません
+  startNewChat: 新しいチャットを開始しましょう
+  loadingSessions: セッション一覧を読み込み中...
+  loadingMoreSessions: 追加のセッションを読み込み中...
+  allSessionsLoaded: すべてのセッションを読み込みました
+  sendMessage: メッセージを送信
+  typingMessage: メッセージを入力...
+  thinking: 考え中...
+  stopGenerating: 生成を停止
+  selectAgent: エージェントを選択
+  changeAgent: エージェントを変更
+  messageInputPlaceholder: メッセージを入力してください...
+  attachFile: ファイルを添付
+  submit: 送信
+  inputHelp: Shift + Enter で改行、Enter で送信
+  searchChatsDescription: チャット検索機能は今後開発する予定です。
+  searchChatsFeature: 過去の会話履歴をキーワードで検索できるようになります。
+  imageAttachment:
+    attach: 画像を添付
+    invalidType: 無効なファイル形式です。PNG、JPEG、WebP、またはGIFを選択してください。
+    tooLarge: ファイルサイズが大きすぎます。最大5MBまでです。
+    maxReached: 添付できる画像は最大4枚までです。
+    totalSizeExceeded: 添付画像の合計サイズが7MBを超えています。画像を減らすか、小さいサイズの画像を選択してください。
+  searchPlaceholder: 'セッションを検索...'
+  searchDateRange: '期間'
+  searchDateStart: '開始日'
+  searchDateEnd: '終了日'
+  searchResults: '検索結果'
+  searchResultsCount: '{{count}}件のセッション'
+  searchNoResults: '該当するセッションがありません'
+  updatedAt: '更新日時'
+  searchNote: '※ セマンティック検索は未実装です。タイトルのみ検索可能です。'
+  deleteSession: セッションを削除
+  deleteSessionConfirm: '「{{title}}」を削除してもよろしいですか？この操作は取り消せません。'
+  sessionDeleted: セッションを削除しました
+  selectedCount: '{{count}}件選択中'
+  selectAll: すべて選択
+  deselectAll: すべて解除
+  clearSelection: 選択解除
+  bulkDelete: 一括削除
+  bulkDeleteConfirm: '選択した{{count}}件のセッションを削除してもよろしいですか？この操作は取り消せません。'
+  sessionsDeleted: '{{count}}件のセッションを削除しました'
+
+# エージェント
+agent:
+  systemPromptLabel2: System Prompt
+  toolsLabel: Tools
+  scenarioLabel: Scenario
+  selectAgent: エージェントを選択
+  createAgent: エージェントを作成
+  createNewAgent: 新規エージェント作成
+  editAgent: エージェントを編集
+  deleteAgent: エージェントを削除
+  deleteAgentConfirmTitle: Agent削除の確認
+  deleteAgentConfirmMessage: '「{{name}}」を削除しますか？この操作は取り消せません。'
+  clearStorageConfirm: localStorage のエージェントデータをクリアしますか？デフォルトのエージェントが再作成されます。
+  noAgentsTitle: Agentがありません
+  noAgentsDescription: 最初のAgentを作成してください
+  createAgentButton: Agentを作成する
+  searchPlaceholder: エージェント名・説明で検索...
+  noSearchResults: 検索結果がありません
+  noSearchResultsDescription: 検索条件を変更してもう一度お試しください
+  clearSearch: 検索をクリア
+  storageNotice: エージェント管理機能は現在開発中で、localStorage に保存されています。アプリケーションのバージョンアップに伴い、不整合が生じる可能性があるため定期的に localStorage をクリアしてください。
+  agentName: エージェント名
+  description: 説明
+  systemPrompt: システムプロンプト
+  model: モデル
+  temperature: Temperature
+  maxTokens: 最大トークン数
+  tools: ツール
+  selectTools: ツールを選択
+  noAgents: エージェントがありません
+  createFirstAgent: 最初のエージェントを作成しましょう
+  agentNamePlaceholder: エージェント名を入力
+  descriptionPlaceholder: エージェントの説明を入力
+  systemPromptPlaceholder: システムプロンプトを入力
+  comingSoon: Coming Soon
+  searchAgentsDescription: エージェント検索機能は今後開発する予定です。
+  searchAgentsFeature: 組織内で作成したエージェントを共有・検索できるようになります。
+  backToChat: チャットに戻る
+  basicSettings: 基本設定
+  toolsSettings: ツール
+  mcpSettings: MCP
+  nameAndIcon: Name & Icon
+  nameDescription: エージェントの表示名とアイコンを設定してください。アイコンをクリックして変更できます。
+  namePlaceholder: 例 - プログラミングメンター
+  descriptionLabel: Description
+  descriptionDescription: このエージェントの役割や特徴を簡潔に説明してください。
+  descriptionPlaceholder2: 例 - プログラミングの基礎から応用まで教えるAIメンター
+  systemPromptLabel: システムプロンプト
+  systemPromptRequired: 'システムプロンプト *'
+  systemPromptDescription: エージェントの振る舞いを定義するシステムプロンプトを入力してください。どのような役割を果たし、どのように応答すべきかを詳細に記述します。作業するプロジェクトのディレクトリパスを明確に指示することを推奨します。
+  systemPromptPlaceholder2: '例 - あなたは親切で知識豊富なAIアシスタントです。'
+  aiGenerate: AIで自動生成
+  aiGenerating: 生成中...
+  scenarios: Scenarios（オプション）
+  scenariosDescription: よく使用するやり取りのパターンをシナリオとして登録できます。シナリオのタイトルと具体的な内容を入力してください。
+  addScenario: シナリオ追加
+  scenarioTitlePlaceholder: 例 - Python基礎レッスン
+  scenarioPromptPlaceholder: 例 - Pythonの基本文法について説明してください
+  emptyScenarios: シナリオを追加するには「シナリオ追加」ボタンをクリックしてください
+  toolSelection: ツール選択
+  mcpServerSettings: MCP サーバー設定
+  validationNameRequired: Agent名は必須です
+  validationNameTooLong: Agent名は50文字以下で入力してください
+  validationDescriptionRequired: 説明は必須です
+  validationDescriptionTooLong: 説明は200文字以下で入力してください
+  validationSystemPromptRequired: システムプロンプトは必須です
+  validationSystemPromptTooShort: システムプロンプトは10文字以上で入力してください
+  validationScenarioTitleRequired: シナリオタイトルは必須です
+  validationScenarioPromptRequired: シナリオプロンプトは必須です
+  validationGenerationFailed: 生成に失敗しました
+  share: 共有する
+  unshare: 共有を解除
+  shareSuccess: エージェントを共有しました
+  unshareSuccess: エージェントの共有を解除しました
+  shareError: 共有状態の変更に失敗しました
+  defaultStoragePath: デフォルト作業ディレクトリ
+  defaultStoragePathDescription: デフォルトの作業ディレクトリを選択してください。このエージェントが選択されると、自動的にディレクトリが適用されます。
+  noDefaultStoragePath: デフォルトなし
+  pinnedAgents: ピン留めしたエージェント
+  allAgents: すべてのエージェント
+  pin: ピン留め
+  unpin: ピン留め解除
+  sortNewest: 新しい順
+  sortOldest: 古い順
+  sortNameAZ: 名前（A-Z）
+  sortNameZA: 名前（Z-A）
+  sortRecentlyUpdated: 最近更新された順
+
+# Agent Directory
+agentDirectory:
+  loading: エージェントを読み込み中...
+  description: 組織によって作成されたエージェントを閲覧し、コレクションに追加できます
+  searchTitle: エージェントを検索
+  searchPlaceholder: エージェントを検索...
+  noAgentsFound: エージェントが見つかりませんでした
+  noAgentsDescription: 検索条件を変更してもう一度お試しください
+  noAgentsEmpty: エージェントがありません
+  createdBy: 作成者
+  loadMore: もっと読み込む
+  itemsDisplayed: 件表示
+  hasMore: 続きあり
+  allLoaded: 全件表示完了
+  addToMyAgents: マイエージェントに追加
+  addingToMyAgents: マイエージェントに追加中...
+  unshare: 共有を解除する
+  unsharing: 共有を解除中...
+  addSuccess: エージェントをマイエージェントに追加しました！
+  addFailed: エージェントの追加に失敗しました
+  unshareSuccess: 共有を解除しました
+  unshareFailed: 共有解除に失敗しました
+  userIdNotFound: エージェントのユーザーIDが見つかりません
+
+# ツール
+tool:
+  availableTools: 利用可能なツール
+  selectedTools: 選択されたツール
+  noTools: ツールがありません
+  searchTools: ツールを検索...
+  toolName: ツール名
+  toolDescription: 説明
+  selectAll: すべて選択
+  deselectAll: 選択を解除
+  parameters: パラメータ
+  required: required
+  showDetails: 詳細を表示
+  hideDetails: 詳細を閉じる
+  errorResult: エラー結果 JSON
+  executionResult: 実行結果 JSON
+  jsonResponse: JSON レスポンス
+  textResult: テキスト結果
+  searchPlaceholder: 自然言語でツールを検索... (例 テキストをエコーする)
+  searching: ツールを検索しています...
+  loadingTools: ツール一覧を読み込んでいます...
+  searchResults: 検索結果
+  noSearchResults: 検索結果が見つかりません
+  tryDifferentKeyword: 別のキーワードで検索してみてください
+  noToolsFound: ツールが見つかりません
+  noToolsRegistered: Gateway に登録されているツールがありません
+  toolsPageDescription: AgentCore Gateway と Agent がネイティブに提供するツールの一覧です。各ツールは自然言語での検索や、パラメータの詳細確認が可能です。
+  loadMore: 次のページを読み込む
+  displayedCount: 件表示
+  hasMore: 続きあり
+  allLoaded: 全件表示完了
+  searchingFor: 検索中
+  refresh: 再読み込み
+  closeError: エラーを閉じる
+
+  # ToolSelector
+  selector:
+    availableTools: 利用可能なツール
+    selectedCount: '{{selected}} / {{total}} 選択中'
+    searchPlaceholder: ツールを検索...
+    selectAllVisible: 表示中をすべて選択
+    deselectAllVisible: 表示中をすべて解除
+    noSearchResults: 検索結果が見つかりません
+    noTools: ツールがありません
+    showSelectedOnly: 選択済みのみ
+
+  # MCP Config Editor
+  mcp:
+    description: このエージェントで使用する MCP サーバーを設定します。設定した MCP サーバーのツールが自動的に利用可能になります。
+    configLabel: MCP 設定 (JSON 形式)
+    insertSample: サンプルを挿入
+    previewTools: ツールをプレビュー
+    fetching: 取得中...
+    fetchingMessages:
+      - MCPサーバーに接続中...
+      - ツール情報を取得中...
+      - もう少しお待ちください...
+    emptyConfig: 設定が空です
+    fetchError: ツール取得エラー
+    fetchFailed: ツール取得に失敗しました
+    availableToolsTitle: 利用可能なツール
+    connectionResults: 接続結果
+    connectionErrors: 接続エラー
+    showDetails: 詳細を表示
+    hideDetails: 詳細を閉じる
+    toolCount: '{{count}} ツール'
+    samples:
+      awsKnowledge: AWS Knowledge MCP Server
+      deepwiki: DeepWiki (リモート MCP)
+
+# ストレージ
+storage:
+  loadError: フォルダの読み込みに失敗しました
+  title: ストレージ管理
+  fileStorage: ファイルストレージ
+  loadingImage: 画像を読み込み中...
+  failedToLoadImage: 画像の読み込みに失敗しました
+  loadingVideo: 動画を読み込み中...
+  failedToLoadVideo: 動画の読み込みに失敗しました
+  videoNotSupported: お使いのブラウザは動画タグをサポートしていません
+  failedToLoad: 読み込み失敗
+  description: ユーザーごとに Amazon S3 の領域を提供しています。AI エージェントのワークスペース（/tmp/ws）と自動的に同期されるため、エージェントが作成・編集したファイルはこの領域に保存されます。ディレクトリを選択すると、そのディレクトリ内のファイルがエージェントのワークスペースに読み込まれます。⚠️ セッション中に作業パスを変更すると、AIエージェントが以前のコンテキストを正しく解釈できなくなる可能性があります。
+  currentPath: 現在のパス
+  uploadFile: ファイルをアップロード
+  upload: アップロード
+  uploadFolder: フォルダをアップロード
+  newFolder: 新規フォルダ
+  createFolder: フォルダを作成
+  create: 作成
+  download: ダウンロード
+  downloadFolder: フォルダをダウンロード
+  rename: 名前を変更
+  move: 移動
+  copyPath: パスをコピー
+  copied: コピーしました
+  size: サイズ
+  lastModified: 最終更新日時
+  type: 種類
+  folder: フォルダ
+  folders: フォルダ
+  root: ルート
+  file: ファイル
+  uploading: アップロード中...
+  uploadingProgress: 'アップロード中... ({{completed}}/{{total}})'
+  uploadSuccess: アップロード完了
+  uploadError: アップロードエラー
+  deleteConfirm: 本当に削除しますか？
+  deleteDirectoryConfirm: 'ディレクトリ "{{name}}" を削除しますか？ディレクトリ内のすべてのファイルとサブフォルダも削除されます。'
+  deleteFileConfirm: 'ファイル "{{name}}" を削除しますか？'
+  emptyFolder: フォルダが空です
+  dragAndDropHint: ファイルをドラッグ&ドロップするか、アップロードボタンをクリックしてください
+  dropFiles: ファイルをドロップ
+  folderNamePlaceholder: フォルダ名を入力
+  folderNameSpaceError: フォルダ名にスペースを含めることはできません
+  itemCount: '{{count}} 件のアイテム • 最大ファイルサイズ: 500MB'
+  setAsWorkingDirectory: 作業ディレクトリに設定
+  currentWorkingDirectory: 現在の作業ディレクトリ
+  workingDirectory: 作業ディレクトリ
+
+  # 大容量ディレクトリの警告
+  largeSizeWarningTitle: 大容量のストレージディレクトリ
+  largeSizeWarningMessage: 'このディレクトリには {{size}} のデータ（{{count}} ファイル）が含まれています。セッション開始時の同期に時間がかかる場合があります。'
+
+  # フォルダダウンロード進捗
+  downloadProgress:
+    downloading: ダウンロード中
+    success: ダウンロード完了
+    error: ダウンロードエラー
+    cancelled: ダウンロードをキャンセルしました
+    files: ファイル
+    currentFile: 現在のファイル
+    successMessage: フォルダのダウンロードが完了しました。ZIPファイルが保存されています。
+    cancelledMessage: ダウンロードがキャンセルされました。
+
+# メモリ
+memory:
+  title: メモリ（長期記憶）
+  longTermMemory: 保存されたメモリを参照する
+  longTermMemoryDescription: エージェントが回答するときにメモリを保存して使用できるようにします。
+  searchMemory: メモリを検索...
+  noMemories: メモリがありません
+  addMemory: メモリを追加
+  deleteMemory: メモリを削除
+  memoryContent: 内容
+  createdAt: 作成日時
+  savedMemories: 保存されたメモリ
+  description: エージェントは最近のチャットを記憶しようとしますが、時間の経過と共に忘れることもあります。保存されたメモリは決して忘れられることはありません。
+  searchPlaceholder: メモリを検索
+  searchButton: 検索
+  searchResults: 検索結果
+  searchResultsCount: '{{count}}件'
+  noSearchResults: 検索結果が見つかりませんでした
+  noMemoriesYet: まだメモリが保存されていません
+  autoAccumulate: エージェントとの会話を続けると、自動的にメモリが蓄積されます
+  totalCount: '合計 {{count}} 件のメモリが保存されています'
+  created: 作成
+  updated: 更新
+  searching: 検索中
+  loadMore: さらに読み込む
+
+# 設定
+settings:
+  title: 設定
+  account: アカウント
+  username: ユーザー名
+  email: メールアドレス
+  accountLoadError: アカウント情報の取得に失敗しました
+  language: 言語
+  theme: テーマ
+  notifications: 通知
+  privacy: プライバシー
+  about: このアプリについて
+  version: バージョン
+  logout: ログアウト
+  languageJa: 日本語
+  languageEn: English
+  themeLight: ライト
+  themeDark: ダーク
+  themeAuto: 自動
+  advanced: 詳細設定
+  enterBehaviorDescription: メッセージを書いているとき、
+  enterBehaviorSuffix: を押すと
+  sendOnEnter: メッセージを送信
+  newlineOnEnter: 改行
+  sendSuffix: で送信
+
+# エラー
+error:
+  generic: エラーが発生しました
+  network: ネットワークエラー
+  boundary:
+    title: エラーが発生しました
+    description: 予期しないエラーが発生しました。ページをリロードしてください。
+    reload: ページをリロード
+    backToHome: ホームに戻る
+    developerInfo: 開発者向け情報
+  notFound: 見つかりませんでした
+  unauthorized: 認証が必要です
+  authenticationRequired: 認証が必要です。再ログインしてください。
+  sessionExpired: セッションの有効期限が切れました。再度ログインしてください。
+  forbidden: アクセスが拒否されました
+  serverError: サーバーエラー
+  apiError: APIエラーが発生しました
+  unexpectedError: 予期しないエラーが発生しました
+  tryAgain: もう一度お試しください
+  contactSupport: サポートにお問い合わせください
+
+# ページタイトル
+page:
+  home: ホーム
+  chat: チャット
+  search: 検索
+  tools: ツール
+  agents: エージェント
+  events: イベント
+  settings: 設定
+
+# イベント
+events:
+  title: イベント連携
+  comingSoon: Coming Soon
+  eventsDescription: イベント連携機能は今後開発する予定です。
+  eventsFeature: 外部カレンダーやイベント管理ツールと連携できるようになります。
+
+# トリガー
+triggers:
+  # ページ
+  pageTitle: トリガー管理
+  pageDescription: スケジュールや Amazon EventBridge のイベントに基づいてエージェントを自動実行するトリガーを作成・管理できます。定期的なタスクの自動化や、S3へのファイルアップロードなどの外部イベントをきっかけにエージェントを起動して、データ収集やレポート生成などを行うことができます。
+
+  # タブ
+  tabs:
+    basic: 基本設定
+    trigger: トリガー設定
+
+  # アクション
+  create: 新規作成
+  edit: 編集
+  delete: 削除
+  enable: 有効化
+  disable: 無効化
+  viewHistory: 実行履歴を表示
+
+  # フォーム
+  form:
+    title: トリガー設定
+    createTitle: 新規トリガー作成
+    editTitle: トリガーを編集
+    basicInfo: 基本情報
+    basicInfoDescription: トリガーの名前、説明、実行するエージェントを設定します
+    name: トリガー名
+    namePlaceholder: 例 - 日次レポート生成
+    nameRequired: トリガー名は必須です
+    description: 説明
+    descriptionPlaceholder: このトリガーの目的を記載
+    agent: 実行するエージェント
+    agentPlaceholder: エージェントを選択...
+    agentRequired: エージェントを選択してください
+    type: トリガータイプ
+    typeSchedule: スケジュール
+    typeEvent: イベント（準備中）
+    scheduleConfig: スケジュール設定
+    scheduleConfigDescription: トリガーを実行する日時を設定します
+    inputMessage: 入力メッセージ
+    inputMessageDescription: エージェントに送信するメッセージを入力してください
+    inputMessagePlaceholder: エージェントに送信するメッセージ
+    inputMessageRequired: 入力メッセージは必須です
+    modelId: モデルID
+    optional: オプション
+    selectModel: モデルを選択...
+    useDefault: デフォルトを使用
+    modelIdHint: 特定のモデルを指定しない場合、エージェントのデフォルトモデルが使用されます
+    workingDirectory: 作業ディレクトリ
+    selectDirectory: ディレクトリを選択...
+    workingDirectoryHint: エージェントが作業するディレクトリを指定します。指定しない場合、ルートディレクトリ（/）が使用されます
+    save: 保存
+    saving: 保存中...
+    cancel: キャンセル
+
+  # Cron Builder
+  cron:
+    title: スケジュール設定
+    preset: プリセット
+    presetEveryMinute: 毎分
+    presetEveryHour: 毎時
+    presetEveryDay: 毎日（0時）
+    presetEveryWeekday: 平日毎日
+    presetEveryMonday: 毎週月曜
+    presetEveryMonth: 毎月1日
+    presetCustom: カスタム
+    minute: 分
+    hour: 時
+    dayOfMonth: 日
+    month: 月
+    dayOfWeek: 曜日
+    year: 年
+    timezone: タイムゾーン
+    preview: 設定プレビュー
+    nextExecutions: 次回実行予定
+    customExpression: 'カスタムCron式'
+    customExpressionHint: 'cron形式: 分 時 日 月 曜日 年 (例: 0 0 * * ? *)'
+    invalidExpression: 無効なCron式です
+    intervalTooShort: 実行間隔は 1 分以上で指定してください
+    costWarning:
+      title: 短い実行間隔が設定されています
+      body: 1 時間未満の実行間隔では、Lambda 起動、生成 AI モデル呼び出し、Cognito トークン発行などの AWS リソース利用料が想定以上に発生する可能性があります。本当にこの設定で作成しますか？
+
+    # 範囲ラベル
+    minuteRange: '(0-59)'
+    hourRange: '(0-23)'
+    dayOfMonthRange: '(1-31)'
+    # ヘルプヒント
+    dayOfMonthHint: '? または * を使用'
+    dayOfWeekHint: '? または * を使用'
+    yearHint: '通常は * を使用'
+    # ドロップダウンオプション
+    optionAll: 'すべて (*)'
+    optionNotSpecified: '指定なし (?)'
+    optionWeekdays: '平日 (MON-FRI)'
+    # ヒントセクション
+    hintsTitle: '💡 ヒント'
+    hintAll: '* = すべての値'
+    hintNotSpecified: '? = 指定なし（日または曜日で必須）'
+    hintRange: '0-5 = 範囲指定'
+    hintMultiple: '0,15,30 = 複数指定'
+    hintDayWeekExclusive: 日と曜日は同時に指定できません（片方は ? にする必要があります）
+
+  # ステータス
+  status:
+    enabled: 有効
+    disabled: 無効
+
+  # 実行履歴
+  history:
+    title: 実行履歴
+    noHistory: 実行履歴がありません
+    executedAt: 実行日時
+    duration: 実行時間
+    status: ステータス
+    success: 成功
+    failure: 失敗
+    inProgress: 実行中
+    input: 入力
+    output: 出力
+    error: エラー
+    showDetails: 詳細を表示
+    hideDetails: 詳細を閉じる
+    loadMore: さらに読み込む
+    executionId: 実行ID
+    startedAt: 開始日時
+    completedAt: 完了日時
+
+  # メッセージ
+  messages:
+    createSuccess: トリガーを作成しました
+    createError: トリガーの作成に失敗しました
+    updateSuccess: トリガーを更新しました
+    updateError: トリガーの更新に失敗しました
+    deleteConfirm: このトリガーを削除してもよろしいですか？
+    deleteSuccess: トリガーを削除しました
+    deleteError: トリガーの削除に失敗しました
+    enableSuccess: トリガーを有効化しました
+    disableSuccess: トリガーを無効化しました
+    toggleError: トリガーの状態変更に失敗しました
+    fetchError: トリガーの取得に失敗しました
+
+  # 空状態
+  empty:
+    title: トリガーがありません
+    description: 新規作成ボタンからスケジュールトリガーを作成してください
+
+  # イベントタイプ選択
+  eventTypes:
+    title: トリガータイプ
+    selectTitle: トリガータイプを選択
+    selectDescription: 実行するトリガーのタイプを選択してください
+    change: 変更
+    comingSoon: この機能は実装予定です
+    comingSoonBadge: Coming Soon
+    schedule:
+      label: スケジュール
+      description: 定期的に自動実行
+    event:
+      label: イベント駆動
+      description: 外部イベント（S3など）をトリガーに実行
+    slack:
+      label: Slack イベント連携
+      description: Slack イベントをトリガーに実行
+    github:
+      label: GitHub 連携
+      description: GitHub イベントをトリガーに実行
+
+  # イベントソース選択
+  eventSource:
+    label: イベントソース
+    loadError: イベントソースの読み込みに失敗しました
+    noSourcesAvailable: イベントソースが設定されていません
+    selectPlaceholder: イベントソースを選択...
+    helpText: トリガーを発火させるイベントソースを選択してください。新しいイベントソースの追加が必要な場合は、システム管理者にお問い合わせください。
+    ruleDetails: EventBridge ルール詳細
+
+  # カード表示
+  card:
+    schedule: スケジュール
+    timezone: タイムゾーン
+    eventSource: イベントソース
+    triggerCondition: トリガー条件
+    onEventReceived: イベント受信時
+    agent: エージェント
+    lastExecution: 最終実行
+    notExecuted: 未実行
+    enabled: 有効
+    disabled: 無効
+
+  # イベントパターン表示
+  eventPattern:
+    source: ソース
+    eventType: イベントタイプ
+    # Detail type mappings
+    detailTypes:
+      objectCreated: オブジェクト作成
+      objectDeleted: オブジェクト削除
+      objectRestoreCompleted: オブジェクト復元完了
+      push: プッシュ
+      pullRequest: プルリクエスト
+      issues: Issue
+      issueComment: Issueコメント
+      ec2StateChange: EC2インスタンス状態変更
+      pipelineStateChange: パイプライン実行状態変更
+      ecsTaskStateChange: ECSタスク状態変更
+    # Detail label mappings
+    labels:
+      bucketName: バケット名
+      objectKey: オブジェクトキー
+      objectSize: サイズ
+      objectEtag: ETag
+      action: アクション
+      repository: リポジトリ
+      branch: ブランチ
+      state: 状態
+      instanceId: インスタンスID
+      detailType: イベントタイプ
+      region: リージョン
+
+  # Cron description
+  cronDescription:
+    minute: '{{value}}分'
+    day: '{{value}}日'
+    month: '{{value}}月'
+    dayRange: '{{start}}〜{{end}}'
+    dayList: '、'
+    days:
+      MON: 月曜
+      TUE: 火曜
+      WED: 水曜
+      THU: 木曜
+      FRI: 金曜
+      SAT: 土曜
+      SUN: 日曜
+    months:
+      '1': 1月
+      '2': 2月
+      '3': 3月
+      '4': 4月
+      '5': 5月
+      '6': 6月
+      '7': 7月
+      '8': 8月
+      '9': 9月
+      '10': 10月
+      '11': 11月
+      '12': 12月
+
+# Generative UI
+generativeUi:
+  noChartData: チャートデータがありません
+  noData: データがありません
+
+# アプリ
+app:
+  name: AgentChat
+
+# ホームページ
+home:
+  title: AI エージェントを、つくろう。
+  description: つくる。つなげる。まかせる。
+  descriptionLine2: '"あなた" だけの AI エージェントチーム'
+  getStarted: 今すぐ始める
+
+# モーダル
+modal:
+  confirmTitle: 確認
+  confirmMessage: この操作を実行してもよろしいですか？
+  deleteTitle: 削除の確認
+  deleteMessage: この項目を削除してもよろしいですか？この操作は取り消せません。
+
+# バリデーション
+validation:
+  required: この項目は必須です
+  minLength: '{{min}}文字以上で入力してください'
+  maxLength: '{{max}}文字以内で入力してください'
+  email: 有効なメールアドレスを入力してください
+  passwordMismatch: パスワードが一致しません
+  invalidFormat: 入力形式が正しくありません
+  chat:
+    messageIdRequired: メッセージIDは必須です
+    messageContentRequired: メッセージ内容は必須です
+    promptRequired: プロンプトを入力してください
+    promptMaxLength: プロンプトは10000文字以下で入力してください
+    endpointUrlRequired: 有効なエンドポイントURLを入力してください
+  auth:
+    usernameMinLength: ユーザー名は3文字以上で入力してください
+    usernameMaxLength: ユーザー名は50文字以下で入力してください
+    usernameInvalidChars: ユーザー名は英数字、ハイフン、アンダースコアのみ使用できます
+    usernameOrEmailRequired: ユーザー名またはメールアドレスを入力してください
+    usernameOrEmailInvalid: 有効なユーザー名またはメールアドレスを入力してください
+    passwordMinLength: パスワードは8文字以上で入力してください
+    passwordMaxLength: パスワードは128文字以下で入力してください
+    passwordComplexity: パスワードには小文字、大文字、数字をそれぞれ1文字以上含める必要があります
+    emailRequired: メールアドレスを入力してください
+    emailInvalid: 有効なメールアドレスを入力してください
+    confirmPasswordRequired: パスワード（確認）を入力してください
+    passwordMismatch: パスワードが一致しません
+    usernameRequired: ユーザー名が必要です
+    codeLength: 確認コードは6桁で入力してください
+    codeInvalid: 確認コードは6桁の数字で入力してください
+    userPoolIdRequired: User Pool ID は必須です
+    clientIdRequired: Client ID は必須です
+    regionRequired: リージョンは必須です
+
+# デフォルトエージェント
+defaultAgents:
+  generalAssistant:
+    name: 汎用アシスタント
+    description: 様々なタスクに対応できる汎用的なAIアシスタント
+    systemPrompt: |
+      あなたは親切で知識豊富なAIアシスタントです。ユーザーの質問に対して、正確で分かりやすい回答を提供してください。
+
+      以下の点を心がけてください：
+      - 日本語で自然に回答する
+      - 専門的な内容も初心者にも理解しやすいように説明する
+      - 不明な点があれば素直に「分からない」と答える
+      - 必要に応じて追加の質問をする
+    scenarios:
+      question:
+        title: 質問・相談
+        prompt: "以下について教えてください:\n\n"
+      correction:
+        title: 文章の添削
+        prompt: "以下の文章を添削・改善してください:\n\n"
+      webSearch:
+        title: Web 検索
+        prompt: Amazon Bedrock AgentCore Runtime のデプロイ方法について調査してください
+      summary:
+        title: 要約作成
+        prompt: "以下の内容を簡潔に要約してください:\n\n"
+      ideation:
+        title: アイディア出し
+        prompt: "以下のテーマでアイディアを10個出してください:\n\nテーマ: "
+      comparison:
+        title: 比較・検討
+        prompt: "以下の選択肢について、メリット・デメリットを比較して検討してください:\n\n選択肢:\n1. \n2. \n3. "
+
+  physicist:
+    name: 物理学者
+    description: 計算物理とシミュレーションに特化した理論物理学者
+    scenarios:
+      dampedOscillator:
+        title: 減衰調和振動子のシミュレーション
+        prompt: "以下のパラメータで減衰調和振動子をシミュレートしてください:\n- 質量: 1 kg\n- ばね定数: 100 N/m\n- 減衰係数: γ = 0.5, 2.0, 5.0 s⁻¹（不足減衰、臨界減衰、過減衰）\n- 初期変位: 1 m\n- 初期速度: 0 m/s\n- 時間範囲: 0～20秒\n\n以下を作成してください:\n1. 3つの減衰ケースの解を1つの図にプロット\n2. 位相空間プロット（位置 vs 速度）\n3. 振動特性、減衰時間、エネルギー散逸の比較分析\n\n各減衰領域の物理的意義を説明してください。"
+      quantumWavePacket:
+        title: 量子波束の時間発展
+        prompt: "自由粒子系でのガウス波束の時間発展をシミュレートしてください:\n- 初期位置: x₀ = 0\n- 初期幅: σ = 1（無次元単位）\n- 初期運動量: k₀ = 0（k空間で静止）\n- 時間範囲: 0～5（無次元単位）\n- グリッド: -20～20, 512点\n\n実装手順:\n1. スペクトル法を使用して時間依存シュレディンガー方程式を解く\n2. |ψ(x,t)|²の進化を示す2D ヒートマップを作成\n3. t=0, 2.5, 5での実部と虚部の並行プロットを作成\n4. 波束の広がりの時間経過をプロット\n\n波束の広がりと量子分散効果を分析してください。"
+      electricField:
+        title: 電場の可視化
+        prompt: "2つの点電荷を持つシステムの電場を可視化してください:\n- 電荷1: +2 μC（位置: (-1, 0)）\n- 電荷2: -1 μC（位置: (+1, 0)）\n- グリッド範囲: -3～+3（x, y両軸）\n\n以下を生成してください:\n1. 電場の方向と大きさを示すベクトル場プロット\n2. 等電位線（電位のコンタープロット）\n3. 等電位線にベクトルを重ねた合成プロット\n4. 電気力線を示すストリームラインプロット\n\n以下を分析してください:\n- 最強および最弱の電場領域\n- 単独電荷とダイポール構成の場パターンの差異\n- 等電位線の物理的解釈"
+      lorenzSystem:
+        title: ローレンツシステムの混沌
+        prompt: "ローレンツシステム（古典的な混沌の例）を解いて可視化してください:\ndx/dt = σ(y - x)\ndy/dt = x(ρ - z) - y\ndz/dt = xy - βz\n\nパラメータ: σ=10, ρ=28, β=8/3\n\n実装:\n1. RK4法を使用して初期条件(1, 1, 1)からt=0～100まで積分\n2. ローレンツアトラクタの3D軌跡プロットを作成\n3. x(t), y(t), z(t) vs 時間プロットを作成\n4. 位相平面射影を作成（x-y, x-z, y-z）\n\n分析:\n- アトラクタの蝶形\n- 初期条件への敏感な依存性\n- 2つの近い軌跡を積分して混沌を実証"
+      doublePendulum:
+        title: 二重振り子の混沌運動
+        prompt: "等しい質量と長さの二重振り子システムをシミュレートしてください:\n- 各腕の長さ: L = 1 m\n- 各おもりの質量: m = 1 kg\n- 初期角度: θ₁ = π/2, θ₂ = π/2\n- 初期角速度: 0\n- 時間範囲: 0～30秒\n\n実装:\n1. ラグランジュ力学を使用して運動方程式を導出・解く\n2. 振り子の運動をアニメーション化（軌跡プロット）\n3. 角度θ₁(t)とθ₂(t)をプロット\n4. 両角度の位相平面プロットを作成\n5. エネルギー保存を示す（運動+位置エネルギー=定数）\n\n混沌への遷移と初期条件への敏感性を分析してください。"
+      isingModel:
+        title: 2次元イジングモデルのモンテカルロシミュレーション
+        prompt: "メトロポリスアルゴリズムを使用して2次元イジングモデルをシミュレートしてください:\n- 格子サイズ: 64×64\n- 結合定数: J = 1\n- 温度範囲: T = 0.5～4.0（0.1刻み）\n- MC ステップ: 温度あたり10,000\n\n実装:\n1. ランダムなスピン配置を初期化\n2. 周期的境界条件でメトロポリスアルゴリズムを実装\n3. 各温度の磁化M = ⟨|Σ sᵢ|⟩を計算\n4. エネルギーE = -J Σ sᵢsⱼを計算\n5. 比熱C = ∂E/∂Tを計算\n\n可視化:\n1. 相転移を示す磁化 vs 温度\n2. エネルギー vs 温度\n3. 比熱 vs 温度（臨界温度でピーク）\n4. T < Tc（秩序状態）と T > Tc（無秩序状態）でのスピン配置\n\nTc ≈ 2.269での強磁性相転移を特定・説明してください。"
+
+  imageCreator:
+    name: 画像クリエイター
+    description: Amazon Nova Canvasを使用して、テキストから高品質な画像を生成
+    scenarios:
+      basicImage:
+        title: 基本的な画像生成
+        prompt: "以下の内容で画像を生成してください:\n\n説明: "
+      illustration:
+        title: イラスト作成
+        prompt: "以下のスタイルでイラストを作成してください:\n\nテーマ: \nスタイル: (例: 水彩画、デジタルアート、アニメ風など)\n色調: \nその他の要望: "
+      background:
+        title: 背景画像・風景
+        prompt: "以下の用途の背景画像を作成してください:\n\n用途: (例: Webサイト、プレゼンテーション、SNS投稿など)\nシーン: (例: 山の風景、都市の夜景、自然など)\nサイズ: (512x512 / 768x768 / 1024x1024)\nムード: (例: 落ち着いた、エネルギッシュな、神秘的など)"
+      icon:
+        title: アイコン・ロゴ
+        prompt: "以下の内容でアイコンまたはロゴを作成してください:\n\n対象: \nスタイル: (例: ミニマル、モダン、手書き風など)\n配色: \nサイズ: 512x512\nその他の要望: "
+      productVisual:
+        title: プロダクトビジュアル
+        prompt: "以下の製品のビジュアルを作成してください:\n\n製品名: \n製品の特徴: \nターゲット層: \n表現したい雰囲気: \nサイズ: (768x768 / 1024x1024)"
+      conceptArt:
+        title: コンセプトアート
+        prompt: "以下のコンセプトを視覚化してください:\n\nコンセプト: \n表現したいアイデア: \nスタイル: (例: 未来的、レトロ、ファンタジーなど)\n重要な要素: \nサイズ: 1024x1024"
+
+  slideshowVideoCreator:
+    name: スライドショー動画クリエイター
+    description: 画像から日本語字幕とナレーション音声付きの動画を作成します。PDF形式のプレゼンテーションから動画への変換にも対応
+    scenarios:
+      basicVideo:
+        title: 基本動画作成
+        prompt: "以下の画像から動画を作成してください:\n\n画像フォルダ/ファイル: \n1枚あたりの表示時間: (デフォルト: 1秒)\n\n字幕・音声なしの基本動画を作成します。"
+      subtitledVideo:
+        title: 字幕を追加
+        prompt: "動画に日本語字幕を追加してください:\n\n動画ファイル: \n字幕テキスト（画像ごと）: \n1. \n2. \n3. \n\n字幕は画面下部中央に黒背景付きで表示されます。"
+      narratedVideo:
+        title: ナレーション追加
+        prompt: "動画にナレーション音声を追加してください:\n\n動画ファイル: \nナレーションテキスト（画像ごと）: \n1. \n2. \n3. \n\n日本語TTSで音声を生成し、動画と結合します。"
+      fullPackage:
+        title: 完全版動画（字幕＋音声）
+        prompt: "字幕とナレーションの両方を含む完全版動画を作成してください:\n\n画像フォルダ/ファイル: \n字幕・ナレーションテキスト: \n1. \n2. \n3. \n\n日本語字幕とナレーション音声付きの完全な動画を作成します。"
+      pdfToVideo:
+        title: PDFから動画作成
+        prompt: "PDF（PowerPointからエクスポート）をナレーション付き動画に変換してください:\n\nPDFファイル: \n各ページのナレーションテキスト: \n1. \n2. \n3. \n\nPDFの各ページを画像に変換し、字幕とナレーション付きの動画を作成します。"
+      customSettings:
+        title: カスタム設定で作成
+        prompt: "カスタム設定で動画を作成してください:\n\n画像フォルダ/ファイル: \n1枚あたりの表示時間: \n字幕の位置: (上部/下部/カスタム)\nフォントサイズ: \nその他の設定: \n\n指定された設定でカスタマイズした動画を作成します。"
+      presentationVideo:
+        title: プレゼンテーション動画
+        prompt: "プレゼンテーション形式の動画を作成してください:\n\nスライド画像/PDF: \nプレゼンテーション原稿: \nBGM: (オプション)\n\nナレーション付きのプロフェッショナルなプレゼンテーション動画を作成します。"
+
+  kamishibaiMaster:
+    name: 紙芝居の達人
+    description: 紙芝居絵本をつくって3歳児を楽しませるスペシャリスト、保育園の先生も頭が上がらない！
+    scenarios:
+      original:
+        title: オリジナル紙芝居作成
+        prompt: "以下の内容でオリジナルの紙芝居を作成してください:\n\nテーマ: \n対象年齢: (2-3歳 / 3-4歳 / 4-5歳 / 5-6歳)\nメッセージ: \nその他の要望: \n\n8枚構成で作成します。画像サイズは1024x1024の正方形です。"
+      animals:
+        title: どうぶつのおはなし
+        prompt: "動物を主人公にした紙芝居を作成してください:\n\n主人公の動物: \n対象年齢: 3-4歳\nお話のテーマ: 主人公の女の子さとちゃんが様々な動物と困難を乗り越えるおはなし\n伝えたいこと: 友達と仲良くする大切さ\n\n8枚構成で、温かみのあるイラストで作成します。"
+      seasons:
+        title: きせつのおはなし
+        prompt: "季節や行事をテーマにした紙芝居を作成してください:\n\n季節・行事: (春 / 夏 / 秋 / 冬 / お正月 / ひな祭り / 七夕 / クリスマス など)\n対象年齢: (2-3歳 / 3-4歳 / 4-5歳 / 5-6歳)\n学んでほしいこと: \n\n日本の文化や季節感を取り入れた8枚構成の紙芝居を作成します。"
+      lifeSkills:
+        title: せいかつしゅうかんのおはなし
+        prompt: "生活習慣をテーマにした紙芝居を作成してください:\n\nテーマ: (歯磨き / 手洗い / お片付け / 着替え / トイレ / 挨拶 など)\n対象年齢: (2-3歳 / 3-4歳 / 4-5歳)\n工夫したいポイント: \n\n楽しみながら生活習慣を学べる8枚構成の紙芝居を作成します。"
+      friendship:
+        title: ともだちとなかよく
+        prompt: "友情や思いやりをテーマにした紙芝居を作成してください:\n\nテーマ: (仲良し / 思いやり / 協力 / ごめんなさい / ありがとう など)\n対象年齢: (3-4歳 / 4-5歳 / 5-6歳)\n登場人物: \n\n社会性や情操を育む8枚構成の紙芝居を作成します。"
+      vehicles:
+        title: のりもののおはなし
+        prompt: "乗り物をテーマにした紙芝居を作成してください:\n\n乗り物: (電車 / バス / 車 / 飛行機 / 船 / 消防車 / パトカー など)\n対象年齢: (2-3歳 / 3-4歳 / 4-5歳)\nストーリー: \n\nワクワクする乗り物の冒険を8枚構成で作成します。"
+      folktale:
+        title: むかしばなしアレンジ
+        prompt: "日本の昔話を現代風にアレンジした紙芝居を作成してください:\n\n元となる昔話: (桃太郎 / 浦島太郎 / かぐや姫 / 一寸法師 / 舌切り雀 など)\n対象年齢: 5-6歳\nアレンジポイント: \n\n8枚構成で、漢字にはひらがなのルビを振ります。"
+      adventure:
+        title: ぼうけんのおはなし
+        prompt: "冒険・探検をテーマにした紙芝居を作成してください:\n\n冒険の舞台: (森 / 海 / 山 / 宇宙 / 不思議な国 など)\n主人公: \n対象年齢: (4-5歳 / 5-6歳)\n見つけるもの・目標: \n\nワクワクする冒険ストーリーを8枚構成で作成します。"
+
+  knowledgeBaseSearch:
+    name: Knowledge Base Search Agent
+    description: Amazon Bedrock Knowledge Base を使用したセマンティック検索に特化したエージェント
+    scenarios:
+      search:
+        title: Knowledge Base 検索
+        prompt: "以下について Knowledge Base から情報を検索してください:\n\n質問: \n\n(注: システムプロンプトの [Configuration] セクションで Knowledge Base ID を設定してください)"
+      qa:
+        title: ドキュメント質問回答
+        prompt: "Knowledge Base に登録されているドキュメントに基づいて、以下の質問に回答してください:\n\n質問: \n\n回答には関連するソース情報も含めてください。"
+      relatedInfo:
+        title: 関連情報の収集
+        prompt: "以下のトピックに関連する情報を Knowledge Base から収集してまとめてください:\n\nトピック: \n\n関連度の高い情報を優先的に提示してください。"
+      integration:
+        title: 複数ソースからの情報統合
+        prompt: "以下のテーマについて、複数のドキュメントから情報を統合して包括的な回答を作成してください:\n\nテーマ: \n\n各ソースの情報を明示しながら統合してください。"
+      factCheck:
+        title: ファクトチェック
+        prompt: "以下の情報が Knowledge Base のドキュメントと一致するか確認してください:\n\n確認したい情報: \n\n一致する場合はソースを、不一致の場合は正しい情報を提示してください。"
+      detailedInfo:
+        title: 詳細情報の取得
+        prompt: "以下のキーワード/概念について、詳細な説明を Knowledge Base から取得してください:\n\nキーワード/概念: \n\n関連する全ての情報を網羅的に収集してください。"
+
+  dataAnalyst:
+    name: Data Analyst Agent
+    description: コード実行とファイル操作を使用したデータ分析、統計処理、データ可視化に特化したエージェント
+    scenarios:
+      analysis:
+        title: データ分析
+        prompt: "以下のデータファイルを分析してください:\n\nファイル名: \n分析の目的: \n\n主要な統計量、トレンド、異常値などを報告してください。"
+      statistics:
+        title: 統計サマリー作成
+        prompt: "以下のデータの基本統計量を計算してください:\n\nファイル名: \n対象カラム: \n\n平均、中央値、標準偏差、最大値、最小値などを含めてください。"
+      visualization:
+        title: データ可視化
+        prompt: "以下のデータをグラフ化してください:\n\nファイル名: \nグラフの種類: (折れ線グラフ / 棒グラフ / 散布図 / ヒストグラム)\nX軸: \nY軸: \n\n適切なタイトルとラベルを付けてください。"
+      correlation:
+        title: 相関分析
+        prompt: "以下のデータセットの変数間の相関関係を分析してください:\n\nファイル名: \n対象変数: \n\n相関係数を計算し、ヒートマップで可視化してください。"
+      cleaning:
+        title: データクリーニング
+        prompt: "以下のデータをクリーニングしてください:\n\nファイル名: \n\n欠損値の処理、重複の削除、異常値の検出を行い、クリーン済みデータを保存してください。"
+      trend:
+        title: トレンド分析
+        prompt: "以下の時系列データのトレンドを分析してください:\n\nファイル名: \n時間軸カラム: \n分析対象カラム: \n\nトレンドの可視化と季節性の有無を報告してください。"
+      grouping:
+        title: グループ別集計
+        prompt: "以下のデータをグループ別に集計してください:\n\nファイル名: \nグループ化カラム: \n集計対象カラム: \n集計方法: (合計 / 平均 / 最大 / 最小)\n\n結果を表形式で表示してください。"
+      report:
+        title: レポート生成
+        prompt: "以下のデータから包括的な分析レポートを作成してください:\n\nファイル名: \n分析テーマ: \n\n統計サマリー、可視化、インサイトを含む完全なレポートを生成してください。"
+
+  webResearcher:
+    name: Web Deep Researcher
+    description: ウェブを使用した詳細な調査、情報収集、分析に特化した調査エージェント
+    scenarios:
+      marketResearch:
+        title: 市場・業界調査
+        prompt: "以下の業界/分野について、市場規模、主要プレイヤー、トレンドを調査してまとめてください:\n\n業界/分野: "
+      competitive:
+        title: 競合分析
+        prompt: "以下の製品/サービスの競合を調査し、比較表を作成してください:\n\n製品/サービス: "
+      techTrend:
+        title: 技術トレンド調査
+        prompt: "以下の技術/キーワードに関する最新動向を調査してください:\n\n技術/キーワード: "
+      news:
+        title: ニュース・動向まとめ
+        prompt: "以下のトピックに関する最新ニュース・動向をまとめてください:\n\nトピック: "
+      productComparison:
+        title: 製品・サービス比較
+        prompt: "以下のカテゴリの製品/サービスを比較調査し、メリット・デメリットを整理してください:\n\nカテゴリ: "
+      bestPractice:
+        title: 事例・ベストプラクティス調査
+        prompt: "以下のテーマに関する成功事例やベストプラクティスを調査してください:\n\nテーマ: "
+
+  softwareDeveloper:
+    name: Software Developer
+    description: GitHub統合を備えたソフトウェア開発に特化したエージェント、コーディングとソースコードレビューが可能
+    scenarios:
+      createIssue:
+        title: Issue 作成
+        prompt: "以下の内容でGitHub Issueを作成してください:\n\nリポジトリ: owner/repo\nタイトル: \n説明: \nラベル: "
+      createPR:
+        title: Pull Request 作成
+        prompt: "以下の内容でPull Requestを作成してください:\n\nリポジトリ: owner/repo\nベースブランチ: main\nヘッドブランチ: \nタイトル: \n説明: "
+      prReview:
+        title: コードレビュー
+        prompt: "以下のPull Requestをレビューしてください:\n\nリポジトリ: owner/repo\nPR番号: \n\n品質、セキュリティ、パフォーマンスの観点から詳細なフィードバックをお願いします。"
+      repoSearch:
+        title: リポジトリ検索
+        prompt: "以下の条件でGitHubリポジトリを検索してください:\n\n検索キーワード: \n言語: \nその他の条件: "
+      implementation:
+        title: コード実装相談
+        prompt: "以下の機能を実装する際のベストプラクティスを教えてください:\n\n機能: \n言語/フレームワーク: \n要件: "
+      bugFix:
+        title: バグ修正の提案
+        prompt: "以下のバグについて、修正案を提案してください:\n\nリポジトリ: owner/repo\nIssue番号: \nバグの内容: "
+      refactoringProposal:
+        title: リファクタリング提案
+        prompt: "以下のコードのリファクタリングを提案してください:\n\nリポジトリ: owner/repo\nファイルパス: \n改善したい点: "
+      architecture:
+        title: アーキテクチャ設計
+        prompt: "以下のシステムのアーキテクチャ設計を提案してください:\n\nシステム概要: \n要件: \n制約: "
+
+  powerpointCreator:
+    name: PowerPoint Creator
+    description: プレゼンテーション資料の作成・編集に特化したAIエージェント。Office PowerPoint MCP サーバーを使用してプロフェッショナルなスライドを生成
+    scenarios:
+      newPresentation:
+        title: 新規プレゼン作成
+        prompt: "以下の内容で新しいプレゼンテーションを作成してください:\n\nテーマ: \n対象者: \nスライド枚数: \n重要なポイント: "
+      businessProposal:
+        title: ビジネス提案資料
+        prompt: "以下のビジネス提案用のプレゼンテーションを作成してください:\n\n提案内容: \n課題: \nソリューション: \n期待される効果: "
+      productIntro:
+        title: 製品・サービス紹介
+        prompt: "以下の製品/サービスの紹介プレゼンを作成してください:\n\n製品/サービス名: \n特徴: \nターゲット: \n競合優位性: "
+      technical:
+        title: 技術説明資料
+        prompt: "以下の技術内容を説明するプレゼンを作成してください:\n\n技術名: \nアーキテクチャ: \n主要機能: \n技術的メリット: "
+      reportPresentation:
+        title: 報告・レポート資料
+        prompt: "以下の報告用プレゼンテーションを作成してください:\n\n報告内容: \n期間: \n実績・成果: \n課題と対策: "
+      training:
+        title: 研修・教育資料
+        prompt: "以下のトピックの研修資料を作成してください:\n\nテーマ: \n学習目標: \n対象者のレベル: \n時間: "
+      designImprovement:
+        title: スライドデザイン改善
+        prompt: "既存のプレゼンテーションのデザインを改善してください:\n\nファイル: \n改善したい点: \n希望するスタイル: "
+      templateBased:
+        title: テンプレートからの作成
+        prompt: "テンプレートを使用してプレゼンを作成してください:\n\nテンプレート: \n内容: \nカスタマイズ箇所: "
+
+  multiAgentOrchestrator:
+    name: マルチエージェントオーケストレーター
+    description: 複雑なタスクを分解し、複数の専門エージェントを調整して包括的なソリューションを実現します
+    scenarios:
+      comprehensiveResearch:
+        title: 包括的な調査レポート
+        prompt: "以下のテーマについて、包括的な調査レポートを作成してください:\n\nテーマ: \n\n以下の流れで進めてください:\n1. Web Researcher で情報収集\n2. Data Analyst でデータ分析（該当する場合）\n3. General Assistant でレポート作成"
+      projectExecution:
+        title: プロジェクト実行
+        prompt: "以下のプロジェクトを実行してください:\n\nプロジェクト概要: \n成果物: \n\n適切なエージェントに作業を分担し、統合された成果物を作成してください。"
+      contentPipeline:
+        title: コンテンツ制作パイプライン
+        prompt: "以下のコンテンツを制作してください:\n\nテーマ: \n形式: (プレゼン / 動画 / レポート)\n\n画像生成、文章作成、資料作成を連携して実行してください。"
+      multiPerspectiveAnalysis:
+        title: 多角的分析
+        prompt: "以下のトピックを複数の観点から分析してください:\n\nトピック: \n\n技術、ビジネス、ユーザー体験など、異なる専門分野から分析し統合してください。"
+      workflowAutomation:
+        title: ワークフロー自動化
+        prompt: "以下の定型作業を自動化してください:\n\n作業内容: \n手順: \n\n複数のエージェントを使用して効率的に実行してください。"
+      presentationCreation:
+        title: プレゼン資料一括作成
+        prompt: "以下のテーマでプレゼンテーション資料を作成してください:\n\nテーマ: \n対象者: \n\n調査、要約、スライド作成、レビューを連携して実行してください。"
+
+  agentBuilder:
+    name: エージェントビルダー
+    description: 対話を通してカスタムAIエージェントを作成します - 要件定義、ツール選択、システムプロンプト設計をガイドします
+    scenarios:
+      createCustom:
+        title: カスタムエージェントを作成
+        prompt: "新しいカスタムエージェントを作成したいです。ゼロから始めましょう。\n\n以下をサポートしてください:\n1. エージェントが何をすべきか定義\n2. 適切なツールの選択\n3. 効果的なシステムプロンプトの設計\n4. 便利なシナリオのセットアップ"
+      cloneModify:
+        title: 既存エージェントをベースに作成
+        prompt: "既存のエージェントをベースに新しいエージェントを作成したいです。\n\n以下をお願いします:\n1. 利用可能なエージェントの一覧を表示\n2. 出発点となるエージェントの選択をサポート\n3. ニーズに合わせた修正をガイド"
+      domainExpert:
+        title: ドメインエキスパートエージェントを作成
+        prompt: "ドメインエキスパートエージェントを作成したいです。\n\nドメイン/業界: \n主要な専門分野: \n典型的なタスク: \n\nこのドメインのベストプラクティスを調査し、適切なエージェントを設計してください。"
+      taskAutomation:
+        title: タスク自動化エージェントを作成
+        prompt: "特定のタスクを自動化するエージェントを作成したいです。\n\n自動化するタスク: \n入力形式: \n期待される出力: \n頻度: \n\nこのワークフローに最適化されたエージェントを設計してください。"
+  browserAgent:
+    name: Web ブラウザエージェント
+    description: ウェブサイトを操作し、スクリーンショットで進捗を表示しながらウェブ業務を代行するエージェント
+    scenarios:
+      infoGathering:
+        title: ウェブサイト情報収集
+        prompt: "以下のURLにアクセスして、ページの主要な情報を収集してください。\n\nURL: https://example.com\n\n各ページのスクリーンショットを撮りながら、内容をまとめてください。"
+      pageCapture:
+        title: ページのスクリーンショット
+        prompt: "以下のURLにアクセスしてスクリーンショットを撮ってください。\n\nURL: https://example.com\n\nページ全体をスクロールしながら複数のスクリーンショットを撮影してください。"
+      webSearch:
+        title: ウェブ検索＋閲覧
+        prompt: "「Amazon Bedrock AgentCore」について最新情報を検索し、上位結果のページを実際にブラウザで開いて詳細を確認してください。スクリーンショット付きでレポートしてください。"
+      formOperation:
+        title: フォーム操作
+        prompt: "以下のウェブサイトにアクセスし、指定された情報をフォームに入力してください。各ステップのスクリーンショットを表示してください。\n\nURL: \n入力情報: "
+      siteExploration:
+        title: サイト探索
+        prompt: "以下のウェブサイトを探索し、サイト構成と主要コンテンツを把握してください。トップページから主要なリンクを辿り、各ページのスクリーンショットを撮りながらサイトマップを作成してください。\n\nURL: https://example.com"
+      monitoring:
+        title: ページ状態の確認
+        prompt: "以下のURLにアクセスし、現在のページ状態をスクリーンショットで確認してください。ページが正常に表示されているか、エラーがないかをチェックしてください。\n\nURL: https://example.com"

@@ -1,0 +1,19 @@
+{
+  "name": "@moca/lambda-tools-shared",
+  "version": "1.0.0",
+  "description": "Shared utilities for AgentCore Gateway Lambda Tools",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc --build",
+    "clean": "rimraf dist tsconfig.tsbuildinfo",
+    "test": "jest --passWithNoTests"
+  },
+  "devDependencies": {
+    "@types/aws-lambda": "^8.10.145"
+  },
+  "engines": {
+    "node": ">=22.12.0"
+  }
+}

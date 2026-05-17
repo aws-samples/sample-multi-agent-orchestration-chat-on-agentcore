@@ -1,0 +1,1177 @@
+# English Translation File
+
+# Common
+common:
+  loading: Loading...
+  error: An error occurred
+  errorOccurred: An error occurred
+  save: Save
+  saving: Saving...
+  cancel: Cancel
+  delete: Delete
+  close: Close
+  confirm: Confirm
+  edit: Edit
+  create: Create
+  update: Update
+  search: Search
+  filter: Filter
+  clear: Clear
+  clearStorage: Clear
+  copy: Copy
+  copyToClipboard: Copy to clipboard
+  noFolders: No folders
+  inputParameters: Input Parameters
+  unsupportedContentType: 'Unsupported content type: {{type}}'
+  yes: Yes
+  no: No
+  back: Back
+  backArrow: ←
+  next: Next
+  renderingDiagram: Rendering diagram...
+  diagramLoading: Mermaid diagram loading...
+  characters: '{{count}} characters'
+  charactersWithStatus: '{{count}} characters • {{status}}'
+  iconsCount: '{{count}} icons'
+  noIconsFound: 'No icons found matching "{{query}}"'
+  searchIconsPlaceholder: Search icons...
+  clickToSelectIcon: Click to select an icon
+  success: Success
+  errorStatus: Error
+  moreOptions: More options
+  deleting: Deleting...
+
+# Authentication
+# pragma: allowlist secret - All entries in this section are UI labels for authentication forms, not actual credentials or secrets
+auth:
+  signIn: Sign In
+  signInAction: Signing in...
+  signUp: Sign Up
+  signUpAction: Signing up...
+  confirmSignUp: Confirm Account
+  confirmAction: Confirming...
+  signOut: Sign Out
+  username: Username
+  usernameOrEmail: Username or Email Address
+  password: Password
+  confirmPassword: Confirm Password
+  email: Email Address
+  verificationCode: Verification Code
+  authenticated: Authenticated
+  noAccount: Don't have an account?
+  hasAccount: Already have an account?
+  checkEmail: Please check your email
+  enterVerificationCode: Enter the verification code to activate your account
+  resendCode: Resend Code
+  welcomeDescription: Create. Connect. Delegate.
+  welcomeDescriptionLine2: Your own AI agent team
+  placeholderUsername: Enter username
+  placeholderUsernameOrEmail: Enter username or email address
+  placeholderPassword: Enter password
+  placeholderConfirmPassword: Re-enter password
+  placeholderEmail: Enter email address
+  placeholderCode: Enter verification code
+  createAccount: Create Account
+  createAccountDescription: Create a new account
+  passwordRequirements: Must be at least 8 characters with uppercase, lowercase, and numbers
+  emailVerification: Email Verification
+  enterCodeSentTo: 'Please enter the verification code sent to '
+  verificationCodeLabel: Verification Code (6 digits)
+  verificationCodeDescription: Enter the 6-digit number from your email
+  confirmAccount: Confirm Account
+  resendCodeSuccess: Verification code has been resent
+  backToSignUp: Back to Sign Up
+  forgotPassword:
+    title: Forgot Password
+    link: Forgot your password?
+    description: We'll send a verification code to your email address to reset your password
+    sendCode: Send Verification Code
+    sendingCode: Sending...
+    backToLogin: Back to Login
+    validEmail: Please enter a valid email address
+    validationError: Validation error
+    sendFailed: Failed to send password reset code
+  resetPassword:
+    title: Reset Password
+    description: Enter the verification code sent to your email and set a new password
+    code: Verification Code
+    newPassword: New Password
+    confirmNewPassword: Confirm New Password
+    resetButton: Reset Password
+    resettingButton: Resetting...
+    backToForgotPassword: Back to Forgot Password
+    successTitle: Password Reset Successfully
+    successDescription: Please login with your new password
+    codeMinLength: Verification code must be at least 6 characters
+    passwordMinLength: Password must be at least 8 characters
+    passwordUpperCase: Password must contain an uppercase letter
+    passwordLowerCase: Password must contain a lowercase letter
+    passwordNumber: Password must contain a number
+    passwordMismatch: Passwords do not match
+    resetFailed: Failed to reset password
+  forceChangePassword:
+    title: Password Change Required
+    description: An initial password was set by the administrator. For security, please set a new password.
+    newPassword: New Password
+    confirmNewPassword: Confirm New Password
+    newPasswordPlaceholder: Enter new password
+    confirmNewPasswordPlaceholder: Re-enter new password
+    changeButton: Change Password
+    changingButton: Changing...
+    successTitle: Password Changed
+    successDescription: Login completed with your new password
+    changeFailed: Failed to change password
+    passwordMinLength: Password must be at least 8 characters
+    passwordUpperCase: Password must contain an uppercase letter
+    passwordLowerCase: Password must contain a lowercase letter
+    passwordNumber: Password must contain a number
+    passwordMismatch: Passwords do not match
+
+# Navigation
+navigation:
+  home: Home
+  chat: Chat
+  newChat: New Chat
+  searchChat: Search Chats
+  searchTools: Search Tools
+  searchAgents: Search Agents
+  manageAgents: Manage Agents
+  myAgents: My Agents
+  events: Event Integration
+  settings: Settings
+  userMenu: User Menu
+  toggleSidebar: Toggle Sidebar
+  openSidebar: Open Sidebar
+  closeSidebar: Close Sidebar
+
+# Command Palette
+commandPalette:
+  placeholder: Type a command or search...
+  noResults: No results found
+  switchAgent: Switch Agent
+  quickActions: Quick Actions
+  navigation: Navigation
+  recentChats: Recent Chats
+  toNavigate: to navigate
+  toSelect: to select
+  toToggle: to toggle
+  toToggleSidebar: to toggle sidebar
+  toStartNewChat: to start new chat
+  toShowShortcuts: to show shortcuts
+
+# Keyboard Shortcuts Help
+shortcuts:
+  title: Keyboard Shortcuts
+  description: A list of available keyboard shortcuts.
+  groups:
+    app: App
+  items:
+    toggleCommandPalette: Toggle command palette
+    toggleSidebar: Toggle sidebar
+    newChat: Start new chat
+    showShortcuts: Show keyboard shortcuts
+
+# Chat
+chat:
+  sessionName: Session Name
+  sessionNameLabel: Session
+  subAgentSessionLabel: Sub Agent
+  noConversations: No conversations yet
+  startNewChat: Start a new chat
+  loadingSessions: Loading sessions...
+  loadingMoreSessions: Loading more sessions...
+  allSessionsLoaded: All sessions loaded
+  sendMessage: Send Message
+  typingMessage: Type a message...
+  thinking: Thinking...
+  stopGenerating: Stop Generating
+  selectAgent: Select Agent
+  changeAgent: Change Agent
+  messageInputPlaceholder: Type your message...
+  attachFile: Attach File
+  submit: Submit
+  inputHelp: Shift + Enter for new line, Enter to send
+  searchChatsDescription: Chat search functionality is under development.
+  searchChatsFeature: You will be able to search past conversation history by keywords.
+  imageAttachment:
+    attach: Attach image
+    invalidType: Invalid file type. Please select PNG, JPEG, WebP, or GIF.
+    tooLarge: File is too large. Maximum size is 5MB.
+    maxReached: Maximum of 4 images can be attached.
+    totalSizeExceeded: Total size of attached images exceeds 7MB. Please remove some images or select smaller ones.
+  searchPlaceholder: 'Search sessions...'
+  searchDateRange: 'Date range'
+  searchDateStart: 'Start date'
+  searchDateEnd: 'End date'
+  searchResults: 'Search results'
+  searchResultsCount: '{{count}} sessions'
+  searchNoResults: 'No matching sessions found'
+  updatedAt: 'Updated'
+  searchNote: '※ Semantic search is not yet implemented. Only title search is available.'
+  deleteSession: Delete session
+  deleteSessionConfirm: 'Are you sure you want to delete "{{title}}"? This action cannot be undone.'
+  sessionDeleted: Session deleted
+  selectedCount: '{{count}} selected'
+  selectAll: Select all
+  deselectAll: Deselect all
+  clearSelection: Clear selection
+  bulkDelete: Bulk delete
+  bulkDeleteConfirm: 'Are you sure you want to delete {{count}} selected sessions? This action cannot be undone.'
+  sessionsDeleted: '{{count}} sessions deleted'
+
+# Agent
+agent:
+  systemPromptLabel2: System Prompt
+  toolsLabel: Tools
+  scenarioLabel: Scenario
+  selectAgent: Select Agent
+  createAgent: Create Agent
+  createNewAgent: Create New Agent
+  editAgent: Edit Agent
+  deleteAgent: Delete Agent
+  deleteAgentConfirmTitle: Confirm Agent Deletion
+  deleteAgentConfirmMessage: 'Delete "{{name}}"? This action cannot be undone.'
+  clearStorageConfirm: Clear agent data in localStorage? Default agents will be recreated.
+  noAgentsTitle: No Agents Available
+  noAgentsDescription: Create your first Agent
+  createAgentButton: Create an Agent
+  searchPlaceholder: Search by name or description...
+  noSearchResults: No search results
+  noSearchResultsDescription: Try changing your search criteria and try again
+  clearSearch: Clear search
+  storageNotice: Agent management is currently under development and stored in localStorage. Due to application version upgrades, inconsistencies may occur, so please periodically clear localStorage.
+  agentName: Agent Name
+  description: Description
+  systemPrompt: System Prompt
+  model: Model
+  temperature: Temperature
+  maxTokens: Max Tokens
+  tools: Tools
+  selectTools: Select Tools
+  noAgents: No agents available
+  createFirstAgent: Create your first agent
+  agentNamePlaceholder: Enter agent name
+  descriptionPlaceholder: Enter agent description
+  systemPromptPlaceholder: Enter system prompt
+  comingSoon: Coming Soon
+  searchAgentsDescription: Agent search functionality is under development.
+  searchAgentsFeature: You will be able to share and search agents created within your organization.
+  backToChat: Back to Chat
+  basicSettings: Basic Settings
+  toolsSettings: Tools
+  mcpSettings: MCP
+  nameAndIcon: Name & Icon
+  nameDescription: Set the display name and icon for your agent. Click the icon to change it.
+  namePlaceholder: 'e.g. - Programming Mentor'
+  descriptionLabel: Description
+  descriptionDescription: Briefly describe the role and characteristics of this agent.
+  descriptionPlaceholder2: 'e.g. - An AI mentor teaching programming from basics to advanced'
+  systemPromptLabel: System Prompt
+  systemPromptRequired: 'System Prompt *'
+  systemPromptDescription: Enter the system prompt that defines the agent's behavior. Describe in detail what role it should play and how it should respond. It is recommended to clearly specify the project directory path.
+  systemPromptPlaceholder2: 'e.g. - You are a helpful and knowledgeable AI assistant.'
+  aiGenerate: Auto-generate with AI
+  aiGenerating: Generating...
+  scenarios: Scenarios (Optional)
+  scenariosDescription: Register commonly used interaction patterns as scenarios. Enter the scenario title and specific content.
+  addScenario: Add Scenario
+  scenarioTitlePlaceholder: 'e.g. - Python Basics Lesson'
+  scenarioPromptPlaceholder: 'e.g. - Please explain Python basic syntax'
+  emptyScenarios: Click "Add Scenario" button to add scenarios
+  toolSelection: Tool Selection
+  mcpServerSettings: MCP Server Settings
+  validationNameRequired: Agent name is required
+  validationNameTooLong: Agent name must be 50 characters or less
+  validationDescriptionRequired: Description is required
+  validationDescriptionTooLong: Description must be 200 characters or less
+  validationSystemPromptRequired: System prompt is required
+  validationSystemPromptTooShort: System prompt must be at least 10 characters
+  validationScenarioTitleRequired: Scenario title is required
+  validationScenarioPromptRequired: Scenario prompt is required
+  validationGenerationFailed: Generation failed
+  share: Share
+  unshare: Unshare
+  shareSuccess: Agent shared successfully
+  unshareSuccess: Agent unshared successfully
+  shareError: Failed to change sharing status
+  defaultStoragePath: Default Working Directory
+  defaultStoragePathDescription: Select a default working directory. When this agent is selected, the directory will be automatically applied.
+  noDefaultStoragePath: No default directory
+  pinnedAgents: Pinned Agents
+  allAgents: All Agents
+  pin: Pin
+  unpin: Unpin
+  sortNewest: Newest first
+  sortOldest: Oldest first
+  sortNameAZ: Name (A-Z)
+  sortNameZA: Name (Z-A)
+  sortRecentlyUpdated: Recently updated
+
+# Agent Directory
+agentDirectory:
+  loading: Loading agents...
+  description: Browse agents created by your organization and add them to your collection
+  searchTitle: Search Agents
+  searchPlaceholder: Search agents...
+  noAgentsFound: No agents found
+  noAgentsDescription: Try changing your search criteria and try again
+  noAgentsEmpty: No agents available
+  createdBy: Created by
+  loadMore: Load More
+  itemsDisplayed: items displayed
+  hasMore: more available
+  allLoaded: all loaded
+  addToMyAgents: Add to My Agents
+  addingToMyAgents: Adding to My Agents...
+  unshare: Unshare
+  unsharing: Unsharing...
+  addSuccess: Agent added to My Agents!
+  addFailed: Failed to add agent
+  unshareSuccess: Agent unshared
+  unshareFailed: Failed to unshare agent
+  userIdNotFound: Agent user ID not found
+
+# Tools
+tool:
+  availableTools: Available Tools
+  selectedTools: Selected Tools
+  noTools: No tools available
+  searchTools: Search tools...
+  toolName: Tool Name
+  toolDescription: Description
+  selectAll: Select All
+  deselectAll: Deselect All
+  parameters: Parameters
+  required: required
+  showDetails: Show Details
+  hideDetails: Hide Details
+  errorResult: Error Result JSON
+  executionResult: Execution Result JSON
+  jsonResponse: JSON Response
+  textResult: Text Result
+  searchPlaceholder: Search tools in natural language... (e.g. 'echo text')
+  searching: Searching tools...
+  loadingTools: Loading tools...
+  searchResults: Search Results
+  noSearchResults: No search results found
+  tryDifferentKeyword: Try searching with different keywords
+  noToolsFound: No tools found
+  noToolsRegistered: No tools registered in Gateway
+  toolsPageDescription: List of tools provided by AgentCore Gateway. Each tool can be searched using natural language and parameters can be examined.
+  loadMore: Load More
+  displayedCount: items displayed
+  hasMore: more available
+  allLoaded: all loaded
+  searchingFor: Searching
+  refresh: Refresh
+  closeError: Close Error
+
+  # ToolSelector
+  selector:
+    availableTools: Available Tools
+    selectedCount: '{{selected}} / {{total}} selected'
+    searchPlaceholder: Search tools...
+    selectAllVisible: Select all visible
+    deselectAllVisible: Deselect all visible
+    noSearchResults: No search results found
+    noTools: No tools available
+    showSelectedOnly: Selected only
+
+  # MCP Config Editor
+  mcp:
+    description: Configure MCP servers to be used by this agent. Tools from configured MCP servers will be automatically available.
+    configLabel: MCP Configuration (JSON format)
+    insertSample: Insert Sample
+    previewTools: Preview Tools
+    fetching: Fetching...
+    fetchingMessages:
+      - Connecting to MCP server...
+      - Fetching tool information...
+      - Please wait...
+    emptyConfig: Configuration is empty
+    fetchError: Tool fetch error
+    fetchFailed: Failed to fetch tools
+    availableToolsTitle: Available Tools
+    connectionResults: Connection Results
+    connectionErrors: Connection Errors
+    showDetails: Show Details
+    hideDetails: Hide Details
+    toolCount: '{{count}} tools'
+    samples:
+      awsKnowledge: AWS Knowledge MCP Server
+      deepwiki: DeepWiki (Remote MCP)
+
+# Storage
+storage:
+  loadError: Failed to load folders
+  title: Storage Management
+  fileStorage: File Storage
+  loadingImage: Loading image...
+  failedToLoadImage: Failed to load image
+  loadingVideo: Loading video...
+  failedToLoadVideo: Failed to load video
+  videoNotSupported: Your browser does not support the video tag
+  failedToLoad: Failed to load
+  description: We provide Amazon S3 storage space for each user. It automatically syncs with the AI agent's workspace (/tmp/ws), so files created or edited by the agent are saved in this space. When you select a directory, files in that directory are loaded into the agent's workspace.
+  currentPath: Current Path
+  uploadFile: Upload File
+  upload: Upload
+  uploadFolder: Upload Folder
+  newFolder: New Folder
+  download: Download
+  downloadFolder: Download Folder
+  createFolder: Create Folder
+  create: Create
+  rename: Rename
+  move: Move
+  copyPath: Copy Path
+  copied: Copied
+  size: Size
+  lastModified: Last Modified
+  type: Type
+  folder: Folder
+  folders: Folders
+  root: Root
+  file: File
+  uploading: Uploading...
+  uploadingProgress: 'Uploading... ({{completed}}/{{total}})'
+  uploadSuccess: Upload Successful
+  uploadError: Upload Error
+  deleteConfirm: Are you sure you want to delete?
+  deleteDirectoryConfirm: 'Delete directory "{{name}}"? All files and subfolders in the directory will also be deleted.'
+  deleteFileConfirm: 'Delete file "{{name}}"?'
+  emptyFolder: Folder is empty
+  dragAndDropHint: Drag and drop files or click the upload button
+  dropFiles: Drop files
+  folderNamePlaceholder: Enter folder name
+  folderNameSpaceError: Folder name cannot contain spaces
+  itemCount: '{{count}} items • Max file size: 500MB'
+  setAsWorkingDirectory: Set as working directory
+  currentWorkingDirectory: Current working directory
+  workingDirectory: Working directory
+
+  # Large directory size warning
+  largeSizeWarningTitle: Large Storage Directory
+  largeSizeWarningMessage: 'This directory contains {{size}} of data ({{count}} files). Sync may take some time when starting a session.'
+
+  # Folder download progress
+  downloadProgress:
+    downloading: Downloading
+    success: Download Complete
+    error: Download Error
+    cancelled: Download Cancelled
+    files: files
+    currentFile: Current file
+    successMessage: Folder download completed. The ZIP file has been saved.
+    cancelledMessage: Download was cancelled.
+
+# Memory
+memory:
+  title: Memory Management
+  longTermMemory: Long-term Memory
+  longTermMemoryDescription: Allows agents to save and use memory when answering.
+  searchMemory: Search memory...
+  noMemories: No memories available
+  addMemory: Add Memory
+  deleteMemory: Delete Memory
+  memoryContent: Content
+  createdAt: Created At
+  savedMemories: Saved Memories
+  description: The agent tries to remember recent chats, but may forget over time. Saved memories will never be forgotten.
+  searchPlaceholder: Search memory
+  searchButton: Search
+  searchResults: Search Results
+  searchResultsCount: '{{count}} items'
+  noSearchResults: No search results found
+  noMemoriesYet: No memories saved yet
+  autoAccumulate: Memories will accumulate automatically as you continue conversing with the agent
+  totalCount: 'Total {{count}} memories saved'
+  created: Created
+  updated: Updated
+  searching: Searching
+  loadMore: Load More
+
+# Settings
+settings:
+  title: Settings
+  account: Account
+  username: Username
+  email: Email
+  accountLoadError: Failed to load account information
+  language: Language
+  theme: Theme
+  notifications: Notifications
+  privacy: Privacy
+  about: About
+  version: Version
+  logout: Logout
+  languageJa: 日本語
+  languageEn: English
+  themeLight: Light
+  themeDark: Dark
+  themeAuto: Auto
+  advanced: Advanced Settings
+  enterBehaviorDescription: 'When typing a message, pressing '
+  enterBehaviorSuffix: ' will'
+  sendOnEnter: Send message
+  newlineOnEnter: New line
+  sendSuffix: ' to send'
+
+# Error
+error:
+  generic: An error occurred
+  network: Network error
+  boundary:
+    title: An Error Occurred
+    description: An unexpected error occurred. Please reload the page.
+    reload: Reload Page
+    backToHome: Back to Home
+    developerInfo: Developer Information
+  notFound: Not found
+  unauthorized: Authentication required
+  authenticationRequired: Authentication required. Please log in again.
+  sessionExpired: Your session has expired. Please log in again.
+  forbidden: Access denied
+  serverError: Server error
+  apiError: An API error occurred
+  unexpectedError: An unexpected error occurred
+  tryAgain: Please try again
+  contactSupport: Contact support
+
+# Page Titles
+page:
+  home: Home
+  chat: Chat
+  search: Search
+  tools: Tools
+  agents: Agents
+  events: Events
+  settings: Settings
+
+# Events
+events:
+  title: Event Integration
+  comingSoon: Coming Soon
+  eventsDescription: Event integration functionality is under development.
+  eventsFeature: You will be able to integrate with external calendars and event management tools.
+
+# Triggers
+triggers:
+  # Page
+  pageTitle: Trigger Management
+  pageDescription: Create and manage triggers to automatically execute agents based on schedules or Amazon EventBridge events. Automate recurring tasks or trigger agents on external events such as S3 file uploads to perform data collection, report generation, and more.
+
+  # Tabs
+  tabs:
+    basic: Basic Settings
+    trigger: Trigger Configuration
+
+  # Actions
+  create: Create New
+  edit: Edit
+  delete: Delete
+  enable: Enable
+  disable: Disable
+  viewHistory: Execution History
+
+  # Form
+  form:
+    title: Trigger Settings
+    createTitle: Create New Trigger
+    editTitle: Edit Trigger
+    basicInfo: Basic Information
+    basicInfoDescription: Configure trigger name, description, and the agent to execute
+    scheduleConfig: Schedule Configuration
+    scheduleConfigDescription: Configure the date and time to execute the trigger
+    name: Trigger Name
+    namePlaceholder: 'e.g. - Daily Report Generation'
+    nameRequired: Trigger name is required
+    description: Description
+    descriptionPlaceholder: Describe the purpose of this trigger
+    agent: Agent to Execute
+    agentPlaceholder: Select an agent...
+    agentRequired: Please select an agent
+    type: Trigger Type
+    typeSchedule: Schedule
+    typeEvent: Event (Coming Soon)
+    inputMessage: Input Message
+    inputMessagePlaceholder: Message to send to the agent
+    inputMessageRequired: Input message is required
+    modelId: Model ID
+    optional: Optional
+    selectModel: Select a model...
+    useDefault: Use Default
+    modelIdHint: If no specific model is specified, the agent's default model will be used
+    workingDirectory: Working Directory
+    selectDirectory: Select a directory...
+    workingDirectoryHint: Specify the directory for the agent to work in. If not specified, the root directory (/) will be used
+    save: Save
+    saving: Saving...
+    cancel: Cancel
+
+  # Cron Builder
+  cron:
+    title: Schedule Settings
+    preset: Preset
+    presetEveryMinute: Every Minute
+    presetEveryHour: Every Hour
+    presetEveryDay: Every Day (00:00)
+    presetEveryWeekday: Every Weekday
+    presetEveryMonday: Every Monday
+    presetEveryMonth: 1st of Every Month
+    presetCustom: Custom
+    minute: Minute
+    hour: Hour
+    dayOfMonth: Day of Month
+    month: Month
+    dayOfWeek: Day of Week
+    year: Year
+    timezone: Timezone
+    preview: Preview
+    nextExecutions: Next Executions
+    customExpression: 'Custom Cron Expression'
+    customExpressionHint: 'AWS EventBridge format: minute hour day month weekday year (e.g., 0 0 * * ? *)'
+    invalidExpression: Invalid cron expression
+    intervalTooShort: Schedule interval must be at least 1 minute
+    costWarning:
+      title: Short schedule interval
+      body: Running this schedule more than once per hour may incur unexpectedly high AWS costs (Lambda invocations, generative AI model calls, and Cognito token issuance). Are you sure you want to create this schedule?
+
+    # Range labels
+    minuteRange: (0-59)
+    hourRange: (0-23)
+    dayOfMonthRange: (1-31)
+    # Help hints
+    dayOfMonthHint: Use ? or *
+    dayOfWeekHint: Use ? or *
+    yearHint: Usually use *
+    # Dropdown options
+    optionAll: All (*)
+    optionNotSpecified: Not specified (?)
+    optionWeekdays: Weekdays (MON-FRI)
+    # Hints section
+    hintsTitle: 💡 Tips
+    hintAll: '* = All values'
+    hintNotSpecified: '? = Not specified (required for day or weekday)'
+    hintRange: '0-5 = Range specification'
+    hintMultiple: '0,15,30 = Multiple values'
+    hintDayWeekExclusive: Day and weekday cannot be specified at the same time (one must be ?)
+
+  # Status
+  status:
+    enabled: Enabled
+    disabled: Disabled
+
+  # Execution History
+  history:
+    title: Execution History
+    noHistory: No execution history
+    executedAt: Executed At
+    duration: Duration
+    status: Status
+    startedAt: Started At
+    completedAt: Completed At
+    success: Success
+    failure: Failure
+    inProgress: In Progress
+    input: Input
+    output: Output
+    error: Error
+    showDetails: Show Details
+    hideDetails: Hide Details
+    loadMore: Load More
+    executionId: Execution ID
+
+  # Messages
+  messages:
+    createSuccess: Trigger created successfully
+    createError: Failed to create trigger
+    updateSuccess: Trigger updated successfully
+    updateError: Failed to update trigger
+    deleteConfirm: Are you sure you want to delete this trigger?
+    deleteSuccess: Trigger deleted successfully
+    deleteError: Failed to delete trigger
+    enableSuccess: Trigger enabled successfully
+    disableSuccess: Trigger disabled successfully
+    toggleError: Failed to change trigger status
+    fetchError: Failed to fetch triggers
+
+  # Empty State
+  empty:
+    title: No Triggers
+    description: Click the Create New button to create your first trigger
+
+  # Event Type Selection
+  eventTypes:
+    title: Trigger Type
+    selectTitle: Select Trigger Type
+    selectDescription: Choose the type of trigger to execute
+    change: Change
+    comingSoon: This feature is under development
+    comingSoonBadge: Coming Soon
+    schedule:
+      label: Schedule
+      description: Execute automatically on schedule
+    event:
+      label: Event-Driven
+      description: Trigger on external events (S3, etc.)
+
+  # Event Source Selection
+  eventSource:
+    label: Event Source
+    selectPlaceholder: Select event source...
+    noSourcesAvailable: No event sources configured
+    loadError: Failed to load event sources
+    helpText: Select which event should trigger this agent. To add new event sources, please contact your system administrator.
+    eventSourceRequired: Please select an event source
+    ruleDetails: EventBridge Rule Details
+
+  # Card Display
+  card:
+    schedule: Schedule
+    timezone: Timezone
+    eventSource: Event Source
+    triggerCondition: Trigger Condition
+    onEventReceived: On Event Received
+    agent: Agent
+    lastExecution: Last Execution
+    notExecuted: Not Executed
+    enabled: Enabled
+    disabled: Disabled
+
+  # Event Pattern Display
+  eventPattern:
+    source: Source
+    eventType: Event Type
+    # Detail type mappings
+    detailTypes:
+      objectCreated: Object Created
+      objectDeleted: Object Deleted
+      objectRestoreCompleted: Object Restore Completed
+      push: Push
+      pullRequest: Pull Request
+      issues: Issue
+      issueComment: Issue Comment
+      ec2StateChange: EC2 Instance State Change
+      pipelineStateChange: Pipeline Execution State Change
+      ecsTaskStateChange: ECS Task State Change
+    # Detail label mappings
+    labels:
+      bucketName: Bucket Name
+      objectKey: Object Key
+      objectSize: Size
+      objectEtag: ETag
+      action: Action
+      repository: Repository
+      branch: Branch
+      state: State
+      instanceId: Instance ID
+      detailType: Event Type
+      region: Region
+
+  # Cron description
+  cronDescription:
+    minute: '{{value}} min'
+    day: '{{value}}th'
+    month: '{{value}}'
+    dayRange: '{{start}} to {{end}}'
+    dayList: ', '
+    days:
+      MON: Monday
+      TUE: Tuesday
+      WED: Wednesday
+      THU: Thursday
+      FRI: Friday
+      SAT: Saturday
+      SUN: Sunday
+    months:
+      '1': January
+      '2': February
+      '3': March
+      '4': April
+      '5': May
+      '6': June
+      '7': July
+      '8': August
+      '9': September
+      '10': October
+      '11': November
+      '12': December
+
+# Generative UI
+generativeUi:
+  noChartData: No chart data available
+  noData: No data available
+
+# App
+app:
+  name: AgentChat
+
+# Home Page
+home:
+  title: Build your AI agents.
+  description: Create. Connect. Delegate.
+  descriptionLine2: Your own AI agent team
+  getStarted: Get Started
+
+# Modal
+modal:
+  confirmTitle: Confirm
+  confirmMessage: Are you sure you want to proceed?
+  deleteTitle: Confirm Deletion
+  deleteMessage: Are you sure you want to delete this item? This action cannot be undone.
+
+# Validation
+validation:
+  required: This field is required
+  minLength: 'Please enter at least {{min}} characters'
+  maxLength: 'Please enter no more than {{max}} characters'
+  email: Please enter a valid email address
+  passwordMismatch: Passwords do not match
+  invalidFormat: Invalid format
+  chat:
+    messageIdRequired: Message ID is required
+    messageContentRequired: Message content is required
+    promptRequired: Please enter a prompt
+    promptMaxLength: Prompt must be 10000 characters or less
+    endpointUrlRequired: Please enter a valid endpoint URL
+  auth:
+    usernameMinLength: Username must be at least 3 characters
+    usernameMaxLength: Username must be 50 characters or less
+    usernameInvalidChars: Username can only contain alphanumeric characters, hyphens, and underscores
+    usernameOrEmailRequired: Please enter your username or email address
+    usernameOrEmailInvalid: Please enter a valid username or email address
+    passwordMinLength: Password must be at least 8 characters
+    passwordMaxLength: Password must be 128 characters or less
+    passwordComplexity: Password must contain at least one lowercase letter, one uppercase letter, and one number
+    emailRequired: Please enter your email address
+    emailInvalid: Please enter a valid email address
+    confirmPasswordRequired: Please enter password confirmation
+    passwordMismatch: Passwords do not match
+    usernameRequired: Username is required
+    codeLength: Verification code must be 6 digits
+    codeInvalid: Verification code must be 6 numeric digits
+    userPoolIdRequired: User Pool ID is required
+    clientIdRequired: Client ID is required
+    regionRequired: Region is required
+
+# Default Agents
+defaultAgents:
+  generalAssistant:
+    name: General Assistant
+    description: A versatile AI assistant for various tasks
+    scenarios:
+      question:
+        title: Question & Consultation
+        prompt: "Please tell me about:\n\n"
+      correction:
+        title: Text Correction
+        prompt: "Please proofread and improve the following text:\n\n"
+      webSearch:
+        title: Web Search
+        prompt: Research deployment methods for Amazon Bedrock AgentCore Runtime
+      summary:
+        title: Create Summary
+        prompt: "Please summarize the following concisely:\n\n"
+      ideation:
+        title: Brainstorming
+        prompt: "Please generate 10 ideas on the following theme:\n\nTheme: "
+      comparison:
+        title: Comparison & Analysis
+        prompt: "Please compare and analyze the following options, including pros and cons:\n\nOptions:\n1. \n2. \n3. "
+
+  physicist:
+    name: Physicist
+    description: A theoretical physicist specializing in computational physics and simulations
+    scenarios:
+      dampedOscillator:
+        title: Damped Harmonic Oscillator Simulation
+        prompt: "Simulate a damped harmonic oscillator with the following parameters:\n- Mass: 1 kg\n- Spring constant: 100 N/m\n- Damping coefficients: γ = 0.5, 2.0, 5.0 s⁻¹ (underdamped, critically damped, overdamped)\n- Initial displacement: 1 m\n- Initial velocity: 0 m/s\n- Time span: 0 to 20 seconds\n\nCreate:\n1. Solution plots for all three damping cases on one figure\n2. Phase space plots (position vs velocity)\n3. Analysis comparing oscillation behavior, decay time, and energy dissipation\n\nExplain the physical significance of each damping regime."
+      quantumWavePacket:
+        title: Quantum Wave Packet Evolution
+        prompt: "Simulate the time evolution of a Gaussian wave packet in a free particle system:\n- Initial position: x₀ = 0\n- Initial width: σ = 1 (in dimensionless units)\n- Initial momentum: k₀ = 0 (at rest in k-space)\n- Time range: 0 to 5 (in dimensionless units)\n- Grid: -20 to 20 with 512 points\n\nImplementation steps:\n1. Solve the time-dependent Schrödinger equation using spectral methods\n2. Create 2D heatmap showing |ψ(x,t)|² evolution\n3. Create side-by-side plots of real and imaginary parts at t=0, 2.5, 5\n4. Plot the spreading of the wave packet over time\n\nAnalyze wave packet spreading and quantum dispersion effects."
+      electricField:
+        title: Electric Field Visualization
+        prompt: "Create electric field visualizations for a system with two point charges:\n- Charge 1: +2 μC at position (-1, 0)\n- Charge 2: -1 μC at position (+1, 0)\n- Grid range: -3 to +3 in both x and y\n\nGenerate:\n1. Vector field plot showing electric field directions and magnitudes\n2. Equipotential lines (contour plot of electric potential)\n3. Combined plot with vectors overlaid on equipotential contours\n4. Streamline plot showing field lines\n\nProvide analysis of:\n- Regions of strongest and weakest fields\n- Pattern differences between monopole and dipole configurations\n- Physical interpretation of equipotential lines"
+      lorenzSystem:
+        title: Lorenz System Chaos
+        prompt: "Solve and visualize the Lorenz system (classic chaos example):\ndy/dt = σ(y - x)\ndy/dt = x(ρ - z) - y\ndz/dt = xy - βz\n\nParameters: σ=10, ρ=28, β=8/3\n\nImplementation:\n1. Integrate using RK4 method from t=0 to t=100 with initial conditions (1, 1, 1)\n2. Create 3D trajectory plot of the Lorenz attractor\n3. Plot x(t), y(t), z(t) vs time\n4. Create phase plane projections (x-y, x-z, y-z)\n\nAnalyze:\n- Butterfly-like shape of the attractor\n- Sensitive dependence on initial conditions\n- Demonstrate chaos by integrating two nearby trajectories"
+      doublePendulum:
+        title: Double Pendulum Chaotic Motion
+        prompt: "Simulate a double pendulum system with equal masses and lengths:\n- Length of each arm: L = 1 m\n- Mass of each bob: m = 1 kg\n- Initial angles: θ₁ = π/2, θ₂ = π/2\n- Initial angular velocities: 0\n- Time span: 0 to 30 seconds\n\nImplementation:\n1. Derive and solve the coupled equations of motion using Lagrangian mechanics\n2. Animate the pendulum motion (create trajectory plot)\n3. Plot angular positions θ₁(t) and θ₂(t)\n4. Create phase plane plots for both angles\n5. Show energy conservation (kinetic + potential = constant)\n\nAnalyze chaotic transitions and sensitivity to initial conditions."
+      isingModel:
+        title: 2D Ising Model Monte Carlo
+        prompt: "Simulate the 2D Ising model using Metropolis algorithm:\n- Lattice size: 64×64\n- Coupling constant: J = 1\n- Temperature range: T = 0.5 to 4.0 in steps of 0.1\n- MC steps: 10,000 per temperature\n\nImplementation:\n1. Initialize random spin configuration\n2. Implement Metropolis algorithm with periodic boundary conditions\n3. Calculate magnetization M = ⟨|Σ sᵢ|⟩ for each temperature\n4. Calculate energy E = -J Σ sᵢsⱼ\n5. Calculate specific heat C = ∂E/∂T\n\nVisualize:\n1. Magnetization vs temperature showing phase transition\n2. Energy vs temperature\n3. Specific heat vs temperature (peak at critical temperature)\n4. Spin configurations at T < Tc (ordered) and T > Tc (disordered)\n\nIdentify and explain the ferromagnetic phase transition at Tc ≈ 2.269"
+
+  imageCreator:
+    name: Image Creator
+    description: Generate high-quality images from text using Amazon Nova Canvas
+    scenarios:
+      basicImage:
+        title: Basic Image Generation
+        prompt: "Please generate an image with the following:\n\nDescription: "
+      illustration:
+        title: Create Illustration
+        prompt: "Please create an illustration in the following style:\n\nTheme: \nStyle: (e.g., watercolor, digital art, anime style, etc.)\nColor scheme: \nOther requirements: "
+      background:
+        title: Background & Landscape
+        prompt: "Please create a background image for the following purpose:\n\nPurpose: (e.g., website, presentation, social media, etc.)\nScene: (e.g., mountain landscape, city nightscape, nature, etc.)\nSize: (512x512 / 768x768 / 1024x1024)\nMood: (e.g., calm, energetic, mysterious, etc.)"
+      icon:
+        title: Icon & Logo
+        prompt: "Please create an icon or logo with the following:\n\nSubject: \nStyle: (e.g., minimal, modern, hand-drawn, etc.)\nColor scheme: \nSize: 512x512\nOther requirements: "
+      productVisual:
+        title: Product Visual
+        prompt: "Please create a visual for the following product:\n\nProduct name: \nProduct features: \nTarget audience: \nDesired atmosphere: \nSize: (768x768 / 1024x1024)"
+      conceptArt:
+        title: Concept Art
+        prompt: "Please visualize the following concept:\n\nConcept: \nIdea to express: \nStyle: (e.g., futuristic, retro, fantasy, etc.)\nKey elements: \nSize: 1024x1024"
+
+  slideshowVideoCreator:
+    name: Slideshow Video Creator
+    description: Create narrated videos from images with Japanese subtitles and voice. Supports PDF to video conversion
+    scenarios:
+      basicVideo:
+        title: Create Basic Video
+        prompt: "Please create a video from the following images:\n\nImage folder/files: \nDisplay time per image: (default: 1 second)\n\nWill create a basic video without subtitles or audio."
+      subtitledVideo:
+        title: Add Subtitles
+        prompt: "Please add Japanese subtitles to the video:\n\nVideo file: \nSubtitle texts (one per image): \n1. \n2. \n3. \n\nSubtitles will be displayed at the bottom center with black background."
+      narratedVideo:
+        title: Add Narration
+        prompt: "Please add narration audio to the video:\n\nVideo file: \nNarration texts (one per image): \n1. \n2. \n3. \n\nWill generate Japanese TTS audio and merge with video."
+      fullPackage:
+        title: Complete Video with Subtitles & Audio
+        prompt: "Please create a complete video with both subtitles and narration:\n\nImage folder/files: \nSubtitle/Narration texts: \n1. \n2. \n3. \n\nWill create a fully narrated video with Japanese subtitles."
+      pdfToVideo:
+        title: PDF to Video
+        prompt: "Please convert a PDF (PowerPoint export) to a narrated video:\n\nPDF file: \nNarration texts for each page: \n1. \n2. \n3. \n\nWill convert PDF pages to images, then create video with subtitles and narration."
+      customSettings:
+        title: Custom Settings
+        prompt: "Please create a video with custom settings:\n\nImage folder/files: \nDisplay time per image: \nSubtitle position: (top/bottom/custom)\nFont size: \nOther settings: \n\nWill create a customized video based on your specifications."
+      presentationVideo:
+        title: Presentation Video
+        prompt: "Please create a presentation-style video:\n\nSlide images/PDF: \nPresentation script: \nBackground music: (optional)\n\nWill create a professional presentation video with narration."
+
+  kamishibaiMaster:
+    name: Kamishibai Master
+    description: A specialist in creating Kamishibai (Japanese picture stories) that delight 3-year-olds - even preschool teachers bow to their expertise!
+    scenarios:
+      original:
+        title: Create Original Kamishibai
+        prompt: "Please create an original Kamishibai with the following details:\n\nTheme: \nTarget age: (2-3 years / 3-4 years / 4-5 years / 5-6 years)\nMessage: \nOther requests: \n\nWill create an 8-page story. Images are 1024x1024 square format."
+      animals:
+        title: Animal Story
+        prompt: "Please create a Kamishibai featuring animals:\n\nMain character animal: \nTarget age: (2-3 years / 3-4 years / 4-5 years / 5-6 years)\nStory theme: \nMessage to convey: \n\nWill create an 8-page story with warm, friendly illustrations."
+      seasons:
+        title: Seasonal Story
+        prompt: "Please create a Kamishibai about seasons or events:\n\nSeason/Event: (Spring / Summer / Fall / Winter / New Year / Hina Matsuri / Tanabata / Christmas, etc.)\nTarget age: (2-3 years / 3-4 years / 4-5 years / 5-6 years)\nLearning goal: \n\nWill create an 8-page story incorporating Japanese culture and seasonal elements."
+      lifeSkills:
+        title: Life Skills Story
+        prompt: "Please create a Kamishibai about daily life skills:\n\nTheme: (Brushing teeth / Washing hands / Cleaning up / Getting dressed / Using toilet / Greetings, etc.)\nTarget age: (2-3 years / 3-4 years / 4-5 years)\nKey points: \n\nWill create an 8-page story that teaches life skills in a fun way."
+      friendship:
+        title: Friendship Story
+        prompt: "Please create a Kamishibai about friendship and kindness:\n\nTheme: (Friendship / Kindness / Cooperation / Apology / Gratitude, etc.)\nTarget age: (3-4 years / 4-5 years / 5-6 years)\nCharacters: \n\nWill create an 8-page story that nurtures social and emotional development."
+      vehicles:
+        title: Vehicle Story
+        prompt: "Please create a Kamishibai about vehicles:\n\nVehicle: (Train / Bus / Car / Airplane / Ship / Fire truck / Police car, etc.)\nTarget age: (2-3 years / 3-4 years / 4-5 years)\nStory idea: \n\nWill create an exciting 8-page vehicle adventure."
+      folktale:
+        title: Folktale Adaptation
+        prompt: "Please create a modern adaptation of a Japanese folktale:\n\nOriginal folktale: (Momotaro / Urashima Taro / Kaguya Hime / Issun-boshi / Shitakiri Suzume, etc.)\nTarget age: 5-6 years\nAdaptation points: \n\nWill create an 8-page story with kanji and furigana (ruby)."
+      adventure:
+        title: Adventure Story
+        prompt: "Please create an adventure/exploration Kamishibai:\n\nAdventure setting: (Forest / Ocean / Mountain / Space / Wonderland, etc.)\nMain character: \nTarget age: (4-5 years / 5-6 years)\nGoal/Discovery: \n\nWill create an exciting 8-page adventure story."
+
+  knowledgeBaseSearch:
+    name: Knowledge Base Search Agent
+    description: A specialized agent for semantic search using Amazon Bedrock Knowledge Base
+    scenarios:
+      search:
+        title: Knowledge Base Search
+        prompt: "Please search for information from the Knowledge Base about:\n\nQuestion: \n\n(Note: Please set the Knowledge Base ID in the [Configuration] section of the system prompt)"
+      qa:
+        title: Document Q&A
+        prompt: "Please answer the following question based on documents registered in the Knowledge Base:\n\nQuestion: \n\nPlease include relevant source information in your answer."
+      relatedInfo:
+        title: Collect Related Information
+        prompt: "Please collect and summarize information related to the following topic from the Knowledge Base:\n\nTopic: \n\nPlease prioritize highly relevant information."
+      integration:
+        title: Integrate Multiple Sources
+        prompt: "Please integrate information from multiple documents about the following theme and create a comprehensive answer:\n\nTheme: \n\nPlease clearly indicate information from each source."
+      factCheck:
+        title: Fact Check
+        prompt: "Please verify if the following information matches the documents in the Knowledge Base:\n\nInformation to verify: \n\nIf it matches, provide the source; if not, provide the correct information."
+      detailedInfo:
+        title: Get Detailed Information
+        prompt: "Please retrieve detailed explanations from the Knowledge Base about the following keywords/concepts:\n\nKeywords/Concepts: \n\nPlease comprehensively collect all relevant information."
+
+  dataAnalyst:
+    name: Data Analyst Agent
+    description: A specialized agent for data analysis, statistical processing, and data visualization using code execution and file operations
+    scenarios:
+      analysis:
+        title: Data Analysis
+        prompt: "Please analyze the following data file:\n\nFilename: \nAnalysis purpose: \n\nPlease report key statistics, trends, and outliers."
+      statistics:
+        title: Create Statistical Summary
+        prompt: "Please calculate basic statistics for the following data:\n\nFilename: \nTarget columns: \n\nPlease include mean, median, standard deviation, max, and min."
+      visualization:
+        title: Data Visualization
+        prompt: "Please create a graph for the following data:\n\nFilename: \nGraph type: (line / bar / scatter / histogram)\nX-axis: \nY-axis: \n\nPlease add appropriate title and labels."
+      correlation:
+        title: Correlation Analysis
+        prompt: "Please analyze correlations between variables in the following dataset:\n\nFilename: \nTarget variables: \n\nPlease calculate correlation coefficients and visualize with a heatmap."
+      cleaning:
+        title: Data Cleaning
+        prompt: "Please clean the following data:\n\nFilename: \n\nHandle missing values, remove duplicates, detect outliers, and save the cleaned data."
+      trend:
+        title: Trend Analysis
+        prompt: "Please analyze trends in the following time series data:\n\nFilename: \nTime column: \nTarget column: \n\nPlease visualize trends and report on seasonality."
+      grouping:
+        title: Group Aggregation
+        prompt: "Please aggregate the following data by groups:\n\nFilename: \nGrouping column: \nTarget column: \nAggregation method: (sum / mean / max / min)\n\nPlease display results in table format."
+      report:
+        title: Generate Report
+        prompt: "Please create a comprehensive analysis report from the following data:\n\nFilename: \nAnalysis theme: \n\nPlease generate a complete report including statistical summary, visualizations, and insights."
+
+  webResearcher:
+    name: Web Deep Researcher
+    description: A research-specialized agent for in-depth research, information gathering, and analysis using the web
+    scenarios:
+      marketResearch:
+        title: Market & Industry Research
+        prompt: "Please research and summarize market size, key players, and trends for the following industry/field:\n\nIndustry/Field: "
+      competitive:
+        title: Competitive Analysis
+        prompt: "Please research competitors for the following product/service and create a comparison table:\n\nProduct/Service: "
+      techTrend:
+        title: Technology Trend Research
+        prompt: "Please research the latest trends regarding the following technology/keyword:\n\nTechnology/Keyword: "
+      news:
+        title: News & Trends Summary
+        prompt: "Please summarize the latest news and trends on the following topic:\n\nTopic: "
+      productComparison:
+        title: Product & Service Comparison
+        prompt: "Please research and compare products/services in the following category, organizing pros and cons:\n\nCategory: "
+      bestPractice:
+        title: Case Studies & Best Practices
+        prompt: "Please research success stories and best practices related to the following theme:\n\nTheme: "
+
+  softwareDeveloper:
+    name: Software Developer
+    description: A specialized agent for software development with GitHub integration, capable of coding and source code review
+    scenarios:
+      createIssue:
+        title: Create Issue
+        prompt: "Please create a GitHub Issue with the following details:\n\nRepository: owner/repo\nTitle: \nDescription: \nLabels: "
+      createPR:
+        title: Create Pull Request
+        prompt: "Please create a Pull Request with the following details:\n\nRepository: owner/repo\nBase branch: main\nHead branch: \nTitle: \nDescription: "
+      prReview:
+        title: Code Review
+        prompt: "Please review the following Pull Request:\n\nRepository: owner/repo\nPR number: \n\nPlease provide detailed feedback from quality, security, and performance perspectives."
+      repoSearch:
+        title: Repository Search
+        prompt: "Please search GitHub repositories with the following criteria:\n\nSearch keywords: \nLanguage: \nOther criteria: "
+      implementation:
+        title: Implementation Consultation
+        prompt: "Please advise on best practices for implementing the following feature:\n\nFeature: \nLanguage/Framework: \nRequirements: "
+      bugFix:
+        title: Bug Fix Proposal
+        prompt: "Please propose a fix for the following bug:\n\nRepository: owner/repo\nIssue number: \nBug description: "
+      refactoringProposal:
+        title: Refactoring Proposal
+        prompt: "Please suggest refactoring for the following code:\n\nRepository: owner/repo\nFile path: \nAreas for improvement: "
+      architecture:
+        title: Architecture Design
+        prompt: "Please propose an architecture design for the following system:\n\nSystem overview: \nRequirements: \nConstraints: "
+
+  powerpointCreator:
+    name: PowerPoint Creator
+    description: An AI agent specialized in creating and editing presentation materials. Generates professional slides using Office PowerPoint MCP server
+    scenarios:
+      newPresentation:
+        title: Create New Presentation
+        prompt: "Please create a new presentation with the following details:\n\nTheme: \nAudience: \nNumber of slides: \nKey points: "
+      businessProposal:
+        title: Business Proposal
+        prompt: "Please create a business proposal presentation with the following details:\n\nProposal: \nProblem: \nSolution: \nExpected results: "
+      productIntro:
+        title: Product/Service Introduction
+        prompt: "Please create an introduction presentation for the following product/service:\n\nProduct/Service name: \nFeatures: \nTarget audience: \nCompetitive advantages: "
+      technical:
+        title: Technical Documentation
+        prompt: "Please create a presentation explaining the following technical content:\n\nTechnology name: \nArchitecture: \nKey features: \nTechnical benefits: "
+      reportPresentation:
+        title: Report Presentation
+        prompt: "Please create a report presentation with the following details:\n\nReport content: \nPeriod: \nAchievements: \nChallenges and solutions: "
+      training:
+        title: Training Materials
+        prompt: "Please create training materials on the following topic:\n\nTheme: \nLearning objectives: \nTarget level: \nDuration: "
+      designImprovement:
+        title: Design Improvement
+        prompt: "Please improve the design of the existing presentation:\n\nFile: \nAreas for improvement: \nDesired style: "
+      templateBased:
+        title: Create from Template
+        prompt: "Please create a presentation using a template:\n\nTemplate: \nContent: \nCustomization areas: "
+
+  multiAgentOrchestrator:
+    name: Multi-Agent Orchestrator
+    description: Decomposes complex tasks and coordinates multiple specialized agents to achieve comprehensive solutions
+    scenarios:
+      comprehensiveResearch:
+        title: Comprehensive Research Report
+        prompt: "Please create a comprehensive research report on the following theme:\n\nTheme: \n\nFollow this workflow:\n1. Web Researcher gathers information\n2. Data Analyst analyzes data (if applicable)\n3. General Assistant creates summary report"
+      projectExecution:
+        title: Project Execution
+        prompt: "Please execute the following project:\n\nProject overview: \nDeliverables: \n\nDistribute work to appropriate agents and create integrated deliverables."
+      contentPipeline:
+        title: Content Creation Pipeline
+        prompt: "Please create the following content:\n\nTheme: \nFormat: (presentation / video / report)\n\nCoordinate image generation, content writing, and material creation."
+      multiPerspectiveAnalysis:
+        title: Multi-Perspective Analysis
+        prompt: "Please analyze the following topic from multiple perspectives:\n\nTopic: \n\nAnalyze from different domains such as technology, business, and user experience, then integrate findings."
+      workflowAutomation:
+        title: Workflow Automation
+        prompt: "Please automate the following routine work:\n\nWork description: \nProcedure: \n\nExecute efficiently using multiple agents."
+      presentationCreation:
+        title: Presentation Creation Package
+        prompt: "Please create presentation materials on the following theme:\n\nTheme: \nAudience: \n\nCoordinate research, summarization, slide creation, and review."
+
+  agentBuilder:
+    name: Agent Builder
+    description: Creates custom AI agents through conversational interaction - guides you through requirements, tool selection, and system prompt design
+    scenarios:
+      createCustom:
+        title: Create Custom Agent
+        prompt: "I want to create a new custom agent. Let's start from scratch.\n\nPlease help me:\n1. Define what the agent should do\n2. Select appropriate tools\n3. Design an effective system prompt\n4. Set up useful scenarios"
+      cloneModify:
+        title: Clone & Modify Existing Agent
+        prompt: "I want to create a new agent based on an existing one.\n\nPlease:\n1. Show me the list of available agents\n2. Help me choose one as a starting point\n3. Guide me through modifications to better fit my needs"
+      domainExpert:
+        title: Create Domain Expert Agent
+        prompt: "I want to create a domain expert agent.\n\nDomain/Industry: \nKey expertise areas: \nTypical tasks: \n\nPlease research best practices for this domain and design an appropriate agent."
+      taskAutomation:
+        title: Create Task Automation Agent
+        prompt: "I want to create an agent that automates specific tasks.\n\nTask to automate: \nInput format: \nExpected output: \nFrequency: \n\nPlease design an agent optimized for this workflow."
+  browserAgent:
+    name: Web Browser Agent
+    description: An agent that operates websites and performs web tasks on your behalf, showing progress with screenshots at every step
+    scenarios:
+      infoGathering:
+        title: Website Information Gathering
+        prompt: "Please visit the following URL and collect the key information from the page.\n\nURL: https://example.com\n\nTake screenshots at each step and summarize the content."
+      pageCapture:
+        title: Page Screenshot Capture
+        prompt: "Please visit the following URL and take screenshots.\n\nURL: https://example.com\n\nScroll through the entire page and capture multiple screenshots."
+      webSearch:
+        title: Web Search + Browse
+        prompt: "Search for the latest information about \"Amazon Bedrock AgentCore\", then open the top results in the browser to verify the details. Report back with screenshots."
+      formOperation:
+        title: Form Operations
+        prompt: "Please visit the following website and fill in the form with the specified information. Show screenshots at each step.\n\nURL: \nInput data: "
+      siteExploration:
+        title: Site Exploration
+        prompt: "Please explore the following website to understand the site structure and main content. Follow the main links from the top page, take screenshots of each page, and create a sitemap.\n\nURL: https://example.com"
+      monitoring:
+        title: Page Status Check
+        prompt: "Please visit the following URL and check the current page status with screenshots. Verify whether the page displays correctly and check for any errors.\n\nURL: https://example.com"

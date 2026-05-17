@@ -1,0 +1,45 @@
+version: "1.0"
+
+exclude_paths:
+  - "*.test.*"
+  - "package-lock.json"
+  - "ash_output/"
+
+global_settings:
+  ignore_paths:
+    - path: 'packages/frontend/src/locales/*.yaml'
+      reason: 'Translation/localization files - UI labels containing "password", "token" etc. are not actual secrets'
+    - path: 'packages/cdk/config/environments.ts'
+      reason: 'CDK config - Secrets Manager reference names (tavilyApiKeySecretName, githubTokenSecretName), not actual secret values'
+    - path: 'packages/agent/src/validation/__tests__/*'
+      reason: 'Test files with valid test image data - Base64 encoded images for validation testing, not secrets'
+    - path: 'packages/agent/src/handlers/__tests__/*'
+      reason: 'Test files with deterministic UUID/ID fixtures (e.g. 32-char hex without dashes used as negative validation input) - not actual secrets'
+    - path: 'packages/agent/src/services/session/file-session-storage.ts'
+      reason: 'IDs sanitized by sanitizeId() - false positive'
+    - path: 'packages/agent/src/runtime/tools/code-interpreter/client.ts'
+      reason: 'destinationDir validated, filename from path.basename - false positive'
+    - path: 'packages/cdk/lib/constructs/agentcore/agentcore-lambda-target.ts'
+      reason: 'CDK build-time configuration paths, not user input - false positive'
+    - path: 'packages/agent/src/runtime/tools/code-interpreter/__tests__/*'
+      reason: 'Test files'
+    - path: 'docs/deployment-options.md'
+      reason: 'Documentation examples with Secrets Manager reference names, not actual secrets'
+    - path: 'packages/cdk/config/environment-utils.ts'
+      reason: 'Default config with Secrets Manager reference names, not actual secret values'
+    - path: 'packages/libs/s3-workspace-sync/src/*'
+      reason: 'fs.readdirSync results and server config, not user input - false positive'
+    - path: 'packages/agent/src/runtime/tools/browser/__tests__/*'
+      reason: 'Test files - no security risk'
+    - path: 'docker/backend.Dockerfile'
+      reason: 'AWS Lambda container - HEALTHCHECK added for compliance but Lambda Web Adapter handles health via AWS_LWA_READINESS_CHECK_PATH'
+    - path: 'packages/cdk/schemas/microsoft-graph-onedrive.json'
+      reason: 'AgentCore Gateway OpenAPI target - security/securitySchemes are intentionally omitted because CDK L2 Construct explicitly prohibits them in OpenAPI schemas. Authentication is managed via Gateway outbound authorization configuration (credentialProviderConfigurations in CDK).'
+    - path: 'packages/libs/core/src/__tests__/*'
+      reason: 'Test files with deterministic UUID/ID test fixtures - not actual secrets'
+    - path: 'packages/backend/src/services/__tests__/*'
+      reason: 'Integration test files with fake test credentials (API_KEY, SECRET_TOKEN, SECRET_KEY) - not actual secrets'
+    - path: 'packages/github-token-broker/src/index.test.ts'
+      reason: 'Unit test with mocked Secrets Manager - contains dummy token fixtures (ghp_example), Secrets Manager reference names, and negative-test input strings, not actual secrets'
+    - path: 'packages/lambda-tools/tools/tavily-tools/src/tools/__tests__/tavily-common.test.ts'
+      reason: 'Unit test with mocked Secrets Manager - contains dummy-api-key fixture and test env var value, not actual secrets'

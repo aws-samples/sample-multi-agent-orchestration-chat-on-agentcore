@@ -1,0 +1,54 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "properties": {
+    "tools": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "name": { "type": "string" },
+          "description": { "type": "string" },
+          "inputSchema": { "type": "object" }
+        }
+      }
+    }
+  },
+  "tools": [
+    {
+      "name": "nova_canvas",
+      "description": "Generate images using Amazon Nova Canvas on Bedrock. Convert text prompts into high-quality images with configurable size and seed for reproducibility. Automatically saves generated images to user S3 storage.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "prompt": {
+            "type": "string",
+            "description": "Text prompt describing the image to generate (required, max 1024 characters)"
+          },
+          "width": {
+            "type": "integer",
+            "description": "Image width in pixels (512, 768, or 1024, default: 512)"
+          },
+          "height": {
+            "type": "integer",
+            "description": "Image height in pixels (512, 768, or 1024, default: 512)"
+          },
+          "numberOfImages": {
+            "type": "integer",
+            "description": "Number of images to generate (1-5, default: 1)"
+          },
+          "seed": {
+            "type": "integer",
+            "description": "Random seed for reproducible generation (0-858993459, optional)"
+          },
+          "outputPath": {
+            "type": "string",
+            "description": "Custom output filename (default: auto-generated with timestamp)"
+          }
+        },
+        "required": ["prompt"],
+        "additionalProperties": false
+      }
+    }
+  ]
+}

@@ -1,0 +1,14 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "composite": false,
+    "incremental": false,
+    "declarationMap": false,
+    "outDir": "dist",
+    "module": "Node16",
+    "moduleResolution": "node16",
+    "types": ["node"]
+  },
+  "include": ["bin/**/*", "lib/**/*", "lambda/**/*"],
+  "exclude": ["node_modules", "cdk.out"]
+}

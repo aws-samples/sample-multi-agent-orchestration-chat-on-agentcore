@@ -1,0 +1,40 @@
+{
+  "name": "@moca/cdk",
+  "version": "0.1.0",
+  "description": "CDK スタックによる Amazon Bedrock AgentCore デプロイメント",
+  "bin": {
+    "moca": "bin/app.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "watch": "tsc -w",
+    "lint": "eslint bin lib",
+    "lint:fix": "eslint bin lib --fix && prettier --write \"{bin,lib}/**/*.{ts,tsx,js,jsx}\"",
+    "test": "jest --passWithNoTests",
+    "cdk": "cdk",
+    "synth": "cdk synth",
+    "deploy": "cdk deploy --require-approval never --all",
+    "deploy:dev": "cdk deploy -c env=dev --require-approval never --all",
+    "deploy:stg": "cdk deploy -c env=stg --require-approval never --all",
+    "deploy:prd": "cdk deploy -c env=prd --require-approval never --all",
+    "diff": "cdk diff",
+    "diff:dev": "cdk diff -c env=dev",
+    "diff:stg": "cdk diff -c env=stg",
+    "diff:prd": "cdk diff -c env=prd",
+    "destroy": "cdk destroy",
+    "destroy:all": "cdk destroy --all",
+    "destroy:dev": "cdk destroy -c env=dev",
+    "destroy:stg": "cdk destroy -c env=stg"
+  },
+  "devDependencies": {
+    "aws-cdk": "^2.1034.0"
+  },
+  "dependencies": {
+    "@aws-cdk/aws-bedrock-agentcore-alpha": "^2.250.0-alpha.0",
+    "@aws-cdk/aws-bedrock-alpha": "2.250.0-alpha.0",
+    "@cdklabs/deploy-time-build": "^0.1.0",
+    "aws-cdk-lib": "2.250.0",
+    "cdk-nag": "^2.37.55",
+    "constructs": "^10.0.0"
+  }
+}

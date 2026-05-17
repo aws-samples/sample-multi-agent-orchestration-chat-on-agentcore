@@ -1,0 +1,36 @@
+services:
+  agentcore-backend:
+    build:
+      context: ../..
+      dockerfile: docker/backend.Dockerfile
+    image: agentcore-backend:latest
+    container_name: agentcore-backend-dev
+    ports:
+      - "3000:3000"
+    env_file:
+      - .env
+    environment:
+      # Node.js環境設定
+      - NODE_ENV=${NODE_ENV:-development}
+      # ポート設定
+      - PORT=3000
+      # CORS設定（開発環境用）
+      - CORS_ALLOWED_ORIGINS=${CORS_ALLOWED_ORIGINS:-*}
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    restart: unless-stopped
+    networks:
+      - agentcore-network
+
+networks:
+  agentcore-network:
+    driver: bridge
+
+# 開発用のボリューム（オプション）
+volumes:
+  node_modules:
+    driver: local

@@ -1,0 +1,56 @@
+{
+  "name": "@moca/s3-workspace-sync",
+  "version": "0.1.0",
+  "description": "Bidirectional file sync between Amazon S3 and local workspace with hash-based diff detection, .syncignore support, and concurrent transfers",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE",
+    ".syncignore.example"
+  ],
+  "scripts": {
+    "build": "tsc --build",
+    "clean": "rimraf dist",
+    "test": "NODE_OPTIONS='--experimental-vm-modules --no-warnings' vitest run",
+    "test:watch": "NODE_OPTIONS='--experimental-vm-modules --no-warnings' vitest",
+    "test:integration": "NODE_OPTIONS='--experimental-vm-modules --no-warnings' vitest run --config vitest.integration.config.ts",
+    "lint": "eslint src"
+  },
+  "keywords": [
+    "s3",
+    "sync",
+    "workspace",
+    "aws",
+    "file-sync",
+    "s3-sync",
+    "bidirectional",
+    "diff",
+    "hash",
+    "syncignore",
+    "concurrent"
+  ],
+  "license": "MIT",
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "dependencies": {
+    "ignore": "^7.0.5",
+    "p-limit": "^6.1.0"
+  },
+  "peerDependencies": {
+    "@aws-sdk/client-s3": "^3.0.0"
+  },
+  "devDependencies": {
+    "@aws-sdk/client-s3": "^3.654.0",
+    "vitest": "^3.0.0"
+  }
+}

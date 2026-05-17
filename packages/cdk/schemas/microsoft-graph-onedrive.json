@@ -1,0 +1,1423 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "Microsoft Graph OneDrive API",
+    "description": "Microsoft Graph API for OneDrive file and Excel workbook operations. Provides tools for managing files, folders, permissions, and Excel worksheets/cells/ranges in a specified user's OneDrive storage. Requires Application permission Files.ReadWrite.All with admin consent.",
+    "version": "1.0.0"
+  },
+  "servers": [
+    {
+      "url": "https://graph.microsoft.com/v1.0",
+      "description": "Microsoft Graph API v1.0"
+    }
+  ],
+  "paths": {
+    "/users/{userId}": {
+      "get": {
+        "operationId": "getUser",
+        "summary": "Get a user",
+        "description": "Retrieve the properties and relationships of a user object. Use the userId (object ID or UPN) to identify the user.",
+        "parameters": [
+          {
+            "name": "userId",
+            "in": "path",
+            "required": true,
+            "description": "User's object ID or UPN (e.g. user@contoso.com)",
+            "schema": { "type": "string" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "User object",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/User" }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "404": { "$ref": "#/components/responses/NotFound" }
+        }
+      }
+    },
+    "/users/{userId}/drive": {
+      "get": {
+        "operationId": "getDrive",
+        "summary": "Get drive from users",
+        "description": "Retrieve the properties of a user's OneDrive.",
+        "parameters": [
+          {
+            "name": "userId",
+            "in": "path",
+            "required": true,
+            "description": "User's object ID or UPN (e.g. user@contoso.com)",
+            "schema": { "type": "string" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Drive metadata",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Drive" }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "404": { "$ref": "#/components/responses/NotFound" }
+        }
+      }
+    },
+    "/users/{userId}/drive/root/children": {
+      "get": {
+        "operationId": "listItem",
+        "summary": "Get items from users",
+        "description": "List the items in the root folder of a user's OneDrive.",
+        "parameters": [
+          {
+            "name": "userId",
+            "in": "path",
+            "required": true,
+            "description": "User's object ID (GUID) or UPN (e.g. user@contoso.com)",
+            "schema": { "type": "string" }
+          },
+          {
+            "name": "$top",
+            "in": "query",
+            "description": "Maximum number of items to return",
+            "schema": { "type": "integer" }
+          },
+          {
+            "name": "$select",
+            "in": "query",
+            "description": "Comma-separated list of properties to include. Available properties: id, name, size, createdDateTime, lastModifiedDateTime, webUrl, file, folder, parentReference. Example: \"id,name,size\"",
+            "schema": { "type": "string" }
+          },
+          {
+            "name": "$orderby",
+            "in": "query",
+            "description": "Property to sort by, optionally followed by 'asc' or 'desc'. Example: \"name asc\", \"lastModifiedDateTime desc\"",
+            "schema": { "type": "string" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Collection of drive items",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/DriveItemCollection" }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "404": { "$ref": "#/components/responses/NotFound" }
+        }
+      },
+      "post": {
+        "operationId": "createItem",
+        "summary": "Create new navigation property to items for users",
+        "description": "Create a new folder or empty file metadata in the ROOT of a user's OneDrive. To create a folder: set folder={}. To create an empty file entry (no content): set file={}. 'folder' and 'file' are mutually exclusive — provide only one. To upload file content, use uploadFile instead. LIMITATION: This tool only creates items in the root folder. To create items inside a subfolder, use uploadFile (for files). Use @microsoft.graph.conflictBehavior to handle name conflicts: 'fail' (default, returns error), 'rename' (auto-renames), or 'replace' (overwrites).",
+        "parameters": [
+          {
+            "name": "userId",
+            "in": "path",
+            "required": true,
+            "description": "User's object ID (GUID) or UPN (e.g. user@contoso.com)",
+            "schema": { "type": "string" }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["name"],
+                "properties": {
+                  "name": { "type": "string", "description": "Name of the new item" },
+                  "folder": {
+                    "type": "object",
+                    "description": "Provide an empty object {} to create a folder. Mutually exclusive with 'file'."
+                  },
+                  "file": {
+                    "type": "object",
+                    "description": "Provide an empty object {} to create a file metadata entry (no content). To upload file content, use uploadFile instead. Mutually exclusive with 'folder'."
+                  },
+                  "@microsoft.graph.conflictBehavior": {
+                    "type": "string",
+                    "enum": ["rename", "replace", "fail"],
+                    "description": "Conflict resolution behavior"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Item created",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/DriveItem" }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "409": { "description": "Conflict - item already exists" }
+        }
+      }
+    },
+    "/users/{userId}/drives/{driveId}/items/{driveItemId}": {
+      "get": {
+        "operationId": "getItem",
+        "summary": "Get items from users",
+        "description": "Retrieve the metadata for a DriveItem in a drive by its ID.",
+        "parameters": [
+          {
+            "name": "userId",
+            "in": "path",
+            "required": true,
+            "description": "User's object ID (GUID) or UPN (e.g. user@contoso.com)",
+            "schema": { "type": "string" }
+          },
+          {
+            "name": "driveId",
+            "in": "path",
+            "required": true,
+            "description": "Drive ID",
+            "schema": { "type": "string" }
+          },
+          {
+            "name": "driveItemId",
+            "in": "path",
+            "required": true,
+            "description": "DriveItem ID",
+            "schema": { "type": "string" }
+          },
+          {
+            "name": "$select",
+            "in": "query",
+            "description": "Properties to include",
+            "schema": { "type": "string" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Drive item metadata",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/DriveItem" } }
+            }
+          },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "404": { "$ref": "#/components/responses/NotFound" }
+        }
+      },
+      "patch": {
+        "operationId": "updateItem",
+        "summary": "Update file or folder metadata",
+        "description": "Update the metadata for a DriveItem by ID.",
+        "parameters": [
+          {
+            "name": "userId",
+            "in": "path",
+            "required": true,
+            "description": "User's object ID (GUID) or UPN (e.g. user@contoso.com)",
+            "schema": { "type": "string" }
+          },
+          {
+            "name": "driveId",
+            "in": "path",
+            "required": true,
+            "description": "Drive ID",
+            "schema": { "type": "string" }
+          },
+          {
+            "name": "driveItemId",
+            "in": "path",
+            "required": true,
+            "description": "DriveItem ID",
+            "schema": { "type": "string" }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "name": { "type": "string", "description": "New name for the item" },
+                  "description": { "type": "string", "description": "Description of the item" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Updated item",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/DriveItem" } }
+            }
+          },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "404": { "$ref": "#/components/responses/NotFound" }
+        }
+      },
+      "delete": {
+        "operationId": "deleteItem",
+        "summary": "Delete navigation property items for users",
+        "description": "Delete a DriveItem (file or folder) by ID. Deleted items are moved to the recycle bin and can be restored from there. WARNING: deleting a folder will recursively delete ALL contents inside it (all files and subfolders). This operation returns an empty response on success. Always confirm with the user before executing, especially for folders with children.",
+        "parameters": [
+          {
+            "name": "userId",
+            "in": "path",
+            "required": true,
+            "description": "User's object ID (GUID) or UPN (e.g. user@contoso.com)",
+            "schema": { "type": "string" }
+          },
+          {
+            "name": "driveId",
+            "in": "path",
+            "required": true,
+            "description": "Drive ID",
+            "schema": { "type": "string" }
+          },
+          {
+            "name": "driveItemId",
+            "in": "path",
+            "required": true,
+            "description": "DriveItem ID",
+            "schema": { "type": "string" }
+          }
+        ],
+        "responses": {
+          "204": { "description": "Item deleted successfully" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "404": { "$ref": "#/components/responses/NotFound" }
+        }
+      }
+    },
+    "/users/{userId}/drives/{driveId}/items/{driveItemId}/children": {
+      "get": {
+        "operationId": "listChildren",
+        "summary": "Get children from users",
+        "description": "List the children of a DriveItem (files and folders in a folder).",
+        "parameters": [
+          {
+            "name": "userId",
+            "in": "path",
+            "required": true,
+            "description": "User's object ID (GUID) or UPN (e.g. user@contoso.com)",
+            "schema": { "type": "string" }
+          },
+          {
+            "name": "driveId",
+            "in": "path",
+            "required": true,
+            "description": "Drive ID",
+            "schema": { "type": "string" }
+          },
+          {
+            "name": "driveItemId",
+            "in": "path",
+            "required": true,
+            "description": "DriveItem ID of the folder",
+            "schema": { "type": "string" }
+          },
+          {
+            "name": "$top",
+            "in": "query",
+            "description": "Maximum number of items to return",
+            "schema": { "type": "integer" }
+          },
+          {
+            "name": "$select",
+            "in": "query",
+            "description": "Comma-separated list of properties to include. Available properties: id, name, size, createdDateTime, lastModifiedDateTime, webUrl, file, folder, parentReference. Example: \"id,name,size\"",
+            "schema": { "type": "string" }
+          },
+          {
+            "name": "$orderby",
+            "in": "query",
+            "description": "Property to sort by, optionally followed by 'asc' or 'desc'. Example: \"name asc\", \"lastModifiedDateTime desc\"",
+            "schema": { "type": "string" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Collection of child items",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/DriveItemCollection" }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "404": { "$ref": "#/components/responses/NotFound" }
+        }
+      }
+    },
+    "/users/{userId}/drives/{driveId}/items/{driveItemId}/copy": {
+      "post": {
+        "operationId": "copyItem",
+        "summary": "Copy item within a drive",
+        "description": "Asynchronously create a copy of a DriveItem (including any children) under a new parent or with a new name. Returns an empty response body (HTTP 202 Accepted) — this empty response indicates the copy was accepted, NOT completed. The copy runs in the background and may take several seconds to minutes depending on file size. ALWAYS verify completion by calling listChildren on the destination folder before using the copied item. Do NOT proceed with operations on the copied item until listChildren confirms its existence.",
+        "parameters": [
+          {
+            "name": "userId",
+            "in": "path",
+            "required": true,
+            "description": "User's object ID (GUID) or UPN (e.g. user@contoso.com)",
+            "schema": { "type": "string" }
+          },
+          {
+            "name": "driveId",
+            "in": "path",
+            "required": true,
+            "description": "Drive ID",
+            "schema": { "type": "string" }
+          },
+          {
+            "name": "driveItemId",
+            "in": "path",
+            "required": true,
+            "description": "DriveItem ID to copy",
+            "schema": { "type": "string" }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "parentReference": {
+                    "type": "object",
+                    "properties": {
+                      "driveId": { "type": "string" },
+                      "id": { "type": "string" }
+                    }
+                  },
+                  "name": { "type": "string", "description": "New name for the copy" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": { "description": "Copy accepted (async)" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "404": { "$ref": "#/components/responses/NotFound" }
+        }
+      }
+    },
+    "/users/{userId}/drives/{driveId}/items/{driveItemId}/invite": {
+      "post": {
+        "operationId": "addPermissions",
+        "summary": "Add permission",
+        "description": "Grant access permissions to a DriveItem by sending a sharing invitation. recipients must be an array of objects with an 'email' field, e.g., [{\"email\": \"user@contoso.com\"}]. roles must be [\"read\"] (view only) or [\"write\"] (edit); no other values are supported. Set sendInvitation=true to notify recipients by email, or false to grant permissions silently. For OneDrive for Business / SharePoint accounts, set requireSignIn=true to ensure the recipient must authenticate (recommended for business use).",
+        "parameters": [
+          {
+            "name": "userId",
+            "in": "path",
+            "required": true,
+            "description": "User's object ID (GUID) or UPN (e.g. user@contoso.com)",
+            "schema": { "type": "string" }
+          },
+          {
+            "name": "driveId",
+            "in": "path",
+            "required": true,
+            "description": "Drive ID",
+            "schema": { "type": "string" }
+          },
+          {
+            "name": "driveItemId",
+            "in": "path",
+            "required": true,
+            "description": "DriveItem ID",
+            "schema": { "type": "string" }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["recipients", "roles"],
+                "properties": {
+                  "recipients": {
+                    "type": "array",
+                    "maxItems": 100,
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "email": {
+                          "type": "string",
+                          "description": "Email address of the recipient. Example: {\"email\": \"user@example.com\"}"
+                        }
+                      }
+                    }
+                  },
+                  "roles": {
+                    "type": "array",
+                    "maxItems": 3,
+                    "items": { "type": "string", "enum": ["read", "write", "owner"] },
+                    "description": "Permission roles to grant. Use [\"read\"] for view-only, [\"write\"] for edit access"
+                  },
+                  "requireSignIn": {
+                    "type": "boolean",
+                    "description": "Whether the recipient must sign in to access the shared item"
+                  },
+                  "sendInvitation": {
+                    "type": "boolean",
+                    "description": "If true, sends an email invitation to recipients. If false, permissions are granted silently without email notification"
+                  },
+                  "message": {
+                    "type": "string",
+                    "description": "Message to include in the invitation email"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Permission created",
+            "content": { "application/json": { "schema": { "type": "object" } } }
+          },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "404": { "$ref": "#/components/responses/NotFound" }
+        }
+      }
+    },
+    "/users/{userId}/drives/{driveId}/items/{driveItemId}:/{fileName}:/content": {
+      "put": {
+        "operationId": "uploadFile",
+        "summary": "Upload new file",
+        "description": "Upload a new file or replace an existing file's content. Maximum file size: 4MB. For files larger than 4MB, use a resumable upload session instead. The file content should be provided as plain text (for text files) or Base64-encoded string (for binary files).",
+        "parameters": [
+          {
+            "name": "userId",
+            "in": "path",
+            "required": true,
+            "description": "User's object ID (GUID) or UPN (e.g. user@contoso.com)",
+            "schema": { "type": "string" }
+          },
+          {
+            "name": "driveId",
+            "in": "path",
+            "required": true,
+            "description": "Drive ID",
+            "schema": { "type": "string" }
+          },
+          {
+            "name": "driveItemId",
+            "in": "path",
+            "required": true,
+            "description": "Parent folder DriveItem ID",
+            "schema": { "type": "string" }
+          },
+          {
+            "name": "fileName",
+            "in": "path",
+            "required": true,
+            "description": "Name of the file to upload",
+            "schema": { "type": "string" }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "description": "File content to upload",
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "file": {
+                    "type": "string",
+                    "format": "binary",
+                    "description": "File content as plain text string (for text files like .txt, .csv) or Base64-encoded string (for binary files like .xlsx, .pdf). Maximum size: 4MB."
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "File replaced",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/DriveItem" } }
+            }
+          },
+          "201": {
+            "description": "File created",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/DriveItem" } }
+            }
+          },
+          "401": { "$ref": "#/components/responses/Unauthorized" }
+        }
+      }
+    },
+    "/users/{userId}/drives/{driveId}/items/{driveItemId}/workbook/worksheets": {
+      "get": {
+        "operationId": "listSheets",
+        "summary": "Get worksheets from drives",
+        "description": "List all worksheets in an Excel workbook.",
+        "parameters": [
+          {
+            "name": "userId",
+            "in": "path",
+            "required": true,
+            "description": "User's object ID (GUID) or UPN (e.g. user@contoso.com)",
+            "schema": { "type": "string" }
+          },
+          {
+            "name": "driveId",
+            "in": "path",
+            "required": true,
+            "description": "Drive ID",
+            "schema": { "type": "string" }
+          },
+          {
+            "name": "driveItemId",
+            "in": "path",
+            "required": true,
+            "description": "DriveItem ID of the Excel file",
+            "schema": { "type": "string" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of worksheets",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/WorksheetCollection" }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "404": { "$ref": "#/components/responses/NotFound" }
+        }
+      }
+    },
+    "/users/{userId}/drives/{driveId}/items/{driveItemId}/workbook/worksheets/add": {
+      "post": {
+        "operationId": "addSheet",
+        "summary": "Add worksheet",
+        "description": "Add a new worksheet to an Excel workbook.",
+        "parameters": [
+          {
+            "name": "userId",
+            "in": "path",
+            "required": true,
+            "description": "User's object ID (GUID) or UPN (e.g. user@contoso.com)",
+            "schema": { "type": "string" }
+          },
+          {
+            "name": "driveId",
+            "in": "path",
+            "required": true,
+            "description": "Drive ID",
+            "schema": { "type": "string" }
+          },
+          {
+            "name": "driveItemId",
+            "in": "path",
+            "required": true,
+            "description": "DriveItem ID of the Excel file",
+            "schema": { "type": "string" }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "name": { "type": "string", "description": "Name of the new worksheet" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Worksheet created",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/Worksheet" } }
+            }
+          },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "404": { "$ref": "#/components/responses/NotFound" }
+        }
+      }
+    },
+    "/users/{userId}/drives/{driveId}/items/{driveItemId}/workbook/worksheets/{worksheetIdOrName}": {
+      "get": {
+        "operationId": "readSheet",
+        "summary": "Get worksheets from drives",
+        "description": "Get properties of a specific worksheet.",
+        "parameters": [
+          {
+            "name": "userId",
+            "in": "path",
+            "required": true,
+            "description": "User's object ID (GUID) or UPN (e.g. user@contoso.com)",
+            "schema": { "type": "string" }
+          },
+          {
+            "name": "driveId",
+            "in": "path",
+            "required": true,
+            "description": "Drive ID",
+            "schema": { "type": "string" }
+          },
+          {
+            "name": "driveItemId",
+            "in": "path",
+            "required": true,
+            "description": "DriveItem ID of the Excel file",
+            "schema": { "type": "string" }
+          },
+          {
+            "name": "worksheetIdOrName",
+            "in": "path",
+            "required": true,
+            "description": "Worksheet ID or name",
+            "schema": { "type": "string" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Worksheet properties",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/Worksheet" } }
+            }
+          },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "404": { "$ref": "#/components/responses/NotFound" }
+        }
+      },
+      "patch": {
+        "operationId": "updateSheet",
+        "summary": "Update worksheet",
+        "description": "Update worksheet properties (name, visibility, or both simultaneously). name: rename the worksheet (avoid Excel reserved names like 'History'). visibility: 'Visible' = shown in tab bar, 'Hidden' = hidden but can be unhidden by the user via right-click menu, 'VeryHidden' = completely hidden from the UI and can ONLY be made visible again by calling this tool with visibility='Visible' (cannot be unhidden by end users). Provide at least one of 'name' or 'visibility'. Both can be updated in a single call.",
+        "parameters": [
+          {
+            "name": "userId",
+            "in": "path",
+            "required": true,
+            "description": "User's object ID (GUID) or UPN (e.g. user@contoso.com)",
+            "schema": { "type": "string" }
+          },
+          {
+            "name": "driveId",
+            "in": "path",
+            "required": true,
+            "description": "Drive ID",
+            "schema": { "type": "string" }
+          },
+          {
+            "name": "driveItemId",
+            "in": "path",
+            "required": true,
+            "description": "DriveItem ID of the Excel file",
+            "schema": { "type": "string" }
+          },
+          {
+            "name": "worksheetIdOrName",
+            "in": "path",
+            "required": true,
+            "description": "Worksheet ID or name",
+            "schema": { "type": "string" }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "name": { "type": "string", "description": "New name for the worksheet" },
+                  "visibility": {
+                    "type": "string",
+                    "enum": ["Visible", "Hidden", "VeryHidden"],
+                    "description": "Sheet visibility. 'Visible' = shown in UI, 'Hidden' = hidden but can be unhidden via UI, 'VeryHidden' = hidden and can only be unhidden via API. Case-sensitive PascalCase required."
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Updated worksheet",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/Worksheet" } }
+            }
+          },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "404": { "$ref": "#/components/responses/NotFound" }
+        }
+      },
+      "delete": {
+        "operationId": "deleteSheet",
+        "summary": "Delete worksheet",
+        "description": "Delete a worksheet from an Excel workbook.",
+        "parameters": [
+          {
+            "name": "userId",
+            "in": "path",
+            "required": true,
+            "description": "User's object ID (GUID) or UPN (e.g. user@contoso.com)",
+            "schema": { "type": "string" }
+          },
+          {
+            "name": "driveId",
+            "in": "path",
+            "required": true,
+            "description": "Drive ID",
+            "schema": { "type": "string" }
+          },
+          {
+            "name": "driveItemId",
+            "in": "path",
+            "required": true,
+            "description": "DriveItem ID of the Excel file",
+            "schema": { "type": "string" }
+          },
+          {
+            "name": "worksheetIdOrName",
+            "in": "path",
+            "required": true,
+            "description": "Worksheet ID or name",
+            "schema": { "type": "string" }
+          }
+        ],
+        "responses": {
+          "204": { "description": "Worksheet deleted" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "404": { "$ref": "#/components/responses/NotFound" }
+        }
+      }
+    },
+    "/users/{userId}/drives/{driveId}/items/{driveItemId}/workbook/worksheets/{worksheetIdOrName}/cell(row={row},column={column})": {
+      "get": {
+        "operationId": "readCell",
+        "summary": "Read cell within a sheet",
+        "description": "Get the properties of a single cell by zero-based row and column indices. IMPORTANT: row=0 → Excel row 1, column=0 → column A. Examples: A1 → row=0,column=0 / B3 → row=2,column=1 / C5 → row=4,column=2.",
+        "parameters": [
+          {
+            "name": "userId",
+            "in": "path",
+            "required": true,
+            "description": "User's object ID (GUID) or UPN (e.g. user@contoso.com)",
+            "schema": { "type": "string" }
+          },
+          {
+            "name": "driveId",
+            "in": "path",
+            "required": true,
+            "description": "Drive ID",
+            "schema": { "type": "string" }
+          },
+          {
+            "name": "driveItemId",
+            "in": "path",
+            "required": true,
+            "description": "DriveItem ID of the Excel file",
+            "schema": { "type": "string" }
+          },
+          {
+            "name": "worksheetIdOrName",
+            "in": "path",
+            "required": true,
+            "description": "Worksheet ID or name",
+            "schema": { "type": "string" }
+          },
+          {
+            "name": "row",
+            "in": "path",
+            "required": true,
+            "description": "Zero-based row index (e.g., row=0 means Excel row 1, row=1 means Excel row 2)",
+            "schema": { "type": "integer" }
+          },
+          {
+            "name": "column",
+            "in": "path",
+            "required": true,
+            "description": "Zero-based column index (e.g., column=0 means column A, column=1 means column B)",
+            "schema": { "type": "integer" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Cell range object",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/Range" } }
+            }
+          },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "404": { "$ref": "#/components/responses/NotFound" }
+        }
+      },
+      "patch": {
+        "operationId": "writeCell",
+        "summary": "Write cell within a sheet",
+        "description": "Update the value of a single cell. IMPORTANT: row and column are zero-based. row=0 → Excel row 1, column=0 → column A. Examples: A1 → row=0,column=0 / B3 → row=2,column=1 / C5 → row=4,column=2.",
+        "parameters": [
+          {
+            "name": "userId",
+            "in": "path",
+            "required": true,
+            "description": "User's object ID (GUID) or UPN (e.g. user@contoso.com)",
+            "schema": { "type": "string" }
+          },
+          {
+            "name": "driveId",
+            "in": "path",
+            "required": true,
+            "description": "Drive ID",
+            "schema": { "type": "string" }
+          },
+          {
+            "name": "driveItemId",
+            "in": "path",
+            "required": true,
+            "description": "DriveItem ID of the Excel file",
+            "schema": { "type": "string" }
+          },
+          {
+            "name": "worksheetIdOrName",
+            "in": "path",
+            "required": true,
+            "description": "Worksheet ID or name",
+            "schema": { "type": "string" }
+          },
+          {
+            "name": "row",
+            "in": "path",
+            "required": true,
+            "description": "Zero-based row index (e.g., row=0 means Excel row 1, row=1 means Excel row 2)",
+            "schema": { "type": "integer" }
+          },
+          {
+            "name": "column",
+            "in": "path",
+            "required": true,
+            "description": "Zero-based column index (e.g., column=0 means column A, column=1 means column B)",
+            "schema": { "type": "integer" }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "values": {
+                    "description": "2D array of plain values (strings, numbers, booleans). Example: [[\"Hello\"]]. Note: if 'formulas' is also provided, formulas takes precedence and values is ignored.",
+                    "type": "array",
+                    "items": { "type": "array", "items": {} }
+                  },
+                  "formulas": {
+                    "description": "2D array of Excel formulas in A1-style notation. Example: [[\"=SUM(B2:B10)\"]]. Takes precedence over 'values' if both are provided. Use '=' prefix for formula cells.",
+                    "type": "array",
+                    "items": { "type": "array", "items": {} }
+                  },
+                  "numberFormat": {
+                    "description": "2D array of number formats",
+                    "type": "array",
+                    "items": { "type": "array", "items": {} }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Updated cell",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/Range" } }
+            }
+          },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "404": { "$ref": "#/components/responses/NotFound" }
+        }
+      }
+    },
+    "/users/{userId}/drives/{driveId}/items/{driveItemId}/workbook/worksheets/{worksheetIdOrName}/range(address='{address}')": {
+      "get": {
+        "operationId": "readRange",
+        "summary": "Read range",
+        "description": "Get the properties of a range in a worksheet (e.g. 'A1:D5').",
+        "parameters": [
+          {
+            "name": "userId",
+            "in": "path",
+            "required": true,
+            "description": "User's object ID (GUID) or UPN (e.g. user@contoso.com)",
+            "schema": { "type": "string" }
+          },
+          {
+            "name": "driveId",
+            "in": "path",
+            "required": true,
+            "description": "Drive ID",
+            "schema": { "type": "string" }
+          },
+          {
+            "name": "driveItemId",
+            "in": "path",
+            "required": true,
+            "description": "DriveItem ID of the Excel file",
+            "schema": { "type": "string" }
+          },
+          {
+            "name": "worksheetIdOrName",
+            "in": "path",
+            "required": true,
+            "description": "Worksheet ID or name",
+            "schema": { "type": "string" }
+          },
+          {
+            "name": "address",
+            "in": "path",
+            "required": true,
+            "description": "Range address (e.g. 'A1:D5')",
+            "schema": { "type": "string" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Range object with values",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/Range" } }
+            }
+          },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "404": { "$ref": "#/components/responses/NotFound" }
+        }
+      },
+      "patch": {
+        "operationId": "writeRange",
+        "summary": "Write range",
+        "description": "Update the values, formulas, or number format of a range in a worksheet. To write plain values (strings, numbers), use 'values'. To write Excel formulas (must start with '='), use 'formulas' — formulas take precedence over values if both are provided, so do NOT specify both simultaneously. Example: formulas=[[\"=SUM(A1:A10)\"]] writes a formula; values=[[\"Hello\", 42]] writes plain data. The address must be in A1 notation (e.g., 'B1:D2') and must match the dimensions of the provided array.",
+        "parameters": [
+          {
+            "name": "userId",
+            "in": "path",
+            "required": true,
+            "description": "User's object ID (GUID) or UPN (e.g. user@contoso.com)",
+            "schema": { "type": "string" }
+          },
+          {
+            "name": "driveId",
+            "in": "path",
+            "required": true,
+            "description": "Drive ID",
+            "schema": { "type": "string" }
+          },
+          {
+            "name": "driveItemId",
+            "in": "path",
+            "required": true,
+            "description": "DriveItem ID of the Excel file",
+            "schema": { "type": "string" }
+          },
+          {
+            "name": "worksheetIdOrName",
+            "in": "path",
+            "required": true,
+            "description": "Worksheet ID or name",
+            "schema": { "type": "string" }
+          },
+          {
+            "name": "address",
+            "in": "path",
+            "required": true,
+            "description": "Range address (e.g. 'A1:D5')",
+            "schema": { "type": "string" }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "values": {
+                    "description": "2D array of plain values (strings, numbers, booleans). Example: [[\"Name\", \"Score\"], [\"Alice\", 95]]. Note: if 'formulas' is also provided, formulas takes precedence and values is ignored.",
+                    "type": "array",
+                    "items": { "type": "array", "items": {} }
+                  },
+                  "formulas": {
+                    "description": "2D array of Excel formulas in A1-style notation. Example: [[\"=SUM(B2:B10)\"], [\"=AVERAGE(B2:B10)\"]]. Takes precedence over 'values' if both are provided. Use '=' prefix for formula cells.",
+                    "type": "array",
+                    "items": { "type": "array", "items": {} }
+                  },
+                  "numberFormat": {
+                    "description": "2D array of number formats",
+                    "type": "array",
+                    "items": { "type": "array", "items": {} }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Updated range",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/Range" } }
+            }
+          },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "404": { "$ref": "#/components/responses/NotFound" }
+        }
+      }
+    },
+    "/users/{userId}/drives/{driveId}/items/{driveItemId}/workbook/worksheets/{worksheetIdOrName}/range(address='{address}')/delete": {
+      "post": {
+        "operationId": "deleteRange",
+        "summary": "Delete Range within a sheet",
+        "description": "Delete the specified range and shift surrounding cells to fill the gap (cells are physically removed from the sheet). Use shift='Up' to move cells below upward, or shift='Left' to move cells to the right leftward. NOTE: shift values are case-sensitive. Unlike clearRange (which only empties cells), this operation changes the structure of the sheet by removing cells entirely.",
+        "parameters": [
+          {
+            "name": "userId",
+            "in": "path",
+            "required": true,
+            "description": "User's object ID (GUID) or UPN (e.g. user@contoso.com)",
+            "schema": { "type": "string" }
+          },
+          {
+            "name": "driveId",
+            "in": "path",
+            "required": true,
+            "description": "Drive ID",
+            "schema": { "type": "string" }
+          },
+          {
+            "name": "driveItemId",
+            "in": "path",
+            "required": true,
+            "description": "DriveItem ID of the Excel file",
+            "schema": { "type": "string" }
+          },
+          {
+            "name": "worksheetIdOrName",
+            "in": "path",
+            "required": true,
+            "description": "Worksheet ID or name",
+            "schema": { "type": "string" }
+          },
+          {
+            "name": "address",
+            "in": "path",
+            "required": true,
+            "description": "Range address (e.g. 'A1:D5')",
+            "schema": { "type": "string" }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["shift"],
+                "properties": {
+                  "shift": {
+                    "type": "string",
+                    "enum": ["Up", "Left"],
+                    "description": "Direction to shift surrounding cells to fill the deleted range. 'Up' = cells below shift upward, 'Left' = cells to the right shift leftward. Case-sensitive."
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": { "description": "Range deleted" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "404": { "$ref": "#/components/responses/NotFound" }
+        }
+      }
+    },
+    "/users/{userId}/drives/{driveId}/items/{driveItemId}/workbook/worksheets/{worksheetIdOrName}/usedRange": {
+      "get": {
+        "operationId": "readUsedRange",
+        "summary": "Read used range of a sheet",
+        "description": "Get the used range of a worksheet — the smallest bounding rectangle that encompasses all cells with data OR formatting. Returns range address, values, formulas, and number formats. Note: cells with only formatting (no data) are also included in the used range, which may make the range larger than expected. If the worksheet is completely empty, the API returns the first cell (A1) as the used range. Use this tool to efficiently read all meaningful data from a sheet without knowing its exact dimensions in advance.",
+        "parameters": [
+          {
+            "name": "userId",
+            "in": "path",
+            "required": true,
+            "description": "User's object ID (GUID) or UPN (e.g. user@contoso.com)",
+            "schema": { "type": "string" }
+          },
+          {
+            "name": "driveId",
+            "in": "path",
+            "required": true,
+            "description": "Drive ID",
+            "schema": { "type": "string" }
+          },
+          {
+            "name": "driveItemId",
+            "in": "path",
+            "required": true,
+            "description": "DriveItem ID of the Excel file",
+            "schema": { "type": "string" }
+          },
+          {
+            "name": "worksheetIdOrName",
+            "in": "path",
+            "required": true,
+            "description": "Worksheet ID or name",
+            "schema": { "type": "string" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Used range object",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/Range" } }
+            }
+          },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "404": { "$ref": "#/components/responses/NotFound" }
+        }
+      }
+    },
+    "/users/{userId}/drives/{driveId}/items/{driveItemId}/workbook/worksheets/{worksheetIdOrName}/range(address='{address}')/clear": {
+      "post": {
+        "operationId": "clearRange",
+        "summary": "Clear range",
+        "description": "Clear the contents and/or formatting of a range WITHOUT removing the cells (cells remain in place). Use applyTo to control what is cleared: 'Contents' clears values only, 'Formats' clears formatting only, 'All' clears both. NOTE: applyTo values are case-sensitive. Use this when you want to empty cells but keep the cell structure intact. If you want to remove cells and shift surrounding cells, use deleteRange instead.",
+        "parameters": [
+          {
+            "name": "userId",
+            "in": "path",
+            "required": true,
+            "description": "User's object ID (GUID) or UPN (e.g. user@contoso.com)",
+            "schema": { "type": "string" }
+          },
+          {
+            "name": "driveId",
+            "in": "path",
+            "required": true,
+            "description": "Drive ID",
+            "schema": { "type": "string" }
+          },
+          {
+            "name": "driveItemId",
+            "in": "path",
+            "required": true,
+            "description": "DriveItem ID of the Excel file",
+            "schema": { "type": "string" }
+          },
+          {
+            "name": "worksheetIdOrName",
+            "in": "path",
+            "required": true,
+            "description": "Worksheet ID or name",
+            "schema": { "type": "string" }
+          },
+          {
+            "name": "address",
+            "in": "path",
+            "required": true,
+            "description": "Range address (e.g. 'A1:D5')",
+            "schema": { "type": "string" }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["applyTo"],
+                "properties": {
+                  "applyTo": {
+                    "type": "string",
+                    "enum": ["All", "Formats", "Contents"],
+                    "description": "Specifies what to clear. 'All' = clears both values and formatting, 'Formats' = clears formatting only, 'Contents' = clears values only. Case-sensitive."
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": { "description": "Range cleared" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "404": { "$ref": "#/components/responses/NotFound" }
+        }
+      }
+    }
+  },
+  "components": {
+    "responses": {
+      "Unauthorized": {
+        "description": "Authentication required or token expired",
+        "content": {
+          "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } }
+        }
+      },
+      "NotFound": {
+        "description": "Resource not found",
+        "content": {
+          "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } }
+        }
+      }
+    },
+    "schemas": {
+      "User": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" },
+          "displayName": { "type": "string" },
+          "mail": { "type": "string" },
+          "userPrincipalName": { "type": "string" },
+          "jobTitle": { "type": "string" },
+          "officeLocation": { "type": "string" }
+        }
+      },
+      "Drive": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" },
+          "driveType": { "type": "string" },
+          "name": { "type": "string" },
+          "owner": {
+            "type": "object",
+            "properties": {
+              "user": {
+                "type": "object",
+                "properties": { "displayName": { "type": "string" }, "id": { "type": "string" } }
+              }
+            }
+          },
+          "quota": {
+            "type": "object",
+            "properties": {
+              "total": { "type": "integer", "format": "int64" },
+              "used": { "type": "integer", "format": "int64" },
+              "remaining": { "type": "integer", "format": "int64" },
+              "state": { "type": "string" }
+            }
+          }
+        }
+      },
+      "DriveItem": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" },
+          "name": { "type": "string" },
+          "size": { "type": "integer", "format": "int64" },
+          "webUrl": { "type": "string" },
+          "createdDateTime": { "type": "string", "format": "date-time" },
+          "lastModifiedDateTime": { "type": "string", "format": "date-time" },
+          "file": { "type": "object", "properties": { "mimeType": { "type": "string" } } },
+          "folder": { "type": "object", "properties": { "childCount": { "type": "integer" } } },
+          "parentReference": {
+            "type": "object",
+            "properties": {
+              "driveId": { "type": "string" },
+              "id": { "type": "string" },
+              "path": { "type": "string" }
+            }
+          }
+        }
+      },
+      "DriveItemCollection": {
+        "type": "object",
+        "properties": {
+          "value": {
+            "type": "array",
+            "maxItems": 1000,
+            "items": { "$ref": "#/components/schemas/DriveItem" }
+          },
+          "@odata.nextLink": { "type": "string" },
+          "@odata.count": { "type": "integer" }
+        }
+      },
+      "Worksheet": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" },
+          "name": { "type": "string" },
+          "position": { "type": "integer" },
+          "visibility": { "type": "string" }
+        }
+      },
+      "WorksheetCollection": {
+        "type": "object",
+        "properties": {
+          "value": {
+            "type": "array",
+            "maxItems": 255,
+            "items": { "$ref": "#/components/schemas/Worksheet" }
+          }
+        }
+      },
+      "Range": {
+        "type": "object",
+        "properties": {
+          "address": { "type": "string" },
+          "addressLocal": { "type": "string" },
+          "cellCount": { "type": "integer" },
+          "columnCount": { "type": "integer" },
+          "columnIndex": { "type": "integer" },
+          "rowCount": { "type": "integer" },
+          "rowIndex": { "type": "integer" },
+          "values": {
+            "type": "array",
+            "maxItems": 10000,
+            "items": { "type": "array", "maxItems": 10000, "items": {} }
+          },
+          "formulas": {
+            "type": "array",
+            "maxItems": 10000,
+            "items": { "type": "array", "maxItems": 10000, "items": {} }
+          },
+          "numberFormat": {
+            "type": "array",
+            "maxItems": 10000,
+            "items": { "type": "array", "maxItems": 10000, "items": {} }
+          },
+          "text": {
+            "type": "array",
+            "maxItems": 10000,
+            "items": { "type": "array", "maxItems": 10000, "items": {} }
+          }
+        }
+      },
+      "ErrorResponse": {
+        "type": "object",
+        "properties": {
+          "error": {
+            "type": "object",
+            "properties": { "code": { "type": "string" }, "message": { "type": "string" } }
+          }
+        }
+      }
+    }
+  }
+}

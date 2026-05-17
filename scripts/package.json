@@ -1,0 +1,21 @@
+{
+  "name": "@moca/scripts",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Utility scripts for Moca",
+  "scripts": {
+    "setup-env": "tsx src/setup-env.ts",
+    "seed-system-agents": "tsx src/seed-system-agents.ts"
+  },
+  "devDependencies": {
+    "ts-morph": "^28.0.0"
+  },
+  "dependencies": {
+    "@aws-sdk/client-cloudformation": "^3.716.0",
+    "@aws-sdk/client-cognito-identity-provider": "^3.716.0",
+    "@aws-sdk/client-dynamodb": "^3.716.0",
+    "@aws-sdk/util-dynamodb": "^3.716.0",
+    "uuid": "^13.0.0"
+  }
+}

@@ -1,0 +1,21 @@
+{
+  "name": "@moca/lambda-tools-utility",
+  "version": "1.0.0",
+  "description": "AgentCore Gateway Utility Tools (Echo/Ping etc.) Lambda Function",
+  "type": "module",
+  "main": "dist/handler.js",
+  "scripts": {
+    "clean": "rimraf dist tsconfig.tsbuildinfo",
+    "test": "jest --passWithNoTests"
+  },
+  "devDependencies": {
+    "@types/aws-lambda": "^8.10.159"
+  },
+  "engines": {
+    "node": ">=22.12.0"
+  },
+  "dependencies": {
+    "@aws-sdk/client-bedrock-agent-runtime": "^3.685.0",
+    "@moca/lambda-tools-shared": "*"
+  }
+}

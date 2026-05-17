@@ -1,0 +1,35 @@
+services:
+  agentcore-agent:
+    build:
+      context: ../..
+      dockerfile: docker/agent.Dockerfile
+    image: agentcore-agent:latest
+    container_name: agentcore-agent-dev
+    ports:
+      - "8080:8080"
+    env_file:
+      - .env
+    environment:
+      # Node.js環境設定
+      - NODE_ENV=${NODE_ENV:-development}
+      - LOG_LEVEL=${LOG_LEVEL:-info}
+      # ポート設定
+      - PORT=8080
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    restart: unless-stopped
+    networks:
+      - agentcore-network
+
+networks:
+  agentcore-network:
+    driver: bridge
+
+# 開発用のボリューム（オプション）
+volumes:
+  node_modules:
+    driver: local

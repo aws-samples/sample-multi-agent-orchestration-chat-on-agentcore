@@ -1,0 +1,23 @@
+{
+  "name": "@moca/lambda-tools-tavily",
+  "version": "1.0.0",
+  "description": "AgentCore Gateway Tavily Tools Lambda Function",
+  "type": "module",
+  "main": "dist/handler.js",
+  "scripts": {
+    "clean": "rimraf dist tsconfig.tsbuildinfo",
+    "test": "jest --passWithNoTests",
+    "test:integration": "jest --config jest.integration.config.js --passWithNoTests"
+  },
+  "devDependencies": {
+    "@types/aws-lambda": "^8.10.159"
+  },
+  "engines": {
+    "node": ">=22.12.0"
+  },
+  "dependencies": {
+    "@aws-sdk/client-secrets-manager": "^3.685.0",
+    "@moca/lambda-tools-shared": "*",
+    "zod": "^4.0.0"
+  }
+}

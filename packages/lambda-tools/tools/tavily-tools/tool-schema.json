@@ -1,0 +1,247 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "properties": {
+    "tools": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "name": { "type": "string" },
+          "description": { "type": "string" },
+          "inputSchema": { "type": "object" }
+        }
+      }
+    }
+  },
+  "tools": [
+    {
+      "name": "tavily_search",
+      "description": "Execute high-quality web search using Tavily API. Get comprehensive search results for latest information, news, and general topics.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "query": {
+            "type": "string",
+            "minLength": 2,
+            "description": "Search query (required, minimum 2 characters)"
+          },
+          "searchDepth": {
+            "type": "string",
+            "enum": ["basic", "advanced"],
+            "default": "basic",
+            "description": "Search depth. basic uses 1 credit, advanced uses 2 credits"
+          },
+          "topic": {
+            "type": "string",
+            "enum": ["general", "news"],
+            "default": "general",
+            "description": "Search category. news for latest information, general for general search"
+          },
+          "maxResults": {
+            "type": "number",
+            "minimum": 1,
+            "maximum": 15,
+            "default": 5,
+            "description": "Maximum number of search results to retrieve (1-15)"
+          },
+          "includeAnswer": {
+            "type": "boolean",
+            "default": true,
+            "description": "Include LLM-generated summary answer"
+          },
+          "timeRange": {
+            "type": "string",
+            "enum": ["day", "week", "month", "year", "d", "w", "m", "y"],
+            "description": "Time range filter (filter by past period)"
+          },
+          "includeDomains": {
+            "type": "array",
+            "items": { "type": "string" },
+            "description": "List of domains to include in search"
+          },
+          "excludeDomains": {
+            "type": "array",
+            "items": { "type": "string" },
+            "description": "List of domains to exclude from search"
+          },
+          "includeImages": {
+            "type": "boolean",
+            "default": false,
+            "description": "Retrieve related images"
+          },
+          "country": {
+            "type": "string",
+            "description": "Prioritize results from specific country (e.g., japan, united states)"
+          },
+          "maxContentLength": {
+            "type": "integer",
+            "minimum": 500,
+            "maximum": 50000,
+            "default": 5000,
+            "description": "Maximum character length per search result content (default: 5000, min: 500, max: 50000). Increase to retrieve more detailed content from each result."
+          }
+        },
+        "required": ["query"]
+      }
+    },
+    {
+      "name": "tavily_extract",
+      "description": "Extract content from specified URLs using Tavily API. Get webpage content as structured text.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "urls": {
+            "type": "array",
+            "items": { "type": "string" },
+            "minItems": 1,
+            "description": "Array of URLs to extract content from (single URL should be passed as a 1-element array)"
+          },
+          "query": {
+            "type": "string",
+            "description": "Query for reranking. When specified, prioritizes more relevant content"
+          },
+          "extractDepth": {
+            "type": "string",
+            "enum": ["basic", "advanced"],
+            "default": "basic",
+            "description": "Extraction depth. basic: 1 credit/5 URLs, advanced: 2 credits/5 URLs"
+          },
+          "format": {
+            "type": "string",
+            "enum": ["markdown", "text"],
+            "default": "markdown",
+            "description": "Output format. markdown or text"
+          },
+          "chunksPerSource": {
+            "type": "number",
+            "minimum": 1,
+            "maximum": 5,
+            "default": 3,
+            "description": "Number of chunks per source (1-5, only effective when query is specified)"
+          },
+          "includeImages": {
+            "type": "boolean",
+            "default": false,
+            "description": "Whether to include image information"
+          },
+          "timeout": {
+            "type": "number",
+            "minimum": 1,
+            "maximum": 60,
+            "default": 30,
+            "description": "Timeout in seconds (1-60)"
+          },
+          "maxContentLength": {
+            "type": "integer",
+            "minimum": 1000,
+            "maximum": 100000,
+            "default": 20000,
+            "description": "Maximum character length per extracted content (default: 20000, min: 1000, max: 100000). Increase to retrieve full page content."
+          }
+        },
+        "required": ["urls"]
+      }
+    },
+    {
+      "name": "tavily_crawl",
+      "description": "Comprehensively crawl websites using Tavily API. Starting from specified root URL, automatically discovers and extracts related pages.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "url": {
+            "type": "string",
+            "description": "Starting URL for crawl"
+          },
+          "instructions": {
+            "type": "string",
+            "description": "Crawl instructions (natural language). Specifying doubles the usage cost"
+          },
+          "maxDepth": {
+            "type": "number",
+            "minimum": 1,
+            "maximum": 5,
+            "default": 1,
+            "description": "Maximum exploration depth (1-5, how far from base URL)"
+          },
+          "maxBreadth": {
+            "type": "number",
+            "minimum": 1,
+            "default": 20,
+            "description": "Maximum number of links per page (1 or more)"
+          },
+          "limit": {
+            "type": "number",
+            "minimum": 1,
+            "default": 50,
+            "description": "Maximum number of links to process (1 or more)"
+          },
+          "selectPaths": {
+            "type": "array",
+            "items": { "type": "string" },
+            "description": "Regex patterns for paths to include"
+          },
+          "selectDomains": {
+            "type": "array",
+            "items": { "type": "string" },
+            "description": "Regex patterns for domains to include"
+          },
+          "excludePaths": {
+            "type": "array",
+            "items": { "type": "string" },
+            "description": "Regex patterns for paths to exclude"
+          },
+          "excludeDomains": {
+            "type": "array",
+            "items": { "type": "string" },
+            "description": "Regex patterns for domains to exclude"
+          },
+          "allowExternal": {
+            "type": "boolean",
+            "default": true,
+            "description": "Whether to include external domain links in results"
+          },
+          "extractDepth": {
+            "type": "string",
+            "enum": ["basic", "advanced"],
+            "default": "basic",
+            "description": "Extraction depth. basic: 1 credit/5 extractions, advanced: 2 credits/5 extractions"
+          },
+          "format": {
+            "type": "string",
+            "enum": ["markdown", "text"],
+            "default": "markdown",
+            "description": "Output format. markdown or text"
+          },
+          "includeImages": {
+            "type": "boolean",
+            "default": false,
+            "description": "Whether to include image information"
+          },
+          "chunksPerSource": {
+            "type": "number",
+            "minimum": 1,
+            "maximum": 5,
+            "default": 3,
+            "description": "Number of chunks per source (1-5, only effective when instructions is specified)"
+          },
+          "timeout": {
+            "type": "number",
+            "minimum": 10,
+            "maximum": 150,
+            "default": 150,
+            "description": "Timeout in seconds (10-150)"
+          },
+          "maxContentLength": {
+            "type": "integer",
+            "minimum": 1000,
+            "maximum": 100000,
+            "default": 10000,
+            "description": "Maximum character length per crawled page content (default: 10000, min: 1000, max: 100000). Increase to retrieve more detailed content from each page."
+          }
+        },
+        "required": ["url"]
+      }
+    }
+  ]
+}

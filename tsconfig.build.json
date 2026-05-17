@@ -1,0 +1,15 @@
+{
+  "files": [],
+  "references": [
+    { "path": "packages/libs/core" },
+    { "path": "packages/libs/generative-ui-catalog" },
+    { "path": "packages/libs/tool-definitions" },
+    { "path": "packages/libs/s3-workspace-sync" },
+    { "path": "packages/lambda-tools/shared" },
+    { "path": "packages/agent" },
+    { "path": "packages/backend" },
+    { "path": "packages/github-token-broker" },
+    { "path": "packages/session-stream-handler" },
+    { "path": "packages/trigger" }
+  ]
+}

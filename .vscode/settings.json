@@ -1,0 +1,69 @@
+{
+  // Prettier Settings
+  "editor.defaultFormatter": "esbenp.prettier-vscode",
+  "editor.formatOnSave": true,
+
+  // Performance Optimization: Specify config path explicitly
+  "prettier.configPath": ".prettierrc",
+  "prettier.ignorePath": ".prettierignore",
+
+  // Disable format on paste to reduce overhead
+  "editor.formatOnPaste": false,
+
+  // Language-specific settings
+  "[typescript]": {
+    "editor.defaultFormatter": "esbenp.prettier-vscode"
+  },
+  "[typescriptreact]": {
+    "editor.defaultFormatter": "esbenp.prettier-vscode"
+  },
+  "[javascript]": {
+    "editor.defaultFormatter": "esbenp.prettier-vscode"
+  },
+  "[javascriptreact]": {
+    "editor.defaultFormatter": "esbenp.prettier-vscode"
+  },
+  "[json]": {
+    "editor.defaultFormatter": "esbenp.prettier-vscode"
+  },
+  "[jsonc]": {
+    "editor.defaultFormatter": "esbenp.prettier-vscode"
+  },
+
+  // Disable formatting for non-code files
+  "[markdown]": {
+    "editor.formatOnSave": false
+  },
+  "[yaml]": {
+    "editor.formatOnSave": false
+  },
+
+  // ESLint settings (separate from Prettier)
+  "eslint.enable": true,
+  "editor.codeActionsOnSave": {
+    "source.fixAll.eslint": "explicit"
+  },
+
+  // File associations
+  "files.associations": {
+    "*.json": "jsonc"
+  },
+
+  // Exclude from file watcher for performance
+  "files.watcherExclude": {
+    "**/node_modules/**": true,
+    "**/dist/**": true,
+    "**/cdk.out/**": true,
+    "**/.git/**": true
+  },
+
+  // Search exclusions
+  "search.exclude": {
+    "**/node_modules": true,
+    "**/dist": true,
+    "**/cdk.out": true
+  },
+
+  // Tailwind CSS: Suppress unknown @tailwind at-rule warnings
+  "css.lint.unknownAtRules": "ignore"
+}

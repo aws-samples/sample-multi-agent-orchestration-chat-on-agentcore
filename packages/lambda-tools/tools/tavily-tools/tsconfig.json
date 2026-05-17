@@ -1,0 +1,13 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "outDir": "./dist",
+    "rootDir": "./src",
+    // Override base `types: ["node"]` to add jest globals. Test files are excluded
+    // from tsc emit (see `exclude` below), but IDE TS Language Server still
+    // type-checks them and needs @types/jest to resolve `describe`/`it`/`expect`.
+    "types": ["node", "jest"]
+  },
+  "include": ["src/**/*"],
+  "exclude": ["node_modules", "dist", "**/*.test.ts"]
+}

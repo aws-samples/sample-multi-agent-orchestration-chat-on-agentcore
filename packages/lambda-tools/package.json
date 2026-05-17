@@ -1,0 +1,15 @@
+{
+  "name": "@moca/lambda-tools",
+  "version": "0.1.0",
+  "description": "AgentCore Gateway Lambda Tools Collection",
+  "type": "module",
+  "private": true,
+  "keywords": [
+    "lambda",
+    "agentcore",
+    "mcp",
+    "tools"
+  ],
+  "author": "AgentCore Gateway",
+  "license": "MIT"
+}

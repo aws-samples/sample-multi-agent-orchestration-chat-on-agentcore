@@ -1,0 +1,98 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "properties": {
+    "tools": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "name": { "type": "string" },
+          "description": { "type": "string" },
+          "inputSchema": { "type": "object" }
+        }
+      }
+    }
+  },
+  "tools": [
+    {
+      "name": "nova_reel",
+      "description": "Generate videos using Amazon Nova Reel on Bedrock. Supports text-to-video and image-to-video generation with configurable duration, resolution, and seed. Actions: start (begin video generation), status (check job status), list (get job list). Automatically saves generated videos to user S3 storage.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "action": {
+            "type": "string",
+            "enum": ["start", "status", "list"],
+            "description": "Action to execute: start (start video generation), status (check status), list (get list)"
+          },
+          "prompt": {
+            "type": "string",
+            "description": "Text prompt for video generation (required when action is start)"
+          },
+          "negativePrompt": {
+            "type": "string",
+            "description": "Elements to exclude from generation (optional)"
+          },
+          "imageBase64": {
+            "type": "string",
+            "description": "Base64-encoded image for Image-to-Video (optional)"
+          },
+          "duration": {
+            "type": "number",
+            "description": "Video duration in seconds: 6 (default) or 120"
+          },
+          "dimension": {
+            "type": "string",
+            "enum": ["1280x720"],
+            "description": "Video resolution. Currently only 1280x720 (landscape, 16:9) is supported."
+          },
+          "fps": {
+            "type": "number",
+            "description": "Frame rate (default: 24)"
+          },
+          "seed": {
+            "type": "number",
+            "description": "Random seed (0-2147483646)"
+          },
+          "outputPath": {
+            "type": "string",
+            "description": "Output filename (auto-generated if omitted)"
+          },
+          "waitForCompletion": {
+            "type": "boolean",
+            "description": "Wait for completion (default: false)"
+          },
+          "pollingInterval": {
+            "type": "number",
+            "description": "Polling interval in seconds (default: 30)"
+          },
+          "maxWaitTime": {
+            "type": "number",
+            "description": "Maximum wait time in seconds (default: 840)"
+          },
+          "invocationArn": {
+            "type": "string",
+            "description": "Job ARN (required when action is status)"
+          },
+          "statusFilter": {
+            "type": "string",
+            "enum": ["InProgress", "Completed", "Failed"],
+            "description": "Filter by status (for list action)"
+          },
+          "maxResults": {
+            "type": "number",
+            "description": "Maximum number of results (default: 10, max: 100)"
+          },
+          "sortOrder": {
+            "type": "string",
+            "enum": ["Ascending", "Descending"],
+            "description": "Sort order (default: Descending)"
+          }
+        },
+        "required": ["action"],
+        "additionalProperties": false
+      }
+    }
+  ]
+}

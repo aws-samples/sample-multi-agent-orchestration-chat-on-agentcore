@@ -1,0 +1,63 @@
+# Build artifacts
+node_modules/
+**/node_modules/
+dist/
+**/dist/
+**/tsconfig.tsbuildinfo
+**/*.d.ts.map
+cdk.out/
+coverage/
+
+# Version control
+.git/
+.github/
+.gitlab-ci.yml
+
+# Workspaces not needed for the backend image.
+# Keep package.json for each excluded package (npm ci / lockfile integrity);
+# excluding only the source directories.
+packages/frontend/src
+packages/agent/src
+packages/cdk/bin
+packages/cdk/lib
+packages/cdk/lambda
+packages/lambda-tools/tools/athena-tools/src
+packages/lambda-tools/tools/kb-tools/src
+packages/lambda-tools/tools/nova-canvas-tools/src
+packages/lambda-tools/tools/nova-reel-tools/src
+packages/lambda-tools/tools/utility-tools/src
+packages/trigger/src
+packages/session-stream-handler/src
+
+# Docker files (prevent recursive copy)
+docker/
+
+# Documentation and scripts
+docs/
+scripts/src
+*.md
+!packages/*/README.md
+
+# Test files
+**/*.test.ts
+**/*.spec.ts
+**/*.test.js
+**/*.spec.js
+__tests__/
+coverage/
+.nyc_output/
+
+# Logs
+*.log
+logs/
+npm-debug.log*
+
+# Environment files
+.env
+.env.*
+*.local
+
+# IDE and OS files
+.vscode/
+.idea/
+.DS_Store

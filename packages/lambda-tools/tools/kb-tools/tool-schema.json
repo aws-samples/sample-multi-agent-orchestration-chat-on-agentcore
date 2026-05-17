@@ -1,0 +1,45 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "properties": {
+    "tools": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "name": { "type": "string" },
+          "description": { "type": "string" },
+          "inputSchema": { "type": "object" }
+        }
+      }
+    }
+  },
+  "tools": [
+    {
+      "name": "retrieve",
+      "description": "A tool that retrieves relevant chunks from an Amazon Bedrock Knowledge Base using semantic search. Returns the most relevant document chunks for the specified query.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "knowledgeBaseId": {
+            "type": "string",
+            "description": "The ID of the Knowledge Base to search"
+          },
+          "query": {
+            "type": "string",
+            "description": "The search query string"
+          },
+          "numberOfResults": {
+            "type": "integer",
+            "description": "Maximum number of results to retrieve (default: 5)",
+            "default": 5,
+            "minimum": 1,
+            "maximum": 100
+          }
+        },
+        "required": ["knowledgeBaseId", "query"],
+        "additionalProperties": false
+      }
+    }
+  ]
+}

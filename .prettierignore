@@ -1,0 +1,45 @@
+# Dependencies
+node_modules/
+**/node_modules/
+
+# Build outputs
+dist/
+**/dist/
+cdk.out/
+
+# Git
+.git/
+
+# Generated files
+api-*.html
+*.yaml
+cdk.context.json
+
+# Lock files
+package-lock.json
+pnpm-lock.yaml
+
+# Logs
+*.log
+
+# Documentation
+*.md
+
+# System files
+.DS_Store
+
+# Coverage
+coverage/
+**/coverage/
+
+# IDE & Config
+.vscode/
+.idea/
+.husky/
+
+# Scripts (non-source code)
+scripts/
+
+# CI/CD
+.github/
+.gitlab-ci.yml

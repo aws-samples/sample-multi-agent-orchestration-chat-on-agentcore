@@ -1,0 +1,25 @@
+{
+  "name": "@moca/tool-definitions",
+  "version": "0.1.0",
+  "description": "Shared tool definitions for AgentCore",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "scripts": {
+    "build": "tsc --build",
+    "clean": "rimraf dist tsconfig.tsbuildinfo",
+    "dev": "tsc --build --watch",
+    "test": "NODE_OPTIONS='--experimental-vm-modules --no-warnings' jest --passWithNoTests"
+  },
+  "dependencies": {
+    "@moca/generative-ui-catalog": "*",
+    "zod": "^4.0.0"
+  },
+  "devDependencies": {}
+}

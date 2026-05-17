@@ -1,0 +1,83 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "properties": {
+    "tools": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "name": { "type": "string" },
+          "description": { "type": "string" },
+          "inputSchema": { "type": "object" }
+        }
+      }
+    }
+  },
+  "tools": [
+    {
+      "name": "athena-query",
+      "description": "A tool that executes SQL queries on data stored in S3 using Amazon Athena and retrieves the results. Only SELECT queries are allowed. Before executing a query, use athena-list-tables or athena-describe-table to check the table structure first.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "query": {
+            "type": "string",
+            "description": "The SQL query to execute (only SELECT statements are allowed)"
+          },
+          "database": {
+            "type": "string",
+            "description": "The Glue Data Catalog database name"
+          },
+          "maxRows": {
+            "type": "integer",
+            "description": "Maximum number of rows to return (default: 100, max: 1000)",
+            "default": 100,
+            "minimum": 1,
+            "maximum": 1000
+          }
+        },
+        "required": ["query", "database"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "athena-list-tables",
+      "description": "A tool that retrieves a list of tables and their schema information from a specified database in the Glue Data Catalog. Returns table names, column definitions, partition keys, data formats, and more. Use this tool to check the table structure before executing SQL queries.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "database": {
+            "type": "string",
+            "description": "The Glue Data Catalog database name"
+          },
+          "tableNameFilter": {
+            "type": "string",
+            "description": "Table name filter (prefix match)"
+          }
+        },
+        "required": ["database"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "athena-describe-table",
+      "description": "A tool that retrieves detailed schema information for a specified table, including column definitions, partition information, data format, SerDe information, and table parameters. Use this to build accurate SQL queries.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "database": {
+            "type": "string",
+            "description": "The Glue Data Catalog database name"
+          },
+          "tableName": {
+            "type": "string",
+            "description": "The table name"
+          }
+        },
+        "required": ["database", "tableName"],
+        "additionalProperties": false
+      }
+    }
+  ]
+}

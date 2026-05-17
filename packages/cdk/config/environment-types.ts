@@ -1,0 +1,299 @@
+/**
+ * Environment configuration type definitions
+ */
+
+import * as cdk from 'aws-cdk-lib';
+
+/**
+ * Environment name
+ */
+export type Environment = 'default' | 'dev' | 'stg' | 'prd' | string; // Allow dynamic PR environments
+
+/**
+ * Bedrock model configuration for frontend model selector
+ */
+export interface BedrockModelConfig {
+  /** Full model ID with inference profile prefix (e.g., 'jp.anthropic.claude-sonnet-4-6') */
+  id: string;
+  /** Display name (e.g., 'Claude Sonnet 4.6') */
+  name: string;
+  /** Provider name */
+  provider: 'Anthropic' | 'Amazon';
+}
+
+/**
+ * Environment-specific configuration interface
+ * Used throughout the stack - all core properties are required (defaults applied)
+ */
+export interface EnvironmentConfig {
+  /**
+   * Environment name
+   */
+  env: Environment;
+
+  /**
+   * Resource name prefix
+   * Used as common prefix for all resources (Gateway, Cognito, S3, API, etc.)
+   * Must contain only lowercase letters and numbers (no hyphens or underscores)
+   * Examples: 'moca', 'mocadev', 'mocastg', 'mocaprd'
+   */
+  resourcePrefix: string;
+
+  /**
+   * AWS Account ID (optional)
+   * Uses CDK_DEFAULT_ACCOUNT if not specified
+   */
+  awsAccount?: string;
+
+  /**
+   * Stack deletion protection
+   */
+  deletionProtection: boolean;
+
+  /**
+   * CORS allowed origins
+   */
+  corsAllowedOrigins: string[];
+
+  /**
+   * Memory expiration (days)
+   */
+  memoryExpirationDays: number;
+
+  /**
+   * S3 removal policy
+   */
+  s3RemovalPolicy: cdk.RemovalPolicy;
+
+  /**
+   * S3 auto delete objects (only effective when RemovalPolicy is DESTROY)
+   */
+  s3AutoDeleteObjects: boolean;
+
+  /**
+   * Cognito deletion protection
+   */
+  cognitoDeletionProtection: boolean;
+
+  /**
+   * Cognito User Pool Domain prefix.
+   *
+   * This prefix becomes part of the managed login URL:
+   *   https://{cognitoDomainPrefix}.auth.{region}.amazoncognito.com/oauth2/token
+   *
+   * Cognito domain prefixes share a GLOBAL namespace across all AWS accounts
+   * and regions, so pick a value that is unlikely to collide with other users.
+   * A common convention is to include an organization/team identifier and an
+   * environment suffix (e.g. "acme-moca-dev").
+   *
+   * Requirements (enforced by validateCognitoDomainPrefix):
+   *   - 3-63 characters
+   *   - Lowercase alphanumeric and hyphens only
+   *   - Must not start with "aws", "amazon", or "cognito"
+   *   - Must not start or end with a hyphen
+   *
+   * Changing this value on an existing deployment triggers a Replacement of
+   * AWS::Cognito::UserPoolDomain (CFN Update requires: Replacement) and may
+   * fail if the old prefix is still attached to the UserPool. In that case,
+   * delete the old domain manually before redeploying:
+   *   aws cognito-idp delete-user-pool-domain --domain <old-prefix> --user-pool-id <pool-id>
+   */
+  cognitoDomainPrefix: string;
+
+  /**
+   * Lambda function log retention period (days)
+   */
+  logRetentionDays: number;
+
+  /**
+   * Tavily API Key Secret Name (Secrets Manager)
+   * Set for production/staging environments to retrieve API key from Secrets Manager
+   * NOTE: This is a secret NAME/ID reference, not the actual secret value
+   * pragma: allowlist secret
+   */
+  tavilyApiKeySecretName?: string;
+
+  /**
+   * GitHub Token Secret Name (Secrets Manager)
+   * Set for environments to retrieve GitHub token from Secrets Manager
+   * Used for gh CLI authentication
+   * NOTE: This is a secret NAME/ID reference, not the actual secret value
+   * pragma: allowlist secret
+   */
+  githubTokenSecretName?: string;
+
+  /**
+   * Allowed email domains for sign-up (optional)
+   * If set, only emails from these domains can sign up
+   * Example: ['amazon.com', 'amazon.jp']
+   */
+  allowedSignUpEmailDomains?: string[];
+
+  /**
+   * Custom domain configuration for frontend (optional)
+   * If set, CloudFront distribution will use custom domain with ACM certificate
+   */
+  customDomain?: {
+    /**
+     * Hostname for the website (e.g., 'genai')
+     * A record will be created by CDK
+     */
+    hostName: string;
+
+    /**
+     * Domain name of the public hosted zone (e.g., 'example.com')
+     * The hosted zone must exist in the same AWS account
+     */
+    domainName: string;
+  };
+
+  /**
+   * Microsoft Graph OAuth2 Credential Provider ARN (optional)
+   * Created via AgentCore Identity management console.
+   * When set together with microsoftGraphOAuthSecretArn, enables OneDrive OpenAPI target.
+   * Format: arn:aws:bedrock-agentcore:{region}:{account}:token-vault/{id}/oauth2credentialprovider/{name}
+   */
+  microsoftGraphOAuthProviderArn?: string;
+
+  /**
+   * Microsoft Graph OAuth2 Secret ARN (optional)
+   * The Secrets Manager secret ARN auto-generated when creating the OAuth2 credential provider.
+   * Required together with microsoftGraphOAuthProviderArn to enable OneDrive OpenAPI target.
+   * Format: arn:aws:secretsmanager:{region}:{account}:secret:{name}
+   * NOTE: This is a secret ARN reference, not the actual secret value
+   * pragma: allowlist secret
+   */
+  microsoftGraphOAuthSecretArn?: string;
+
+  /**
+   * GitHub Webhook Secret Name (Secrets Manager)
+   * Used for verifying GitHub webhook HMAC-SHA256 signatures
+   * NOTE: This is a secret NAME/ID reference, not the actual secret value
+   * pragma: allowlist secret
+   */
+  githubWebhookSecretName?: string;
+
+  /**
+   * Available Bedrock models for frontend model selector (optional)
+   * Each model ID should include the cross-region inference profile prefix
+   * (e.g., 'global.', 'jp.', 'us.', 'eu.', 'apac.')
+   * @default global.* prefixed models (Opus 4.6, Sonnet 4.6, Nova Lite 2)
+   */
+  bedrockModels?: BedrockModelConfig[];
+
+  /**
+   * CloudFront geo restriction - allowlist of ISO 3166-1 alpha-2 country codes (optional)
+   * When set, only requests from these countries are allowed.
+   * Example: ['JP', 'US', 'GB']
+   * @default ['JP', 'US']
+   */
+  cloudFrontGeoRestriction?: string[];
+
+  /**
+   * Event rules configuration (optional)
+   * Predefined EventBridge rules that users can subscribe to for triggers
+   */
+  eventRules?: EventRuleConfig[];
+
+  /**
+   * Athena source data S3 locations (optional, opt-in)
+   * When set, the Athena Tools Lambda target is deployed and IAM read access is scoped
+   * to only these S3 locations (no wildcard Resource:*).
+   * When NOT set, the Athena Tools Lambda target is NOT deployed at all.
+   * Example:
+   *   [
+   *     { bucket: 'my-data-lake-bucket' },
+   *     { bucket: 'analytics-data-123456789012-ap-northeast-1', prefix: 'analytics/meti_data/' },
+   *   ]
+   */
+  athenaSourceBuckets?: AthenaS3Source[];
+
+  /**
+   * Amazon Bedrock Knowledge Base IDs to enable KB search tools (optional, opt-in)
+   * When set, the Knowledge Base Tools Lambda target is deployed and IAM bedrock:Retrieve
+   * access is scoped to only these Knowledge Base ARNs.
+   * When NOT set, the Knowledge Base Tools Lambda target is NOT deployed at all.
+   */
+  knowledgeBaseIds?: string[];
+}
+
+/**
+ * Input type for defining environment configurations
+ * All properties are optional - `env` is derived from the object key,
+ * `resourcePrefix` is auto-generated from env if not specified
+ * Used only in environments.ts for configuration definition
+ */
+export type EnvironmentConfigInput = Partial<Omit<EnvironmentConfig, 'env'>>;
+
+/**
+ * Event rule configuration
+ * Defines EventBridge rules that trigger Lambda when events match the pattern
+ */
+export interface EventRuleConfig {
+  /**
+   * Unique identifier (e.g., "s3-upload", "github-push")
+   */
+  id: string;
+
+  /**
+   * Display name (e.g., "S3 File Upload")
+   */
+  name: string;
+
+  /**
+   * Description
+   */
+  description: string;
+
+  /**
+   * EventBridge event pattern
+   * Matches events to trigger the Lambda function
+   */
+  eventPattern: {
+    /**
+     * Event source (e.g., ["aws.s3"], ["com.github"])
+     */
+    source: string[];
+
+    /**
+     * Event detail type (e.g., ["Object Created"], ["Push"])
+     */
+    detailType: string[];
+
+    /**
+     * Optional detail filters
+     * Example: { bucket: { name: ["my-bucket"] } }
+     */
+    detail?: Record<string, unknown>;
+  };
+
+  /**
+   * Icon name for frontend display (optional)
+   */
+  icon?: string;
+
+  /**
+   * Whether this rule is enabled
+   */
+  enabled: boolean;
+}
+
+/**
+ * Athena source S3 location
+ * Specifies an S3 bucket (and optional prefix) that Athena Tools Lambda is allowed to read.
+ */
+export interface AthenaS3Source {
+  /**
+   * S3 bucket name
+   * Example: 'analytics-data-988417841316-ap-northeast-1'
+   */
+  bucket: string;
+
+  /**
+   * S3 key prefix to restrict access to a specific folder (optional)
+   * Must end with '/' to denote a folder.
+   * When omitted, the entire bucket is accessible.
+   * Example: 'analytics/meti_data_business_potential/'
+   */
+  prefix?: string;
+}
