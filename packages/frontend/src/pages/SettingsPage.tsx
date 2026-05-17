@@ -237,7 +237,7 @@ export function SettingsPage() {
               <HelpCircle className="w-4 h-4 text-fg-disabled" />
             </div>
             <Button variant="outline" size="md" onClick={() => setShowMemoryModal(true)}>
-              {t('common.edit')}
+              {t('common.view')}
             </Button>
           </div>
 

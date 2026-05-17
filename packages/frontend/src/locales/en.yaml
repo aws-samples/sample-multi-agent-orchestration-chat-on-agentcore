@@ -12,6 +12,7 @@ common:
   close: Close
   confirm: Confirm
   edit: Edit
+  view: View
   create: Create
   update: Update
   search: Search

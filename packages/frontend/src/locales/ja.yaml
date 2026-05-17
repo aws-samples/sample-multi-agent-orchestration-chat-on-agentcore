@@ -14,6 +14,7 @@ common:
   close: 閉じる
   confirm: 確認
   edit: 編集
+  view: 表示
   create: 作成
   update: 更新
   search: 検索
