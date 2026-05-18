@@ -14,8 +14,8 @@ Key document-code pairs:
 | AGENTS.md | All package structures, dependency graph |
 | packages/agent/README.md | agent/src/ (tools, config, endpoints, env vars) |
 | packages/backend/README.md | backend/src/routes/*.ts, config |
-| docs/deployment-options.md | cdk/config/environment-types.ts |
-| docs/local-development-setup.md | scripts/src/setup-env.ts |
+| docs/guides/deployment-options.md | cdk/config/environment-types.ts |
+| docs/guides/local-development-setup.md | scripts/src/setup-env.ts |
 
 A mechanical check exists: `scripts/bin/check-doc-drift.sh`.
 Run it after modifying config files or environment variables.

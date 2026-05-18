@@ -8,7 +8,7 @@ DRIFT=0
 
 # --- 1. deployment-options.md vs environment-types.ts ---
 TYPES_FILE="$ROOT/packages/cdk/config/environment-types.ts"
-DEPLOY_DOC="$ROOT/docs/deployment-options.md"
+DEPLOY_DOC="$ROOT/docs/guides/deployment-options.md"
 
 if [[ -f "$TYPES_FILE" && -f "$DEPLOY_DOC" ]]; then
   props=$(sed -n '/^export interface EnvironmentConfig/,/^}/p' "$TYPES_FILE" \

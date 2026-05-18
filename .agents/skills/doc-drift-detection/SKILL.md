@@ -37,7 +37,7 @@ Detect **semantic** drift between documentation and code — the kind that `grep
 Documents excluded from analysis. Add entries here when a PR is closed without merging (i.e., the finding was a false positive or intentional).
 
 - `packages/frontend/README.md` — Vite boilerplate, not project documentation
-- `packages/cdk/README.md` — Minimal stub; deployment docs live in `docs/deployment-options.md`
+- `packages/cdk/README.md` — Minimal stub; deployment docs live in `docs/guides/deployment-options.md`
 
 ## Severity Classification
 

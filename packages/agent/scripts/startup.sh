@@ -76,7 +76,7 @@ if [ -n "$GITHUB_TOKEN_BROKER_LAMBDA_ARN" ]; then
   # Remove broker ARN and raw token from the agent process environment so
   # a compromised tool cannot re-invoke the broker or read the PAT from env.
   # (gh CLI persists the token to ~/.config/gh/hosts.yml — that file remains
-  # reachable from the agent sandbox; see docs/github-token-broker-lambda.md
+  # reachable from the agent sandbox; see docs/adr/github-token-broker-lambda.md
   # for the residual-risk discussion.)
   unset GITHUB_TOKEN_BROKER_LAMBDA_ARN
   unset GITHUB_TOKEN

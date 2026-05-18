@@ -288,7 +288,7 @@ describe('SchedulerService - scheduleExists', () => {
 /**
  * Minimum-interval guard: rejects cron / rate expressions that would fire
  * more than once per minute. See
- * `docs/event-driven-identity-pool-credentials.md` > Quotas & Rate Limits
+ * `docs/adr/event-driven-identity-pool-credentials.md` > Quotas & Rate Limits
  * for the rationale (GetOpenIdTokenForDeveloperIdentity 25 TPS hard quota).
  *
  * The matching unit tests for the frontend mirror implementation live at

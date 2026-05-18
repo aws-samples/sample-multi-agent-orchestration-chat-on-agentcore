@@ -128,7 +128,7 @@ aws secretsmanager create-secret \
   --region ap-northeast-1
 ```
 
-This secret is used to verify HMAC-SHA256 signatures on incoming GitHub webhooks. See [GitHub Webhook Setup](docs/deployment-options.md#github-webhook-setup) for full configuration instructions.
+This secret is used to verify HMAC-SHA256 signatures on incoming GitHub webhooks. See [GitHub Webhook Setup](docs/guides/deployment-options.md#github-webhook-setup) for full configuration instructions.
 
 For local development, you can also set these as environment variables in `packages/agent/.env`.
 
@@ -152,7 +152,7 @@ default: {
 },
 ```
 
-See [Cognito Domain Prefix](docs/deployment-options.md#cognito-domain-prefix) for details.
+See [Cognito Domain Prefix](docs/guides/deployment-options.md#cognito-domain-prefix) for details.
 
 #### 5. Deploy the stack
 
@@ -217,7 +217,7 @@ npm run seed-system-agents -- --env default --force
 
 After deployment, you can find the Frontend URL in the CloudFormation stack outputs.
 
-For advanced configuration options such as custom domains, environment-specific settings, and event rules, see the [Deployment Options](docs/deployment-options.md) documentation.
+For advanced configuration options such as custom domains, environment-specific settings, and event rules, see the [Deployment Options](docs/guides/deployment-options.md) documentation.
 
 
 ## Cost
@@ -252,8 +252,8 @@ Additionally, when the system is not in use (i.e., no active chat sessions), the
 ## Documentation
 
 ### Technical Documentation
-- [Deployment Options](docs/deployment-options.md) - Environment configuration and customization
-- [Local Development Setup](docs/local-development-setup.md) - Explains environment setup automation
+- [Deployment Options](docs/guides/deployment-options.md) - Environment configuration and customization
+- [Local Development Setup](docs/guides/local-development-setup.md) - Explains environment setup automation
 
 ## Contributing
 

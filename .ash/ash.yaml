@@ -23,7 +23,7 @@ global_settings:
       reason: 'CDK build-time configuration paths, not user input - false positive'
     - path: 'packages/agent/src/runtime/tools/code-interpreter/__tests__/*'
       reason: 'Test files'
-    - path: 'docs/deployment-options.md'
+    - path: 'docs/guides/deployment-options.md'
       reason: 'Documentation examples with Secrets Manager reference names, not actual secrets'
     - path: 'packages/cdk/config/environment-utils.ts'
       reason: 'Default config with Secrets Manager reference names, not actual secret values'

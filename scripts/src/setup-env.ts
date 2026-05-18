@@ -182,7 +182,7 @@ IDENTITY_POOL_ID=${outputs.IdentityPoolId || ''}
 # When set, the backend links the developer login { DEVELOPER_PROVIDER_NAME: userPoolSub }
 # to the user's Identity Pool identity on every login, so event-driven invocations
 # (Trigger Lambda) resolve to the SAME identityId as frontend sessions.
-# See: docs/event-driven-identity-pool-credentials.md
+# See: docs/adr/event-driven-identity-pool-credentials.md
 DEVELOPER_PROVIDER_NAME=${outputs.GatewayName || 'moca'}.trigger
 
 # SSM Parameter Store prefix for MCP env values

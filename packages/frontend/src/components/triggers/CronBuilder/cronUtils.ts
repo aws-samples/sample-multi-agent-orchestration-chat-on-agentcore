@@ -34,7 +34,7 @@ export const CRON_PRESETS: CronPreset[] = [
   // (`scheduler-service.ts#assertMinimumInterval`). A once-per-minute cadence
   // risks hitting the `GetOpenIdTokenForDeveloperIdentity` 25 TPS hard quota
   // when multiple users schedule the same cron. See
-  // `docs/event-driven-identity-pool-credentials.md` > Quotas & Rate Limits.
+  // `docs/adr/event-driven-identity-pool-credentials.md` > Quotas & Rate Limits.
   {
     id: 'everyHour',
 

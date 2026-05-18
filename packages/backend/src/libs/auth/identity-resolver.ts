@@ -30,7 +30,7 @@
  *               rejects developer-auth tokens with
  *               `NotAuthorizedException: Invalid login token. Can't pass in a Cognito token.`
  *
- * See `docs/event-driven-identity-pool-credentials.md` for the end-to-end
+ * See `docs/adr/event-driven-identity-pool-credentials.md` for the end-to-end
  * design. The Agent container performs the same token-type branching in
  * `packages/agent/src/libs/utils/scoped-credentials.ts` (without the link
  * step — see "Developer login link establishment" below).

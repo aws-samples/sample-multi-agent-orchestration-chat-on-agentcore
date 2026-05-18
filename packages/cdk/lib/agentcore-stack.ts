@@ -574,7 +574,7 @@ export class AgentCoreStack extends cdk.Stack {
     // on every frontend login, linking the developer login { developerProviderName: userId }
     // to the user's Identity Pool identity A. Without this link, Trigger Lambda would
     // create a second Identity Pool identity on the first event fire (see
-    // docs/event-driven-identity-pool-credentials.md). The Agent container performs the
+    // docs/adr/event-driven-identity-pool-credentials.md). The Agent container performs the
     // same link, but only for users who actually hit the Runtime — backend coverage
     // guarantees the link for users who only create event triggers via the web UI.
     this.backendApi.addEnvironmentVariable('DEVELOPER_PROVIDER_NAME', developerProviderName);

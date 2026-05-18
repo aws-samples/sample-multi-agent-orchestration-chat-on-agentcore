@@ -59,6 +59,30 @@ Monorepo using npm workspaces. 8 packages.
 - **Real-time communication**: AppSync Events (WebSocket). session-stream-handler relays from DynamoDB Streams to AppSync.
 - **Event-driven automation**: EventBridge Scheduler + Rules → trigger package.
 
+## Documentation Layout
+
+`docs/` is split by audience and intent:
+
+- `docs/guides/` — User-facing guides. How to deploy, configure, and run the project.
+  Examples: `deployment-options.md`, `local-development-setup.md`.
+- `docs/adr/` — Architecture Decision Records. WHY / WHY NOT for non-obvious
+  architectural choices that an agent or engineer would predictably get wrong
+  without context. Each file captures a single decision area
+  (build layout, identity model, event-driven credential flow, etc.).
+
+### When to add a new doc
+
+- Adding a new user-visible knob, environment variable, or setup step → `docs/guides/`.
+- Making a non-obvious architectural decision (especially security boundaries,
+  data isolation, identity, build/Monorepo layout) → `docs/adr/`. Document the
+  rejected alternatives, not just the chosen one.
+- If a decision becomes obvious from code alone, do NOT add an ADR. ADRs exist
+  to prevent re-litigation of past decisions, not to mirror code (see
+  Documentation Policy above).
+
 ## Further Reading
 
-- `docs/build-design-rationale.md` — WHY / WHY NOT for non-obvious build and monorepo decisions (tsconfig composite placement, CDK outside the Solution, Dockerfile `COPY --parents` pivot, deferred alternatives). Consult before changing `tsconfig.*`, root build scripts, or Dockerfiles.
+- `docs/adr/build-design-rationale.md` — WHY / WHY NOT for non-obvious build and monorepo decisions (tsconfig composite placement, CDK outside the Solution, Dockerfile `COPY --parents` pivot, deferred alternatives). Consult before changing `tsconfig.*`, root build scripts, or Dockerfiles.
+- `docs/adr/aws-data-access-control.md` — `userId` vs `identityId` model and per-user S3/DynamoDB isolation. Consult before changing IAM policies, S3 prefixes, DynamoDB partition keys, or AppSync channel paths.
+- `docs/adr/event-driven-identity-pool-credentials.md` — How event-driven agent invocations (Trigger Lambda) resolve to the same `identityId` as frontend sessions. Consult before changing Cognito Developer Authenticated Identities or trigger credential flow.
+- `docs/adr/github-token-broker-lambda.md` — GitHub Token Broker design and the residual-risk discussion for removing `secretsmanager:GetSecretValue` from the Runtime execution role.

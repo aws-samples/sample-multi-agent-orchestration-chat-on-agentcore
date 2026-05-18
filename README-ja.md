@@ -142,7 +142,7 @@ default: {
 },
 ```
 
-詳細は [Cognito Domain Prefix](docs/deployment-options.md#cognito-domain-prefix) を参照してください。
+詳細は [Cognito Domain Prefix](docs/guides/deployment-options.md#cognito-domain-prefix) を参照してください。
 
 #### 5. スタックのデプロイ
 
@@ -242,8 +242,8 @@ npm run seed-system-agents -- --env default --force
 ## ドキュメント
 
 ### 技術ドキュメント
-- [デプロイオプション](docs/deployment-options-ja.md) - 環境設定とカスタマイズオプション
-- [ローカル開発環境のセットアップ](docs/local-development-setup.md) - 環境セットアップの自動化について説明しています
+- [デプロイオプション](docs/guides/deployment-options.md) - 環境設定とカスタマイズオプション
+- [ローカル開発環境のセットアップ](docs/guides/local-development-setup.md) - 環境セットアップの自動化について説明しています
 
 ## コントリビューション
 
