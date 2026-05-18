@@ -196,13 +196,13 @@ aws cognito-idp admin-set-user-password \
 デプロイ後、デフォルトのシステムエージェントを DynamoDB に登録します。この操作は環境ごとに初回のみ必要です。
 
 ```bash
-npm run seed-system-agents -- --env dev
+npm run seed-system-agents -- --env default
 ```
 
 `DEFAULT_AGENTS` の定義を変更した場合は、`--force` で既存データを置き換えます。
 
 ```bash
-npm run seed-system-agents -- --env dev --force
+npm run seed-system-agents -- --env default --force
 ```
 
 デプロイが完了すると、CloudFormationスタックの出力からフロントエンドURLを確認できます。

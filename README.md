@@ -206,13 +206,13 @@ aws cognito-idp admin-set-user-password \
 After deployment, seed the default system agents into DynamoDB. This is a one-time operation that populates the shared agents directory with the built-in agents.
 
 ```bash
-npm run seed-system-agents -- --env dev
+npm run seed-system-agents -- --env default
 ```
 
 To update system agents after changing `DEFAULT_AGENTS` definitions, use `--force` to replace existing ones:
 
 ```bash
-npm run seed-system-agents -- --env dev --force
+npm run seed-system-agents -- --env default --force
 ```
 
 After deployment, you can find the Frontend URL in the CloudFormation stack outputs.

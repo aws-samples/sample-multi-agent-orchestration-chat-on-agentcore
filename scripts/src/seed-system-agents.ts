@@ -10,7 +10,7 @@
  *
  * Options:
  *   --env      Environment name (default|dev|stg|prd)     [default: default]
- *   --region   AWS region (default: ap-northeast-1)
+ *   --region   AWS region (default: from AWS_REGION / AWS_DEFAULT_REGION / AWS profile)
  *   --table    DynamoDB table name (auto-detected from CloudFormation if omitted)
  *   --force    Delete existing system agents and re-seed
  *   --dry-run  Show what would be done without making changes
@@ -58,7 +58,7 @@ Usage: npm run seed-system-agents -- --env <default|dev|stg|prd> [options]
 
 Options:
   --env      Environment name (default|dev|stg|prd)     [default: default]
-  --region   AWS region (default: ap-northeast-1)
+  --region   AWS region (default: from AWS_REGION / AWS_DEFAULT_REGION / AWS profile)
   --table    DynamoDB table name (auto-detected from CloudFormation if omitted)
   --force    Delete existing system agents and re-seed
   --dry-run  Show what would be done without making changes
@@ -78,7 +78,7 @@ Options:
 
   return {
     env: opts.env as string,
-    region: (opts.region as string) || 'ap-northeast-1',
+    region: opts.region as string | undefined,
     table: opts.table as string | undefined,
     force: !!opts.force,
     dryRun: !!opts.dryRun,
@@ -91,9 +91,9 @@ Options:
 
 async function getStackOutputs(
   stackName: string,
-  region: string
+  region: string | undefined
 ): Promise<Record<string, string>> {
-  const client = new CloudFormationClient({ region });
+  const client = new CloudFormationClient(region ? { region } : {});
   const res = await client.send(
     new DescribeStacksCommand({ StackName: stackName })
   );
@@ -208,7 +208,14 @@ async function main() {
       ? 'MocaAgentCoreApp'
       : `MocaAgentCoreApp${opts.env.charAt(0).toUpperCase() + opts.env.slice(1)}`;
 
-  console.log(`\n🔍 Environment: ${opts.env} (stack: ${stackName}, region: ${opts.region})`);
+  const displayRegion =
+    opts.region ??
+    process.env.AWS_REGION ??
+    process.env.AWS_DEFAULT_REGION ??
+    '(from AWS config/profile)';
+  console.log(
+    `\n🔍 Environment: ${opts.env} (stack: ${stackName}, region: ${displayRegion})`
+  );
   if (opts.dryRun) console.log('📋 DRY RUN — no changes will be made\n');
 
   // 1. Resolve table name (from --table flag or CloudFormation outputs)
@@ -228,7 +235,7 @@ async function main() {
   console.log(`📝 Default agents defined: ${DEFAULT_AGENTS.length}`);
 
   // 3. Check existing system agents
-  const dynamoClient = new DynamoDBClient({ region: opts.region });
+  const dynamoClient = new DynamoDBClient(opts.region ? { region: opts.region } : {});
   const existing = await listSystemAgents(dynamoClient, tableName);
   console.log(`📊 Existing system agents in DynamoDB: ${existing.length}`);
 
