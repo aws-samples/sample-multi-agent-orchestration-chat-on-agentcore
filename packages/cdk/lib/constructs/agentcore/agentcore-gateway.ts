@@ -1,6 +1,5 @@
 import { Construct } from 'constructs';
 import * as agentcore from '@aws-cdk/aws-bedrock-agentcore-alpha';
-import * as bedrockagentcore from 'aws-cdk-lib/aws-bedrockagentcore';
 import * as iam from 'aws-cdk-lib/aws-iam';
 import * as lambda from 'aws-cdk-lib/aws-lambda';
 import * as nodejs from 'aws-cdk-lib/aws-lambda-nodejs';
@@ -285,54 +284,15 @@ export class AgentCoreGateway extends Construct {
         })
       );
 
-      // Allow Gateway service to invoke the interceptor Lambda
-      this.interceptorLambda.addPermission('AllowGatewayInvoke', {
-        principal: new iam.ServicePrincipal('bedrock-agentcore.amazonaws.com'),
-        action: 'lambda:InvokeFunction',
-      });
-
-      // Grant Gateway role permission to invoke the interceptor Lambda
-      gatewayRole.addToPolicy(
-        new iam.PolicyStatement({
-          sid: 'InvokeInterceptorLambda',
-          effect: iam.Effect.ALLOW,
-          actions: ['lambda:InvokeFunction'],
-          resources: [this.interceptorLambda.functionArn],
+      this.gateway.addInterceptor(
+        agentcore.LambdaInterceptor.forRequest(this.interceptorLambda, {
+          passRequestHeaders: true,
         })
       );
-
-      // Use CfnGateway escape hatch to configure interceptor
-      // The L2 construct does not expose interceptor configuration directly
-      const cfnGateway = this.gateway.node.defaultChild as bedrockagentcore.CfnGateway;
-      cfnGateway.interceptorConfigurations = [
-        {
-          interceptor: {
-            lambda: {
-              arn: this.interceptorLambda.functionArn,
-            },
-          },
-          interceptionPoints: ['REQUEST'],
-          inputConfiguration: {
-            passRequestHeaders: true,
-          },
-        },
-      ];
     }
 
     this.gatewayArn = this.gateway.gatewayArn;
     this.gatewayId = this.gateway.gatewayId;
     this.gatewayEndpoint = this.gateway.gatewayUrl || '';
   }
-
-  /**
-   * Creates a basic Gateway.
-   * To add targets, use the gateway property directly.
-   *
-   * Example:
-   * gateway.gateway.addLambdaTarget("MyTarget", {
-   *   gatewayTargetName: "MyTarget",
-   *   lambdaFunction: myFunction,
-   *   toolSchema: myToolSchema
-   * });
-   */
 }
