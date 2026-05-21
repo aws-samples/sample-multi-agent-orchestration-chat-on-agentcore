@@ -7,6 +7,24 @@ import { logger } from '../libs/logger/index.js';
 // Types
 // ---------------------------------------------------------------------------
 
+/**
+ * Public factory options for `createBedrockModel`.
+ *
+ * Note: `@strands-agents/sdk@>=1.0` removed the per-axis `cachePrompt` /
+ * `cacheTools` flags from `BedrockModelOptions` in favour of a single
+ * `cacheConfig: { strategy: 'auto' | 'anthropic' }` knob. This codebase
+ * deliberately keeps prompt-cache placement under explicit control via
+ * `services/session/cache-point-appender.ts`, which inserts
+ * `CachePointBlock` directly into `messages`. We therefore intentionally
+ * do NOT pass `cacheConfig` to `BedrockModel`: doing so would cause the
+ * SDK's `'auto'` strategy to inject *additional* cache points on top of
+ * ours and conflict with the project's per-message budget logic.
+ *
+ * `cachePrompt` / `cacheTools` are kept on this options shape only as
+ * historical metadata for callers (and existing integration tests) that
+ * still pass them — they are honoured for the LOG line and gating logic
+ * below, but never forwarded to `BedrockModel`.
+ */
 export interface BedrockModelOptions {
   modelId?: string;
   region?: string;
@@ -41,9 +59,13 @@ export function supportsToolCaching(modelId: string): boolean {
 /**
  * Create a Bedrock model with cache options resolved based on model capability.
  *
- * - cachePrompt is enabled for models that support system/messages caching
- * - cacheTools is enabled only for models that support tool caching (Claude)
- * - Both are gated by the global ENABLE_PROMPT_CACHING config flag
+ * - Caching is gated by the global `ENABLE_PROMPT_CACHING` config flag and
+ *   the per-model capability table from `@moca/core`.
+ * - Cache *points* themselves are injected by `CachePointAppender` at the
+ *   message level (see `services/session/cache-point-appender.ts`); this
+ *   factory only logs which axes are enabled for diagnostics. The SDK's
+ *   `cacheConfig.strategy` is intentionally NOT used to avoid double
+ *   cache-point insertion.
  */
 export function createBedrockModel(options?: BedrockModelOptions): BedrockModel {
   const modelId = options?.modelId || config.BEDROCK_MODEL_ID;
@@ -75,8 +97,6 @@ export function createBedrockModel(options?: BedrockModelOptions): BedrockModel 
   return new BedrockModel({
     region,
     modelId,
-    cachePrompt,
-    cacheTools,
     // Prefer an explicit override; fall back to the per-model limit from @moca/core.
     maxTokens: options?.maxTokens ?? getMaxOutputTokens(modelId),
     clientConfig: {

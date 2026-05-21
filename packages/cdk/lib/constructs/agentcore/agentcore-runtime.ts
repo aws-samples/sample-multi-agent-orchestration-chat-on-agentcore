@@ -257,11 +257,23 @@ export class AgentCoreRuntime extends Construct {
       environmentVariables.APPSYNC_HTTP_ENDPOINT = props.appsyncHttpEndpoint;
     }
 
-    // AgentCore Observability (OpenTelemetry) configuration
-    // Note: OTEL environment variables (OTEL_RESOURCE_ATTRIBUTES, OTEL_EXPORTER_OTLP_LOGS_HEADERS, etc.)
-    // are automatically configured by AgentCore Runtime with the correct log group name and endpoints.
-    // Only AGENT_OBSERVABILITY_ENABLED needs to be set explicitly.
-    environmentVariables.AGENT_OBSERVABILITY_ENABLED = 'true';
+    // AgentCore Observability (OpenTelemetry) configuration.
+    //
+    // OTEL environment variables (OTEL_RESOURCE_ATTRIBUTES,
+    // OTEL_EXPORTER_OTLP_LOGS_HEADERS, etc.) are automatically configured by
+    // AgentCore Runtime with the correct log group name and endpoints. The
+    // agent container loads ADOT auto-instrumentation via
+    // `--require @aws/aws-distro-opentelemetry-node-autoinstrumentation/register`
+    // (see docker/agent.Dockerfile + scripts/startup.sh) and registers the
+    // exporter as a global OTel TracerProvider/MeterProvider. The Strands
+    // SDK's `setupTracer()`/`setupMeter()` (called from packages/agent/src/index.ts)
+    // attach to that same global provider so `gen_ai.usage.*` spans flow to
+    // CloudWatch GenAI Observability.
+    //
+    // `AGENT_OBSERVABILITY_ENABLED` is intentionally NOT set: it is an
+    // ADOT *Python* distro-only flag (see AWS docs "Get started with
+    // AgentCore Observability", Step 3 — non-Runtime-hosted agents). The
+    // Node.js ADOT distro and `@strands-agents/sdk@>=1.0` do not read it.
 
     // Create AgentCore Runtime
     this.runtime = new agentcore.Runtime(this, 'Runtime', {

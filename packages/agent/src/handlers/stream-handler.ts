@@ -141,12 +141,21 @@ export async function streamAgentResponse(
 
     const agentInput = buildInputContent(prompt, images);
 
-    // Stream events as NDJSON
+    // Stream events as NDJSON.
+    //
     // Message persistence and AppSync Events publishing are handled centrally
-    // by SessionPersistenceHook.onMessageAdded (for both stream and invoke modes)
+    // by SessionPersistenceHook.onMessageAdded (for both stream and invoke modes).
+    //
+    // `serializeStreamEvent()` returns an array because SDK 1.x's
+    // `modelStreamUpdateEvent` is unwrapped into the legacy inner-event
+    // shape so the frontend handler can stay on the same wire protocol.
+    // We emit one NDJSON line per element, preserving the loop's emission
+    // order.
     for await (const event of agent.stream(agentInput)) {
-      const safeEvent = serializeStreamEvent(event);
-      res.write(`${JSON.stringify(safeEvent)}\n`);
+      const safeEvents = serializeStreamEvent(event);
+      for (const safeEvent of safeEvents) {
+        res.write(`${JSON.stringify(safeEvent)}\n`);
+      }
     }
 
     logger.info({ requestId }, 'Agent streaming completed:');

@@ -74,8 +74,10 @@ async function handleStartTask(
     };
   }
 
-  // Check recursion depth
-  const currentDepth = (context?.agent?.state?.get('subAgentDepth') as number) || 0;
+  // Check recursion depth.
+  // `agent.state` was renamed to `agent.appState` in
+  // `@strands-agents/sdk@>=0.7.0` (PR #685).
+  const currentDepth = (context?.agent?.appState?.get('subAgentDepth') as number) || 0;
   const maxDepth = 2; // Default max depth
 
   if (currentDepth >= maxDepth) {
@@ -89,10 +91,10 @@ async function handleStartTask(
 
   try {
     // Get session ID from agent state if available
-    const parentSessionId = context?.agent?.state?.get('sessionId') as string | undefined;
+    const parentSessionId = context?.agent?.appState?.get('sessionId') as string | undefined;
 
     // Get storagePath from input or inherit from parent
-    const storagePath = input.storagePath || context?.agent?.state?.get('storagePath');
+    const storagePath = input.storagePath || context?.agent?.appState?.get('storagePath');
 
     // Get userId from request context
     const currentContext = getCurrentContext();

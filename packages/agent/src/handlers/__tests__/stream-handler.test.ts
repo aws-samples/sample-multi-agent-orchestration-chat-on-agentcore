@@ -17,7 +17,10 @@ const mockCreateErrorMessage = jest
   .fn<any>()
   .mockReturnValue({ role: 'assistant', content: 'error' });
 const mockSanitizeErrorMessage = jest.fn<any>().mockReturnValue('Sanitized error');
-const mockSerializeStreamEvent = jest.fn<any>().mockImplementation((event: any) => event);
+// `serializeStreamEvent` returns an array (one entry per emitted NDJSON line).
+// SDK 1.x's `modelStreamUpdateEvent` is unwrapped into the inner legacy event,
+// but most events round-trip 1:1, which the default mock implements.
+const mockSerializeStreamEvent = jest.fn<any>().mockImplementation((event: any) => [event]);
 const mockBuildInputContent = jest.fn<any>().mockImplementation((prompt: string) => prompt);
 
 // ── Register ESM mocks ─────────────────────────────────────────────

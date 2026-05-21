@@ -21,7 +21,7 @@ import {
 import { generateSessionId, parseSessionId } from '@moca/core';
 import { RUNTIME_TOOL_NAMES } from '@moca/tool-definitions';
 import type { SessionId, UserId } from '@moca/core';
-import type { HookProvider } from '@strands-agents/sdk';
+import type { Plugin } from '@strands-agents/sdk';
 import type { CreateAgentOptions } from '../types/agent-types.js';
 
 /**
@@ -228,8 +228,9 @@ class SubAgentTaskManager {
         );
       }
 
-      // Initialize session persistence if we have userId and sessionId
-      const hooks: HookProvider[] = workspaceSyncHook ? [workspaceSyncHook] : [];
+      // Initialize session persistence if we have userId and sessionId.
+      // `Plugin` replaces the legacy `HookProvider` interface (SDK >=0.7.0).
+      const plugins: Plugin[] = workspaceSyncHook ? [workspaceSyncHook] : [];
       let sessionStorage = undefined;
       let sessionConfig = undefined;
 
@@ -263,7 +264,7 @@ class SubAgentTaskManager {
           task.agentId,
           task.storagePath
         );
-        hooks.push(sessionPersistenceHook);
+        plugins.push(sessionPersistenceHook);
 
         logger.info(
           {
@@ -278,7 +279,7 @@ class SubAgentTaskManager {
 
       // Create sub-agent with session persistence
       const agentOptions: CreateAgentOptions = {
-        hooks,
+        plugins,
         systemPrompt: agentDef.systemPrompt,
         // Filter out call_agent to prevent infinite recursion
         enabledTools: agentDef.enabledTools.filter(
@@ -290,10 +291,12 @@ class SubAgentTaskManager {
       };
       const { agent } = await createAgent(agentOptions);
 
-      // Set depth and storagePath in agent state
-      agent.state.set('subAgentDepth', task.currentDepth + 1);
+      // Set depth and storagePath in agent state.
+      // Note: `agent.state` was renamed to `agent.appState` in
+      // `@strands-agents/sdk@>=0.7.0` (PR #685).
+      agent.appState.set('subAgentDepth', task.currentDepth + 1);
       if (task.storagePath) {
-        agent.state.set('storagePath', task.storagePath);
+        agent.appState.set('storagePath', task.storagePath);
       }
 
       this.updateTaskStatus(taskId, 'running', 'Executing query...');

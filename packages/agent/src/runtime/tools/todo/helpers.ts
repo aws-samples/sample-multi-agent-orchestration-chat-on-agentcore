@@ -1,9 +1,13 @@
-import type { AgentState } from '@strands-agents/sdk';
+import type { StateStore } from '@strands-agents/sdk';
 import type { TodoList } from './types.js';
 
 const TODO_STATE_KEY = 'todoList';
 
-export function getTodoList(state: AgentState): TodoList | null {
+// `AgentState` was renamed to `StateStore` in `@strands-agents/sdk@>=0.7.0`
+// (PR #685, "rename AppState to StateStore"). The runtime API
+// (`get` / `set` / `delete` / `clear`) is unchanged.
+
+export function getTodoList(state: StateStore): TodoList | null {
   const data = state.get(TODO_STATE_KEY) as unknown;
   if (!data || !(data as TodoList).items) {
     return null;
@@ -11,7 +15,7 @@ export function getTodoList(state: AgentState): TodoList | null {
   return data as TodoList;
 }
 
-export function saveTodoList(state: AgentState, todoList: TodoList): void {
+export function saveTodoList(state: StateStore, todoList: TodoList): void {
   state.set(TODO_STATE_KEY, todoList);
 }
 

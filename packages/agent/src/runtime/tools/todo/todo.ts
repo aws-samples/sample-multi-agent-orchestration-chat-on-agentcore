@@ -105,7 +105,9 @@ export const todoTool = tool({
   inputSchema: todoDefinition.zodSchema,
   callback: async (input, context) => {
     const { action } = input;
-    const state = context?.agent?.state;
+    // `agent.state` was renamed to `agent.appState` in
+    // `@strands-agents/sdk@>=0.7.0` (PR #685).
+    const state = context?.agent?.appState;
 
     switch (action) {
       case 'init': {

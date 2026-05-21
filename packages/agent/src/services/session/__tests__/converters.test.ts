@@ -266,17 +266,34 @@ describe('agentCorePayloadToMessage', () => {
     });
   });
 
-  describe('blob as direct object (legacy format, messageType=tool)', () => {
-    it('restores toolUseBlock from legacy toolUse object', () => {
-      const legacyObj = {
-        messageType: 'tool',
+  describe('SDK 1.x bug-window salvage (block.type missing, Bedrock Converse shape)', () => {
+    /**
+     * Background: SDK 1.x's class `toJSON()` strips the `type`
+     * discriminator and emits Bedrock Converse-style wrappers
+     * (`{ toolUse: {...} }`, `{ toolResult: {...} }`). Sessions
+     * persisted between the SDK upgrade and the codec landing have
+     * these shapes baked in. The codec's salvage path must rescue
+     * them so reload-after-tool-use still shows tool input/output.
+     *
+     * @see content-block-codec.ts::salvageLegacyContentBlock
+     */
+    it('salvages a missing-type toolUse wrapper into a toolUseBlock', () => {
+      const blobData = {
+        messageType: 'content',
         role: 'assistant',
-        toolType: 'toolUse',
-        name: 'myTool',
-        toolUseId: 'tu-42',
-        input: { param: 'val' },
+        content: [
+          {
+            // No `type` field — emulates `ToolUseBlock.toJSON()` from SDK 1.x.
+            toolUse: {
+              name: 'myTool',
+              toolUseId: 'tu-42',
+              input: { param: 'val' },
+            },
+          },
+        ],
       };
-      const payload = { blob: legacyObj as unknown as Uint8Array };
+      const encoder = new TextEncoder();
+      const payload: BlobPayload = { blob: encoder.encode(JSON.stringify(blobData)) };
       const msg = agentCorePayloadToMessage(payload);
       expect(msg.role).toBe('assistant');
       expect(msg.content).toHaveLength(1);
@@ -286,22 +303,46 @@ describe('agentCorePayloadToMessage', () => {
       expect(block.toolUseId).toBe('tu-42');
     });
 
-    it('restores toolResultBlock from legacy toolResult object', () => {
-      const legacyObj = {
-        messageType: 'tool',
+    it('salvages a missing-type toolResult wrapper into a toolResultBlock', () => {
+      const blobData = {
+        messageType: 'content',
         role: 'user',
-        toolType: 'toolResult',
-        toolUseId: 'tu-42',
-        content: 'tool output',
-        isError: false,
+        content: [
+          {
+            // No `type` field — emulates `ToolResultBlock.toJSON()` from SDK 1.x.
+            toolResult: {
+              toolUseId: 'tu-42',
+              status: 'success',
+              content: 'tool output',
+            },
+          },
+        ],
       };
-      const payload = { blob: legacyObj as unknown as Uint8Array };
+      const encoder = new TextEncoder();
+      const payload: BlobPayload = { blob: encoder.encode(JSON.stringify(blobData)) };
       const msg = agentCorePayloadToMessage(payload);
       expect(msg.role).toBe('user');
-      const block = msg.content[0] as { type: string; toolUseId: string; isError: boolean };
+      const block = msg.content[0] as { type: string; toolUseId: string; status: string };
       expect(block.type).toBe('toolResultBlock');
       expect(block.toolUseId).toBe('tu-42');
-      expect(block.isError).toBe(false);
+      expect(block.status).toBe('success');
+    });
+
+    it('salvages a missing-type plain text wrapper into a textBlock', () => {
+      const blobData = {
+        messageType: 'content',
+        role: 'assistant',
+        content: [
+          // SDK 1.x TextBlock.toJSON() returns just `{ text }`.
+          { text: 'salvaged text' },
+        ],
+      };
+      const encoder = new TextEncoder();
+      const payload: BlobPayload = { blob: encoder.encode(JSON.stringify(blobData)) };
+      const msg = agentCorePayloadToMessage(payload);
+      const block = msg.content[0] as TextBlock;
+      expect(block.type).toBe('textBlock');
+      expect(block.text).toBe('salvaged text');
     });
   });
 

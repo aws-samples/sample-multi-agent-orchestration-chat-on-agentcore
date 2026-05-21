@@ -91,13 +91,15 @@ export async function createAgent(options?: CreateAgentOptions): Promise<CreateA
     systemPrompt,
     tools: [...toolSet.tools, ...toolSet.mcpClients],
     messages: messagesWithCache,
-    hooks: options?.hooks,
+    plugins: options?.plugins,
     conversationManager,
   });
 
-  // Set storagePath in agent state for sub-agent inheritance
+  // Set storagePath in agent state for sub-agent inheritance.
+  // Note: `agent.state` was renamed to `agent.appState` in
+  // `@strands-agents/sdk@>=0.7.0` (PR #685).
   if (storagePath) {
-    agent.state.set('storagePath', storagePath);
+    agent.appState.set('storagePath', storagePath);
   }
 
   return {

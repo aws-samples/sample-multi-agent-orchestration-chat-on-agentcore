@@ -85,7 +85,7 @@ export async function handleInvocation(req: Request, res: Response): Promise<voi
   // 3. Create and stream agent response. The enclosing OTel span is set up
   // by `observabilityMiddleware` so we only need to do agent work here.
   const { agent, metadata } = await createAgent({
-    hooks: [
+    plugins: [
       ...(sessionResult ? [sessionResult.hook] : []),
       ...(workspaceSyncResult ? [workspaceSyncResult.hook] : []),
     ],
