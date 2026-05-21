@@ -1,7 +1,7 @@
 import * as cdk from 'aws-cdk-lib';
 import * as iam from 'aws-cdk-lib/aws-iam';
 import * as kms from 'aws-cdk-lib/aws-kms';
-import * as agentcore from '@aws-cdk/aws-bedrock-agentcore-alpha';
+import * as agentcore from 'aws-cdk-lib/aws-bedrockagentcore';
 import * as cr from 'aws-cdk-lib/custom-resources';
 import { Construct } from 'constructs';
 
@@ -120,7 +120,7 @@ export class AgentCoreMemory extends Construct {
     if (props.useBuiltInStrategies && !memoryStrategies) {
       memoryStrategies = [
         agentcore.MemoryStrategy.usingSemantic({
-          name: 'semantic_memory_strategy',
+          strategyName: 'semantic_memory_strategy',
           namespaces: ['/strategies/{memoryStrategyId}/actors/{actorId}'],
           description:
             'Semantic memory strategy - extracts general facts, concepts, and meanings from conversations',

@@ -3,7 +3,7 @@ import * as cdk from 'aws-cdk-lib';
 import * as lambda from 'aws-cdk-lib/aws-lambda';
 import * as nodejs from 'aws-cdk-lib/aws-lambda-nodejs';
 import * as logs from 'aws-cdk-lib/aws-logs';
-import * as agentcore from '@aws-cdk/aws-bedrock-agentcore-alpha';
+import * as agentcore from 'aws-cdk-lib/aws-bedrockagentcore';
 import * as path from 'path';
 import * as fs from 'fs';
 
@@ -13,6 +13,49 @@ import * as fs from 'fs';
  */
 interface ToolSchemaFile {
   tools: unknown[];
+}
+
+/**
+ * Raw schema definition as loaded from JSON files (with `type` as a string).
+ * Converted into the stable module's `SchemaDefinition` (with
+ * `SchemaDefinitionType` instances) by `convertSchemaDefinition`.
+ */
+interface RawSchemaDefinition {
+  type: string;
+  description?: string;
+  items?: RawSchemaDefinition;
+  properties?: Record<string, RawSchemaDefinition>;
+  required?: string[];
+}
+
+interface RawToolDefinition {
+  name: string;
+  description: string;
+  inputSchema: RawSchemaDefinition;
+  outputSchema?: RawSchemaDefinition;
+}
+
+function convertSchemaDefinition(raw: RawSchemaDefinition): agentcore.SchemaDefinition {
+  return {
+    type: agentcore.SchemaDefinitionType.of(raw.type),
+    description: raw.description,
+    items: raw.items ? convertSchemaDefinition(raw.items) : undefined,
+    properties: raw.properties
+      ? Object.fromEntries(
+          Object.entries(raw.properties).map(([k, v]) => [k, convertSchemaDefinition(v)])
+        )
+      : undefined,
+    required: raw.required,
+  };
+}
+
+function convertToolDefinition(raw: RawToolDefinition): agentcore.ToolDefinition {
+  return {
+    name: raw.name,
+    description: raw.description,
+    inputSchema: convertSchemaDefinition(raw.inputSchema),
+    outputSchema: raw.outputSchema ? convertSchemaDefinition(raw.outputSchema) : undefined,
+  };
 }
 
 /**
@@ -115,9 +158,12 @@ export class AgentCoreLambdaTarget extends Construct {
 
     // Load Tool Schema
     const toolSchemaContent = this.loadToolSchema(props.toolSchemaPath);
-    // Cast to any to maintain compatibility with AgentCore types
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    this.toolSchema = agentcore.ToolSchema.fromInline(toolSchemaContent.tools as any);
+    // Convert raw JSON schema (type: "string") into SchemaDefinitionType instances
+    // required by the stable aws-cdk-lib/aws-bedrockagentcore module.
+    const toolDefinitions = toolSchemaContent.tools.map((t) =>
+      convertToolDefinition(t as RawToolDefinition)
+    );
+    this.toolSchema = agentcore.ToolSchema.fromInline(toolDefinitions);
 
     // Get resource prefix
     const resourcePrefix = props.resourcePrefix || 'agentcore';
