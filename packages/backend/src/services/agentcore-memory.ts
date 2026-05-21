@@ -117,28 +117,14 @@ interface ConversationalPayload {
  * payloads written by the agent.
  *
  * The agent's wire format is intentionally NOT shared as a typed contract
- * between agent and backend (see ADR `agentcore-memory-wire-format.md`):
- * the backend deliberately keeps zero dependency on `@strands-agents/sdk`
- * to keep its image small and its responsibilities clean. We instead pin
- * the wire shape here and rely on `schemaVersion` (added in agent codec
- * v2) plus salvage paths for any earlier-versioned data.
+ * between agent and backend: the backend deliberately keeps zero
+ * dependency on `@strands-agents/sdk` to keep its image small. The shape
+ * mirrors what `packages/agent/src/libs/codec/content-block-codec.ts`
+ * emits — every block carries a `type` discriminator stamped by the
+ * codec, never by the SDK's class `toJSON()`.
  */
 interface BackendContentBlock {
-  /**
-   * Discriminator written by the agent's `content-block-codec.ts`. May be
-   * absent in:
-   *   - v1 blobs from SDK 0.1.x times (those used a different envelope
-   *     shape and never reach this code path).
-   *   - "bug-window" blobs from SDK 1.x sessions persisted between the
-   *     1.x upgrade and the codec landing — those went through the SDK
-   *     class `toJSON()` which strips `type` and emits Bedrock Converse
-   *     wrappers (`{ toolUse: {...} }`, `{ toolResult: {...} }`,
-   *     `{ image: {...} }`, `{ text: "..." }`).
-   *
-   * The salvage path below detects the latter and reconstructs the
-   * structured shape this UI layer expects.
-   */
-  type?: string;
+  type: string;
   text?: string;
   name?: string;
   toolUseId?: string;
@@ -148,17 +134,11 @@ interface BackendContentBlock {
   // ImageBlock fields
   format?: string;
   base64?: string;
-  source?: { bytes?: Uint8Array };
-  // Bug-window Bedrock Converse wrappers (used by the salvage path).
-  toolUse?: { name?: string; toolUseId?: string; input?: Record<string, unknown> };
-  toolResult?: { toolUseId?: string; status?: string; content?: unknown };
-  image?: { format?: string; base64?: string; source?: { bytes?: Uint8Array | string } };
 }
 
 /**
- * Blob data envelope written by the agent. `schemaVersion` is `'v2-strands-sdk-1'`
- * for current writes; legacy / corrupted payloads omit it and are still
- * tolerated via the per-block salvage path.
+ * Blob data envelope written by the agent. `schemaVersion` is
+ * `'v2-strands-sdk-1'` for current writes.
  */
 interface BlobData {
   schemaVersion?: string;
@@ -168,89 +148,23 @@ interface BlobData {
 }
 
 /**
- * Normalise a single content block into one with a recognised `type`.
- *
- * Handles the SDK 1.x bug window where `JSON.stringify(message.content)`
- * produced `{ toolUse: {...} }` / `{ toolResult: {...} }` / `{ image: {...} }`
- * / `{ text: "..." }` wrappers without a `type` discriminator. These are
- * reconstructed from their Bedrock Converse shape so downstream switch
- * statements behave identically to a freshly-written v2 payload.
- *
- * Returns `null` when the block can't be salvaged at all.
- */
-function normaliseBlock(block: BackendContentBlock): BackendContentBlock | null {
-  // Already in v2 shape (or v1 SDK 0.1.x — both carry `type`).
-  if (typeof block.type === 'string') return block;
-
-  // Bug-window: { toolUse: {...} } wrapper.
-  if (block.toolUse && typeof block.toolUse === 'object') {
-    const tu = block.toolUse;
-    if (tu.name && tu.toolUseId) {
-      return {
-        type: 'toolUseBlock',
-        name: tu.name,
-        toolUseId: tu.toolUseId,
-        input: tu.input ?? {},
-      };
-    }
-  }
-
-  // Bug-window: { toolResult: {...} } wrapper.
-  if (block.toolResult && typeof block.toolResult === 'object') {
-    const tr = block.toolResult;
-    if (tr.toolUseId) {
-      return {
-        type: 'toolResultBlock',
-        toolUseId: tr.toolUseId,
-        content: tr.content,
-        status: tr.status === 'error' ? 'error' : 'success',
-      };
-    }
-  }
-
-  // Bug-window: bare `{ text: "..." }` wrapper (SDK 1.x TextBlock.toJSON()).
-  if (typeof block.text === 'string') {
-    return { type: 'textBlock', text: block.text };
-  }
-
-  // Bug-window: { image: { format, source: { bytes } } } wrapper.
-  if (block.image && typeof block.image === 'object') {
-    const im = block.image;
-    if (im.format && im.source) {
-      const sourceBytes = im.source.bytes;
-      const base64 =
-        typeof sourceBytes === 'string'
-          ? sourceBytes
-          : sourceBytes instanceof Uint8Array
-            ? Buffer.from(sourceBytes).toString('base64')
-            : (im.base64 ?? '');
-      return { type: 'imageBlock', format: im.format, base64 };
-    }
-  }
-
-  return null;
-}
-
-/**
  * Convert agent-side wire content blocks to UI-facing MessageContent.
  *
- * Each block is normalised first (see {@link normaliseBlock}) so the
- * switch downstream can treat v2 and salvaged bug-window payloads
- * uniformly.
+ * Blocks without a `type` discriminator are dropped: the producer always
+ * goes through the agent's `contentBlockToWire`, so a typeless block can
+ * only originate from a code path that bypassed the codec — there is no
+ * such path in this repository.
  */
 function convertToMessageContents(contentBlocks: BackendContentBlock[]): MessageContent[] {
   const messageContents: MessageContent[] = [];
 
-  for (const raw of contentBlocks) {
-    if (!raw || typeof raw !== 'object') continue;
-
-    const block = normaliseBlock(raw);
-    if (!block) {
+  for (const block of contentBlocks) {
+    if (!block || typeof block !== 'object' || typeof block.type !== 'string') {
       // Don't log the block itself — it may carry tool execution results
       // (shell output, MCP responses) that contain secrets. Log shape only.
       log.warn(
-        { keys: Object.keys(raw) },
-        'Unrecognised content block — neither v2 type nor bug-window wrapper'
+        { keys: block && typeof block === 'object' ? Object.keys(block) : [] },
+        'Skipping content block without a `type` discriminator'
       );
       continue;
     }

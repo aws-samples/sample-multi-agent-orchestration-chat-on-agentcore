@@ -266,83 +266,45 @@ describe('agentCorePayloadToMessage', () => {
     });
   });
 
-  describe('SDK 1.x bug-window salvage (block.type missing, Bedrock Converse shape)', () => {
+  describe('typeless content blocks (codec-bypassed writes)', () => {
     /**
-     * Background: SDK 1.x's class `toJSON()` strips the `type`
-     * discriminator and emits Bedrock Converse-style wrappers
-     * (`{ toolUse: {...} }`, `{ toolResult: {...} }`). Sessions
-     * persisted between the SDK upgrade and the codec landing have
-     * these shapes baked in. The codec's salvage path must rescue
-     * them so reload-after-tool-use still shows tool input/output.
-     *
-     * @see content-block-codec.ts::salvageLegacyContentBlock
+     * The producer always goes through `contentBlockToWire`, which
+     * stamps `type` on every block. A blob whose `content[]` entries
+     * are missing `type` could only originate from a code path that
+     * bypassed the codec; we drop those entries rather than try to
+     * reconstruct them.
      */
-    it('salvages a missing-type toolUse wrapper into a toolUseBlock', () => {
+    it('drops blocks without a `type` discriminator and falls back to empty message', () => {
       const blobData = {
         messageType: 'content',
         role: 'assistant',
         content: [
-          {
-            // No `type` field — emulates `ToolUseBlock.toJSON()` from SDK 1.x.
-            toolUse: {
-              name: 'myTool',
-              toolUseId: 'tu-42',
-              input: { param: 'val' },
-            },
-          },
+          { toolUse: { name: 'myTool', toolUseId: 'tu-42', input: {} } },
+          { text: 'no type field' },
         ],
       };
       const encoder = new TextEncoder();
       const payload: BlobPayload = { blob: encoder.encode(JSON.stringify(blobData)) };
       const msg = agentCorePayloadToMessage(payload);
-      expect(msg.role).toBe('assistant');
+      // All blocks were filtered → fallback single-space TextBlock.
       expect(msg.content).toHaveLength(1);
-      const block = msg.content[0] as { type: string; name: string; toolUseId: string };
-      expect(block.type).toBe('toolUseBlock');
-      expect(block.name).toBe('myTool');
-      expect(block.toolUseId).toBe('tu-42');
+      expect((msg.content[0] as TextBlock).text).toBe(' ');
     });
 
-    it('salvages a missing-type toolResult wrapper into a toolResultBlock', () => {
-      const blobData = {
-        messageType: 'content',
-        role: 'user',
-        content: [
-          {
-            // No `type` field — emulates `ToolResultBlock.toJSON()` from SDK 1.x.
-            toolResult: {
-              toolUseId: 'tu-42',
-              status: 'success',
-              content: 'tool output',
-            },
-          },
-        ],
-      };
-      const encoder = new TextEncoder();
-      const payload: BlobPayload = { blob: encoder.encode(JSON.stringify(blobData)) };
-      const msg = agentCorePayloadToMessage(payload);
-      expect(msg.role).toBe('user');
-      const block = msg.content[0] as { type: string; toolUseId: string; status: string };
-      expect(block.type).toBe('toolResultBlock');
-      expect(block.toolUseId).toBe('tu-42');
-      expect(block.status).toBe('success');
-    });
-
-    it('salvages a missing-type plain text wrapper into a textBlock', () => {
+    it('keeps typed blocks when mixed with typeless ones', () => {
       const blobData = {
         messageType: 'content',
         role: 'assistant',
         content: [
-          // SDK 1.x TextBlock.toJSON() returns just `{ text }`.
-          { text: 'salvaged text' },
+          { type: 'textBlock', text: 'kept' },
+          { text: 'dropped' }, // typeless, filtered out
         ],
       };
       const encoder = new TextEncoder();
       const payload: BlobPayload = { blob: encoder.encode(JSON.stringify(blobData)) };
       const msg = agentCorePayloadToMessage(payload);
-      const block = msg.content[0] as TextBlock;
-      expect(block.type).toBe('textBlock');
-      expect(block.text).toBe('salvaged text');
+      expect(msg.content).toHaveLength(1);
+      expect((msg.content[0] as TextBlock).text).toBe('kept');
     });
   });
 

@@ -16,11 +16,7 @@
  */
 import { Message, TextBlock, type Role, type ContentBlock } from '@strands-agents/sdk';
 import { logger } from '../../libs/logger/index.js';
-import {
-  contentBlockToWire,
-  wireToContentBlock,
-  salvageLegacyContentBlock,
-} from '../../libs/codec/content-block-codec.js';
+import { contentBlockToWire, wireToContentBlock } from '../../libs/codec/content-block-codec.js';
 import {
   WIRE_SCHEMA_VERSION,
   type WireBlobPayloadV2,
@@ -115,14 +111,18 @@ export function messageToAgentCorePayload(message: Message): AgentCorePayload {
 /**
  * Convert an AgentCore `Payload` back into a Strands `Message`.
  *
- * Reads tolerate three shapes for backwards compatibility:
+ * Two shapes are accepted:
  *
  *   - **Conversational** — text-only messages.
- *   - **Blob v2** — `schemaVersion === 'v2-strands-sdk-1'`, structured
- *     wire blocks with explicit `type`. Restored via {@link wireToContentBlock}.
- *   - **Blob v1 / corrupted** — written by SDK 0.1.x or by the bug-window
- *     where SDK 1.x classes' `toJSON()` stripped `type`. Salvaged via
- *     {@link salvageLegacyContentBlock} on a per-block basis.
+ *   - **Blob** — JSON envelope produced by {@link messageToAgentCorePayload}.
+ *     Each `content[]` entry is a `WireContentBlock` with an explicit
+ *     `type` discriminator (`schemaVersion: 'v2-strands-sdk-1'`).
+ *     Restored via {@link wireToContentBlock}.
+ *
+ * Blocks without a `type` discriminator are dropped with a warning. Such
+ * blocks could only originate from a `JSON.stringify(message.content)`
+ * code path that bypassed the codec — that path no longer exists in this
+ * repository (see {@link content-block-codec.ts} for why the codec exists).
  *
  * Unknown payloads fall back to a single-space `TextBlock` so Bedrock
  * `ValidationException` ('content cannot be empty') is avoided.
@@ -137,7 +137,7 @@ export function agentCorePayloadToMessage(payload: AgentCorePayload): Message {
     });
   }
 
-  // Blob payload — decode → JSON parse → per-block salvage + restore.
+  // Blob payload — decode → JSON parse → restore each typed block.
   if ('blob' in payload && payload.blob) {
     try {
       const blobString = decodeBlobToString(payload.blob);
@@ -154,11 +154,13 @@ export function agentCorePayloadToMessage(payload: AgentCorePayload): Message {
       const rawContent = Array.isArray(parsed.content) ? parsed.content : [];
 
       const restored: ContentBlock[] = rawContent
-        .map((raw) => salvageLegacyContentBlock(raw))
-        .filter((wire): wire is WireContentBlock => wire !== null)
+        .filter(
+          (raw): raw is WireContentBlock =>
+            !!raw && typeof raw === 'object' && typeof (raw as { type?: unknown }).type === 'string'
+        )
         .map((wire) => wireToContentBlock(wire));
 
-      // If salvage stripped *every* block, emit fallback so downstream
+      // If every block was filtered out, emit fallback so downstream
       // model providers don't choke on an empty content array.
       if (restored.length === 0) {
         logger.warn(
@@ -167,7 +169,7 @@ export function agentCorePayloadToMessage(payload: AgentCorePayload): Message {
             schemaVersion: parsed.schemaVersion,
             originalBlockCount: rawContent.length,
           },
-          'agentCorePayloadToMessage: every content block was unrecognisable, using fallback'
+          'agentCorePayloadToMessage: no content blocks carried a recognised type, using fallback'
         );
         return fallbackMessage('All blocks unrecognised');
       }
