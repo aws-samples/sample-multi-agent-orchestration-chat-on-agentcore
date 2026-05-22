@@ -8,13 +8,20 @@
  *     → validateInvocationMiddleware (prompt / images → 400 on failure)
  *     → authResolverMiddleware       (ctx.userId as UserId)
  *     → identityResolverMiddleware   (ctx.identityId as IdentityId)
- *     → observabilityMiddleware      (OTel span wrapping the chain)
  *     → handleInvocation             (this module)
  *
  * The `requireUserId()` / `requireIdentityId()` helpers surface the
  * branded types populated by the middleware chain, so downstream calls
  * to data-access sites (DynamoDB, S3, AgentCore Memory) are type-checked
  * to receive `IdentityId` rather than raw strings.
+ *
+ * Tracing happens inside the Strands SDK's own `invoke_agent` span,
+ * which `agent.ts` decorates with custom `traceAttributes`
+ * (`enduser.id`, `session.id`, …). No wrapper span is created here —
+ * AgentCore Observability's trace-level aggregator only attributes
+ * tokens correctly when the canonical
+ * `POST → invoke_agent → execute_event_loop_cycle → chat` hierarchy
+ * is preserved.
  *
  * Unhandled errors are caught by `errorHandlerMiddleware` via the
  * `asyncHandler` wrapper.
@@ -82,8 +89,9 @@ export async function handleInvocation(req: Request, res: Response): Promise<voi
       })
     : null;
 
-  // 3. Create and stream agent response. The enclosing OTel span is set up
-  // by `observabilityMiddleware` so we only need to do agent work here.
+  // 3. Create and stream agent response. The Strands SDK opens its own
+  // `invoke_agent` span (with `traceAttributes` injected by `agent.ts`),
+  // so we don't add a wrapper span here.
   const { agent, metadata } = await createAgent({
     plugins: [
       ...(sessionResult ? [sessionResult.hook] : []),
@@ -99,6 +107,7 @@ export async function handleInvocation(req: Request, res: Response): Promise<voi
     mcpConfig: body.mcpConfig,
     sessionStorage: sessionResult?.storage,
     sessionConfig: sessionResult?.config,
+    agentId: body.agentId,
   });
 
   logger.info(

@@ -151,6 +151,13 @@ export async function streamAgentResponse(
     // shape so the frontend handler can stay on the same wire protocol.
     // We emit one NDJSON line per element, preserving the loop's emission
     // order.
+    //
+    // Token usage attributes are written to the Strands SDK's own
+    // `invoke_agent` span by the SDK; we deliberately don't mirror them
+    // onto any wrapper span — AgentCore Observability's trace-level
+    // aggregator only works when the canonical
+    // `POST → invoke_agent → execute_event_loop_cycle → chat` hierarchy
+    // is preserved.
     for await (const event of agent.stream(agentInput)) {
       const safeEvents = serializeStreamEvent(event);
       for (const safeEvent of safeEvents) {

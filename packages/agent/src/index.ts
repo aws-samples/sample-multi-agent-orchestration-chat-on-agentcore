@@ -7,6 +7,7 @@ import { createApp } from './app.js';
 import { config } from './config/index.js';
 import { hydrateJwtVerifiers } from './libs/auth/jwt-verifier.js';
 import { logger } from './libs/logger/index.js';
+import { installStrandsSpanKindFixer } from './libs/observability/install-strands-span-kind-fixer.js';
 
 // Strands Agents SDK >=1.0 requires explicit telemetry setup before any
 // `Agent` instance is constructed. The SDK uses the global OTel API, so any
@@ -20,6 +21,16 @@ import { logger } from './libs/logger/index.js';
 // CloudWatch GenAI Observability shows only the surrounding HTTP/X-Ray spans.
 setupTracer({});
 setupMeter({});
+
+// Adapt Strands TS SDK 1.2.0 spans to the shape AgentCore Observability
+// expects: promote `invoke_agent` from INTERNAL to CLIENT (so the trace
+// metrics token aggregator counts it), and project Strands' per-message
+// span events onto the legacy `gen_ai.input.prompt` /
+// `gen_ai.output.text` attributes the trace list view reads. Must run
+// AFTER both ADOT's auto-init and the Strands `setupTracer({})` call
+// above so we register against the final TracerProvider in the proxy
+// chain.
+installStrandsSpanKindFixer();
 
 const PORT = config.PORT;
 

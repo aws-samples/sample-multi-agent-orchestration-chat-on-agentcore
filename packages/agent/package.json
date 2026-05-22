@@ -48,6 +48,7 @@
     "@moca/tool-definitions": "*",
     "@modelcontextprotocol/sdk": "^1.25.1",
     "@opentelemetry/api": "^1.9.0",
+    "@opentelemetry/sdk-trace-base": "^2.7.0",
     "@smithy/signature-v4": "^4.0.0",
     "@strands-agents/sdk": "^1.2.0",
     "aws-jwt-verify": "^5.1.1",

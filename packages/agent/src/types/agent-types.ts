@@ -32,6 +32,13 @@ export interface CreateAgentOptions {
   actorId?: IdentityId;
   memoryTopK?: number;
   mcpConfig?: Record<string, unknown>;
+  /**
+   * Logical agent identifier (from the request body's `agentId`). Forwarded
+   * to the Strands SDK as the Agent `id`, which surfaces as
+   * `gen_ai.agent.id` on the SDK's `invoke_agent` span and is therefore
+   * picked up by AgentCore Observability for trace-level correlation.
+   */
+  agentId?: string;
 }
 
 /**

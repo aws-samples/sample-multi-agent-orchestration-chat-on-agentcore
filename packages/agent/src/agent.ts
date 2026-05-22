@@ -86,6 +86,21 @@ export async function createAgent(options?: CreateAgentOptions): Promise<CreateA
     shouldTruncateResults: true,
   });
 
+  // Forward request-scoped identifiers as `traceAttributes` so they land
+  // directly on the Strands SDK's `invoke_agent` span. Setting them here
+  // (rather than on a wrapper `agent.invocation` span) is what makes
+  // CloudWatch GenAI Observability count tokens at the trace level — the
+  // dashboard aggregates from the `invoke_agent` subtree, and any custom
+  // span inserted between `POST /invocations` and `invoke_agent` breaks
+  // that aggregation.
+  const ctx = getCurrentContext();
+  const traceAttributes: Record<string, string> = {};
+  if (ctx?.userId) traceAttributes['enduser.id'] = ctx.userId;
+  if (ctx?.sessionId) traceAttributes['session.id'] = ctx.sessionId;
+  if (ctx?.sessionType) traceAttributes['session.type'] = ctx.sessionType;
+  if (ctx?.isMachineUser) traceAttributes['enduser.type'] = 'machine';
+  if (options?.memoryEnabled) traceAttributes['gen_ai.memory.enabled'] = 'true';
+
   const agent = new Agent({
     model,
     systemPrompt,
@@ -93,6 +108,8 @@ export async function createAgent(options?: CreateAgentOptions): Promise<CreateA
     messages: messagesWithCache,
     plugins: options?.plugins,
     conversationManager,
+    id: options?.agentId,
+    traceAttributes,
   });
 
   // Set storagePath in agent state for sub-agent inheritance.
