@@ -12,6 +12,7 @@ import { SessionConfig, SessionStorage } from './types.js';
 import type { SessionPersistenceDeps } from '../../types/session-persistence-deps.js';
 import { createLogger } from '../../libs/logger/index.js';
 import { getCurrentContext } from '../../libs/context/request-context.js';
+import { contentBlockToWire } from '../../libs/codec/content-block-codec.js';
 
 const log = createLogger('SessionPersistenceHook');
 /**
@@ -243,13 +244,28 @@ export class SessionPersistenceHook implements Plugin {
     // but AppSync channel paths reject colons — so fall back to actorId only if no
     // context userId is available (e.g. sub-agent without request context).
     const channelUserId = getCurrentContext()?.userId ?? actorId;
+
+    // Convert SDK ContentBlock instances to wire format BEFORE serialisation.
+    //
+    // WHY: Strands SDK `ContentBlock` classes implement `toJSON()` that emits the
+    // Bedrock Converse-API native shape (`{ toolUse: {...} }`, `{ toolResult: {...} }`)
+    // and DROPS the `type` discriminator. Letting `JSON.stringify` (called inside
+    // `appsync-events-publisher`) invoke that toJSON would deliver `type`-less blocks
+    // to the frontend, which then falls through to the "Unsupported content type"
+    // branch in `Message.tsx` because `convertContent` in
+    // `useMessageEventsSubscription` dispatches on `content.type`.
+    //
+    // The codec used here is the same one used for DynamoDB / AgentCore Memory
+    // persistence, keeping the wire shape consistent across all egress paths.
+    const wireContent = message.content.map(contentBlockToWire);
+
     this.deps
       .publishMessageEvent(channelUserId, sessionId, {
         type: 'MESSAGE_ADDED',
         sessionId,
         message: {
           role: message.role as 'user' | 'assistant',
-          content: message.content as unknown[],
+          content: wireContent,
           timestamp: new Date().toISOString(),
         },
       })
