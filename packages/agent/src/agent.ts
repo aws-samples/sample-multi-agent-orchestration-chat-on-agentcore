@@ -24,8 +24,7 @@
 import { Agent, SlidingWindowConversationManager } from '@strands-agents/sdk';
 import { config } from './config/index.js';
 import { buildSystemPrompt } from './config/prompts/index.js';
-import { createBedrockModel, getPromptCachingSupport } from './config/index.js';
-import { CachePointAppender } from './services/session/cache-point-appender.js';
+import { createBedrockModel } from './config/index.js';
 import { getCurrentContext } from './libs/context/request-context.js';
 
 // Agent building blocks
@@ -64,11 +63,10 @@ export async function createAgent(options?: CreateAgentOptions): Promise<CreateA
     fetchLongTermMemories(memoryParams),
   ]);
 
-  // 3. Create Bedrock model and apply cache points to history
-  const modelId = options?.modelId || config.BEDROCK_MODEL_ID;
+  // 3. Create Bedrock model. Prompt cache points are managed by the SDK's
+  // auto strategy (see createBedrockModel), so saved history is forwarded
+  // to the Agent unmodified.
   const model = createBedrockModel({ modelId: options?.modelId });
-  const cachingSupport = getPromptCachingSupport(modelId);
-  const messagesWithCache = new CachePointAppender(cachingSupport).apply(savedMessages);
 
   // 4. Generate system prompt. RequestContext exists by this point (set
   // by requestContextMiddleware) and guarantees a populated storagePath.
@@ -86,18 +84,37 @@ export async function createAgent(options?: CreateAgentOptions): Promise<CreateA
     shouldTruncateResults: true,
   });
 
+  // Forward request-scoped identifiers as `traceAttributes` so they land
+  // directly on the Strands SDK's `invoke_agent` span. Setting them here
+  // (rather than on a wrapper `agent.invocation` span) is what makes
+  // CloudWatch GenAI Observability count tokens at the trace level — the
+  // dashboard aggregates from the `invoke_agent` subtree, and any custom
+  // span inserted between `POST /invocations` and `invoke_agent` breaks
+  // that aggregation.
+  const ctx = getCurrentContext();
+  const traceAttributes: Record<string, string> = {};
+  if (ctx?.userId) traceAttributes['enduser.id'] = ctx.userId;
+  if (ctx?.sessionId) traceAttributes['session.id'] = ctx.sessionId;
+  if (ctx?.sessionType) traceAttributes['session.type'] = ctx.sessionType;
+  if (ctx?.isMachineUser) traceAttributes['enduser.type'] = 'machine';
+  if (options?.memoryEnabled) traceAttributes['gen_ai.memory.enabled'] = 'true';
+
   const agent = new Agent({
     model,
     systemPrompt,
     tools: [...toolSet.tools, ...toolSet.mcpClients],
-    messages: messagesWithCache,
-    hooks: options?.hooks,
+    messages: savedMessages,
+    plugins: options?.plugins,
     conversationManager,
+    id: options?.agentId,
+    traceAttributes,
   });
 
-  // Set storagePath in agent state for sub-agent inheritance
+  // Set storagePath in agent state for sub-agent inheritance.
+  // Note: `agent.state` was renamed to `agent.appState` in
+  // `@strands-agents/sdk@>=0.7.0` (PR #685).
   if (storagePath) {
-    agent.state.set('storagePath', storagePath);
+    agent.appState.set('storagePath', storagePath);
   }
 
   return {

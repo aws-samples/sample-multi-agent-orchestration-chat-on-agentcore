@@ -2,8 +2,8 @@
  * Express application factory for AgentCore Runtime
  *
  * Wires together cross-cutting middlewares — CORS, JSON parser,
- * per-request context, invocation validation, auth resolution and
- * observability — so route handlers can focus on the happy path.
+ * per-request context, invocation validation, and auth resolution —
+ * so route handlers can focus on the happy path.
  *
  * Middleware chain for `POST /invocations`:
  *
@@ -11,8 +11,14 @@
  *     → requestContextMiddleware   (AsyncLocalStorage-backed ctx)
  *     → validateInvocationMiddleware
  *     → authResolverMiddleware     (enrich ctx.userId / storagePath)
- *     → observabilityMiddleware    (OTel span wrapping the request)
+ *     → identityResolverMiddleware (UserId → IdentityId exchange)
  *     → handleInvocation           (business logic, wrapped in asyncHandler)
+ *
+ * Tracing is left to the Strands SDK's own `invoke_agent` span (with
+ * custom attributes injected via `traceAttributes` in `agent.ts`) plus
+ * the surrounding ADOT auto-instrumentation HTTP span. Inserting a
+ * custom span between those two breaks AgentCore Observability's
+ * trace-level token aggregation, so we deliberately don't add one.
  *
  * The global `errorHandlerMiddleware` catches anything thrown by the
  * chain (including rejected promises bubbled up by `asyncHandler`).
@@ -27,7 +33,6 @@ import {
   validateInvocationMiddleware,
   authResolverMiddleware,
   identityResolverMiddleware,
-  observabilityMiddleware,
   errorHandlerMiddleware,
   notFoundMiddleware,
 } from './libs/middleware/index.js';
@@ -48,13 +53,12 @@ export function createApp(): Express {
   app.get('/ping', handlePing);
   app.get('/', handleRoot);
 
-  // `/invocations` gets the full auth / validation / observability chain.
+  // `/invocations` gets the full auth / validation chain.
   //
   //   requestContext     → AsyncLocalStorage ctx + JWT parse + session headers
   //   validateInvocation → prompt / images → 400 on failure
   //   authResolver       → resolves branded UserId, enriches ctx.userId
   //   identityResolver   → exchanges UserId → IdentityId, caches on ctx
-  //   observability      → OTel span wrapping the remaining chain
   //   handleInvocation   → business logic (reads ctx via require* helpers)
   app.post(
     '/invocations',
@@ -62,7 +66,6 @@ export function createApp(): Express {
     validateInvocationMiddleware,
     authResolverMiddleware,
     identityResolverMiddleware,
-    observabilityMiddleware,
     asyncHandler(handleInvocation)
   );
 

@@ -113,9 +113,17 @@ interface ConversationalPayload {
 }
 
 /**
- * Strands ContentBlock type definition
+ * Backend-local content block shape used to interpret AgentCore Memory blob
+ * payloads written by the agent.
+ *
+ * The agent's wire format is intentionally NOT shared as a typed contract
+ * between agent and backend: the backend deliberately keeps zero
+ * dependency on `@strands-agents/sdk` to keep its image small. The shape
+ * mirrors what `packages/agent/src/libs/codec/content-block-codec.ts`
+ * emits — every block carries a `type` discriminator stamped by the
+ * codec, never by the SDK's class `toJSON()`.
  */
-interface StrandsContentBlock {
+interface BackendContentBlock {
   type: string;
   text?: string;
   name?: string;
@@ -126,45 +134,50 @@ interface StrandsContentBlock {
   // ImageBlock fields
   format?: string;
   base64?: string;
-  source?: { bytes?: Uint8Array };
 }
 
 /**
- * Blob data content type definition (new format)
+ * Blob data envelope written by the agent. `schemaVersion` is
+ * `'v2-strands-sdk-1'` for current writes.
  */
 interface BlobData {
+  schemaVersion?: string;
   messageType: 'content';
   role: string;
-  content: StrandsContentBlock[]; // Array of Strands ContentBlocks
+  content: BackendContentBlock[];
 }
 
 /**
- * Convert Strands ContentBlock to MessageContent
- * @param contentBlocks Array of Strands SDK ContentBlocks
- * @returns Array of MessageContent
+ * Convert agent-side wire content blocks to UI-facing MessageContent.
+ *
+ * Blocks without a `type` discriminator are dropped: the producer always
+ * goes through the agent's `contentBlockToWire`, so a typeless block can
+ * only originate from a code path that bypassed the codec — there is no
+ * such path in this repository.
  */
-function convertToMessageContents(contentBlocks: StrandsContentBlock[]): MessageContent[] {
+function convertToMessageContents(contentBlocks: BackendContentBlock[]): MessageContent[] {
   const messageContents: MessageContent[] = [];
 
   for (const block of contentBlocks) {
-    if (!block || typeof block !== 'object') continue;
+    if (!block || typeof block !== 'object' || typeof block.type !== 'string') {
+      // Don't log the block itself — it may carry tool execution results
+      // (shell output, MCP responses) that contain secrets. Log shape only.
+      log.warn(
+        { keys: block && typeof block === 'object' ? Object.keys(block) : [] },
+        'Skipping content block without a `type` discriminator'
+      );
+      continue;
+    }
 
     switch (block.type) {
       case 'textBlock':
-        if ('text' in block && typeof block.text === 'string') {
+        if (typeof block.text === 'string') {
           messageContents.push({ type: 'text', text: block.text });
         }
         break;
 
       case 'toolUseBlock':
-        if (
-          'name' in block &&
-          'toolUseId' in block &&
-          'input' in block &&
-          block.name &&
-          block.toolUseId &&
-          block.input !== undefined
-        ) {
+        if (block.name && block.toolUseId && block.input !== undefined) {
           messageContents.push({
             type: 'toolUse',
             toolUse: {
@@ -179,7 +192,7 @@ function convertToMessageContents(contentBlocks: StrandsContentBlock[]): Message
         break;
 
       case 'toolResultBlock':
-        if ('toolUseId' in block && block.toolUseId) {
+        if (block.toolUseId) {
           messageContents.push({
             type: 'toolResult',
             toolResult: {
@@ -195,8 +208,8 @@ function convertToMessageContents(contentBlocks: StrandsContentBlock[]): Message
         break;
 
       case 'imageBlock':
-        // Handle serialized ImageBlock (base64 format from converters.ts)
-        if ('base64' in block && typeof block.base64 === 'string' && block.format) {
+        // Handle serialised ImageBlock (base64 format from agent codec).
+        if (typeof block.base64 === 'string' && block.format) {
           // Map format to mimeType
           const formatToMimeType: Record<string, string> = {
             png: 'image/png',

@@ -5,15 +5,19 @@
  * Located in types/ (L0) so that all layers can reference these types.
  */
 
-import type { Agent, HookProvider } from '@strands-agents/sdk';
+import type { Agent, Plugin } from '@strands-agents/sdk';
 import type { IdentityId } from '@moca/core';
 import type { SessionStorage, SessionConfig } from './session-types.js';
 
 /**
- * Strands Agent creation options for AgentCore Runtime
+ * Strands Agent creation options for AgentCore Runtime.
+ *
+ * `plugins` (formerly `hooks` in `@strands-agents/sdk@<0.7.0`) are passed
+ * to `new Agent({ plugins })`. Each plugin's `initAgent()` is invoked by the
+ * SDK to register hook callbacks against the agent's lifecycle events.
  */
 export interface CreateAgentOptions {
-  hooks?: HookProvider[];
+  plugins?: Plugin[];
   modelId?: string;
   enabledTools?: string[];
   systemPrompt?: string;
@@ -28,6 +32,13 @@ export interface CreateAgentOptions {
   actorId?: IdentityId;
   memoryTopK?: number;
   mcpConfig?: Record<string, unknown>;
+  /**
+   * Logical agent identifier (from the request body's `agentId`). Forwarded
+   * to the Strands SDK as the Agent `id`, which surfaces as
+   * `gen_ai.agent.id` on the SDK's `invoke_agent` span and is therefore
+   * picked up by AgentCore Observability for trace-level correlation.
+   */
+  agentId?: string;
 }
 
 /**

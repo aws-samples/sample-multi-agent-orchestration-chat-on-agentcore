@@ -210,6 +210,21 @@ export class AgentCoreRuntime extends Construct {
       BEDROCK_MODEL_ID: 'global.anthropic.claude-sonnet-4-6',
       BEDROCK_REGION: props.region || 'us-east-1',
       LOG_LEVEL: 'info',
+      // Disable the AWS SDK auto-instrumentation in the ADOT JS distro.
+      // ADOT's `_adotInjectXrayContextMiddleware` / `_adotExtractSignerCredentials`
+      // (see node_modules/@aws/aws-distro-opentelemetry-node-autoinstrumentation/
+      // build/src/patches/instrumentation-patch.js:329-401) inject themselves at
+      // the AWS SDK v3 middleware stack's `step: 'build'` with `override: true`,
+      // which runs *before* SigV4 signing in `step: 'finalizeRequest'`. In our
+      // deployment the X-Ray Trace ID header injection ends up not being part
+      // of the canonical request used by the SDK's signer (or the case-flip
+      // between `x-amzn-trace-id` and `X-Amzn-Trace-Id` desyncs SignedHeaders),
+      // and every BedrockAgentCore / S3 SigV4 call returns 403
+      // `InvalidSignatureException`. Disabling only the AWS SDK instrumentation
+      // keeps the rest of ADOT (HTTP / Express / Strands' own gen_ai spans)
+      // intact, so AgentCore Observability still receives Token / Trace List
+      // Input/Output data.
+      OTEL_NODE_DISABLED_INSTRUMENTATIONS: 'aws-sdk',
     };
 
     // Set Gateway endpoint (for JWT propagation)
@@ -257,11 +272,23 @@ export class AgentCoreRuntime extends Construct {
       environmentVariables.APPSYNC_HTTP_ENDPOINT = props.appsyncHttpEndpoint;
     }
 
-    // AgentCore Observability (OpenTelemetry) configuration
-    // Note: OTEL environment variables (OTEL_RESOURCE_ATTRIBUTES, OTEL_EXPORTER_OTLP_LOGS_HEADERS, etc.)
-    // are automatically configured by AgentCore Runtime with the correct log group name and endpoints.
-    // Only AGENT_OBSERVABILITY_ENABLED needs to be set explicitly.
-    environmentVariables.AGENT_OBSERVABILITY_ENABLED = 'true';
+    // AgentCore Observability (OpenTelemetry) configuration.
+    //
+    // OTEL environment variables (OTEL_RESOURCE_ATTRIBUTES,
+    // OTEL_EXPORTER_OTLP_LOGS_HEADERS, etc.) are automatically configured by
+    // AgentCore Runtime with the correct log group name and endpoints. The
+    // agent container loads ADOT auto-instrumentation via
+    // `--require @aws/aws-distro-opentelemetry-node-autoinstrumentation/register`
+    // (see docker/agent.Dockerfile + scripts/startup.sh) and registers the
+    // exporter as a global OTel TracerProvider/MeterProvider. The Strands
+    // SDK's `setupTracer()`/`setupMeter()` (called from packages/agent/src/index.ts)
+    // attach to that same global provider so `gen_ai.usage.*` spans flow to
+    // CloudWatch GenAI Observability.
+    //
+    // `AGENT_OBSERVABILITY_ENABLED` is intentionally NOT set: it is an
+    // ADOT *Python* distro-only flag (see AWS docs "Get started with
+    // AgentCore Observability", Step 3 — non-Runtime-hosted agents). The
+    // Node.js ADOT distro and `@strands-agents/sdk@>=1.0` do not read it.
 
     // Create AgentCore Runtime
     this.runtime = new agentcore.Runtime(this, 'Runtime', {

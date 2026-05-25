@@ -11,5 +11,3 @@ export {
   type RequestContext,
   type ContextMetadata,
 } from './request-context.js';
-
-export { ObservabilityContext, type ObservabilityParams } from './observability-context.js';

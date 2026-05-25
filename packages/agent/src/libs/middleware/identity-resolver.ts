@@ -16,7 +16,7 @@
  *
  * Must run after `authResolverMiddleware` (requires `context.userId`)
  * and before any middleware that touches per-user AWS resources
- * (observabilityMiddleware + the route handler).
+ * (i.e. the route handler).
  */
 
 import type { Request, Response, NextFunction } from 'express';

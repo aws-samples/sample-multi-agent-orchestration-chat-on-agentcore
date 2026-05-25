@@ -15,7 +15,7 @@ import {
   SlidingWindowConversationManager,
   NullConversationManager,
 } from '@strands-agents/sdk';
-import { createBedrockModel } from '../../models/bedrock.js';
+import { createBedrockModel } from '../../../config/bedrock.js';
 
 /**
  * Build a conversation history of user/assistant pairs.
@@ -78,8 +78,8 @@ describe('SlidingWindowConversationManager', () => {
 
   describe('with NullConversationManager (no trimming)', () => {
     it('throws token overflow error when history exceeds model limit', async () => {
-      // Arrange — 1000 messages (~500K tokens), well over the 200K limit
-      const history = buildHistory(500, 2000);
+      // Arrange — 4000 messages (~3M+ tokens), well over Claude Sonnet's 1M context limit
+      const history = buildHistory(2000, 4000);
       const agent = new Agent({
         model: createBedrockModel(),
         systemPrompt: 'You are a helpful assistant.',

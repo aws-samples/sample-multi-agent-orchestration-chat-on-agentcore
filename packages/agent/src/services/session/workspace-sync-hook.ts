@@ -3,21 +3,30 @@
  * Automatically synchronizes the local workspace with S3 after tool execution
  */
 
-import { HookProvider, HookRegistry, AfterToolsEvent } from '@strands-agents/sdk';
+import { AfterToolsEvent } from '@strands-agents/sdk';
+import type { Plugin } from '@strands-agents/sdk';
+import type { LocalAgent } from '@strands-agents/sdk';
 import type { IWorkspaceSync } from '../../types/workspace-sync-types.js';
 import { logger } from '../../libs/logger/index.js';
 /**
- * Hook that synchronizes the workspace with S3 after tool execution
+ * Plugin that synchronizes the workspace with S3 after tool execution.
+ *
+ * Migrated from `HookProvider` to `Plugin` for `@strands-agents/sdk@>=0.7.0`,
+ * which removed the `HookProvider`/`HookRegistry` API in favor of a Plugin
+ * interface that registers hooks via `agent.addHook()` inside `initAgent()`.
  */
-export class WorkspaceSyncHook implements HookProvider {
+export class WorkspaceSyncHook implements Plugin {
+  readonly name = 'moca:workspace-sync-hook';
+
   constructor(private readonly workspaceSync: IWorkspaceSync) {}
 
   /**
-   * Register hook callbacks in the registry
+   * Register hook callbacks on the agent.
+   * Called by the Agent's PluginRegistry during construction.
    */
-  registerCallbacks(registry: HookRegistry): void {
+  initAgent(agent: LocalAgent): void {
     // Sync to S3 after tool execution
-    registry.addCallback(AfterToolsEvent, (event) => this.onAfterTools(event));
+    agent.addHook(AfterToolsEvent, (event) => this.onAfterTools(event));
   }
 
   /**

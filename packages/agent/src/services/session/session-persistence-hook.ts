@@ -1,16 +1,13 @@
 /**
  * Session persistence hook
- * HookProvider that automatically saves conversation history before and after Agent execution
- * Also manages session metadata in DynamoDB and generates AI-powered titles
+ *
+ * Plugin (formerly HookProvider in `@strands-agents/sdk@<0.7.0`) that
+ * automatically saves conversation history before and after Agent execution.
+ * Also manages session metadata in DynamoDB and generates AI-powered titles.
  */
 
-import {
-  HookProvider,
-  HookRegistry,
-  AfterInvocationEvent,
-  MessageAddedEvent,
-  Message,
-} from '@strands-agents/sdk';
+import { AfterInvocationEvent, MessageAddedEvent, Message } from '@strands-agents/sdk';
+import type { Plugin, LocalAgent } from '@strands-agents/sdk';
 import { SessionConfig, SessionStorage } from './types.js';
 import type { SessionPersistenceDeps } from '../../types/session-persistence-deps.js';
 import { createLogger } from '../../libs/logger/index.js';
@@ -58,14 +55,17 @@ function extractTextFromMessage(message: Message): string {
 }
 
 /**
- * Hook that persists session history in response to Agent lifecycle events
- * Also creates/updates session metadata in DynamoDB and generates AI-powered titles
+ * Plugin that persists session history in response to Agent lifecycle events.
+ * Also creates/updates session metadata in DynamoDB and generates AI-powered titles.
+ *
+ * Migrated from `HookProvider` to `Plugin` for `@strands-agents/sdk@>=0.7.0`.
  *
  * Usage:
  * const hook = new SessionPersistenceHook(storage, { actorId: "user123", sessionId: "session456" });
- * const agent = new Agent({ hooks: [hook] });
+ * const agent = new Agent({ plugins: [hook] });
  */
-export class SessionPersistenceHook implements HookProvider {
+export class SessionPersistenceHook implements Plugin {
+  readonly name = 'moca:session-persistence-hook';
   private isFirstUserMessage = true;
   private isNewSession = false;
   private firstUserMessageText?: string;
@@ -84,14 +84,15 @@ export class SessionPersistenceHook implements HookProvider {
   }
 
   /**
-   * Register hook callbacks to registry
+   * Register hook callbacks on the agent.
+   * Called by the Agent's PluginRegistry during construction.
    */
-  registerCallbacks(registry: HookRegistry): void {
+  initAgent(agent: LocalAgent): void {
     // Handle message added events for DynamoDB session management
-    registry.addCallback(MessageAddedEvent, (event) => this.onMessageAdded(event));
+    agent.addHook(MessageAddedEvent, (event) => this.onMessageAdded(event));
 
     // Save history after Agent execution completes
-    registry.addCallback(AfterInvocationEvent, (event) => this.onAfterInvocation(event));
+    agent.addHook(AfterInvocationEvent, (event) => this.onAfterInvocation(event));
   }
 
   /**

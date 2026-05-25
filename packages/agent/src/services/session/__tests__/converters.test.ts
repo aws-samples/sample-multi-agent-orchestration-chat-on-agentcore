@@ -266,42 +266,45 @@ describe('agentCorePayloadToMessage', () => {
     });
   });
 
-  describe('blob as direct object (legacy format, messageType=tool)', () => {
-    it('restores toolUseBlock from legacy toolUse object', () => {
-      const legacyObj = {
-        messageType: 'tool',
+  describe('typeless content blocks (codec-bypassed writes)', () => {
+    /**
+     * The producer always goes through `contentBlockToWire`, which
+     * stamps `type` on every block. A blob whose `content[]` entries
+     * are missing `type` could only originate from a code path that
+     * bypassed the codec; we drop those entries rather than try to
+     * reconstruct them.
+     */
+    it('drops blocks without a `type` discriminator and falls back to empty message', () => {
+      const blobData = {
+        messageType: 'content',
         role: 'assistant',
-        toolType: 'toolUse',
-        name: 'myTool',
-        toolUseId: 'tu-42',
-        input: { param: 'val' },
+        content: [
+          { toolUse: { name: 'myTool', toolUseId: 'tu-42', input: {} } },
+          { text: 'no type field' },
+        ],
       };
-      const payload = { blob: legacyObj as unknown as Uint8Array };
+      const encoder = new TextEncoder();
+      const payload: BlobPayload = { blob: encoder.encode(JSON.stringify(blobData)) };
       const msg = agentCorePayloadToMessage(payload);
-      expect(msg.role).toBe('assistant');
+      // All blocks were filtered → fallback single-space TextBlock.
       expect(msg.content).toHaveLength(1);
-      const block = msg.content[0] as { type: string; name: string; toolUseId: string };
-      expect(block.type).toBe('toolUseBlock');
-      expect(block.name).toBe('myTool');
-      expect(block.toolUseId).toBe('tu-42');
+      expect((msg.content[0] as TextBlock).text).toBe(' ');
     });
 
-    it('restores toolResultBlock from legacy toolResult object', () => {
-      const legacyObj = {
-        messageType: 'tool',
-        role: 'user',
-        toolType: 'toolResult',
-        toolUseId: 'tu-42',
-        content: 'tool output',
-        isError: false,
+    it('keeps typed blocks when mixed with typeless ones', () => {
+      const blobData = {
+        messageType: 'content',
+        role: 'assistant',
+        content: [
+          { type: 'textBlock', text: 'kept' },
+          { text: 'dropped' }, // typeless, filtered out
+        ],
       };
-      const payload = { blob: legacyObj as unknown as Uint8Array };
+      const encoder = new TextEncoder();
+      const payload: BlobPayload = { blob: encoder.encode(JSON.stringify(blobData)) };
       const msg = agentCorePayloadToMessage(payload);
-      expect(msg.role).toBe('user');
-      const block = msg.content[0] as { type: string; toolUseId: string; isError: boolean };
-      expect(block.type).toBe('toolResultBlock');
-      expect(block.toolUseId).toBe('tu-42');
-      expect(block.isError).toBe(false);
+      expect(msg.content).toHaveLength(1);
+      expect((msg.content[0] as TextBlock).text).toBe('kept');
     });
   });
 

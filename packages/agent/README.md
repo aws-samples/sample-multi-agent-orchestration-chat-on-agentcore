@@ -433,10 +433,9 @@ EOF
 | `BEDROCK_REGION` | us-east-1 | Bedrock API region |
 | `GITHUB_TOKEN_BROKER_LAMBDA_ARN` | - | ARN of the GitHub Token Broker Lambda used by `startup.sh` to fetch the PAT for `gh auth login`. Consumed only by the entrypoint; unset before the agent starts. |
 | `CONVERSATION_WINDOW_SIZE` | 40 | Conversation window size (even number ≥ 2) |
-| `ENABLE_PROMPT_CACHING` | true | Enable prompt caching |
+| `ENABLE_PROMPT_CACHING` | true | Enable prompt caching (forwards `cacheConfig: { strategy: 'auto' }` to the Bedrock model — Anthropic models get `tools[]` and last-user-message cache points injected automatically; Nova is skipped) |
 | `DEBUG_MCP` | false | Enable MCP debug logging |
 | `AWS_PROFILE` | - | AWS profile name |
-| `CACHE_TYPE` | default | Prompt cache type (default or ephemeral) |
 
 ## Deployment
 

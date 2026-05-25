@@ -1,9 +1,13 @@
 /**
  * Cache-Aware Model Integration Tests
  *
- * Verifies that createBedrockModel correctly resolves cachePrompt / cacheTools
- * based on per-model capabilities, preventing "extraneous key [cachePoint]"
- * errors on models that do not support tool caching.
+ * Verifies that `createBedrockModel` forwards `cacheConfig: { strategy: 'auto' }`
+ * to the SDK in a way that:
+ *   - works for Claude (cache points are injected, hits register on the
+ *     second turn)
+ *   - works for Nova Lite (the SDK's `auto` strategy resolves to "no caching"
+ *     for non-Anthropic models, so the same call must NOT produce
+ *     "extraneous key [cachePoint]" errors when tools are present).
  *
  * @see https://docs.aws.amazon.com/bedrock/latest/userguide/prompt-caching.html
  *
@@ -11,11 +15,9 @@
  */
 
 import { describe, it, expect } from '@jest/globals';
-import { Agent, BedrockModel, SlidingWindowConversationManager, tool } from '@strands-agents/sdk';
+import { Agent, SlidingWindowConversationManager, tool } from '@strands-agents/sdk';
 import { z } from 'zod';
-import { createBedrockModel } from '../../models/bedrock.js';
-
-const REGION = process.env.BEDROCK_REGION || 'us-east-1';
+import { createBedrockModel } from '../../../config/bedrock.js';
 
 /** A minimal no-op tool to include in the agent's toolConfig. */
 const dummyTool = tool({
@@ -36,39 +38,11 @@ function lastAssistantText(agent: Agent): string {
 }
 
 // ---------------------------------------------------------------------------
-// Nova models — cacheTools NOT supported
+// Amazon Nova — SDK auto strategy must NOT inject cachePoint into tools[]
 // ---------------------------------------------------------------------------
 
-describe('Amazon Nova + tools (cacheTools not supported)', () => {
-  it('fails when cacheTools is explicitly set on Nova Lite', async () => {
-    // Arrange — bypass createBedrockModel to prove the raw error
-    const model = new BedrockModel({
-      region: REGION,
-      modelId: 'amazon.nova-lite-v1:0',
-      cacheTools: 'default',
-    });
-
-    const agent = new Agent({
-      model,
-      systemPrompt: 'Be brief.',
-      tools: [dummyTool],
-      conversationManager: new SlidingWindowConversationManager({ windowSize: 10 }),
-    });
-
-    let caughtError: Error | undefined;
-    try {
-      for await (const event of agent.stream('What time is it?')) {
-        void event;
-      }
-    } catch (error) {
-      caughtError = error as Error;
-    }
-
-    expect(caughtError).toBeDefined();
-    expect(caughtError!.message).toMatch(/cachePoint|Malformed input/i);
-  });
-
-  it('succeeds with Nova Lite via createBedrockModel (cacheTools auto-disabled)', async () => {
+describe('Amazon Nova with tools (auto strategy resolves to no-op)', () => {
+  it('succeeds with Nova Lite + tools via createBedrockModel', async () => {
     const model = createBedrockModel({ modelId: 'amazon.nova-lite-v1:0' });
 
     const agent = new Agent({
@@ -87,7 +61,6 @@ describe('Amazon Nova + tools (cacheTools not supported)', () => {
   });
 
   it('succeeds with Nova Lite without tools via createBedrockModel', async () => {
-    // Verify that createBedrockModel works for Nova even without tools
     const model = createBedrockModel({ modelId: 'amazon.nova-lite-v1:0' });
 
     const agent = new Agent({
@@ -107,10 +80,10 @@ describe('Amazon Nova + tools (cacheTools not supported)', () => {
 });
 
 // ---------------------------------------------------------------------------
-// Claude models — cacheTools supported
+// Claude — SDK auto strategy injects cachePoints; second turn should hit
 // ---------------------------------------------------------------------------
 
-describe('Claude + tools (cacheTools supported)', () => {
+describe('Claude with tools (auto strategy injects cachePoints)', () => {
   it('succeeds with Claude via createBedrockModel with tools and caching', async () => {
     // Use the default model (Claude Sonnet via cross-region inference profile)
     const model = createBedrockModel();

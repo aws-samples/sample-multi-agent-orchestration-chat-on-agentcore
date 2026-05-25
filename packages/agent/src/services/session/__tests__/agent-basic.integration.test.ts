@@ -9,7 +9,7 @@
 
 import { describe, it, expect } from '@jest/globals';
 import { Agent, SlidingWindowConversationManager } from '@strands-agents/sdk';
-import { createBedrockModel } from '../../models/bedrock.js';
+import { createBedrockModel } from '../../../config/bedrock.js';
 
 /** Extract text from a message's content blocks (inline to keep tests self-contained). */
 function textOf(message: { content: unknown[] }): string {
@@ -79,7 +79,7 @@ describe('Agent Basic', () => {
     it('responds correctly across two turns with caching enabled', async () => {
       // Arrange
       const agent = new Agent({
-        model: createBedrockModel({ cachePrompt: 'default', cacheTools: 'default' }),
+        model: createBedrockModel(),
         systemPrompt: 'Be brief.',
         tools: [],
         conversationManager: new SlidingWindowConversationManager({ windowSize: 20 }),
@@ -117,7 +117,7 @@ describe('Agent Basic', () => {
         'However, when asked a simple arithmetic question, respond with only the number.';
 
       const agent = new Agent({
-        model: createBedrockModel({ cachePrompt: 'default' }),
+        model: createBedrockModel(),
         systemPrompt: longSystemPrompt,
         tools: [],
         conversationManager: new SlidingWindowConversationManager({ windowSize: 20 }),

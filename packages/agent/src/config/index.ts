@@ -98,7 +98,6 @@ const envSchema = z.object({
     .string()
     .default('true')
     .transform((val) => val === 'true'),
-  CACHE_TYPE: z.enum(['default', 'ephemeral']).default('default'),
 });
 
 /**
@@ -135,11 +134,4 @@ export const config = parseEnv();
 export const WORKSPACE_DIRECTORY = '/tmp/ws';
 
 // Re-export Bedrock model utilities
-export {
-  createBedrockModel,
-  supportsPromptCaching,
-  supportsToolCaching,
-  type BedrockModelOptions,
-} from './bedrock.js';
-// getPromptCachingSupport and PromptCachingSupport live in @moca/core (Single Source of Truth)
-export { getPromptCachingSupport, type PromptCachingSupport } from '@moca/core';
+export { createBedrockModel, type BedrockModelOptions } from './bedrock.js';

@@ -43,17 +43,17 @@ function buildLongSystemPrompt(): string {
     'Format all currency values with appropriate symbols and two decimal places. ' +
     'Include year-over-year and quarter-over-quarter comparisons when available. ' +
     'Provide both bull case and bear case scenarios for any investment thesis discussed. ';
-  // Repeat 10 times to ensure >2048 tokens (well above cache threshold)
+  // Repeat 20 times to ensure well above the 1024-token Anthropic cache threshold
   return (
-    paragraph.repeat(10) +
+    paragraph.repeat(20) +
     'However, when asked a simple arithmetic question, respond with only the number.'
   );
 }
 
 describe('Prompt Cache Metrics (raw Bedrock API)', () => {
-  // Use US cross-region inference profile for on-demand access.
-  const modelId = 'us.anthropic.claude-sonnet-4-20250514-v1:0';
-  const region = 'us-east-1';
+  // Use global cross-region inference profile for on-demand access.
+  const modelId = process.env.BEDROCK_MODEL_ID || 'global.anthropic.claude-sonnet-4-6';
+  const region = process.env.BEDROCK_REGION || 'us-east-1';
 
   const client = new BedrockRuntimeClient({ region });
 
