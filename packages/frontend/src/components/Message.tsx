@@ -1,6 +1,7 @@
 import React, { useMemo } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import remarkBreaks from 'remark-breaks';
 import remarkMath from 'remark-math';
 import rehypeKatex from 'rehype-katex';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
@@ -241,7 +242,7 @@ export const Message: React.FC<MessageProps> = ({ message }) => {
                     return (
                       <div key={`text-${index}`} className="markdown-content">
                         <ReactMarkdown
-                          remarkPlugins={[remarkGfm, remarkMath]}
+                          remarkPlugins={[remarkGfm, remarkBreaks, remarkMath]}
                           rehypePlugins={[rehypeKatex]}
                           components={markdownComponents}
                         >
