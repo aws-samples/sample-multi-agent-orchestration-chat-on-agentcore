@@ -4,6 +4,79 @@
 
 import { Message, TextBlock } from '@strands-agents/sdk';
 
+// ---------------------------------------------------------------------------
+// StreamInterruptedError — distinct error class for transient stream-cuts
+// ---------------------------------------------------------------------------
+
+/**
+ * Thrown (or wrapped) when the upstream Bedrock streaming connection ends
+ * before the model emits `messageStop`. Typical underlying causes:
+ *
+ * - Strands SDK throwing `ModelError("Stream ended without completing a message")`
+ *   when the async iterator terminates early.
+ * - AWS SDK v3 `IncompleteStreamException`.
+ * - Low-level socket errors: `socket hang up`, `aborted`, `ECONNRESET`.
+ *
+ * Promoting these to a dedicated class lets the frontend (and operators
+ * reading CloudWatch) distinguish a recoverable idle-disconnect from a
+ * genuine model failure (validation, throttling, MaxTokensError, …).
+ */
+export class StreamInterruptedError extends Error {
+  /** Always true for this class — a stream cut is by definition retryable. */
+  readonly isRetryable = true;
+
+  constructor(message: string, options?: { cause?: unknown }) {
+    super(message, options as ErrorOptions);
+    this.name = 'StreamInterruptedError';
+    // Preserve prototype for `instanceof` to work across realms / transpiled
+    // output where `extends Error` may otherwise be flattened.
+    Object.setPrototypeOf(this, StreamInterruptedError.prototype);
+  }
+}
+
+/**
+ * Substring patterns that identify a stream-interruption error regardless of
+ * which layer raised it. We match on `error.message` to avoid pulling in
+ * SDK-specific class identities that aren't stable across SDK versions.
+ */
+const STREAM_INTERRUPTION_PATTERNS: readonly RegExp[] = [
+  /stream ended without completing a message/i,
+  /response stream was incomplete/i, // AWS SDK v3 IncompleteStreamException
+  /incomplete stream/i,
+  /socket hang ?up/i,
+  /\baborted\b/i, // matches "aborted", "The operation was aborted"
+  /ECONNRESET/,
+];
+
+/**
+ * Inspect an error and, if it represents a transient stream cut, return a
+ * `StreamInterruptedError` wrapping the original. Otherwise return the
+ * input unchanged.
+ *
+ * - Pass-through for non-Error values and for unrelated errors (the caller
+ *   keeps full identity / `instanceof` checks intact).
+ * - The wrapped error preserves the original message verbatim so
+ *   `sanitizeErrorMessage` and observability tooling still see the cause.
+ */
+export function classifyStreamError<T>(error: T): T | StreamInterruptedError {
+  if (!(error instanceof Error)) {
+    return error;
+  }
+  // Already classified — don't double-wrap.
+  if (error instanceof StreamInterruptedError) {
+    return error;
+  }
+
+  const message = typeof error.message === 'string' ? error.message : '';
+  const nameSignals = error.name === 'IncompleteStreamException';
+  const messageSignals = STREAM_INTERRUPTION_PATTERNS.some((re) => re.test(message));
+
+  if (nameSignals || messageSignals) {
+    return new StreamInterruptedError(message || error.name, { cause: error });
+  }
+  return error;
+}
+
 /**
  * Convert an unknown value to a safe, printable string.
  *
@@ -90,8 +163,14 @@ export function sanitizeErrorMessage(error: unknown): string {
  * @returns Message object formatted for storage
  */
 export function createErrorMessage(error: unknown, requestId: string): Message {
-  const errorName = error instanceof Error ? error.name : 'UnknownError';
-  const sanitizedMessage = sanitizeErrorMessage(error);
+  // Promote stream-interruption errors to StreamInterruptedError so that the
+  // stored Type field reflects the *classified* name rather than the raw
+  // SDK-internal `ModelError`. This lets operators searching CloudWatch
+  // distinguish idle-disconnect from a genuine model failure.
+  const classified = classifyStreamError(error);
+
+  const errorName = classified instanceof Error ? classified.name : 'UnknownError';
+  const sanitizedMessage = sanitizeErrorMessage(classified);
 
   // JSON.stringify the variable parts so that any remaining special characters
   // (quotes, backslashes, etc.) in the sanitized message are properly escaped.

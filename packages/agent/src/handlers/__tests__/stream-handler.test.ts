@@ -23,6 +23,18 @@ const mockSanitizeErrorMessage = jest.fn<any>().mockReturnValue('Sanitized error
 const mockSerializeStreamEvent = jest.fn<any>().mockImplementation((event: any) => [event]);
 const mockBuildInputContent = jest.fn<any>().mockImplementation((prompt: string) => prompt);
 
+// Default behaviour: identity (no classification). Individual tests can call
+// `mockClassifyStreamError.mockImplementationOnce(...)` to override.
+const mockClassifyStreamError = jest.fn<any>().mockImplementation((e: unknown) => e);
+
+// Logger mock — we need to be able to inspect what stream-handler logs so that
+// we can assert observability properties (e.g. errors are logged under the
+// `err` key so pino's stdSerializers.err captures message/stack/cause).
+const mockLoggerInfo = jest.fn();
+const mockLoggerWarn = jest.fn();
+const mockLoggerError = jest.fn();
+const mockLoggerDebug = jest.fn();
+
 // ── Register ESM mocks ─────────────────────────────────────────────
 
 jest.unstable_mockModule('../../config/index.js', () => ({
@@ -30,11 +42,23 @@ jest.unstable_mockModule('../../config/index.js', () => ({
   config: {},
 }));
 
+jest.unstable_mockModule('../../libs/logger/index.js', () => ({
+  logger: {
+    info: mockLoggerInfo,
+    warn: mockLoggerWarn,
+    error: mockLoggerError,
+    debug: mockLoggerDebug,
+  },
+}));
+
 jest.unstable_mockModule('../../libs/utils/index.js', () => ({
   createErrorMessage: mockCreateErrorMessage,
   sanitizeErrorMessage: mockSanitizeErrorMessage,
   serializeStreamEvent: mockSerializeStreamEvent,
   buildInputContent: mockBuildInputContent,
+  // classifyStreamError is identity by default; tests that need promotion
+  // override this via mockClassifyStreamError.mockImplementationOnce(...).
+  classifyStreamError: (e: unknown) => mockClassifyStreamError(e),
 }));
 
 jest.unstable_mockModule('../../libs/context/request-context.js', () => ({
@@ -328,6 +352,90 @@ describe('streamAgentResponse', () => {
       const errorEvent = JSON.parse(errorWrite![0]);
       expect(errorEvent.error.message).not.toContain('partial content');
       expect(errorEvent.error.message).not.toContain('embedded quotes');
+    });
+
+    // -----------------------------------------------------------------
+    // Observability: pino must receive the error under the `err` key so
+    // that `stdSerializers.err` captures name/message/stack/cause.
+    // Logging under `error` causes the Error class to be serialised as a
+    // plain object with only enumerable properties, dropping `message`
+    // and `stack` — which is the root cause of the empty
+    // `{"error":{"name":"ModelError"}}` log entries reported in issue #8.
+    // -----------------------------------------------------------------
+    it('logs the streaming error under the `err` key (pino stdSerializers.err contract)', async () => {
+      const agent = createErrorAgent(new Error('Stream failed'));
+
+      await streamAgentResponse(agent, 'Hello', undefined, res, defaultOptions);
+
+      // Find the call that corresponds to "Agent streaming error:" — i.e.
+      // the one whose payload object carries the streaming error.
+      const errorLogCall = mockLoggerError.mock.calls.find((call) => {
+        const [payload] = call as [any];
+        return payload && typeof payload === 'object' && 'err' in payload;
+      });
+
+      expect(errorLogCall).toBeDefined();
+      const [payload, msg] = errorLogCall as [any, string];
+      expect(payload.err).toBeInstanceOf(Error);
+      expect(payload.err.message).toBe('Stream failed');
+      expect(payload).toHaveProperty('requestId');
+      expect(typeof msg).toBe('string');
+    });
+
+    it('does NOT log the streaming error under the legacy `error` key', async () => {
+      const agent = createErrorAgent(new Error('Stream failed'));
+
+      await streamAgentResponse(agent, 'Hello', undefined, res, defaultOptions);
+
+      // No top-level call should pass `error: <Error>` — only `err: <Error>`.
+      // (Other unrelated logger.error calls e.g. for session-save failures
+      // may still happen; they would not include the Error itself.)
+      const wrongShape = mockLoggerError.mock.calls.find((call) => {
+        const [payload] = call as [any];
+        return (
+          payload &&
+          typeof payload === 'object' &&
+          payload.error instanceof Error &&
+          !('err' in payload)
+        );
+      });
+
+      expect(wrongShape).toBeUndefined();
+    });
+
+    it('includes errorName in the serverErrorEvent so the frontend can branch on classification', async () => {
+      // Simulate Strands SDK's stream-interruption ModelError. After
+      // classifyStreamError() promotes it, the wire event must surface
+      // `errorName: "StreamInterruptedError"` (frontend schema uses
+      // .passthrough(), so this is a non-breaking addition).
+      const interruptError = new Error('Stream ended without completing a message');
+      interruptError.name = 'ModelError';
+
+      // Override the classifyStreamError mock just for this test to simulate
+      // promotion to StreamInterruptedError. The real implementation is
+      // exercised by error-handler.test.ts; here we only verify that
+      // stream-handler propagates the classified result into the wire event.
+      const promoted: any = new Error('Stream ended without completing a message');
+      promoted.name = 'StreamInterruptedError';
+      promoted.isRetryable = true;
+      promoted.cause = interruptError;
+      mockClassifyStreamError.mockImplementationOnce(() => promoted);
+
+      const agent = createErrorAgent(interruptError);
+
+      await streamAgentResponse(agent, 'Hello', undefined, res, defaultOptions);
+
+      const errorWrite = res.write.mock.calls.find((call: any[]) => {
+        try {
+          return JSON.parse(call[0]).type === 'serverErrorEvent';
+        } catch {
+          return false;
+        }
+      });
+      expect(errorWrite).toBeDefined();
+      const errorEvent = JSON.parse(errorWrite![0]);
+      expect(errorEvent.error.errorName).toBe('StreamInterruptedError');
+      expect(errorEvent.error.isRetryable).toBe(true);
     });
   });
 

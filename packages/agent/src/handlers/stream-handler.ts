@@ -13,6 +13,7 @@ import {
   sanitizeErrorMessage,
   serializeStreamEvent,
   buildInputContent,
+  classifyStreamError,
 } from '../libs/utils/index.js';
 import { getCurrentContext, getContextMetadata } from '../libs/context/request-context.js';
 import type { SessionStorage, SessionConfig } from '../services/session/types.js';
@@ -71,26 +72,50 @@ async function handleStreamError(
 ): Promise<void> {
   const requestId = getCurrentContext()?.requestId;
 
+  // Promote transient stream-cuts to a dedicated error class so observability
+  // and the wire event downstream can distinguish them from genuine model
+  // failures (validation, MaxTokensError, throttling).
+  const classified = classifyStreamError(error);
+
   // Surface MaxTokensError explicitly so it is easily discoverable in CloudWatch
   // without having to inspect the full serialised error object.
   // We intentionally do NOT log error.cause here to prevent partialMessage
   // content from leaking into log streams.
-  if (error instanceof Error && error.name === 'MaxTokensError') {
+  if (classified instanceof Error && classified.name === 'MaxTokensError') {
     logger.warn(
       {
         requestId,
-        errorName: error.name,
+        errorName: classified.name,
       },
       'MaxTokensError: Bedrock max_tokens limit reached during streaming'
     );
   }
 
-  logger.error({ requestId, error }, 'Agent streaming error:');
+  // Log under the `err` key so pino's `stdSerializers.err` (registered in
+  // libs/logger) captures `name`, `message`, `stack`, and `cause` fields.
+  // Logging under `error` would cause Error to be serialised as a plain
+  // object whose non-enumerable `message`/`stack` properties are dropped —
+  // which produced the empty `{"error":{"name":"ModelError"}}` log entries
+  // seen in issue #8.
+  logger.error(
+    {
+      requestId,
+      err: classified,
+      // AWS SDK v3 errors carry useful diagnostic metadata under $metadata
+      // (httpStatusCode, requestId, cfId, attempts, totalRetryDelay).
+      // Surface them as a top-level field for CloudWatch Logs Insights.
+      awsMetadata:
+        classified instanceof Error && '$metadata' in classified
+          ? (classified as { $metadata?: unknown }).$metadata
+          : undefined,
+    },
+    'Agent streaming error:'
+  );
 
   // Save error message to session history if session is configured
   if (options.sessionStorage && options.sessionConfig) {
     try {
-      const errorMessage = createErrorMessage(error, requestId || 'unknown');
+      const errorMessage = createErrorMessage(classified, requestId || 'unknown');
       await options.sessionStorage.appendMessage(options.sessionConfig, errorMessage);
       logger.info(
         {
@@ -104,11 +129,20 @@ async function handleStreamError(
     }
   }
 
-  // Send error event to client
+  // Send error event to client.
+  // `errorName` and `isRetryable` are additive fields — the frontend's Zod
+  // schema for `serverErrorEvent` uses `.passthrough()` so older clients
+  // simply ignore them while newer clients can branch on the classification
+  // (e.g. show a "Reconnect" button for StreamInterruptedError).
+  const errorName = classified instanceof Error ? classified.name : 'UnknownError';
+  const isRetryable =
+    classified instanceof Error && (classified as { isRetryable?: boolean }).isRetryable === true;
   const errorEvent = {
     type: 'serverErrorEvent',
     error: {
-      message: sanitizeErrorMessage(error),
+      message: sanitizeErrorMessage(classified),
+      errorName,
+      isRetryable,
       requestId,
       savedToHistory: !!(options.sessionStorage && options.sessionConfig),
     },

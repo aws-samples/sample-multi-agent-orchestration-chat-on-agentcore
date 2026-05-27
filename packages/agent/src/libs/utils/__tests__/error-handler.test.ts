@@ -7,7 +7,12 @@
  */
 
 import { describe, it, expect } from '@jest/globals';
-import { sanitizeErrorMessage, createErrorMessage } from '../error-handler.js';
+import {
+  sanitizeErrorMessage,
+  createErrorMessage,
+  classifyStreamError,
+  StreamInterruptedError,
+} from '../error-handler.js';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -154,5 +159,103 @@ describe('createErrorMessage', () => {
     // partialMessage content should not appear in the stored error message
     expect(text).not.toContain('LEARNED_PATTERNS');
     expect(text).not.toContain('nested');
+  });
+
+  it('uses the classified error name (StreamInterruptedError) for stream-interruption errors', () => {
+    // Strands SDK throws ModelError('Stream ended without completing a message')
+    // when the upstream Bedrock HTTP/2 stream is cut before yielding messageStop.
+    // createErrorMessage must surface the *classified* name so that operators
+    // and the frontend can distinguish idle-disconnect from a genuine model
+    // failure.
+    const err = new Error('Stream ended without completing a message');
+    err.name = 'ModelError';
+    const msg = createErrorMessage(err, 'req-interrupt');
+    const text = (msg.content[0] as any).text as string;
+    expect(text).toContain('StreamInterruptedError');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// classifyStreamError
+// ---------------------------------------------------------------------------
+
+describe('classifyStreamError', () => {
+  it('wraps "Stream ended without completing a message" ModelError as StreamInterruptedError', () => {
+    const err = new Error('Stream ended without completing a message');
+    err.name = 'ModelError';
+
+    const classified = classifyStreamError(err);
+
+    expect(classified).toBeInstanceOf(StreamInterruptedError);
+    expect(classified.name).toBe('StreamInterruptedError');
+    expect(classified.isRetryable).toBe(true);
+    expect(classified.cause).toBe(err);
+    // Original message must be preserved so observability tooling and
+    // sanitizeErrorMessage can still see the underlying cause.
+    expect(classified.message).toContain('Stream ended without completing a message');
+  });
+
+  it('classifies AWS SDK IncompleteStreamException as StreamInterruptedError', () => {
+    const err = new Error('Response stream was incomplete');
+    err.name = 'IncompleteStreamException';
+
+    const classified = classifyStreamError(err);
+
+    expect(classified).toBeInstanceOf(StreamInterruptedError);
+    expect(classified.isRetryable).toBe(true);
+  });
+
+  it('classifies "socket hang up" / "aborted" runtime errors as StreamInterruptedError', () => {
+    const err1 = new Error('socket hang up');
+    const err2 = new Error('The operation was aborted');
+
+    expect(classifyStreamError(err1)).toBeInstanceOf(StreamInterruptedError);
+    expect(classifyStreamError(err2)).toBeInstanceOf(StreamInterruptedError);
+  });
+
+  it('returns the original error untouched for non-stream-interruption errors', () => {
+    const err = new Error('Max tokens exceeded');
+    err.name = 'MaxTokensError';
+
+    const classified = classifyStreamError(err);
+
+    // Pass-through: no wrapping, identity preserved.
+    expect(classified).toBe(err);
+    expect(classified.name).toBe('MaxTokensError');
+  });
+
+  it('returns the original error untouched for a generic ModelError with a different message', () => {
+    // Only "Stream ended without completing a message" should be promoted.
+    // A different ModelError (e.g. validation, throttling) must not be
+    // misclassified as a transient stream interruption.
+    const err = new Error('Validation error: input exceeds maximum');
+    err.name = 'ModelError';
+
+    const classified = classifyStreamError(err);
+
+    expect(classified).toBe(err);
+    expect(classified).not.toBeInstanceOf(StreamInterruptedError);
+  });
+
+  it('handles non-Error inputs by returning them unchanged', () => {
+    expect(classifyStreamError('plain string')).toBe('plain string');
+    expect(classifyStreamError(null)).toBe(null);
+    expect(classifyStreamError(undefined)).toBe(undefined);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// StreamInterruptedError
+// ---------------------------------------------------------------------------
+
+describe('StreamInterruptedError', () => {
+  it('is an instance of Error and exposes isRetryable=true by default', () => {
+    const cause = new Error('original');
+    const err = new StreamInterruptedError('stream interrupted', { cause });
+
+    expect(err).toBeInstanceOf(Error);
+    expect(err.name).toBe('StreamInterruptedError');
+    expect(err.isRetryable).toBe(true);
+    expect(err.cause).toBe(cause);
   });
 });

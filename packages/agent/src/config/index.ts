@@ -98,6 +98,18 @@ const envSchema = z.object({
     .string()
     .default('true')
     .transform((val) => val === 'true'),
+
+  // Bedrock streaming HTTP/2 timeout.
+  // Long agentic runs can stream for several minutes; the SDK's built-in
+  // `requestTimeout` default (120 s) is too short and any intermediate idle
+  // disconnects surface as `ModelError("Stream ended without completing a
+  // message")` (see issue #8). Forwarded to BedrockModel.clientConfig as
+  // `requestHandler: { requestTimeout, sessionTimeout }`.
+  BEDROCK_STREAM_REQUEST_TIMEOUT_MS: z.coerce
+    .number()
+    .int({ message: 'BEDROCK_STREAM_REQUEST_TIMEOUT_MS must be an integer' })
+    .positive({ message: 'BEDROCK_STREAM_REQUEST_TIMEOUT_MS must be positive' })
+    .default(900_000),
 });
 
 /**

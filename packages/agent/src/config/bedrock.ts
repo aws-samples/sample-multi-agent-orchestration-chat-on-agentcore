@@ -57,6 +57,16 @@ export function createBedrockModel(options?: BedrockModelOptions): BedrockModel 
     clientConfig: {
       retryMode: 'adaptive',
       maxAttempts: 5,
+      // Long agentic runs stream for several minutes. The Strands SDK's
+      // default request timeout (120 s) is too short and intermediate idle
+      // disconnects surface as `ModelError("Stream ended without completing
+      // a message")` after the data plane closes the HTTP/2 stream. We
+      // forward an options-bag so the SDK builds an HTTP/2 handler with our
+      // tuned timeouts (issue #8).
+      requestHandler: {
+        requestTimeout: config.BEDROCK_STREAM_REQUEST_TIMEOUT_MS,
+        sessionTimeout: config.BEDROCK_STREAM_REQUEST_TIMEOUT_MS,
+      },
     },
   });
 }
