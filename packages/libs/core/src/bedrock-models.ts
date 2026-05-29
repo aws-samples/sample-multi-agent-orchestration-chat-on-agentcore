@@ -36,6 +36,12 @@ export interface BedrockModelDefinition {
  */
 export const BEDROCK_MODEL_DEFINITIONS = [
   {
+    id: 'global.anthropic.claude-opus-4-8',
+    name: 'Claude Opus 4.8',
+    provider: 'Anthropic',
+    maxOutputTokens: 128000, // 128k (AWS Bedrock model card, 2026-05-28)
+  },
+  {
     id: 'global.anthropic.claude-opus-4-7',
     name: 'Claude Opus 4.7',
     provider: 'Anthropic',

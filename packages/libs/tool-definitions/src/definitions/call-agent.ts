@@ -24,6 +24,7 @@ export const callAgentSchema = z.object({
       'Model ID to use (optional, defaults to agent config). ' +
         'Must be a valid Bedrock model ID. Examples: ' +
         '"global.anthropic.claude-sonnet-4-6", ' +
+        '"global.anthropic.claude-opus-4-8", ' +
         '"global.anthropic.claude-opus-4-6-v1", ' +
         '"global.amazon.nova-2-lite-v1:0"'
     ),
