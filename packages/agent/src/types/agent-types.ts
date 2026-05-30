@@ -8,6 +8,9 @@
 import type { Agent, Plugin } from '@strands-agents/sdk';
 import type { IdentityId } from '@moca/core';
 import type { SessionStorage, SessionConfig } from './session-types.js';
+// Type-only import: no runtime dependency on the runtime/ layer, so this does
+// not introduce a layering violation or import cycle.
+import type { StreamTerminationRetryStrategy } from '../runtime/agent/stream-termination-retry-strategy.js';
 
 /**
  * Strands Agent creation options for AgentCore Runtime.
@@ -47,6 +50,14 @@ export interface CreateAgentOptions {
 export interface CreateAgentResult {
   agent: Agent;
   metadata: AgentMetadata;
+  /**
+   * The retry strategy instance wired into this agent. Exposed so the stream
+   * handler can read `retryStrategy.retryCount` after a turn completes and
+   * emit `stream_retry_recovered` when a transient mid-stream truncation was
+   * successfully retried. A fresh instance is created per agent, so the count
+   * is scoped to this turn.
+   */
+  retryStrategy: StreamTerminationRetryStrategy;
 }
 
 /**
