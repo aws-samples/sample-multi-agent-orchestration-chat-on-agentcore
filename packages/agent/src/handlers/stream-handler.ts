@@ -17,6 +17,7 @@ import {
 import { getCurrentContext, getContextMetadata } from '../libs/context/request-context.js';
 import type { SessionStorage, SessionConfig } from '../services/session/types.js';
 import type { AgentMetadata } from '../runtime/agent/types.js';
+import type { StreamTerminationRetryStrategy } from '../runtime/agent/stream-termination-retry-strategy.js';
 import type { ImageData } from '../types/validation/index.js';
 
 /**
@@ -25,6 +26,13 @@ import type { ImageData } from '../types/validation/index.js';
 export interface StreamOptions {
   /** Agent creation metadata (included in completion event) */
   metadata: AgentMetadata;
+  /**
+   * Retry strategy wired into the agent. Read after a successful turn to emit
+   * `stream_retry_recovered` when a transient mid-stream truncation was
+   * retried and the turn ultimately succeeded. Optional so callers that don't
+   * thread it through (e.g. some tests) still type-check.
+   */
+  retryStrategy?: StreamTerminationRetryStrategy;
   /** Session storage (for saving error messages on stream failure) */
   sessionStorage?: SessionStorage;
   /** Session config (for saving error messages on stream failure) */
@@ -85,7 +93,23 @@ async function handleStreamError(
     );
   }
 
-  logger.error({ requestId, error }, 'Agent streaming error:');
+  // Log the full error. Use the `err` key (not `error`) so pino's configured
+  // `err` serializer (libs/logger) expands name/message/stack/cause into
+  // structured fields. The previous `{ requestId, error }` form bypassed that
+  // serializer and emitted only `{"error":{"name":"ModelError"}}`, dropping
+  // `message`/`stack`/`cause` — which made mid-stream truncation failures
+  // indistinguishable in CloudWatch. `attempt`/`retried` correlate the failure
+  // with the retry strategy's `stream_retry_classified`/`_exhausted` events.
+  const retryCount = options.retryStrategy?.retryCount ?? 0;
+  logger.error(
+    {
+      requestId,
+      retried: retryCount > 0,
+      attempts: retryCount > 0 ? retryCount + 1 : 1,
+      err: error,
+    },
+    'Agent streaming error:'
+  );
 
   // Save error message to session history if session is configured
   if (options.sessionStorage && options.sessionConfig) {
@@ -166,6 +190,24 @@ export async function streamAgentResponse(
     }
 
     logger.info({ requestId }, 'Agent streaming completed:');
+
+    // If the turn completed only after one or more transient mid-stream
+    // truncations were retried, record the recovery. This is the *success*
+    // counterpart to `stream_retry_classified` / `stream_retry_exhausted` and
+    // is the only signal that lets operations compute a retry recovery rate
+    // (recovered vs. exhausted) — a successful turn is otherwise silent.
+    const retryCount = options.retryStrategy?.retryCount ?? 0;
+    if (retryCount > 0) {
+      logger.info(
+        {
+          requestId,
+          attempts: retryCount + 1,
+          retries: retryCount,
+          recovered: true,
+        },
+        'stream_retry_recovered'
+      );
+    }
 
     sendCompletionEvent(res, agent, options);
     res.end();

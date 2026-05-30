@@ -100,6 +100,13 @@ export async function createAgent(options?: CreateAgentOptions): Promise<CreateA
   if (ctx?.isMachineUser) traceAttributes['enduser.type'] = 'machine';
   if (options?.memoryEnabled) traceAttributes['gen_ai.memory.enabled'] = 'true';
 
+  // Recover from transient mid-stream truncation (Bedrock closing the event
+  // stream before `messageStop`) instead of aborting the turn. A fresh
+  // instance per agent is required — the strategy holds per-turn backoff state
+  // and must not be shared across agents. Kept in a local so it can be returned
+  // for post-turn observability (`retryStrategy.retryCount`).
+  const retryStrategy = new StreamTerminationRetryStrategy();
+
   const agent = new Agent({
     model,
     systemPrompt,
@@ -109,11 +116,7 @@ export async function createAgent(options?: CreateAgentOptions): Promise<CreateA
     conversationManager,
     id: options?.agentId,
     traceAttributes,
-    // Recover from transient mid-stream truncation (Bedrock closing the event
-    // stream before `messageStop`) instead of aborting the turn. A fresh
-    // instance per agent is required — the strategy holds per-turn backoff state
-    // and must not be shared across agents.
-    retryStrategy: new StreamTerminationRetryStrategy(),
+    retryStrategy,
   });
 
   // Set storagePath in agent state for sub-agent inheritance.
@@ -125,6 +128,7 @@ export async function createAgent(options?: CreateAgentOptions): Promise<CreateA
 
   return {
     agent,
+    retryStrategy,
     metadata: {
       loadedMessagesCount: savedMessages.length,
       longTermMemoriesCount: memoryResult.memories.length,
