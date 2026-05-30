@@ -32,6 +32,7 @@ import { buildUserMCPClients } from './runtime/agent/mcp-clients-builder.js';
 import { buildToolSet } from './runtime/agent/tools-builder.js';
 import { extractMemoryParams, fetchLongTermMemories } from './runtime/agent/memory-fetcher.js';
 import { loadSessionHistory } from './runtime/agent/session-loader.js';
+import { StreamTerminationRetryStrategy } from './runtime/agent/stream-termination-retry-strategy.js';
 
 import type { CreateAgentOptions, CreateAgentResult } from './runtime/agent/types.js';
 
@@ -108,6 +109,11 @@ export async function createAgent(options?: CreateAgentOptions): Promise<CreateA
     conversationManager,
     id: options?.agentId,
     traceAttributes,
+    // Recover from transient mid-stream truncation (Bedrock closing the event
+    // stream before `messageStop`) instead of aborting the turn. A fresh
+    // instance per agent is required — the strategy holds per-turn backoff state
+    // and must not be shared across agents.
+    retryStrategy: new StreamTerminationRetryStrategy(),
   });
 
   // Set storagePath in agent state for sub-agent inheritance.
