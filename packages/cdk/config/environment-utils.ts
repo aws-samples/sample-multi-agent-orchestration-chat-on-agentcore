@@ -70,6 +70,11 @@ const DEFAULT_CONFIG = {
    */
   bedrockModels: [
     {
+      id: 'global.anthropic.claude-opus-4-8',
+      name: 'Claude Opus 4.8',
+      provider: 'Anthropic',
+    },
+    {
       id: 'global.anthropic.claude-opus-4-7',
       name: 'Claude Opus 4.7',
       provider: 'Anthropic',
