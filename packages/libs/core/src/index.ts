@@ -54,4 +54,4 @@ export { SYSTEM_USER_ID } from './system-ids.js';
 
 // Bedrock model definitions — Single Source of Truth
 export type { BedrockModelDefinition } from './bedrock-models.js';
-export { BEDROCK_MODEL_DEFINITIONS, getMaxOutputTokens } from './bedrock-models.js';
+export { BEDROCK_MODEL_DEFINITIONS, getMaxOutputTokens, getModelRegion } from './bedrock-models.js';

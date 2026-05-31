@@ -33,6 +33,7 @@ import { buildToolSet } from './runtime/agent/tools-builder.js';
 import { extractMemoryParams, fetchLongTermMemories } from './runtime/agent/memory-fetcher.js';
 import { loadSessionHistory } from './runtime/agent/session-loader.js';
 import { StreamTerminationRetryStrategy } from './runtime/agent/stream-termination-retry-strategy.js';
+import { EmptyTextBlockHook } from './services/session/empty-text-block-hook.js';
 
 import type { CreateAgentOptions, CreateAgentResult } from './runtime/agent/types.js';
 
@@ -112,7 +113,11 @@ export async function createAgent(options?: CreateAgentOptions): Promise<CreateA
     systemPrompt,
     tools: [...toolSet.tools, ...toolSet.mcpClients],
     messages: savedMessages,
-    plugins: options?.plugins,
+    // EmptyTextBlockHook is registered first so it sanitizes assistant messages
+    // (stripping the empty leading TextBlock that Qwen3 emits before a toolUse)
+    // before any caller-supplied plugin observes them. Harmless no-op for models
+    // that don't emit empty blocks (e.g. Claude). See empty-text-block-hook.ts.
+    plugins: [new EmptyTextBlockHook(), ...(options?.plugins ?? [])],
     conversationManager,
     id: options?.agentId,
     traceAttributes,

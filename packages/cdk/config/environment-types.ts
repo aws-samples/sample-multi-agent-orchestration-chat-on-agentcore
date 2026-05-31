@@ -13,12 +13,16 @@ export type Environment = 'default' | 'dev' | 'stg' | 'prd' | string; // Allow d
  * Bedrock model configuration for frontend model selector
  */
 export interface BedrockModelConfig {
-  /** Full model ID with inference profile prefix (e.g., 'jp.anthropic.claude-sonnet-4-6') */
+  /**
+   * Full model ID. Either a cross-region inference profile ID
+   * (e.g. 'global.anthropic.claude-sonnet-4-6') or a bare, namespaced
+   * In-Region foundation-model ID (e.g. 'qwen.qwen3-235b-a22b-2507-v1:0').
+   */
   id: string;
   /** Display name (e.g., 'Claude Sonnet 4.6') */
   name: string;
   /** Provider name */
-  provider: 'Anthropic' | 'Amazon';
+  provider: 'Anthropic' | 'Amazon' | 'Qwen';
 }
 
 /**

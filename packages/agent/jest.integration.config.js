@@ -5,8 +5,10 @@ export default {
   extensionsToTreatAsEsm: ['.ts'],
   moduleNameMapper: { '^(\\.{1,2}/.*)\\.js$': '$1' },
   transform: { '^.+\\.tsx?$': ['ts-jest', { useESM: true }] },
-  testMatch: ['**/tests/developer-auth-identity.integration.test.ts'],
+  testMatch: [
+    '**/tests/developer-auth-identity.integration.test.ts',
+    '**/__tests__/qwen3-model.integration.test.ts',
+  ],
   testPathIgnorePatterns: ['/node_modules/'],
   testTimeout: 60000,
-  globalSetup: './jest.integration.setup.js',
 };
