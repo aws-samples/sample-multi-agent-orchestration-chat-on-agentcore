@@ -271,3 +271,13 @@ In addition, please be mindful of the information you input into this system. In
 Note: this asset represents a proof-of-value for the services included and is not intended as a production-ready solution. You must determine how the AWS Shared Responsibility applies to their specific use case and implement the needed controls to achieve their desired security outcomes. AWS offers a broad set of security tools and configurations to enable our customers. This repository is an experimental sample application and may be updated without considering backward compatibility. 
 
 Ultimately it is your responsibility as the developer of a full stack application to ensure all of its aspects are secure. We provide security best practices in repository documentation and provide a secure baseline but Amazon holds no responsibility for the security of applications built from this tool.
+
+## Star History
+
+<a href="https://www.star-history.com/?repos=aws-samples%2Fsample-multi-agent-orchestration-chat-on-agentcore&type=date&legend=top-left">
+ <picture>
+   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/chart?repos=aws-samples/sample-multi-agent-orchestration-chat-on-agentcore&type=date&theme=dark&legend=top-left" />
+   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/chart?repos=aws-samples/sample-multi-agent-orchestration-chat-on-agentcore&type=date&legend=top-left" />
+   <img alt="Star History Chart" src="https://api.star-history.com/chart?repos=aws-samples/sample-multi-agent-orchestration-chat-on-agentcore&type=date&legend=top-left" />
+ </picture>
+</a>
