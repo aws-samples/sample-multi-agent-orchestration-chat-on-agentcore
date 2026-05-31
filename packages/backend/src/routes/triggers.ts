@@ -511,10 +511,10 @@ router.post(
       throw new AppError(ErrorCode.NOT_FOUND, 'Trigger not found');
     }
 
-    const updatedTrigger = await triggersService.updateTrigger(userId, triggerId, {
-      enabled: true,
-    });
-
+    // Toggle EventBridge FIRST, then persist `enabled` only after it succeeds.
+    // Ordering it this way keeps DynamoDB and EventBridge consistent: a
+    // scheduler failure aborts before the DB write, so we never end up with the
+    // row marked enabled while the schedule is still disabled.
     if (trigger.type === 'schedule') {
       try {
         await getSchedulerService().enableSchedule(triggerId);
@@ -527,6 +527,10 @@ router.post(
         );
       }
     }
+
+    const updatedTrigger = await triggersService.updateTrigger(userId, triggerId, {
+      enabled: true,
+    });
 
     logger.info('Trigger enabled successfully (%s)', auth.requestId);
 
@@ -552,10 +556,10 @@ router.post(
       throw new AppError(ErrorCode.NOT_FOUND, 'Trigger not found');
     }
 
-    const updatedTrigger = await triggersService.updateTrigger(userId, triggerId, {
-      enabled: false,
-    });
-
+    // Toggle EventBridge FIRST, then persist `enabled` only after it succeeds
+    // (see the enable handler for the rationale). This matters most for
+    // disable: persisting `enabled: false` before a failed `disableSchedule`
+    // would leave the row "off" while the schedule keeps firing.
     if (trigger.type === 'schedule') {
       try {
         await getSchedulerService().disableSchedule(triggerId);
@@ -568,6 +572,10 @@ router.post(
         );
       }
     }
+
+    const updatedTrigger = await triggersService.updateTrigger(userId, triggerId, {
+      enabled: false,
+    });
 
     logger.info('Trigger disabled successfully (%s)', auth.requestId);
 

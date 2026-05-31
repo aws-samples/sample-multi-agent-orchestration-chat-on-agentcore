@@ -22,7 +22,15 @@ import { parseUserId, parseAgentId } from '@moca/core';
 import { createAgentsService, UpdateAgentInput } from '../services/agents-service.js';
 import { DEFAULT_AGENTS } from '../config/data/default-agents.js';
 import { logger } from '../libs/logger/index.js';
-import { AppError, ErrorCode, ok, zAgentId, zUserId } from '../libs/http/index.js';
+import {
+  AppError,
+  ErrorCode,
+  ok,
+  parseLimit,
+  queryString,
+  zAgentId,
+  zUserId,
+} from '../libs/http/index.js';
 
 const router = Router();
 
@@ -354,7 +362,12 @@ router.get(
   '/shared-agents/list',
   asyncHandler(async (req: AuthenticatedRequest, res) => {
     const auth = getCurrentAuth(req);
-    const { q: searchQuery, limit, cursor } = req.query;
+    // Clamp the page size with the shared helper (NaN/negative → default 20,
+    // capped at MAX_PAGE_SIZE) instead of an unbounded parseInt, consistent
+    // with the other list endpoints.
+    const limit = parseLimit(req, 20);
+    const searchQuery = queryString(req.query.q);
+    const cursor = queryString(req.query.cursor);
 
     logger.info(
       {
@@ -367,11 +380,7 @@ router.get(
     );
 
     const agentsService = createAgentsService();
-    const result = await agentsService.listSharedAgents(
-      limit ? parseInt(limit as string, 10) : 20,
-      searchQuery as string | undefined,
-      cursor as string | undefined
-    );
+    const result = await agentsService.listSharedAgents(limit, searchQuery, cursor);
 
     logger.info(
       'Shared Agent list retrieval completed (%s): %d items',

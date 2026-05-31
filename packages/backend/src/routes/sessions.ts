@@ -153,27 +153,21 @@ router.delete(
       auth.requestId
     );
 
-    // Ownership check. A missing/unowned session is treated as
-    // already-deleted (idempotent no-op success).
+    // Ownership check. A missing DynamoDB row means the session is either
+    // already deleted or not owned by this caller, so we skip the DynamoDB
+    // delete — but we still run the Memory delete below. This is what makes a
+    // retry safe: if a previous attempt deleted the DynamoDB row but failed on
+    // Memory, the row is now absent yet the Memory events may still be orphaned,
+    // so we must NOT short-circuit to success here without re-attempting Memory.
     const sessionsDynamoDBService = getSessionsDynamoDBService();
+    let sessionExists = true;
     if (sessionsDynamoDBService.isConfigured()) {
-      const session = await sessionsDynamoDBService.getSession(actorId, sessionId);
-      if (!session) {
-        logger.info(
-          'Session already absent, treating delete as no-op (%s): %s',
-          auth.requestId,
-          sessionId
-        );
-        res
-          .status(200)
-          .json(ok(req, { success: true, message: 'Session deleted' }, { actorId, sessionId }));
-        return;
-      }
+      sessionExists = !!(await sessionsDynamoDBService.getSession(actorId, sessionId));
     }
 
     const errors: string[] = [];
 
-    if (sessionsDynamoDBService.isConfigured()) {
+    if (sessionsDynamoDBService.isConfigured() && sessionExists) {
       try {
         await sessionsDynamoDBService.deleteSession(actorId, sessionId);
         logger.info('Deleted session from DynamoDB: %s', sessionId);
@@ -185,6 +179,9 @@ router.delete(
       }
     }
 
+    // Always attempt the Memory delete (it is idempotent — a session with no
+    // events is a no-op), so a retry after a prior Memory failure cleans up the
+    // orphaned events even though the DynamoDB row is already gone.
     if (config.AGENTCORE_MEMORY_ID) {
       try {
         const memoryService = await createAgentCoreMemoryServiceForRequest(req);

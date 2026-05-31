@@ -65,11 +65,23 @@ router.get(
   })
 );
 
+/**
+ * Treat an empty/whitespace-only string as "not provided" so it falls back to
+ * the default. Without this, `z.coerce.number()` would coerce `''` to `0`
+ * (Number('') === 0) — which passes `min(0)` and would silently run the search
+ * with relevanceScore 0.0 (no relevance filtering) instead of the intended
+ * default. A genuinely malformed value (e.g. 'abc') still fails validation.
+ */
+const emptyStringToUndefined = (v: unknown): unknown =>
+  typeof v === 'string' && v.trim() === '' ? undefined : v;
+
 /** Request body for semantic memory search. */
 const searchBody = z.object({
   query: z.string().min(1),
-  topK: z.coerce.number().int().min(1).max(100).default(10),
-  relevanceScore: z.coerce.number().min(0).max(1).default(0.2),
+  topK: z.preprocess(emptyStringToUndefined, z.coerce.number().int().min(1).max(100)).default(10),
+  relevanceScore: z
+    .preprocess(emptyStringToUndefined, z.coerce.number().min(0).max(1))
+    .default(0.2),
 });
 
 /**
