@@ -68,8 +68,8 @@ export const BEDROCK_MODEL_DEFINITIONS = [
   {
     // In-Region only: Qwen3 has no cross-region inference profile prefix.
     // Note: Bedrock prompt caching is NOT supported for Qwen3 (Anthropic/Nova only).
-    id: 'qwen.qwen3-235b-a22b-instruct-2507-v1:0',
-    name: 'Qwen3 235B A22B Instruct',
+    id: 'qwen.qwen3-235b-a22b-2507-v1:0',
+    name: 'Qwen3 235B A22B 2507',
     provider: 'Qwen',
     maxOutputTokens: 8192, // AWS Bedrock model card (2026-05)
   },

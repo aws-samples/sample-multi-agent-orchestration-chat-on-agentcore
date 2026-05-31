@@ -96,7 +96,7 @@ describe('deriveBedrockIamResources', () => {
   it('skips the inference-profile ARN for a bare In-Region model id (Qwen3)', () => {
     const models = [
       {
-        id: 'qwen.qwen3-235b-a22b-instruct-2507-v1:0',
+        id: 'qwen.qwen3-235b-a22b-2507-v1:0',
         name: 'Qwen3 235B',
         provider: 'Qwen' as const,
       },
@@ -104,9 +104,7 @@ describe('deriveBedrockIamResources', () => {
     const result = deriveBedrockIamResources(models, REGION, ACCOUNT);
 
     // Only the foundation-model ARN is produced (no inference-profile ARN).
-    expect(result).toEqual([
-      'arn:aws:bedrock:*::foundation-model/qwen.qwen3-235b-a22b-instruct-2507-v1:0*',
-    ]);
+    expect(result).toEqual(['arn:aws:bedrock:*::foundation-model/qwen.qwen3-235b-a22b-2507-v1:0*']);
     expect(result.some((r) => r.includes('inference-profile'))).toBe(false);
   });
 

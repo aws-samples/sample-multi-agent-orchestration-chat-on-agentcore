@@ -100,8 +100,8 @@ const DEFAULT_CONFIG = {
       provider: 'Amazon',
     },
     {
-      id: 'qwen.qwen3-235b-a22b-instruct-2507-v1:0',
-      name: 'Qwen3 235B A22B Instruct',
+      id: 'qwen.qwen3-235b-a22b-2507-v1:0',
+      name: 'Qwen3 235B A22B 2507',
       provider: 'Qwen',
     },
     {
@@ -118,7 +118,7 @@ const VALID_PROVIDERS: readonly string[] = ['Anthropic', 'Amazon', 'Qwen'];
  * A routable Bedrock model id must be namespaced: one or more `vendor.` segments
  * followed by a model name. This accepts both cross-region inference profile IDs
  * (e.g. `global.anthropic.claude-sonnet-4-6`) and bare In-Region foundation-model
- * IDs (e.g. `qwen.qwen3-235b-a22b-instruct-2507-v1:0`). The check guards against
+ * IDs (e.g. `qwen.qwen3-235b-a22b-2507-v1:0`). The check guards against
  * typos / unqualified IDs rather than enforcing a specific inference profile prefix.
  */
 const NAMESPACED_MODEL_ID = /^([a-z0-9-]+\.)+[a-z0-9][a-z0-9.:_-]*$/;
@@ -176,7 +176,7 @@ function validateBedrockModels(models: BedrockModelConfig[], env: Environment): 
       throw new Error(
         `[${env}] bedrockModels: model id "${model.id}" must be a namespaced model id ` +
           `(e.g. an inference profile id like "global.anthropic.claude-sonnet-4-6" ` +
-          `or a bare In-Region id like "qwen.qwen3-235b-a22b-instruct-2507-v1:0")`
+          `or a bare In-Region id like "qwen.qwen3-235b-a22b-2507-v1:0")`
       );
     }
     if (!model.name || typeof model.name !== 'string') {

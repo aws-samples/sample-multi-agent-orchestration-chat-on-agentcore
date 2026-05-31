@@ -16,7 +16,7 @@ export interface BedrockModelConfig {
   /**
    * Full model ID. Either a cross-region inference profile ID
    * (e.g. 'global.anthropic.claude-sonnet-4-6') or a bare, namespaced
-   * In-Region foundation-model ID (e.g. 'qwen.qwen3-235b-a22b-instruct-2507-v1:0').
+   * In-Region foundation-model ID (e.g. 'qwen.qwen3-235b-a22b-2507-v1:0').
    */
   id: string;
   /** Display name (e.g., 'Claude Sonnet 4.6') */
