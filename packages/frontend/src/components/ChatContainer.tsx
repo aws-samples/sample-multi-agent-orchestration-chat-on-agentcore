@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Bot, ChevronDown } from 'lucide-react';
+import { Bot, ChevronDown, Maximize2, Minimize2 } from 'lucide-react';
 import * as icons from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
@@ -29,7 +29,7 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
   const { t } = useTranslation();
   const selectedAgent = useSelectedAgent();
   const isAgentLoading = useAgentStore((state) => state.isLoading);
-  const { isMobileView } = useUIStore();
+  const { isMobileView, isWideView, toggleWideView } = useUIStore();
   const [isAgentModalOpen, setIsAgentModalOpen] = useState(false);
   const [selectedScenarioPrompt, setSelectedScenarioPrompt] = useState<string | null>(null);
 
@@ -88,6 +88,16 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
               </button>
             )}
           </div>
+
+          {/* Toggle wide view */}
+          <button
+            onClick={toggleWideView}
+            className="p-2 rounded-lg text-fg-disabled hover:text-fg-secondary hover:bg-surface-secondary transition-colors"
+            aria-label={t('chat.toggleWideView')}
+            title={t('chat.toggleWideView')}
+          >
+            {isWideView ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
+          </button>
         </header>
       )}
 

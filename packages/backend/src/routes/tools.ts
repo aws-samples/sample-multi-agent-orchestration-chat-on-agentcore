@@ -1,14 +1,24 @@
 /**
  * Tools API Routes
- * API providing tool list and search functionality for AgentCore Gateway
+ * API providing tool list and search functionality for AgentCore Gateway.
+ *
+ * Handlers are wrapped in `asyncHandler` and signal failures by throwing
+ * `AppError`; the global `errorHandlerMiddleware` renders the canonical error
+ * envelope. Request bodies are validated by `validate(...)` middleware. This
+ * router uses `auth.userId` (which may be undefined for machine users) only for
+ * response metadata and reads the id token from the Authorization header.
  */
 
 import express, { Response } from 'express';
+import { z } from 'zod';
 import { AuthenticatedRequest, getCurrentAuth } from '../middleware/auth.js';
+import { asyncHandler } from '../middleware/async-handler.js';
+import { validate } from '../middleware/validate.js';
 import { gatewayService } from '../services/agentcore-gateway.js';
 import { fetchToolsFromMCPConfig, MCPConfig, MCPConfigError } from '../libs/mcp/index.js';
 import { allMCPToolDefinitions } from '@moca/tool-definitions';
 import { createLogger } from '../libs/logger/index.js';
+import { AppError, ErrorCode, ok } from '../libs/http/index.js';
 
 const logger = createLogger('ToolsRoute');
 
@@ -18,17 +28,14 @@ const router = express.Router();
  * Tool list retrieval endpoint (authentication required)
  * GET /tools
  */
-router.get('/', async (req: AuthenticatedRequest, res: Response) => {
-  try {
+router.get(
+  '/',
+  asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
     const auth = getCurrentAuth(req);
     const idToken = req.headers.authorization?.replace('Bearer ', '');
 
     if (!idToken) {
-      return res.status(401).json({
-        error: 'Unauthorized',
-        message: 'Authentication token is required',
-        timestamp: new Date().toISOString(),
-      });
+      throw new AppError(ErrorCode.UNAUTHENTICATED, 'Authentication token is required');
     }
 
     logger.info(
@@ -44,21 +51,19 @@ router.get('/', async (req: AuthenticatedRequest, res: Response) => {
     const cursor = req.query.cursor as string | undefined;
 
     // Fetch tool list from Gateway (authentication required, pagination supported)
-    const result = await gatewayService.listTools(idToken, cursor);
+    let result;
+    try {
+      result = await gatewayService.listTools(idToken, cursor);
+    } catch (e) {
+      // Return 502 (UPSTREAM_ERROR) for Gateway connection errors
+      if (e instanceof Error && e.message.includes('Gateway')) {
+        throw new AppError(ErrorCode.UPSTREAM_ERROR, e.message);
+      }
+      throw e;
+    }
 
     // Include builtin tools only in the first page (when cursor is not present)
     const tools = cursor ? result.tools : [...allMCPToolDefinitions, ...result.tools];
-
-    const response = {
-      tools,
-      nextCursor: result.nextCursor,
-      metadata: {
-        requestId: auth.requestId,
-        timestamp: new Date().toISOString(),
-        actorId: auth.userId,
-        count: tools.length,
-      },
-    };
 
     logger.info(
       {
@@ -71,49 +76,30 @@ router.get('/', async (req: AuthenticatedRequest, res: Response) => {
       result.nextCursor ? { nextCursor: 'present' } : { nextCursor: 'none' }
     );
 
-    res.status(200).json(response);
-  } catch (error) {
-    logger.error({ err: error }, `Tool list retrieval error:`);
-
-    const errorResponse = {
-      error: 'Tools List Error',
-      message: error instanceof Error ? error.message : 'Failed to retrieve tool list',
-      timestamp: new Date().toISOString(),
-    };
-
-    // Return 502 for Gateway connection errors
-    if (error instanceof Error && error.message.includes('Gateway')) {
-      return res.status(502).json(errorResponse);
-    }
-
-    res.status(500).json(errorResponse);
-  }
-});
+    res.status(200).json(
+      ok(
+        req,
+        { tools, nextCursor: result.nextCursor },
+        { actorId: auth.userId, count: tools.length }
+      )
+    );
+  })
+);
 
 /**
  * Tool search endpoint
  * POST /tools/search
  */
-router.post('/search', async (req: AuthenticatedRequest, res: Response) => {
-  try {
+router.post(
+  '/search',
+  validate({ body: z.object({ query: z.string().trim().min(1) }) }),
+  asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
     const auth = getCurrentAuth(req);
     const idToken = req.headers.authorization?.replace('Bearer ', '');
     const { query } = req.body;
 
     if (!idToken) {
-      return res.status(401).json({
-        error: 'Unauthorized',
-        message: 'Authentication token is required',
-        timestamp: new Date().toISOString(),
-      });
-    }
-
-    if (!query || typeof query !== 'string' || query.trim().length === 0) {
-      return res.status(400).json({
-        error: 'Bad Request',
-        message: 'Search query is required',
-        timestamp: new Date().toISOString(),
-      });
+      throw new AppError(ErrorCode.UNAUTHENTICATED, 'Authentication token is required');
     }
 
     logger.info(
@@ -136,65 +122,42 @@ router.post('/search', async (req: AuthenticatedRequest, res: Response) => {
     );
 
     // Execute semantic search on Gateway for MCP tools
-    const gatewayResults = await gatewayService.searchTools(query.trim(), idToken);
+    let gatewayResults;
+    try {
+      gatewayResults = await gatewayService.searchTools(query.trim(), idToken);
+    } catch (e) {
+      // Return 502 (UPSTREAM_ERROR) for Gateway connection errors
+      if (e instanceof Error && e.message.includes('Gateway')) {
+        throw new AppError(ErrorCode.UPSTREAM_ERROR, e.message);
+      }
+      throw e;
+    }
 
     // Combine builtin and gateway results
     const tools = [...builtinResults, ...gatewayResults];
-
-    const response = {
-      tools,
-      metadata: {
-        requestId: auth.requestId,
-        timestamp: new Date().toISOString(),
-        actorId: auth.userId,
-        query: query.trim(),
-        count: tools.length,
-      },
-    };
 
     logger.info(
       `Tool search completed (${auth.requestId}): ${tools.length} items (builtin: ${builtinResults.length}, gateway: ${gatewayResults.length}, query: "${query.trim()}")`
     );
 
-    res.status(200).json(response);
-  } catch (error) {
-    logger.error({ err: error }, `Tool search error:`);
-
-    const errorResponse = {
-      error: 'Tools Search Error',
-      message: error instanceof Error ? error.message : 'Tool search failed',
-      timestamp: new Date().toISOString(),
-    };
-
-    // Return 502 for Gateway connection errors
-    if (error instanceof Error && error.message.includes('Gateway')) {
-      return res.status(502).json(errorResponse);
-    }
-
-    // Return 400 for search query errors
-    if (error instanceof Error && error.message.includes('query')) {
-      return res.status(400).json(errorResponse);
-    }
-
-    res.status(500).json(errorResponse);
-  }
-});
+    res.status(200).json(
+      ok(req, { tools }, { actorId: auth.userId, query: query.trim(), count: tools.length })
+    );
+  })
+);
 
 /**
  * Gateway connection check endpoint
  * GET /tools/health
  */
-router.get('/health', async (req: AuthenticatedRequest, res: Response) => {
-  try {
+router.get(
+  '/health',
+  asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
     const auth = getCurrentAuth(req);
     const idToken = req.headers.authorization?.replace('Bearer ', '');
 
     if (!idToken) {
-      return res.status(401).json({
-        error: 'Unauthorized',
-        message: 'Authentication token is required',
-        timestamp: new Date().toISOString(),
-      });
+      throw new AppError(ErrorCode.UNAUTHENTICATED, 'Authentication token is required');
     }
 
     logger.info(
@@ -209,67 +172,45 @@ router.get('/health', async (req: AuthenticatedRequest, res: Response) => {
     // Check Gateway connection
     const isConnected = await gatewayService.checkConnection(idToken);
 
-    if (isConnected) {
-      const response = {
-        status: 'healthy',
-        gateway: {
-          connected: true,
-          endpoint: '', // For security, actual endpoint is not displayed
-        },
-        metadata: {
-          requestId: auth.requestId,
-          timestamp: new Date().toISOString(),
-          actorId: auth.userId,
-        },
-      };
-
-      logger.info('Gateway connection check successful (%s)', auth.requestId);
-      res.status(200).json(response);
-    } else {
-      const response = {
-        status: 'unhealthy',
-        gateway: {
-          connected: false,
-          endpoint: '',
-        },
-        metadata: {
-          requestId: auth.requestId,
-          timestamp: new Date().toISOString(),
-          actorId: auth.userId,
-        },
-      };
-
+    if (!isConnected) {
       logger.info('Gateway connection check failed (%s)', auth.requestId);
-      res.status(502).json(response);
+      throw new AppError(ErrorCode.SERVICE_UNAVAILABLE, 'Gateway is not reachable', {
+        details: { gateway: { connected: false } },
+      });
     }
-  } catch (error) {
-    logger.error({ err: error }, `Gateway connection check error:`);
 
-    res.status(500).json({
-      error: 'Health Check Error',
-      message: error instanceof Error ? error.message : 'Gateway connection check failed',
-      timestamp: new Date().toISOString(),
-    });
-  }
-});
+    logger.info('Gateway connection check successful (%s)', auth.requestId);
+    res.status(200).json(
+      ok(
+        req,
+        {
+          status: 'healthy',
+          gateway: {
+            connected: true,
+            endpoint: '', // For security, actual endpoint is not displayed
+          },
+        },
+        { actorId: auth.userId }
+      )
+    );
+  })
+);
 
 /**
  * Local MCP tool retrieval endpoint
  * POST /tools/local
  * Retrieve tool list from user-defined MCP server configuration
  */
-router.post('/local', async (req: AuthenticatedRequest, res: Response) => {
-  try {
+router.post(
+  '/local',
+  validate({
+    body: z.object({
+      mcpConfig: z.object({ mcpServers: z.record(z.string(), z.any()) }).passthrough(),
+    }),
+  }),
+  asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
     const auth = getCurrentAuth(req);
     const { mcpConfig } = req.body as { mcpConfig: MCPConfig };
-
-    if (!mcpConfig || !mcpConfig.mcpServers) {
-      return res.status(400).json({
-        error: 'Bad Request',
-        message: 'mcpConfig is required',
-        timestamp: new Date().toISOString(),
-      });
-    }
 
     logger.info(
       {
@@ -281,41 +222,28 @@ router.post('/local', async (req: AuthenticatedRequest, res: Response) => {
     );
 
     // Fetch tool list from MCP servers
-    const result = await fetchToolsFromMCPConfig(mcpConfig, logger);
-
-    const response = {
-      tools: result.tools,
-      errors: result.errors,
-      metadata: {
-        requestId: auth.requestId,
-        timestamp: new Date().toISOString(),
-        actorId: auth.userId,
-        count: result.tools.length,
-        errorCount: result.errors.length,
-      },
-    };
+    let result;
+    try {
+      result = await fetchToolsFromMCPConfig(mcpConfig, logger);
+    } catch (e) {
+      if (e instanceof MCPConfigError) {
+        throw new AppError(ErrorCode.VALIDATION_ERROR, e.message);
+      }
+      throw e;
+    }
 
     logger.info(
       `Local MCP tool retrieval completed (${auth.requestId}): ${result.tools.length} tools, ${result.errors.length} errors`
     );
-    res.status(200).json(response);
-  } catch (error) {
-    logger.error({ err: error }, `Local MCP tool retrieval error:`);
 
-    if (error instanceof MCPConfigError) {
-      return res.status(400).json({
-        error: 'Invalid MCP Config',
-        message: error.message,
-        timestamp: new Date().toISOString(),
-      });
-    }
-
-    res.status(500).json({
-      error: 'MCP Tools Error',
-      message: error instanceof Error ? error.message : 'Tool retrieval failed',
-      timestamp: new Date().toISOString(),
-    });
-  }
-});
+    res.status(200).json(
+      ok(
+        req,
+        { tools: result.tools, errors: result.errors },
+        { actorId: auth.userId, count: result.tools.length, errorCount: result.errors.length }
+      )
+    );
+  })
+);
 
 export default router;

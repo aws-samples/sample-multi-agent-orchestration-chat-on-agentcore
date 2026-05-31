@@ -35,8 +35,10 @@
  */
 
 import { Response, NextFunction } from 'express';
+import { isUserId, parseUserId, type UserId } from '@moca/core';
 import { verifyJWT, verifyIdToken, extractJWTFromHeader } from '../libs/auth/index.js';
 import { resolveIdentityId } from '../libs/auth/identity-resolver.js';
+import { AppError, ErrorCode } from '../libs/http/index.js';
 import type {
   CognitoJWTPayload,
   AuthenticatedRequest,
@@ -64,11 +66,15 @@ function createAuthErrorResponse(
   requestId: string
 ): AuthErrorResponse {
   return {
-    error: 'Authentication Error',
+    // 401 reason phrase — aligned with ERROR_CODE_REASON[UNAUTHENTICATED] in
+    // the shared HTTP helpers so the auth envelope matches the canonical one.
+    // The specific `code` values (MISSING_AUTHORIZATION, INVALID_JWT, ...) are
+    // intentionally preserved because the frontend branches on them.
+    error: 'Unauthorized',
     message,
     code,
-    timestamp: new Date().toISOString(),
     requestId,
+    timestamp: new Date().toISOString(),
   };
 }
 
@@ -316,4 +322,73 @@ export function getCurrentAuth(req: AuthenticatedRequest): AuthInfo {
     clientId: machineUser ? payload?.client_id : undefined,
     scopes: payload?.scope?.split(' '),
   };
+}
+
+/**
+ * Resolve the authenticated caller's branded `UserId`, throwing an
+ * `AppError(UNAUTHENTICATED)` if it cannot be determined (e.g. a machine-user
+ * token with no resolvable user). Route handlers use this so they no longer
+ * need the `auth.userId ? parseUserId(...) : 400` boilerplate — the throw is
+ * rendered by `errorHandlerMiddleware`.
+ *
+ * Note: routes that must also support machine users acting on behalf of
+ * another user (via the `X-Target-User-Id` header) mount the
+ * `resolveTargetUser` middleware instead and read `req.targetUserId`.
+ */
+export function requireUserId(req: AuthenticatedRequest): UserId {
+  const auth = getCurrentAuth(req);
+  if (!auth.userId) {
+    throw new AppError(ErrorCode.UNAUTHENTICATED, 'Failed to retrieve user ID');
+  }
+  return parseUserId(auth.userId);
+}
+
+/**
+ * Middleware that resolves the effective target `UserId` onto
+ * `req.targetUserId`, supporting machine-user impersonation:
+ *
+ *   - Regular users: the caller's own JWT `sub`.
+ *   - Machine users (Client Credentials Flow): the `X-Target-User-Id` header,
+ *     which lets EventBridge-triggered agents read/write agent definitions on
+ *     behalf of a target user. The header must be a valid Cognito `sub` UUID.
+ *
+ * Throws `AppError` (rendered by `errorHandlerMiddleware`) on failure:
+ *   - UNAUTHENTICATED when a regular user has no resolvable `userId`.
+ *   - VALIDATION_ERROR when a machine user omits / malforms the header.
+ *
+ * Mount this before the route handler; the handler then reads the
+ * already-resolved `req.targetUserId` instead of re-deriving the identity.
+ */
+export function resolveTargetUser(
+  req: AuthenticatedRequest,
+  _res: Response,
+  next: NextFunction
+): void {
+  const auth = getCurrentAuth(req);
+
+  if (auth.isMachineUser) {
+    const headerValue = req.headers['x-target-user-id'];
+    const targetUserId = Array.isArray(headerValue) ? headerValue[0] : headerValue;
+    if (!targetUserId) {
+      throw new AppError(
+        ErrorCode.VALIDATION_ERROR,
+        'X-Target-User-Id header is required for machine user requests'
+      );
+    }
+    if (!isUserId(targetUserId)) {
+      throw new AppError(
+        ErrorCode.VALIDATION_ERROR,
+        'X-Target-User-Id must be a valid UUID format'
+      );
+    }
+    req.targetUserId = parseUserId(targetUserId);
+    next();
+    return;
+  }
+
+  if (!auth.userId) {
+    throw new AppError(ErrorCode.UNAUTHENTICATED, 'Failed to retrieve user ID');
+  }
+  req.targetUserId = parseUserId(auth.userId);
+  next();
 }

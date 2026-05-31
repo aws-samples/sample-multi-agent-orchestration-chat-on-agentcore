@@ -27,6 +27,7 @@ import type { Trigger, CreateTriggerRequest, UpdateTriggerRequest } from '../../
 import type { AgentId } from '@moca/core';
 import toast from 'react-hot-toast';
 import { logger } from '../../../utils/logger';
+import { ApiError } from '../../../types/errors';
 import { validateScheduleInterval } from '../CronBuilder/cronUtils';
 
 type TabType = 'basic' | 'trigger';
@@ -310,9 +311,16 @@ export function TriggerFormModal({ isOpen, onClose, trigger, onSave }: TriggerFo
       onClose();
     } catch (error) {
       logger.error('Failed to save trigger:', error);
-      toast.error(
-        isEditMode ? t('triggers.messages.updateError') : t('triggers.messages.createError')
-      );
+      // Surface the per-user trigger-limit (HTTP 409) with a specific message
+      // so the user understands creation was rejected by the cap, not a bug.
+      if (!isEditMode && error instanceof ApiError && error.status === 409) {
+        const limit = (error.details as { limit?: number } | undefined)?.limit;
+        toast.error(t('triggers.messages.limitExceeded', { limit }));
+      } else {
+        toast.error(
+          isEditMode ? t('triggers.messages.updateError') : t('triggers.messages.createError')
+        );
+      }
     } finally {
       setIsSaving(false);
     }

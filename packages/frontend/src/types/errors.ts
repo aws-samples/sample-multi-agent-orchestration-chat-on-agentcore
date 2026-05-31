@@ -15,13 +15,27 @@ export class ApiError extends Error {
   public readonly status: number;
   public readonly statusText: string;
   public readonly details?: unknown;
+  /**
+   * Machine-readable error code from the backend's canonical error envelope
+   * (e.g. 'NOT_FOUND', 'VALIDATION_ERROR'). Present when the server includes
+   * a `code` field; undefined for non-API or legacy errors. Prefer branching
+   * on this over string-matching `message` or relying solely on `status`.
+   */
+  public readonly code?: string;
 
-  constructor(message: string, status: number, statusText: string, details?: unknown) {
+  constructor(
+    message: string,
+    status: number,
+    statusText: string,
+    details?: unknown,
+    code?: string
+  ) {
     super(message);
     this.name = 'ApiError';
     this.status = status;
     this.statusText = statusText;
     this.details = details;
+    this.code = code;
   }
 }
 

@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { useChatStore } from '../stores/chatStore';
 import { useSelectedAgent } from '../stores/agentStore';
 import { useSessionStore } from '../stores/sessionStore';
+import { useUIStore } from '../stores/uiStore';
 import { Message } from './Message';
 import { MessageSkeleton } from './MessageSkeleton';
 import { WelcomeScreenSkeleton } from './WelcomeScreenSkeleton';
@@ -23,6 +24,7 @@ export const MessageList: React.FC<MessageListProps> = ({
   const { t } = useTranslation();
   const { sessionId } = useParams<{ sessionId?: string }>();
   const { isLoadingEvents } = useSessionStore();
+  const isWideView = useUIStore((state) => state.isWideView);
   const sessionState = useChatStore((state) =>
     sessionId ? (state.sessions[sessionId] ?? null) : null
   );
@@ -56,7 +58,9 @@ export const MessageList: React.FC<MessageListProps> = ({
       onScroll={handleScroll}
       className="flex-1 overflow-y-auto bg-surface-primary"
     >
-      <div className="max-w-4xl mx-auto p-4 pb-32">
+      <div
+        className={`${isWideView ? 'max-w-full px-8' : 'max-w-4xl px-4'} mx-auto py-4 pb-32 transition-[max-width,padding] duration-300 ease-in-out`}
+      >
         {/* Error display */}
         {error && (
           <div className="mb-6 bg-feedback-error-bg border border-feedback-error-border rounded-2xl p-4">

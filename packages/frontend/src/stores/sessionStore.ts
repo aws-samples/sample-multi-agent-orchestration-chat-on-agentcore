@@ -240,9 +240,12 @@ export const useSessionStore = create<SessionStore>()(
 
           logger.log(`Session conversation history loaded: ${events.length} items`);
         } catch (error) {
-          // Handle 403 Forbidden - redirect to /chat
-          if (error instanceof ApiError && error.status === 403) {
-            logger.warn(`Access denied to session: ${sessionId}`);
+          // Handle a missing/unowned session - redirect to /chat. The backend
+          // returns 404 (NOT_FOUND) for a session that does not exist or is
+          // not owned by the caller; older deployments returned 403, so accept
+          // both for backward compatibility during rollout.
+          if (error instanceof ApiError && (error.status === 404 || error.status === 403)) {
+            logger.warn(`Session not accessible: ${sessionId}`);
             toast.error(i18n.t('error.forbidden'));
             set({
               activeSessionId: null,

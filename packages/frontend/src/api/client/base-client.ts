@@ -145,7 +145,11 @@ export class BaseApiClient {
       errorData.message || errorData.error || 'Unknown error',
       response.status,
       response.statusText,
-      errorData
+      // Surface the backend's structured `details` (e.g. field violations,
+      // partial-deletion failures) when present; otherwise keep the whole body.
+      errorData.details ?? errorData,
+      // Canonical machine-readable code from the unified error envelope.
+      errorData.code
     );
   }
 
