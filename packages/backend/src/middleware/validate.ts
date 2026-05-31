@@ -38,9 +38,19 @@ export function validate(schemas: ValidationSchemas) {
         req.params = schemas.params.parse(req.params) as typeof req.params;
       }
       if (schemas.query) {
-        // req.query is a getter-only property on some Express setups; assign
-        // the parsed result onto it defensively.
-        Object.assign(req.query, schemas.query.parse(req.query));
+        // req.query is a getter-only property on some Express setups, so we
+        // can't simply do `req.query = parsed`. We also avoid `Object.assign`
+        // with user-controlled input (semgrep: express-data-exfiltration /
+        // mass-assignment) and per-key bracket assignment (semgrep:
+        // remote-property-injection). Re-define the property once with the
+        // schema-validated object instead.
+        const parsedQuery = schemas.query.parse(req.query);
+        Object.defineProperty(req, 'query', {
+          value: parsedQuery,
+          writable: true,
+          configurable: true,
+          enumerable: true,
+        });
       }
       if (schemas.body) {
         req.body = schemas.body.parse(req.body);
