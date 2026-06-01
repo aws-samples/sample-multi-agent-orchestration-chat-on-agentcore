@@ -187,6 +187,7 @@ chat:
   stopGenerating: 生成を停止
   selectAgent: エージェントを選択
   changeAgent: エージェントを変更
+  toggleWideView: 画面幅を切り替え
   messageInputPlaceholder: メッセージを入力してください...
   attachFile: ファイルを添付
   submit: 送信
@@ -687,6 +688,7 @@ triggers:
   messages:
     createSuccess: トリガーを作成しました
     createError: トリガーの作成に失敗しました
+    limitExceeded: 'トリガーの上限に達しました（1ユーザーあたり最大{{limit}}件）。新しく作成するには既存のトリガーを削除してください。'
     updateSuccess: トリガーを更新しました
     updateError: トリガーの更新に失敗しました
     deleteConfirm: このトリガーを削除してもよろしいですか？

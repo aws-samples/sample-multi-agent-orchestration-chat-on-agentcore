@@ -18,6 +18,29 @@ import { config } from '../config/index.js';
 import { logger } from '../libs/logger/index.js';
 
 /**
+ * Maximum number of triggers a single user may register.
+ *
+ * This is an intentional, explicit hard limit (not an incidental page size):
+ * it bounds per-user EventBridge Schedule / rule fan-out and keeps the trigger
+ * list returnable in a single page. The triggers list endpoint uses this same
+ * value as its default page size so the whole set fits in one response.
+ */
+export const MAX_TRIGGERS_PER_USER = 20;
+
+/**
+ * Thrown by `createTrigger` when the user already holds
+ * `MAX_TRIGGERS_PER_USER` triggers. Routes map this to HTTP 409 Conflict.
+ */
+export class TriggerLimitExceededError extends Error {
+  readonly code = 'TRIGGER_LIMIT_EXCEEDED';
+  readonly limit = MAX_TRIGGERS_PER_USER;
+  constructor() {
+    super(`Trigger limit reached (maximum ${MAX_TRIGGERS_PER_USER} per user)`);
+    this.name = 'TriggerLimitExceededError';
+  }
+}
+
+/**
  * Trigger type definitions (matching trigger package)
  */
 export type TriggerType = 'schedule' | 'event';
@@ -79,6 +102,11 @@ export interface GetExecutionsResult {
   lastEvaluatedKey?: Record<string, unknown>;
 }
 
+export interface ListTriggersResult {
+  triggers: Trigger[];
+  lastEvaluatedKey?: Record<string, unknown>;
+}
+
 export interface CreateTriggerInput {
   userId: UserId;
   name: string;
@@ -133,7 +161,32 @@ export class TriggersDynamoDBService {
   /**
    * Create a new trigger
    */
+  /**
+   * Count the triggers owned by a user (server-side COUNT, no item payload).
+   */
+  async countTriggers(userId: UserId): Promise<number> {
+    const result = await this.client.send(
+      new QueryCommand({
+        TableName: this.tableName,
+        KeyConditionExpression: 'PK = :pk AND begins_with(SK, :sk)',
+        ExpressionAttributeValues: marshall({
+          ':pk': `TRIGGER#${userId}`,
+          ':sk': 'TRIGGER#',
+        }),
+        Select: 'COUNT',
+      })
+    );
+    return result.Count ?? 0;
+  }
+
   async createTrigger(input: CreateTriggerInput): Promise<Trigger> {
+    // Enforce the per-user hard limit before writing. Throws
+    // TriggerLimitExceededError (→ 409) when the user is already at capacity.
+    const existingCount = await this.countTriggers(input.userId);
+    if (existingCount >= MAX_TRIGGERS_PER_USER) {
+      throw new TriggerLimitExceededError();
+    }
+
     const triggerId = uuidv7() as TriggerId;
     const now = new Date().toISOString();
 
@@ -201,23 +254,45 @@ export class TriggersDynamoDBService {
   /**
    * List all triggers for a user
    */
-  async listTriggers(userId: UserId): Promise<Trigger[]> {
+  async listTriggers(
+    userId: UserId,
+    options: {
+      limit?: number;
+      type?: TriggerType;
+      exclusiveStartKey?: Record<string, unknown>;
+    } = {}
+  ): Promise<ListTriggersResult> {
+    const { limit, type, exclusiveStartKey } = options;
+
+    // Optional `type` filter. FilterExpression is applied AFTER the Limit, so
+    // a page may contain fewer than `limit` items even when more pages exist;
+    // callers paginate on lastEvaluatedKey, not on item count.
+    const values: Record<string, unknown> = {
+      ':pk': `TRIGGER#${userId}`,
+      ':sk': 'TRIGGER#',
+    };
+    if (type) {
+      values[':type'] = type;
+    }
+
     const result = await this.client.send(
       new QueryCommand({
         TableName: this.tableName,
         KeyConditionExpression: 'PK = :pk AND begins_with(SK, :sk)',
-        ExpressionAttributeValues: marshall({
-          ':pk': `TRIGGER#${userId}`,
-          ':sk': 'TRIGGER#',
-        }),
+        FilterExpression: type ? '#type = :type' : undefined,
+        ExpressionAttributeNames: type ? { '#type': 'type' } : undefined,
+        ExpressionAttributeValues: marshall(values),
+        Limit: limit,
+        ExclusiveStartKey: exclusiveStartKey ? marshall(exclusiveStartKey) : undefined,
       })
     );
 
-    if (!result.Items || result.Items.length === 0) {
-      return [];
-    }
-
-    return result.Items.map((item) => unmarshall(item) as Trigger);
+    return {
+      triggers: result.Items
+        ? result.Items.map((item) => unmarshall(item) as Trigger)
+        : [],
+      lastEvaluatedKey: result.LastEvaluatedKey ? unmarshall(result.LastEvaluatedKey) : undefined,
+    };
   }
 
   /**

@@ -29,9 +29,19 @@ interface UIState {
   mobileHeaderAction: React.ReactNode | null;
 
   /**
+   * Whether the chat message area is in wide view (max-w-full instead of max-w-4xl)
+   */
+  isWideView: boolean;
+
+  /**
    * Toggle sidebar open/close
    */
   toggleSidebar: () => void;
+
+  /**
+   * Toggle chat message area wide view on/off
+   */
+  toggleWideView: () => void;
 
   /**
    * Set sidebar open/close state
@@ -77,7 +87,12 @@ export const useUIStore = create<UIState>()(
         // Default: no mobile header action
         mobileHeaderAction: null,
 
+        // Default: wide view off (max-w-4xl)
+        isWideView: false,
+
         toggleSidebar: () => set((state) => ({ isSidebarOpen: !state.isSidebarOpen })),
+
+        toggleWideView: () => set((state) => ({ isWideView: !state.isWideView })),
 
         setSidebarOpen: (isOpen) => set({ isSidebarOpen: isOpen }),
 
@@ -89,7 +104,10 @@ export const useUIStore = create<UIState>()(
       }),
       {
         name: 'ui-storage',
-        partialize: (state) => ({ isSidebarOpen: state.isSidebarOpen }),
+        partialize: (state) => ({
+          isSidebarOpen: state.isSidebarOpen,
+          isWideView: state.isWideView,
+        }),
       }
     ),
     {

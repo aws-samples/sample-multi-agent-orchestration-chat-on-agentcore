@@ -8,6 +8,7 @@ import {
   QueryCommand,
   DeleteItemCommand,
   GetItemCommand,
+  type AttributeValue,
 } from '@aws-sdk/client-dynamodb';
 import { marshall, unmarshall } from '@aws-sdk/util-dynamodb';
 import type { AgentId, IdentityId } from '@moca/core';
@@ -82,7 +83,7 @@ export class SessionsDynamoDBService {
   async listSessions(
     userId: IdentityId,
     maxResults: number = 50,
-    nextToken?: string
+    exclusiveStartKey?: Record<string, unknown>
   ): Promise<SessionListResult> {
     if (!this.isConfigured()) {
       logger.warn('SESSIONS_TABLE_NAME not configured');
@@ -98,9 +99,11 @@ export class SessionsDynamoDBService {
           ExpressionAttributeValues: marshall({ ':userId': userId }),
           ScanIndexForward: false, // Sort descending (newest first)
           Limit: maxResults,
-          ExclusiveStartKey: nextToken
-            ? JSON.parse(Buffer.from(nextToken, 'base64').toString())
-            : undefined,
+          // The caller decodes/validates the opaque page token (→ 400 on a
+          // malformed token); here we receive the already-parsed key. The token
+          // is the previously-emitted (marshalled) LastEvaluatedKey, so it is a
+          // valid AttributeValue map for this low-level QueryCommand.
+          ExclusiveStartKey: exclusiveStartKey as Record<string, AttributeValue> | undefined,
         })
       );
 

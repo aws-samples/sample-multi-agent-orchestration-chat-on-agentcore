@@ -4,7 +4,7 @@
  */
 
 import { Request } from 'express';
-import type { IdentityId } from '@moca/core';
+import type { IdentityId, UserId } from '@moca/core';
 
 /**
  * JWT payload type definition for Cognito tokens
@@ -83,6 +83,14 @@ export interface AuthenticatedRequest extends Request {
    * Undefined for machine-user tokens that do not supply the ID Token header.
    */
   identityId?: IdentityId;
+  /**
+   * Effective target `UserId` resolved by `resolveTargetUser` middleware.
+   * For regular users this is the caller's own JWT `sub`; for machine users
+   * (Client Credentials Flow) it is the `X-Target-User-Id` header, enabling
+   * EventBridge-triggered agents to act on behalf of a target user. Only
+   * populated on routes that mount `resolveTargetUser`.
+   */
+  targetUserId?: UserId;
   /** Request ID (for log tracking) */
   requestId?: string;
 }

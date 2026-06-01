@@ -74,13 +74,15 @@ export interface ConversationMessage {
  */
 interface SessionsResponse {
   sessions: SessionSummary[];
+  // Pagination lives at the top level of the payload (consistent with the
+  // other paginated endpoints); `metadata` carries only correlation/counters.
+  nextToken?: string;
+  hasMore: boolean;
   metadata: {
     requestId: string;
     timestamp: string;
     actorId: string;
     count: number;
-    nextToken?: string;
-    hasMore: boolean;
   };
 }
 
@@ -135,8 +137,8 @@ export async function fetchSessions(options?: FetchSessionsOptions): Promise<Fet
 
   return {
     sessions: data.sessions,
-    nextToken: data.metadata.nextToken,
-    hasMore: data.metadata.hasMore,
+    nextToken: data.nextToken,
+    hasMore: data.hasMore,
   };
 }
 

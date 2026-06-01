@@ -544,12 +544,14 @@ export class AgentCoreMemoryService {
    * @param actorId User ID
    * @param memoryStrategyId Memory strategy ID (e.g., preference_builtin_cdkGen0001-L84bdDEgeO)
    * @param nextToken Pagination token
+   * @param limit Maximum number of records to return (defaults to 50)
    * @returns Long-term memory record list
    */
   async listMemoryRecords(
     actorId: string,
     memoryStrategyId: string,
-    nextToken?: string
+    nextToken?: string,
+    limit: number = 50
   ): Promise<MemoryRecordList> {
     try {
       log.info(
@@ -563,7 +565,7 @@ export class AgentCoreMemoryService {
         memoryId: this.memoryId,
         namespace: namespace,
         memoryStrategyId: memoryStrategyId,
-        maxResults: 50,
+        maxResults: limit,
         nextToken: nextToken,
       });
 

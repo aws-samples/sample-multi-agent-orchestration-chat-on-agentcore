@@ -1,386 +1,181 @@
 /**
  * Agent management API endpoints
  * API for managing user Agents in DynamoDB
+ *
+ * Handlers are wrapped in `asyncHandler` and signal failures by throwing
+ * `AppError`; the global `errorHandlerMiddleware` renders the canonical error
+ * envelope. Request shapes are validated by `validate(...)` middleware, so
+ * handlers receive already-typed `params`/`body`.
  */
 
-import { Router, Response } from 'express';
-import { AuthenticatedRequest, getCurrentAuth, AuthInfo } from '../middleware/auth.js';
-import { parseUserId, parseAgentId, isAgentId, isUserId } from '@moca/core';
-import type { UserId } from '@moca/core';
+import { Router } from 'express';
+import { z } from 'zod';
 import {
-  createAgentsService,
-  CreateAgentInput,
-  UpdateAgentInput,
-} from '../services/agents-service.js';
+  type AuthenticatedRequest,
+  getCurrentAuth,
+  requireUserId,
+  resolveTargetUser,
+} from '../middleware/auth.js';
+import { asyncHandler } from '../middleware/async-handler.js';
+import { validate } from '../middleware/validate.js';
+import { parseUserId, parseAgentId } from '@moca/core';
+import { createAgentsService, UpdateAgentInput } from '../services/agents-service.js';
 import { DEFAULT_AGENTS } from '../config/data/default-agents.js';
-import { logger } from '../libs/logger/index.js';
+import {
+  AppError,
+  ErrorCode,
+  ok,
+  parseLimit,
+  queryString,
+  zAgentId,
+  zUserId,
+} from '../libs/http/index.js';
 
 const router = Router();
 
-/**
- * UUID format regex for validating X-Target-User-Id
- */
-const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+/** `:agentId` path param schema shared by the item routes. */
+const agentIdParams = z.object({ agentId: zAgentId });
 
-/**
- * Resolve effective userId for agent API requests.
- *
- * For regular users: uses userId from JWT token.
- * For machine users (Client Credentials Flow): uses X-Target-User-Id header.
- * This enables EventBridge Scheduler triggered agents to access agent definitions
- * on behalf of the target user.
- */
-function resolveUserId(
-  auth: AuthInfo,
-  req: AuthenticatedRequest
-): { userId: UserId } | { error: string } {
-  if (auth.isMachineUser) {
-    const targetUserId = req.headers['x-target-user-id'] as string | undefined;
-    if (!targetUserId) {
-      return { error: 'X-Target-User-Id header is required for machine user requests' };
-    }
-    if (!UUID_REGEX.test(targetUserId)) {
-      return { error: 'X-Target-User-Id must be a valid UUID format' };
-    }
-    return { userId: parseUserId(targetUserId) };
-  }
+/** `:userId/:agentId` path param schema shared by the shared-agents item routes. */
+const sharedAgentParams = z.object({ userId: zUserId, agentId: zAgentId });
 
-  if (!auth.userId) {
-    return { error: 'Failed to retrieve user ID' };
-  }
-  return { userId: parseUserId(auth.userId) };
-}
+/** Request body for creating an agent. */
+const createAgentBody = z.object({
+  name: z.string().min(1),
+  description: z.string().min(1),
+  systemPrompt: z.string().min(1),
+  enabledTools: z.array(z.string()),
+  icon: z.string().optional(),
+  scenarios: z.array(z.any()).optional(),
+  mcpConfig: z.any().optional(),
+  defaultStoragePath: z.string().optional(),
+});
+
+/** Request body for updating an agent (partial). */
+const updateAgentBody = createAgentBody.partial();
 
 /**
  * Agent list retrieval endpoint
  * GET /agents
  * JWT authentication required
  */
-router.get('/', async (req: AuthenticatedRequest, res: Response) => {
-  try {
-    const auth = getCurrentAuth(req);
-    const result = resolveUserId(auth, req);
-
-    if ('error' in result) {
-      return res.status(400).json({
-        error: 'Invalid authentication',
-        message: result.error,
-        requestId: auth.requestId,
-      });
-    }
-
-    const { userId } = result;
-
-    logger.info(
-      {
-        userId,
-        username: auth.username,
-      },
-      'Agent list retrieval started (%s):',
-      auth.requestId
-    );
+router.get(
+  '/',
+  resolveTargetUser,
+  asyncHandler(async (req: AuthenticatedRequest, res) => {
+    const userId = req.targetUserId!;
 
     const agentsService = createAgentsService();
     const agents = await agentsService.listAgents(userId);
 
-    logger.info('Agent list retrieval completed (%s): %d items', auth.requestId, agents.length);
-
-    res.status(200).json({
-      agents: agents,
-      metadata: {
-        requestId: auth.requestId,
-        timestamp: new Date().toISOString(),
-        userId,
-        count: agents.length,
-      },
-    });
-  } catch (error) {
-    const auth = getCurrentAuth(req);
-    logger.error({ err: error }, 'Agent list retrieval error (%s):', auth.requestId);
-
-    res.status(500).json({
-      error: 'Internal Server Error',
-      message: error instanceof Error ? error.message : 'Failed to retrieve Agent list',
-      requestId: auth.requestId,
-    });
-  }
-});
+    res.status(200).json(ok(req, { agents }, { userId, count: agents.length }));
+  })
+);
 
 /**
  * Specific Agent retrieval endpoint
  * GET /agents/:agentId
  * JWT authentication required
  */
-router.get('/:agentId', async (req: AuthenticatedRequest, res: Response) => {
-  try {
-    const auth = getCurrentAuth(req);
-    const result = resolveUserId(auth, req);
-    const agentId = isAgentId(req.params.agentId) ? parseAgentId(req.params.agentId) : undefined;
-
-    if ('error' in result) {
-      return res.status(400).json({
-        error: 'Invalid authentication',
-        message: result.error,
-        requestId: auth.requestId,
-      });
-    }
-
-    const { userId } = result;
-
-    if (!agentId) {
-      return res.status(400).json({
-        error: 'Invalid request',
-        message: `Agent ID format is invalid (must be a UUID): "${req.params.agentId}"`,
-        requestId: auth.requestId,
-      });
-    }
-
-    logger.info(
-      {
-        userId,
-        username: auth.username,
-        agentId,
-      },
-      'Agent retrieval started (%s):',
-      auth.requestId
-    );
+router.get(
+  '/:agentId',
+  resolveTargetUser,
+  validate({ params: agentIdParams }),
+  asyncHandler(async (req: AuthenticatedRequest, res) => {
+    const userId = req.targetUserId!;
+    const agentId = parseAgentId(req.params.agentId);
 
     const agentsService = createAgentsService();
     const agent = await agentsService.getAgent(userId, agentId);
 
     if (!agent) {
-      return res.status(404).json({
-        error: 'Not Found',
-        message: 'Agent not found',
-        requestId: auth.requestId,
-      });
+      throw new AppError(ErrorCode.NOT_FOUND, 'Agent not found');
     }
 
-    logger.info('Agent retrieval completed (%s): %s', auth.requestId, agent.name);
-
-    res.status(200).json({
-      agent: agent,
-      metadata: {
-        requestId: auth.requestId,
-        timestamp: new Date().toISOString(),
-        userId,
-      },
-    });
-  } catch (error) {
-    const auth = getCurrentAuth(req);
-    logger.error({ err: error }, 'Agent retrieval error (%s):', auth.requestId);
-
-    res.status(500).json({
-      error: 'Internal Server Error',
-      message: error instanceof Error ? error.message : 'Failed to retrieve Agent',
-      requestId: auth.requestId,
-    });
-  }
-});
+    res.status(200).json(ok(req, { agent }, { userId }));
+  })
+);
 
 /**
  * Agent creation endpoint
  * POST /agents
  * JWT authentication required
  */
-router.post('/', async (req: AuthenticatedRequest, res: Response) => {
-  try {
+router.post(
+  '/',
+  resolveTargetUser,
+  validate({ body: createAgentBody }),
+  asyncHandler(async (req: AuthenticatedRequest, res) => {
     const auth = getCurrentAuth(req);
-    const result = resolveUserId(auth, req);
-    const input: CreateAgentInput = req.body;
-
-    if ('error' in result) {
-      return res.status(400).json({
-        error: 'Invalid authentication',
-        message: result.error,
-        requestId: auth.requestId,
-      });
-    }
-
-    const { userId } = result;
-
-    // Validation
-    if (!input.name || !input.description || !input.systemPrompt || !input.enabledTools) {
-      return res.status(400).json({
-        error: 'Invalid request',
-        message: 'Required fields are missing',
-        requestId: auth.requestId,
-      });
-    }
-
-    logger.info(
-      {
-        userId,
-        username: auth.username,
-        agentName: input.name,
-      },
-      'Agent creation started (%s):',
-      auth.requestId
-    );
+    const userId = req.targetUserId!;
+    const input = req.body;
 
     const agentsService = createAgentsService();
-    const agent = await agentsService.createAgent(userId, input, auth.username);
+    // `scenarios` is optional on the wire but `createAgent` dereferences it
+    // unconditionally; default to an empty array so an omitted field is a
+    // valid no-scenario agent rather than a 500.
+    const agent = await agentsService.createAgent(
+      userId,
+      { ...input, scenarios: input.scenarios ?? [] },
+      auth.username
+    );
 
-    logger.info('Agent creation completed (%s): %s', auth.requestId, agent.agentId);
-
-    res.status(201).json({
-      agent: agent,
-      metadata: {
-        requestId: auth.requestId,
-        timestamp: new Date().toISOString(),
-        userId,
-      },
-    });
-  } catch (error) {
-    const auth = getCurrentAuth(req);
-    logger.error({ err: error }, 'Agent creation error (%s):', auth.requestId);
-
-    res.status(500).json({
-      error: 'Internal Server Error',
-      message: error instanceof Error ? error.message : 'Failed to create Agent',
-      requestId: auth.requestId,
-    });
-  }
-});
+    res.status(201).json(ok(req, { agent }, { userId }));
+  })
+);
 
 /**
  * Agent update endpoint
  * PUT /agents/:agentId
  * JWT authentication required
  */
-router.put('/:agentId', async (req: AuthenticatedRequest, res: Response) => {
-  try {
-    const auth = getCurrentAuth(req);
-    const result = resolveUserId(auth, req);
-    const agentId = isAgentId(req.params.agentId) ? parseAgentId(req.params.agentId) : undefined;
-    const input: Partial<CreateAgentInput> = req.body;
-
-    if ('error' in result) {
-      return res.status(400).json({
-        error: 'Invalid authentication',
-        message: result.error,
-        requestId: auth.requestId,
-      });
-    }
-
-    const { userId } = result;
-
-    if (!agentId) {
-      return res.status(400).json({
-        error: 'Invalid request',
-        message: `Agent ID format is invalid (must be a UUID): "${req.params.agentId}"`,
-        requestId: auth.requestId,
-      });
-    }
-
-    logger.info(
-      {
-        userId,
-        username: auth.username,
-        agentId,
-      },
-      'Agent update started (%s):',
-      auth.requestId
-    );
+router.put(
+  '/:agentId',
+  resolveTargetUser,
+  validate({ params: agentIdParams, body: updateAgentBody }),
+  asyncHandler(async (req: AuthenticatedRequest, res) => {
+    const userId = req.targetUserId!;
+    const agentId = parseAgentId(req.params.agentId);
+    const input = req.body;
 
     const agentsService = createAgentsService();
     const updateInput: UpdateAgentInput = {
       agentId,
       ...input,
     };
-    const agent = await agentsService.updateAgent(userId, updateInput);
 
-    logger.info('Agent update completed (%s): %s', auth.requestId, agent.name);
-
-    res.status(200).json({
-      agent: agent,
-      metadata: {
-        requestId: auth.requestId,
-        timestamp: new Date().toISOString(),
-        userId,
-      },
-    });
-  } catch (error) {
-    const auth = getCurrentAuth(req);
-    logger.error({ err: error }, 'Agent update error (%s):', auth.requestId);
-
-    if (error instanceof Error && error.message === 'Agent not found') {
-      return res.status(404).json({
-        error: 'Not Found',
-        message: 'Agent not found',
-        requestId: auth.requestId,
-      });
+    let agent;
+    try {
+      agent = await agentsService.updateAgent(userId, updateInput);
+    } catch (e) {
+      if (e instanceof Error && e.message === 'Agent not found') {
+        throw new AppError(ErrorCode.NOT_FOUND, 'Agent not found');
+      }
+      throw e;
     }
 
-    res.status(500).json({
-      error: 'Internal Server Error',
-      message: error instanceof Error ? error.message : 'Failed to update Agent',
-      requestId: auth.requestId,
-    });
-  }
-});
+    res.status(200).json(ok(req, { agent }, { userId }));
+  })
+);
 
 /**
  * Agent deletion endpoint
  * DELETE /agents/:agentId
  * JWT authentication required
  */
-router.delete('/:agentId', async (req: AuthenticatedRequest, res: Response) => {
-  try {
-    const auth = getCurrentAuth(req);
-    const userId = auth.userId ? parseUserId(auth.userId) : undefined;
-    const agentId = isAgentId(req.params.agentId) ? parseAgentId(req.params.agentId) : undefined;
-
-    if (!userId) {
-      return res.status(400).json({
-        error: 'Invalid authentication',
-        message: 'Failed to retrieve user ID',
-        requestId: auth.requestId,
-      });
-    }
-
-    if (!agentId) {
-      return res.status(400).json({
-        error: 'Invalid request',
-        message: `Agent ID format is invalid (must be a UUID): "${req.params.agentId}"`,
-        requestId: auth.requestId,
-      });
-    }
-
-    logger.info(
-      {
-        userId,
-        username: auth.username,
-        agentId,
-      },
-      'Agent deletion started (%s):',
-      auth.requestId
-    );
+router.delete(
+  '/:agentId',
+  validate({ params: agentIdParams }),
+  asyncHandler(async (req: AuthenticatedRequest, res) => {
+    const userId = requireUserId(req);
+    const agentId = parseAgentId(req.params.agentId);
 
     const agentsService = createAgentsService();
     await agentsService.deleteAgent(userId, agentId);
 
-    logger.info('Agent deletion completed (%s): %s', auth.requestId, agentId);
-
-    res.status(200).json({
-      success: true,
-      metadata: {
-        requestId: auth.requestId,
-        timestamp: new Date().toISOString(),
-        userId,
-      },
-    });
-  } catch (error) {
-    const auth = getCurrentAuth(req);
-    logger.error({ err: error }, 'Agent deletion error (%s):', auth.requestId);
-
-    res.status(500).json({
-      error: 'Internal Server Error',
-      message: error instanceof Error ? error.message : 'Failed to delete Agent',
-      requestId: auth.requestId,
-    });
-  }
-});
+    res.status(200).json(ok(req, { success: true }, { userId }));
+  })
+);
 
 /**
  * Agent share status toggle endpoint
@@ -389,75 +184,24 @@ router.delete('/:agentId', async (req: AuthenticatedRequest, res: Response) => {
  */
 router.put(
   '/:agentId/share',
+  validate({ params: agentIdParams }),
+  asyncHandler(async (req: AuthenticatedRequest, res) => {
+    const userId = requireUserId(req);
+    const agentId = parseAgentId(req.params.agentId);
 
-  async (req: AuthenticatedRequest, res: Response) => {
+    const agentsService = createAgentsService();
+    let agent;
     try {
-      const auth = getCurrentAuth(req);
-      const userId = auth.userId ? parseUserId(auth.userId) : undefined;
-      const agentId = isAgentId(req.params.agentId) ? parseAgentId(req.params.agentId) : undefined;
-
-      if (!userId) {
-        return res.status(400).json({
-          error: 'Invalid authentication',
-          message: 'Failed to retrieve user ID',
-          requestId: auth.requestId,
-        });
+      agent = await agentsService.toggleShare(userId, agentId);
+    } catch (e) {
+      if (e instanceof Error && e.message === 'Agent not found') {
+        throw new AppError(ErrorCode.NOT_FOUND, 'Agent not found');
       }
-
-      if (!agentId) {
-        return res.status(400).json({
-          error: 'Invalid request',
-          message: `Agent ID format is invalid (must be a UUID): "${req.params.agentId}"`,
-          requestId: auth.requestId,
-        });
-      }
-
-      logger.info(
-        {
-          userId,
-          username: auth.username,
-          agentId,
-        },
-        'Agent share status toggle started (%s):',
-        auth.requestId
-      );
-
-      const agentsService = createAgentsService();
-      const agent = await agentsService.toggleShare(userId, agentId);
-
-      logger.info(
-        'Agent share status toggle completed (%s): isShared=%s',
-        auth.requestId,
-        agent.isShared
-      );
-
-      res.status(200).json({
-        agent: agent,
-        metadata: {
-          requestId: auth.requestId,
-          timestamp: new Date().toISOString(),
-          userId,
-        },
-      });
-    } catch (error) {
-      const auth = getCurrentAuth(req);
-      logger.error({ err: error }, 'Agent share status toggle error (%s):', auth.requestId);
-
-      if (error instanceof Error && error.message === 'Agent not found') {
-        return res.status(404).json({
-          error: 'Not Found',
-          message: 'Agent not found',
-          requestId: auth.requestId,
-        });
-      }
-
-      res.status(500).json({
-        error: 'Internal Server Error',
-        message: error instanceof Error ? error.message : 'Failed to change Agent share status',
-        requestId: auth.requestId,
-      });
+      throw e;
     }
-  }
+
+    res.status(200).json(ok(req, { agent }, { userId }));
+  })
 );
 
 /**
@@ -466,27 +210,11 @@ router.put(
  * JWT authentication required
  * Create default Agents on first login
  */
-router.post('/initialize', async (req: AuthenticatedRequest, res: Response) => {
-  try {
+router.post(
+  '/initialize',
+  asyncHandler(async (req: AuthenticatedRequest, res) => {
     const auth = getCurrentAuth(req);
-    const userId = auth.userId ? parseUserId(auth.userId) : undefined;
-
-    if (!userId) {
-      return res.status(400).json({
-        error: 'Invalid authentication',
-        message: 'Failed to retrieve user ID',
-        requestId: auth.requestId,
-      });
-    }
-
-    logger.info(
-      {
-        userId,
-        username: auth.username,
-      },
-      'Default Agent initialization started (%s):',
-      auth.requestId
-    );
+    const userId = requireUserId(req);
 
     const agentsService = createAgentsService();
 
@@ -494,18 +222,19 @@ router.post('/initialize', async (req: AuthenticatedRequest, res: Response) => {
     const existingAgents = await agentsService.listAgents(userId);
 
     if (existingAgents.length > 0) {
-      logger.info('ℹ️  Skipping initialization because existing Agents exist (%s)', auth.requestId);
-      return res.status(200).json({
-        agents: existingAgents,
-        skipped: true,
-        message: 'Initialization skipped because existing Agents exist',
-        metadata: {
-          requestId: auth.requestId,
-          timestamp: new Date().toISOString(),
-          userId,
-          count: existingAgents.length,
-        },
-      });
+      req.log.info({ count: existingAgents.length }, 'Skipping initialization because existing Agents exist');
+      res.status(200).json(
+        ok(
+          req,
+          {
+            agents: existingAgents,
+            skipped: true,
+            message: 'Initialization skipped because existing Agents exist',
+          },
+          { userId, count: existingAgents.length }
+        )
+      );
+      return;
     }
 
     // Create default Agents
@@ -515,33 +244,11 @@ router.post('/initialize', async (req: AuthenticatedRequest, res: Response) => {
       auth.username
     );
 
-    logger.info(
-      'Default Agent initialization completed (%s): %d items',
-      auth.requestId,
-      agents.length
-    );
-
-    res.status(201).json({
-      agents: agents,
-      skipped: false,
-      metadata: {
-        requestId: auth.requestId,
-        timestamp: new Date().toISOString(),
-        userId,
-        count: agents.length,
-      },
-    });
-  } catch (error) {
-    const auth = getCurrentAuth(req);
-    logger.error({ err: error }, 'Default Agent initialization error (%s):', auth.requestId);
-
-    res.status(500).json({
-      error: 'Internal Server Error',
-      message: error instanceof Error ? error.message : 'Failed to initialize default Agents',
-      requestId: auth.requestId,
-    });
-  }
-});
+    res
+      .status(201)
+      .json(ok(req, { agents, skipped: false }, { userId, count: agents.length }));
+  })
+);
 
 /**
  * Shared Agent list retrieval endpoint (with pagination support)
@@ -557,56 +264,25 @@ router.post('/initialize', async (req: AuthenticatedRequest, res: Response) => {
  */
 router.get(
   '/shared-agents/list',
+  asyncHandler(async (req: AuthenticatedRequest, res) => {
+    // Clamp the page size with the shared helper (NaN/negative → default 20,
+    // capped at MAX_PAGE_SIZE) instead of an unbounded parseInt, consistent
+    // with the other list endpoints.
+    const limit = parseLimit(req, 20);
+    const searchQuery = queryString(req.query.q);
+    const cursor = queryString(req.query.cursor);
 
-  async (req: AuthenticatedRequest, res: Response) => {
-    try {
-      const auth = getCurrentAuth(req);
-      const { q: searchQuery, limit, cursor } = req.query;
+    const agentsService = createAgentsService();
+    const result = await agentsService.listSharedAgents(limit, searchQuery, cursor);
 
-      logger.info(
-        {
-          searchQuery,
-          limit,
-          hasCursor: !!cursor,
-        },
-        'Shared Agent list retrieval started (%s):',
-        auth.requestId
-      );
-
-      const agentsService = createAgentsService();
-      const result = await agentsService.listSharedAgents(
-        limit ? parseInt(limit as string, 10) : 20,
-        searchQuery as string | undefined,
-        cursor as string | undefined
-      );
-
-      logger.info(
-        'Shared Agent list retrieval completed (%s): %d items',
-        auth.requestId,
-        result.items.length
-      );
-
-      res.status(200).json({
-        agents: result.items,
-        nextCursor: result.nextCursor,
-        hasMore: result.hasMore,
-        metadata: {
-          requestId: auth.requestId,
-          timestamp: new Date().toISOString(),
-          count: result.items.length,
-        },
-      });
-    } catch (error) {
-      const auth = getCurrentAuth(req);
-      logger.error({ err: error }, 'Shared Agent list retrieval error (%s):', auth.requestId);
-
-      res.status(500).json({
-        error: 'Internal Server Error',
-        message: error instanceof Error ? error.message : 'Failed to retrieve shared Agent list',
-        requestId: auth.requestId,
-      });
-    }
-  }
+    res.status(200).json(
+      ok(
+        req,
+        { agents: result.items, nextCursor: result.nextCursor, hasMore: result.hasMore },
+        { count: result.items.length }
+      )
+    );
+  })
 );
 
 /**
@@ -617,68 +293,20 @@ router.get(
  */
 router.get(
   '/shared-agents/:userId/:agentId',
+  validate({ params: sharedAgentParams }),
+  asyncHandler(async (req: AuthenticatedRequest, res) => {
+    const userId = parseUserId(req.params.userId);
+    const agentId = parseAgentId(req.params.agentId);
 
-  async (req: AuthenticatedRequest, res: Response) => {
-    try {
-      const auth = getCurrentAuth(req);
-      const { userId, agentId } = req.params;
+    const agentsService = createAgentsService();
+    const agent = await agentsService.getSharedAgent(userId, agentId);
 
-      if (!userId || !agentId) {
-        return res.status(400).json({
-          error: 'Invalid request',
-          message: 'User ID or Agent ID is not specified',
-          requestId: auth.requestId,
-        });
-      }
-
-      if (!isUserId(userId) || !isAgentId(agentId)) {
-        return res.status(400).json({
-          error: 'Invalid request',
-          message: 'User ID or Agent ID format is invalid (must be UUIDs)',
-          requestId: auth.requestId,
-        });
-      }
-
-      logger.info(
-        {
-          userId,
-          agentId,
-        },
-        'Shared Agent detail retrieval started (%s):',
-        auth.requestId
-      );
-
-      const agentsService = createAgentsService();
-      const agent = await agentsService.getSharedAgent(parseUserId(userId), parseAgentId(agentId));
-
-      if (!agent) {
-        return res.status(404).json({
-          error: 'Not Found',
-          message: 'Shared Agent not found',
-          requestId: auth.requestId,
-        });
-      }
-
-      logger.info('Shared Agent detail retrieval completed (%s): %s', auth.requestId, agent.name);
-
-      res.status(200).json({
-        agent: agent,
-        metadata: {
-          requestId: auth.requestId,
-          timestamp: new Date().toISOString(),
-        },
-      });
-    } catch (error) {
-      const auth = getCurrentAuth(req);
-      logger.error({ err: error }, 'Shared Agent detail retrieval error (%s):', auth.requestId);
-
-      res.status(500).json({
-        error: 'Internal Server Error',
-        message: error instanceof Error ? error.message : 'Failed to retrieve shared Agent details',
-        requestId: auth.requestId,
-      });
+    if (!agent) {
+      throw new AppError(ErrorCode.NOT_FOUND, 'Shared Agent not found');
     }
-  }
+
+    res.status(200).json(ok(req, { agent }));
+  })
 );
 
 /**
@@ -689,85 +317,31 @@ router.get(
  */
 router.post(
   '/shared-agents/:userId/:agentId/clone',
+  validate({ params: sharedAgentParams }),
+  asyncHandler(async (req: AuthenticatedRequest, res) => {
+    const auth = getCurrentAuth(req);
+    const targetUserId = requireUserId(req);
+    const sourceUserId = parseUserId(req.params.userId);
+    const sourceAgentId = parseAgentId(req.params.agentId);
 
-  async (req: AuthenticatedRequest, res: Response) => {
+    const agentsService = createAgentsService();
+    let clonedAgent;
     try {
-      const auth = getCurrentAuth(req);
-      const targetUserId = auth.userId ? parseUserId(auth.userId) : undefined;
-      const { userId: sourceUserId, agentId: sourceAgentId } = req.params;
-
-      if (!targetUserId) {
-        return res.status(400).json({
-          error: 'Invalid authentication',
-          message: 'Failed to retrieve user ID',
-          requestId: auth.requestId,
-        });
-      }
-
-      if (!sourceUserId || !sourceAgentId) {
-        return res.status(400).json({
-          error: 'Invalid request',
-          message: 'Source User ID or Agent ID is not specified',
-          requestId: auth.requestId,
-        });
-      }
-
-      if (!isUserId(sourceUserId) || !isAgentId(sourceAgentId)) {
-        return res.status(400).json({
-          error: 'Invalid request',
-          message: 'Source User ID or Agent ID format is invalid (must be UUIDs)',
-          requestId: auth.requestId,
-        });
-      }
-
-      logger.info(
-        {
-          targetUserId,
-          targetUsername: auth.username,
-          sourceUserId,
-          sourceAgentId,
-        },
-        'Shared Agent clone started (%s):',
-        auth.requestId
-      );
-
-      const agentsService = createAgentsService();
-      const clonedAgent = await agentsService.cloneAgent(
+      clonedAgent = await agentsService.cloneAgent(
         targetUserId,
-        parseUserId(sourceUserId),
-        parseAgentId(sourceAgentId),
+        sourceUserId,
+        sourceAgentId,
         auth.username
       );
-
-      logger.info('Shared Agent clone completed (%s): %s', auth.requestId, clonedAgent.agentId);
-
-      res.status(201).json({
-        agent: clonedAgent,
-        metadata: {
-          requestId: auth.requestId,
-          timestamp: new Date().toISOString(),
-          userId: targetUserId,
-        },
-      });
-    } catch (error) {
-      const auth = getCurrentAuth(req);
-      logger.error({ err: error }, 'Shared Agent clone error (%s):', auth.requestId);
-
-      if (error instanceof Error && error.message === 'Shared agent not found') {
-        return res.status(404).json({
-          error: 'Not Found',
-          message: 'Shared Agent not found',
-          requestId: auth.requestId,
-        });
+    } catch (e) {
+      if (e instanceof Error && e.message === 'Shared agent not found') {
+        throw new AppError(ErrorCode.NOT_FOUND, 'Shared Agent not found');
       }
-
-      res.status(500).json({
-        error: 'Internal Server Error',
-        message: error instanceof Error ? error.message : 'Failed to clone shared Agent',
-        requestId: auth.requestId,
-      });
+      throw e;
     }
-  }
+
+    res.status(201).json(ok(req, { agent: clonedAgent }, { userId: targetUserId }));
+  })
 );
 
 export default router;

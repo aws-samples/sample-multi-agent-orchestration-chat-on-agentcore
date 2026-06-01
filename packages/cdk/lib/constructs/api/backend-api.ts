@@ -199,6 +199,14 @@ export class BackendApi extends Construct {
       memorySize: props.memorySize || 1024,
       role: lambdaExecutionRole,
       logGroup: logGroup, // Use logGroup instead of deprecated logRetention
+      // Active X-Ray tracing: samples each invocation (sets `Sampled=1` in the
+      // trace header) so the `traceId` (X-Ray Root id) emitted in the Express
+      // structured logs ties to a real trace in ServiceLens, and the API
+      // Gateway → Lambda hop shows on the service map. CDK grants the required
+      // X-Ray write permissions to the execution role automatically. (Downstream
+      // AWS SDK subsegments — DynamoDB, Bedrock, ... — would additionally need
+      // the aws-xray-sdk/ADOT instrumentation in the app; not enabled here.)
+      tracing: lambda.Tracing.ACTIVE,
       environment: {
         // Node.js / Express configuration
         NODE_ENV: 'production',

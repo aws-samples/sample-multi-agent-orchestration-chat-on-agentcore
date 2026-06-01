@@ -3,12 +3,13 @@
  * Receives external webhook events and forwards them to EventBridge
  */
 
-import { Router, Request, Response } from 'express';
+import { Router } from 'express';
 import { createHmac, timingSafeEqual } from 'crypto';
 import { SecretsManagerClient, GetSecretValueCommand } from '@aws-sdk/client-secrets-manager';
 import { EventBridgeClient, PutEventsCommand } from '@aws-sdk/client-eventbridge';
 import { config } from '../config/index.js';
-import { logger } from '../libs/logger/index.js';
+import { asyncHandler } from '../middleware/async-handler.js';
+import { AppError, ErrorCode } from '../libs/http/index.js';
 
 const router = Router();
 const secretsClient = new SecretsManagerClient({});
@@ -50,62 +51,68 @@ function verifySignature(payload: string, signature: string, secret: string): bo
  * No JWT auth - security is via HMAC-SHA256 signature verification.
  * Forwards events to EventBridge with source "github.com" and
  * detail-type from the x-github-event header.
+ *
+ * GitHub is the consumer (not the SPA), so this handler keeps the original HTTP
+ * status codes and a custom `202 { message, deliveryId }` success shape rather
+ * than the canonical `ok()` envelope. Failures throw `AppError`; the global
+ * error handler maps them to the expected status codes.
  */
-router.post('/github', async (req: Request, res: Response) => {
-  const signature = req.headers['x-hub-signature-256'] as string | undefined;
-  const eventType = req.headers['x-github-event'] as string | undefined;
-  const deliveryId = req.headers['x-github-delivery'] as string | undefined;
+router.post(
+  '/github',
+  asyncHandler(async (req, res) => {
+    const signature = req.headers['x-hub-signature-256'] as string | undefined;
+    const eventType = req.headers['x-github-event'] as string | undefined;
+    const deliveryId = req.headers['x-github-delivery'] as string | undefined;
 
-  if (!signature || !eventType) {
-    logger.warn('Webhook missing required headers');
-    return res.status(400).json({ error: 'Missing required GitHub headers' });
-  }
-
-  // Verify HMAC signature
-  let secret: string;
-  try {
-    secret = await getWebhookSecret();
-  } catch (error) {
-    logger.error({ err: error }, 'Failed to retrieve webhook secret:');
-    return res.status(500).json({ error: 'Internal server error' });
-  }
-
-  const rawBody = JSON.stringify(req.body);
-  if (!verifySignature(rawBody, signature, secret)) {
-    logger.warn('Webhook signature verification failed (delivery: %s)', deliveryId);
-    return res.status(401).json({ error: 'Invalid signature' });
-  }
-
-  // Forward to EventBridge
-  try {
-    const result = await eventBridgeClient.send(
-      new PutEventsCommand({
-        Entries: [
-          {
-            Source: 'github.com',
-            DetailType: eventType,
-            Detail: rawBody,
-            EventBusName: 'default',
-          },
-        ],
-      })
-    );
-
-    if (result.FailedEntryCount && result.FailedEntryCount > 0) {
-      logger.error({ entry: result.Entries?.[0] }, 'EventBridge PutEvents failed');
-      return res.status(500).json({ error: 'Failed to forward event' });
+    if (!signature || !eventType) {
+      req.log.warn('Webhook missing required headers');
+      throw new AppError(ErrorCode.VALIDATION_ERROR, 'Missing required GitHub headers');
     }
 
-    logger.info(
-      'GitHub webhook forwarded to EventBridge (event: %s, delivery: %s)',
-      eventType,
-      deliveryId
-    );
-    return res.status(202).json({ message: 'Event accepted' });
-  } catch (error) {
-    logger.error({ err: error }, 'EventBridge PutEvents error:');
-    return res.status(500).json({ error: 'Failed to forward event' });
-  }
-});
+    // Verify HMAC signature
+    let secret: string;
+    try {
+      secret = await getWebhookSecret();
+    } catch (error) {
+      // Do not leak the underlying Secrets Manager error to the caller.
+      req.log.error({ err: error }, 'Failed to retrieve webhook secret:');
+      throw new AppError(ErrorCode.INTERNAL_ERROR, 'Failed to process webhook');
+    }
+
+    const rawBody = JSON.stringify(req.body);
+    if (!verifySignature(rawBody, signature, secret)) {
+      req.log.warn({ deliveryId }, 'Webhook signature verification failed');
+      throw new AppError(ErrorCode.UNAUTHENTICATED, 'Invalid signature');
+    }
+
+    // Forward to EventBridge
+    let result;
+    try {
+      result = await eventBridgeClient.send(
+        new PutEventsCommand({
+          Entries: [
+            {
+              Source: 'github.com',
+              DetailType: eventType,
+              Detail: rawBody,
+              EventBusName: 'default',
+            },
+          ],
+        })
+      );
+    } catch (error) {
+      req.log.error({ err: error }, 'EventBridge PutEvents error:');
+      throw new AppError(ErrorCode.INTERNAL_ERROR, 'Failed to forward event');
+    }
+
+    if (result.FailedEntryCount && result.FailedEntryCount > 0) {
+      req.log.error({ entry: result.Entries?.[0] }, 'EventBridge PutEvents failed');
+      throw new AppError(ErrorCode.INTERNAL_ERROR, 'Failed to forward event');
+    }
+
+    req.log.info({ event: eventType, deliveryId }, 'GitHub webhook forwarded to EventBridge');
+    res.status(202).json({ message: 'Event accepted', deliveryId });
+  })
+);
 
 export default router;

@@ -5,6 +5,7 @@ import { randomId } from '../utils/randomId';
 import { useChatStore } from '../stores/chatStore';
 import { useAgentStore } from '../stores/agentStore';
 import { useSettingsStore } from '../stores/settingsStore';
+import { useUIStore } from '../stores/uiStore';
 import { StoragePathDisplay } from './StoragePathDisplay';
 import { StorageManagementModal } from './StorageManagementModal';
 import { ModelSelector } from './ui/ModelSelector';
@@ -32,6 +33,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({
   );
   const isLoading = sessionState?.isLoading || false;
   const isAgentStoreLoading = useAgentStore((state) => state.isLoading);
+  const isWideView = useUIStore((state) => state.isWideView);
   const [input, setInput] = useState('');
   const [attachedImages, setAttachedImages] = useState<ImageAttachment[]>([]);
   const [isStorageModalOpen, setIsStorageModalOpen] = useState(false);
@@ -332,11 +334,16 @@ export const MessageInput: React.FC<MessageInputProps> = ({
       style={{ paddingBottom: 'max(1rem, env(safe-area-inset-bottom))' }}
     >
       {/* Storage path display */}
-      <div className="max-w-4xl mx-auto mb-2">
+      <div
+        className={`${isWideView ? 'max-w-full px-4' : 'max-w-4xl'} mx-auto mb-2 transition-[max-width,padding] duration-300 ease-in-out`}
+      >
         <StoragePathDisplay onClick={() => setIsStorageModalOpen(true)} />
       </div>
 
-      <form onSubmit={handleSubmit} className="max-w-4xl mx-auto">
+      <form
+        onSubmit={handleSubmit}
+        className={`${isWideView ? 'max-w-full px-4' : 'max-w-4xl'} mx-auto transition-[max-width,padding] duration-300 ease-in-out`}
+      >
         <div
           className={`relative ${isDragging ? 'ring-2 ring-blue-400 ring-opacity-50 rounded-2xl' : ''}`}
           onDragOver={handleDragOver}

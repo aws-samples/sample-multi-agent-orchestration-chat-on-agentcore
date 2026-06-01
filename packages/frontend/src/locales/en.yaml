@@ -188,6 +188,7 @@ chat:
   stopGenerating: Stop Generating
   selectAgent: Select Agent
   changeAgent: Change Agent
+  toggleWideView: Toggle wide view
   messageInputPlaceholder: Type your message...
   attachFile: Attach File
   submit: Submit
@@ -687,6 +688,7 @@ triggers:
   messages:
     createSuccess: Trigger created successfully
     createError: Failed to create trigger
+    limitExceeded: 'Trigger limit reached (maximum {{limit}} per user). Delete an existing trigger to create a new one.'
     updateSuccess: Trigger updated successfully
     updateError: Failed to update trigger
     deleteConfirm: Are you sure you want to delete this trigger?

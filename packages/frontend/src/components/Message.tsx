@@ -11,6 +11,7 @@ import { useTranslation } from 'react-i18next';
 import { AlertTriangle } from 'lucide-react';
 import type { Message as MessageType } from '../types/index';
 import { useThemeStore } from '../stores/themeStore';
+import { useUIStore } from '../stores/uiStore';
 import { TypingIndicator } from './TypingIndicator';
 import { ToolUseBlock } from './ToolUseBlock';
 import { ToolResultBlock } from './ToolResultBlock';
@@ -29,6 +30,7 @@ export const Message: React.FC<MessageProps> = ({ message }) => {
   const { t } = useTranslation();
   const resolvedTheme = useThemeStore((s) => s.resolvedTheme);
   const isDark = resolvedTheme === 'dark';
+  const isWideView = useUIStore((s) => s.isWideView);
   const isUser = message.type === 'user';
 
   // Check if message contains toolUse/toolResult
@@ -211,8 +213,16 @@ export const Message: React.FC<MessageProps> = ({ message }) => {
       className={`flex ${hasToolContent ? 'mb-2' : 'mb-6'} ${hasToolContent ? 'justify-start' : isUser ? 'justify-end' : 'justify-start'}`}
     >
       <div
-        className={`flex flex-row items-start w-full ${
-          hasToolContent ? 'max-w-full' : isUser ? 'max-w-3xl ml-auto' : 'max-w-4xl'
+        className={`flex flex-row items-start w-full transition-[max-width] duration-300 ease-in-out ${
+          hasToolContent
+            ? 'max-w-full'
+            : isWideView
+              ? isUser
+                ? 'max-w-full ml-auto'
+                : 'max-w-full'
+              : isUser
+                ? 'max-w-3xl ml-auto'
+                : 'max-w-4xl'
         }`}
       >
         {/* Message bubble */}
