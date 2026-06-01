@@ -51,13 +51,6 @@ import { logger } from '../libs/logger/index.js';
 export type { AuthenticatedRequest, AuthInfo } from '../types/index.js';
 
 /**
- * Generate request ID
- */
-function generateRequestId(): string {
-  return `req_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
-}
-
-/**
  * Generate authentication error response
  */
 function createAuthErrorResponse(
@@ -109,8 +102,10 @@ function looksLikeDeveloperAuthToken(token: string): boolean {
  * See file-level comment for the full contract.
  */
 export function authMiddleware(req: AuthenticatedRequest, res: Response, next: NextFunction): void {
-  const requestId = generateRequestId();
-  req.requestId = requestId;
+  // `requestLoggerMiddleware` (mounted before the routers) already minted the
+  // request id onto `req.requestId`. Fall back to a placeholder only for unit
+  // tests that invoke this middleware without the upstream logger.
+  const requestId = req.requestId ?? 'unknown';
 
   // (1) Authorization header presence
   const authHeader = req.get('Authorization');

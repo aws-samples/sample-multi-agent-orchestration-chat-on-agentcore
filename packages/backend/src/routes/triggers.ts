@@ -11,7 +11,7 @@
 import { Router } from 'express';
 import { z } from 'zod';
 import { parseTriggerId } from '@moca/core';
-import { type AuthenticatedRequest, getCurrentAuth, requireUserId } from '../middleware/auth.js';
+import { type AuthenticatedRequest, requireUserId } from '../middleware/auth.js';
 import { asyncHandler } from '../middleware/async-handler.js';
 import { validate } from '../middleware/validate.js';
 import {
@@ -25,7 +25,6 @@ import {
   InvalidScheduleIntervalError,
 } from '../services/scheduler-service.js';
 import { config } from '../config/index.js';
-import { logger } from '../libs/logger/index.js';
 import {
   AppError,
   ErrorCode,
@@ -123,7 +122,6 @@ router.get(
   '/',
   asyncHandler(async (req: AuthenticatedRequest, res) => {
     const userId = requireUserId(req);
-    const auth = getCurrentAuth(req);
 
     // Default page size = the per-user hard limit, so a user's entire trigger
     // set fits in a single page (clamped by parseLimit's MAX_PAGE_SIZE).
@@ -134,12 +132,6 @@ router.get(
     }
     const exclusiveStartKey = decodePageToken(queryString(req.query.nextToken));
 
-    logger.info(
-      { userId, username: auth.username, limit, type, hasNextToken: !!req.query.nextToken },
-      'Triggers list retrieval started (%s):',
-      auth.requestId
-    );
-
     const result = await getConfiguredTriggersService().listTriggers(userId, {
       limit,
       type: type as TriggerType | undefined,
@@ -147,10 +139,6 @@ router.get(
     });
 
     const nextToken = encodePageToken(result.lastEvaluatedKey);
-
-    logger.info(
-      `Triggers list retrieval completed (${auth.requestId}): ${result.triggers.length} items, hasMore: ${!!nextToken}`
-    );
 
     res.status(200).json(
       ok(
@@ -206,7 +194,6 @@ router.post(
   validate({ body: createTriggerBody }),
   asyncHandler(async (req: AuthenticatedRequest, res) => {
     const userId = requireUserId(req);
-    const auth = getCurrentAuth(req);
     const {
       name,
       description,
@@ -227,8 +214,6 @@ router.post(
         'scheduleConfig.expression is required for schedule type triggers'
       );
     }
-
-    logger.info({ userId, name, type, agentId }, 'Trigger creation started (%s):', auth.requestId);
 
     const triggersService = getConfiguredTriggersService();
     let trigger;
@@ -286,17 +271,15 @@ router.post(
           scheduleConfig: { ...scheduleConfig, schedulerArn, scheduleGroupName: 'default' },
         });
 
-        logger.info(`EventBridge Schedule created: ${schedulerArn}`);
+        req.log.info({ schedulerArn }, 'EventBridge Schedule created');
       } catch (scheduleError) {
-        logger.error({ err: scheduleError }, 'Failed to create EventBridge Schedule:');
+        req.log.error({ err: scheduleError }, 'Failed to create EventBridge Schedule:');
         // Rollback: delete the trigger so the DynamoDB row does not linger
         // without a backing EventBridge Schedule.
         await triggersService.deleteTrigger(userId, trigger.id);
         throw mapScheduleError(scheduleError);
       }
     }
-
-    logger.info('Trigger created successfully (%s): %s', auth.requestId, trigger.id);
 
     res.status(201).json(ok(req, { trigger: serializeTrigger(trigger) }, { userId }));
   })
@@ -314,7 +297,6 @@ router.put(
   validate({ params: triggerIdParams, body: updateTriggerBody }),
   asyncHandler(async (req: AuthenticatedRequest, res) => {
     const userId = requireUserId(req);
-    const auth = getCurrentAuth(req);
     const triggerId = parseTriggerId(req.params.id);
 
     const triggersService = getConfiguredTriggersService();
@@ -341,12 +323,12 @@ router.put(
 
     // Type change: schedule -> event — tear down the EventBridge Schedule.
     if (typeChanged && existingTrigger.type === 'schedule' && type === 'event') {
-      logger.info('Type change detected: schedule -> event (%s)', auth.requestId);
+      req.log.info('Type change detected: schedule -> event');
       try {
         await getSchedulerService().deleteSchedule(triggerId);
-        logger.info('EventBridge Schedule deleted for type change');
+        req.log.info('EventBridge Schedule deleted for type change');
       } catch (scheduleError) {
-        logger.warn(
+        req.log.warn(
           { err: scheduleError },
           'Failed to delete EventBridge Schedule during type change:'
         );
@@ -355,7 +337,7 @@ router.put(
 
     // Type change: event -> schedule — create a new EventBridge Schedule.
     if (typeChanged && existingTrigger.type === 'event' && type === 'schedule') {
-      logger.info('Type change detected: event -> schedule (%s)', auth.requestId);
+      req.log.info('Type change detected: event -> schedule');
       if (!scheduleConfig?.expression) {
         throw new AppError(
           ErrorCode.VALIDATION_ERROR,
@@ -387,9 +369,9 @@ router.put(
           targetArn,
           roleArn,
         });
-        logger.info(`EventBridge Schedule created for type change: ${schedulerArn}`);
+        req.log.info({ schedulerArn }, 'EventBridge Schedule created for type change');
       } catch (scheduleError) {
-        logger.error(
+        req.log.error(
           { err: scheduleError },
           'Failed to create EventBridge Schedule during type change:'
         );
@@ -443,11 +425,9 @@ router.put(
         if (scheduleError instanceof InvalidScheduleIntervalError) {
           throw mapScheduleError(scheduleError);
         }
-        logger.warn({ err: scheduleError }, 'Failed to update EventBridge Schedule (non-critical):');
+        req.log.warn({ err: scheduleError }, 'Failed to update EventBridge Schedule (non-critical):');
       }
     }
-
-    logger.info('Trigger updated successfully (%s)', auth.requestId);
 
     res.status(200).json(ok(req, { trigger: serializeTrigger(updatedTrigger) }, { userId }));
   })
@@ -462,7 +442,6 @@ router.delete(
   validate({ params: triggerIdParams }),
   asyncHandler(async (req: AuthenticatedRequest, res) => {
     const userId = requireUserId(req);
-    const auth = getCurrentAuth(req);
     const triggerId = parseTriggerId(req.params.id);
 
     const triggersService = getConfiguredTriggersService();
@@ -472,9 +451,9 @@ router.delete(
     if (trigger?.type === 'schedule') {
       try {
         await getSchedulerService().deleteSchedule(triggerId);
-        logger.info('EventBridge Schedule deleted');
+        req.log.info('EventBridge Schedule deleted');
       } catch (scheduleError) {
-        logger.warn(
+        req.log.warn(
           { err: scheduleError },
           'Failed to delete EventBridge Schedule (continuing with trigger deletion):'
         );
@@ -484,8 +463,6 @@ router.delete(
     if (trigger) {
       await triggersService.deleteTrigger(userId, triggerId);
     }
-
-    logger.info('Trigger deleted successfully (%s)', auth.requestId);
 
     res
       .status(200)
@@ -502,7 +479,6 @@ router.post(
   validate({ params: triggerIdParams }),
   asyncHandler(async (req: AuthenticatedRequest, res) => {
     const userId = requireUserId(req);
-    const auth = getCurrentAuth(req);
     const triggerId = parseTriggerId(req.params.id);
 
     const triggersService = getConfiguredTriggersService();
@@ -519,7 +495,7 @@ router.post(
       try {
         await getSchedulerService().enableSchedule(triggerId);
       } catch (scheduleError) {
-        logger.error({ err: scheduleError }, 'Failed to enable EventBridge Schedule:');
+        req.log.error({ err: scheduleError }, 'Failed to enable EventBridge Schedule:');
         throw new AppError(
           ErrorCode.INTERNAL_ERROR,
           `Failed to enable schedule: ${scheduleError instanceof Error ? scheduleError.message : String(scheduleError)}`,
@@ -531,8 +507,6 @@ router.post(
     const updatedTrigger = await triggersService.updateTrigger(userId, triggerId, {
       enabled: true,
     });
-
-    logger.info('Trigger enabled successfully (%s)', auth.requestId);
 
     res.status(200).json(ok(req, { trigger: serializeTrigger(updatedTrigger) }, { userId }));
   })
@@ -547,7 +521,6 @@ router.post(
   validate({ params: triggerIdParams }),
   asyncHandler(async (req: AuthenticatedRequest, res) => {
     const userId = requireUserId(req);
-    const auth = getCurrentAuth(req);
     const triggerId = parseTriggerId(req.params.id);
 
     const triggersService = getConfiguredTriggersService();
@@ -564,7 +537,7 @@ router.post(
       try {
         await getSchedulerService().disableSchedule(triggerId);
       } catch (scheduleError) {
-        logger.error({ err: scheduleError }, 'Failed to disable EventBridge Schedule:');
+        req.log.error({ err: scheduleError }, 'Failed to disable EventBridge Schedule:');
         throw new AppError(
           ErrorCode.INTERNAL_ERROR,
           `Failed to disable schedule: ${scheduleError instanceof Error ? scheduleError.message : String(scheduleError)}`,
@@ -576,8 +549,6 @@ router.post(
     const updatedTrigger = await triggersService.updateTrigger(userId, triggerId, {
       enabled: false,
     });
-
-    logger.info('Trigger disabled successfully (%s)', auth.requestId);
 
     res.status(200).json(ok(req, { trigger: serializeTrigger(updatedTrigger) }, { userId }));
   })
@@ -592,16 +563,9 @@ router.get(
   validate({ params: triggerIdParams }),
   asyncHandler(async (req: AuthenticatedRequest, res) => {
     const userId = requireUserId(req);
-    const auth = getCurrentAuth(req);
     const triggerId = parseTriggerId(req.params.id);
     const limit = parseLimit(req, 20);
     const exclusiveStartKey = decodePageToken(queryString(req.query.nextToken));
-
-    logger.info(
-      { userId, triggerId, limit, hasNextToken: !!req.query.nextToken },
-      'Execution history retrieval started (%s):',
-      auth.requestId
-    );
 
     const triggersService = getConfiguredTriggersService();
     const trigger = await triggersService.getTrigger(userId, triggerId);
@@ -611,10 +575,6 @@ router.get(
 
     const result = await triggersService.getExecutions(triggerId, limit, exclusiveStartKey);
     const nextToken = encodePageToken(result.lastEvaluatedKey);
-
-    logger.info(
-      `Execution history retrieval completed (${auth.requestId}): ${result.executions.length} items, hasMore: ${!!nextToken}`
-    );
 
     res.status(200).json(
       ok(

@@ -70,6 +70,10 @@ export const logger: Logger = pino({
       'Authorization',
       'req.headers.authorization',
       'headers.authorization',
+      // Custom headers carrying credentials, redacted in pino-http access logs
+      // that serialize request headers.
+      'req.headers["x-amzn-bedrock-agentcore-runtime-custom-id-token"]',
+      'req.headers["x-hub-signature-256"]',
       'jwt',
       '*.jwt',
       'apiKey',

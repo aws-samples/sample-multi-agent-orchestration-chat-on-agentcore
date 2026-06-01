@@ -10,13 +10,12 @@
 
 import { Router } from 'express';
 import { z } from 'zod';
-import { type AuthenticatedRequest, getCurrentAuth } from '../middleware/auth.js';
+import { type AuthenticatedRequest } from '../middleware/auth.js';
 import { asyncHandler } from '../middleware/async-handler.js';
 import { validate } from '../middleware/validate.js';
 import { createAgentCoreMemoryServiceForRequest } from '../services/agentcore-memory.js';
 import { getSessionsDynamoDBService } from '../services/sessions-dynamodb.js';
 import { config } from '../config/index.js';
-import { logger } from '../libs/logger/index.js';
 import {
   AppError,
   ErrorCode,
@@ -40,7 +39,6 @@ const sessionIdParams = z.object({ sessionId: zSessionId });
 router.get(
   '/',
   asyncHandler(async (req: AuthenticatedRequest, res) => {
-    const auth = getCurrentAuth(req);
     const actorId = req.identityId!;
 
     const limit = parseLimit(req, 50);
@@ -50,22 +48,12 @@ router.get(
     // service that would surface as a 500.
     const exclusiveStartKey = decodePageToken(nextToken);
 
-    logger.info(
-      { userId: actorId, username: auth.username, limit, hasNextToken: !!nextToken },
-      'Session list retrieval started (%s):',
-      auth.requestId
-    );
-
     const sessionsDynamoDBService = getSessionsDynamoDBService();
     if (!sessionsDynamoDBService.isConfigured()) {
       throw new AppError(ErrorCode.CONFIGURATION_ERROR, 'Sessions Table is not configured');
     }
 
     const result = await sessionsDynamoDBService.listSessions(actorId, limit, exclusiveStartKey);
-
-    logger.info(
-      `Session list retrieval completed (${auth.requestId}): ${result.sessions.length} items, hasMore: ${result.hasMore}`
-    );
 
     res.status(200).json(
       ok(
@@ -97,7 +85,6 @@ router.get(
   '/:sessionId/events',
   validate({ params: sessionIdParams }),
   asyncHandler(async (req: AuthenticatedRequest, res) => {
-    const auth = getCurrentAuth(req);
     const actorId = req.identityId!;
     const { sessionId } = req.params;
 
@@ -108,23 +95,13 @@ router.get(
     if (sessionsDynamoDBService.isConfigured()) {
       const session = await sessionsDynamoDBService.getSession(actorId, sessionId);
       if (!session) {
-        logger.warn('Session not found (%s): %s', auth.requestId, sessionId);
+        req.log.warn({ sessionId }, 'Session not found');
         throw new AppError(ErrorCode.NOT_FOUND, 'Session not found');
       }
     }
 
-    logger.info(
-      { userId: actorId, username: auth.username, sessionId },
-      'Session conversation history retrieval started (%s):',
-      auth.requestId
-    );
-
     const memoryService = await createAgentCoreMemoryServiceForRequest(req);
     const events = await memoryService.getSessionEvents(actorId, sessionId);
-
-    logger.info(
-      `Session conversation history retrieval completed (${auth.requestId}): ${events.length} items`
-    );
 
     res.status(200).json(ok(req, { events }, { actorId, sessionId, count: events.length }));
   })
@@ -143,15 +120,8 @@ router.delete(
   '/:sessionId',
   validate({ params: sessionIdParams }),
   asyncHandler(async (req: AuthenticatedRequest, res) => {
-    const auth = getCurrentAuth(req);
     const actorId = req.identityId!;
     const { sessionId } = req.params;
-
-    logger.info(
-      { userId: actorId, username: auth.username, sessionId },
-      'Session deletion started (%s):',
-      auth.requestId
-    );
 
     // Ownership check. A missing DynamoDB row means the session is either
     // already deleted or not owned by this caller, so we skip the DynamoDB
@@ -170,9 +140,11 @@ router.delete(
     if (sessionsDynamoDBService.isConfigured() && sessionExists) {
       try {
         await sessionsDynamoDBService.deleteSession(actorId, sessionId);
-        logger.info('Deleted session from DynamoDB: %s', sessionId);
       } catch (dynamoError) {
-        logger.error({ err: dynamoError }, 'Failed to delete session from DynamoDB: %s', sessionId);
+        req.log.error(
+          { err: dynamoError, sessionId },
+          'Failed to delete session from DynamoDB'
+        );
         errors.push(
           `DynamoDB: ${dynamoError instanceof Error ? dynamoError.message : 'Unknown error'}`
         );
@@ -186,12 +158,10 @@ router.delete(
       try {
         const memoryService = await createAgentCoreMemoryServiceForRequest(req);
         await memoryService.deleteSession(actorId, sessionId);
-        logger.info('Deleted session from AgentCore Memory: %s', sessionId);
       } catch (memoryError) {
-        logger.error(
-          { err: memoryError },
-          'Failed to delete session from AgentCore Memory: %s',
-          sessionId
+        req.log.error(
+          { err: memoryError, sessionId },
+          'Failed to delete session from AgentCore Memory'
         );
         errors.push(
           `AgentCore Memory: ${memoryError instanceof Error ? memoryError.message : 'Unknown error'}`
@@ -202,15 +172,13 @@ router.delete(
     // A partial failure must NOT be reported as success — the row may still
     // exist while the client believes the session is gone.
     if (errors.length > 0) {
-      logger.warn({ err: errors }, 'Session deletion failed partially (%s):', auth.requestId);
+      req.log.warn({ failures: errors }, 'Session deletion failed partially');
       throw new AppError(
         ErrorCode.INTERNAL_ERROR,
         'Session was only partially deleted; please retry',
         { details: { failures: errors } }
       );
     }
-
-    logger.info('Session deletion completed successfully (%s)', auth.requestId);
 
     res
       .status(200)

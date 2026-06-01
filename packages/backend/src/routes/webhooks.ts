@@ -8,7 +8,6 @@ import { createHmac, timingSafeEqual } from 'crypto';
 import { SecretsManagerClient, GetSecretValueCommand } from '@aws-sdk/client-secrets-manager';
 import { EventBridgeClient, PutEventsCommand } from '@aws-sdk/client-eventbridge';
 import { config } from '../config/index.js';
-import { logger } from '../libs/logger/index.js';
 import { asyncHandler } from '../middleware/async-handler.js';
 import { AppError, ErrorCode } from '../libs/http/index.js';
 
@@ -66,7 +65,7 @@ router.post(
     const deliveryId = req.headers['x-github-delivery'] as string | undefined;
 
     if (!signature || !eventType) {
-      logger.warn('Webhook missing required headers');
+      req.log.warn('Webhook missing required headers');
       throw new AppError(ErrorCode.VALIDATION_ERROR, 'Missing required GitHub headers');
     }
 
@@ -76,13 +75,13 @@ router.post(
       secret = await getWebhookSecret();
     } catch (error) {
       // Do not leak the underlying Secrets Manager error to the caller.
-      logger.error({ err: error }, 'Failed to retrieve webhook secret:');
+      req.log.error({ err: error }, 'Failed to retrieve webhook secret:');
       throw new AppError(ErrorCode.INTERNAL_ERROR, 'Failed to process webhook');
     }
 
     const rawBody = JSON.stringify(req.body);
     if (!verifySignature(rawBody, signature, secret)) {
-      logger.warn('Webhook signature verification failed (delivery: %s)', deliveryId);
+      req.log.warn({ deliveryId }, 'Webhook signature verification failed');
       throw new AppError(ErrorCode.UNAUTHENTICATED, 'Invalid signature');
     }
 
@@ -102,20 +101,16 @@ router.post(
         })
       );
     } catch (error) {
-      logger.error({ err: error }, 'EventBridge PutEvents error:');
+      req.log.error({ err: error }, 'EventBridge PutEvents error:');
       throw new AppError(ErrorCode.INTERNAL_ERROR, 'Failed to forward event');
     }
 
     if (result.FailedEntryCount && result.FailedEntryCount > 0) {
-      logger.error({ entry: result.Entries?.[0] }, 'EventBridge PutEvents failed');
+      req.log.error({ entry: result.Entries?.[0] }, 'EventBridge PutEvents failed');
       throw new AppError(ErrorCode.INTERNAL_ERROR, 'Failed to forward event');
     }
 
-    logger.info(
-      'GitHub webhook forwarded to EventBridge (event: %s, delivery: %s)',
-      eventType,
-      deliveryId
-    );
+    req.log.info({ event: eventType, deliveryId }, 'GitHub webhook forwarded to EventBridge');
     res.status(202).json({ message: 'Event accepted', deliveryId });
   })
 );

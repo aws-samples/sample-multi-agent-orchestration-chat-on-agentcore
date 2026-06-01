@@ -26,7 +26,6 @@ import { type AuthenticatedRequest } from '../middleware/auth.js';
 import { asyncHandler } from '../middleware/async-handler.js';
 import { validate } from '../middleware/validate.js';
 import { config } from '../config/index.js';
-import { logger } from '../libs/logger/index.js';
 import { ok, parseLimit, queryString } from '../libs/http/index.js';
 
 const router = Router();
@@ -51,8 +50,9 @@ router.get(
       limit
     );
 
-    logger.info(
-      `[Memory API] Retrieved ${result.records.length} memory records for actorId: ${actorId}`
+    req.log.info(
+      { actorId, count: result.records.length },
+      'Retrieved memory records'
     );
 
     res.json(
@@ -105,8 +105,9 @@ router.post(
       relevanceScore
     );
 
-    logger.info(
-      `[Memory API] Retrieved ${records.length} search results for query: "${query}" for actorId: ${actorId}`
+    req.log.info(
+      { actorId, query, count: records.length },
+      'Retrieved memory search results'
     );
 
     res.json(ok(req, { records }, { actorId, query, count: records.length }));

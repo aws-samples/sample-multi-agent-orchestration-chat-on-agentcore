@@ -19,13 +19,12 @@ import { ZodError } from 'zod';
 import type { AuthenticatedRequest } from '../types/index.js';
 import { AppError, ErrorCode, sendError } from '../libs/http/index.js';
 import { isDevelopment } from '../config/index.js';
-import { logger } from '../libs/logger/index.js';
 
 /**
  * 404 Not Found middleware. Registered after all routes.
  */
 export function notFoundMiddleware(req: Request, res: Response): void {
-  logger.warn(`404 Not Found: ${req.method} ${req.path} - ${req.ip}`);
+  req.log.warn({ method: req.method, path: req.path, ip: req.ip }, '404 Not Found');
   sendError(
     res,
     req as AuthenticatedRequest,
@@ -65,9 +64,9 @@ export function errorHandlerMiddleware(
 
   if (err instanceof AppError) {
     if (err.status >= 500) {
-      logger.error({ err, requestId: authedReq.requestId }, 'AppError (server):');
+      req.log.error({ err }, 'AppError (server):');
     } else {
-      logger.warn({ code: err.code, requestId: authedReq.requestId }, err.message);
+      req.log.warn({ code: err.code }, err.message);
     }
     sendError(res, authedReq, err.code, err.message, {
       status: err.status,
@@ -77,7 +76,7 @@ export function errorHandlerMiddleware(
   }
 
   if (err instanceof ZodError) {
-    logger.warn({ requestId: authedReq.requestId }, 'Request validation failed');
+    req.log.warn('Request validation failed');
     sendError(res, authedReq, ErrorCode.VALIDATION_ERROR, 'Request validation failed', {
       details: { fieldViolations: toFieldViolations(err) },
     });
@@ -86,7 +85,7 @@ export function errorHandlerMiddleware(
 
   // JSON parse error from express.json() middleware → 400 Bad Request.
   if (err instanceof SyntaxError && 'body' in err) {
-    logger.warn(
+    req.log.warn(
       { message: err.message, path: req.path, method: req.method, ip: req.ip },
       'JSON parse error:'
     );
@@ -96,10 +95,9 @@ export function errorHandlerMiddleware(
 
   // Unknown / unexpected error → 500. Raw message only surfaced in dev.
   const detail = err instanceof Error ? err.message : String(err);
-  logger.error(
+  req.log.error(
     {
       err,
-      requestId: authedReq.requestId,
       path: req.path,
       method: req.method,
       ip: req.ip,

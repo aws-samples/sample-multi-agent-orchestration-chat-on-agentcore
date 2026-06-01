@@ -9,6 +9,7 @@ import { config, corsAllowedOrigins } from './config/index.js';
 import { authMiddleware, AuthenticatedRequest, getCurrentAuth } from './middleware/auth.js';
 import { errorHandlerMiddleware, notFoundMiddleware } from './middleware/error-handler.js';
 import { hydrateJWKS } from './libs/auth/index.js';
+import { requestLoggerMiddleware, traceContextMiddleware } from './middleware/request-logger.js';
 import agentsRouter from './routes/agents.js';
 import sessionsRouter from './routes/sessions.js';
 import toolsRouter from './routes/tools.js';
@@ -55,7 +56,17 @@ const corsOptions = {
   maxAge: 86400, // Preflight cache 24 hours
 };
 
-// Middleware configuration
+// Middleware configuration.
+//
+// Request logging is mounted FIRST — before `cors` and `express.json` — so that
+// `req.log` and `req.requestId` are set on every request even when those
+// middlewares reject it (a CORS-blocked origin or a malformed-JSON body throws
+// and is routed straight to `errorHandlerMiddleware`, which logs via `req.log`).
+// It also owns request-id generation (see request-logger.ts), and
+// `traceContextMiddleware` binds the X-Ray `traceId` onto `req.log`.
+app.use(requestLoggerMiddleware);
+app.use(traceContextMiddleware);
+
 app.use(cors(corsOptions));
 app.use(
   express.json({
@@ -95,8 +106,6 @@ app.get('/ping', (req: Request, res: Response) => {
     },
   };
 
-  logger.info(`Health check - ${req.ip} - ${req.get('User-Agent')?.substring(0, 50)}`);
-
   res.status(200).json(healthStatus);
 });
 
@@ -131,15 +140,6 @@ app.get('/me', authMiddleware, (req: AuthenticatedRequest, res: Response) => {
       userAgent: req.get('User-Agent'),
     },
   };
-
-  logger.info(
-    {
-      userId: auth.userId,
-      username: auth.username,
-    },
-    '/me request successful (%s):',
-    auth.requestId
-  );
 
   res.status(200).json(response);
 });

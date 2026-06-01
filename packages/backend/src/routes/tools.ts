@@ -17,10 +17,7 @@ import { validate } from '../middleware/validate.js';
 import { gatewayService } from '../services/agentcore-gateway.js';
 import { fetchToolsFromMCPConfig, MCPConfig, MCPConfigError } from '../libs/mcp/index.js';
 import { allMCPToolDefinitions } from '@moca/tool-definitions';
-import { createLogger } from '../libs/logger/index.js';
 import { AppError, ErrorCode, ok } from '../libs/http/index.js';
-
-const logger = createLogger('ToolsRoute');
 
 const router = express.Router();
 
@@ -37,15 +34,6 @@ router.get(
     if (!idToken) {
       throw new AppError(ErrorCode.UNAUTHENTICATED, 'Authentication token is required');
     }
-
-    logger.info(
-      {
-        userId: auth.userId,
-        username: auth.username,
-      },
-      'Tool list retrieval started (%s):',
-      auth.requestId
-    );
 
     // Get cursor query parameter
     const cursor = req.query.cursor as string | undefined;
@@ -64,17 +52,6 @@ router.get(
 
     // Include builtin tools only in the first page (when cursor is not present)
     const tools = cursor ? result.tools : [...allMCPToolDefinitions, ...result.tools];
-
-    logger.info(
-      {
-        requestId: auth.requestId,
-        total: tools.length,
-        builtinCount: cursor ? 0 : allMCPToolDefinitions.length,
-        gatewayCount: result.tools.length,
-      },
-      'Tool list retrieval completed',
-      result.nextCursor ? { nextCursor: 'present' } : { nextCursor: 'none' }
-    );
 
     res.status(200).json(
       ok(
@@ -102,16 +79,6 @@ router.post(
       throw new AppError(ErrorCode.UNAUTHENTICATED, 'Authentication token is required');
     }
 
-    logger.info(
-      {
-        userId: auth.userId,
-        username: auth.username,
-        query: query.trim(),
-      },
-      'Tool search started (%s):',
-      auth.requestId
-    );
-
     const trimmedQuery = query.trim().toLowerCase();
 
     // Search in builtin tools (local search)
@@ -136,10 +103,6 @@ router.post(
     // Combine builtin and gateway results
     const tools = [...builtinResults, ...gatewayResults];
 
-    logger.info(
-      `Tool search completed (${auth.requestId}): ${tools.length} items (builtin: ${builtinResults.length}, gateway: ${gatewayResults.length}, query: "${query.trim()}")`
-    );
-
     res.status(200).json(
       ok(req, { tools }, { actorId: auth.userId, query: query.trim(), count: tools.length })
     );
@@ -160,26 +123,15 @@ router.get(
       throw new AppError(ErrorCode.UNAUTHENTICATED, 'Authentication token is required');
     }
 
-    logger.info(
-      {
-        userId: auth.userId,
-        username: auth.username,
-      },
-      'Gateway connection check started (%s):',
-      auth.requestId
-    );
-
     // Check Gateway connection
     const isConnected = await gatewayService.checkConnection(idToken);
 
     if (!isConnected) {
-      logger.info('Gateway connection check failed (%s)', auth.requestId);
       throw new AppError(ErrorCode.SERVICE_UNAVAILABLE, 'Gateway is not reachable', {
         details: { gateway: { connected: false } },
       });
     }
 
-    logger.info('Gateway connection check successful (%s)', auth.requestId);
     res.status(200).json(
       ok(
         req,
@@ -212,29 +164,17 @@ router.post(
     const auth = getCurrentAuth(req);
     const { mcpConfig } = req.body as { mcpConfig: MCPConfig };
 
-    logger.info(
-      {
-        userId: auth.userId,
-        serverCount: Object.keys(mcpConfig.mcpServers).length,
-      },
-      'Local MCP tool retrieval started (%s):',
-      auth.requestId
-    );
-
-    // Fetch tool list from MCP servers
+    // Fetch tool list from MCP servers. Pass `req.log` so the fetcher's logs
+    // correlate to this request via the bound requestId.
     let result;
     try {
-      result = await fetchToolsFromMCPConfig(mcpConfig, logger);
+      result = await fetchToolsFromMCPConfig(mcpConfig, req.log);
     } catch (e) {
       if (e instanceof MCPConfigError) {
         throw new AppError(ErrorCode.VALIDATION_ERROR, e.message);
       }
       throw e;
     }
-
-    logger.info(
-      `Local MCP tool retrieval completed (${auth.requestId}): ${result.tools.length} tools, ${result.errors.length} errors`
-    );
 
     res.status(200).json(
       ok(

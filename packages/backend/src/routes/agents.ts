@@ -21,7 +21,6 @@ import { validate } from '../middleware/validate.js';
 import { parseUserId, parseAgentId } from '@moca/core';
 import { createAgentsService, UpdateAgentInput } from '../services/agents-service.js';
 import { DEFAULT_AGENTS } from '../config/data/default-agents.js';
-import { logger } from '../libs/logger/index.js';
 import {
   AppError,
   ErrorCode,
@@ -64,22 +63,10 @@ router.get(
   '/',
   resolveTargetUser,
   asyncHandler(async (req: AuthenticatedRequest, res) => {
-    const auth = getCurrentAuth(req);
     const userId = req.targetUserId!;
-
-    logger.info(
-      {
-        userId,
-        username: auth.username,
-      },
-      'Agent list retrieval started (%s):',
-      auth.requestId
-    );
 
     const agentsService = createAgentsService();
     const agents = await agentsService.listAgents(userId);
-
-    logger.info('Agent list retrieval completed (%s): %d items', auth.requestId, agents.length);
 
     res.status(200).json(ok(req, { agents }, { userId, count: agents.length }));
   })
@@ -95,19 +82,8 @@ router.get(
   resolveTargetUser,
   validate({ params: agentIdParams }),
   asyncHandler(async (req: AuthenticatedRequest, res) => {
-    const auth = getCurrentAuth(req);
     const userId = req.targetUserId!;
     const agentId = parseAgentId(req.params.agentId);
-
-    logger.info(
-      {
-        userId,
-        username: auth.username,
-        agentId,
-      },
-      'Agent retrieval started (%s):',
-      auth.requestId
-    );
 
     const agentsService = createAgentsService();
     const agent = await agentsService.getAgent(userId, agentId);
@@ -115,8 +91,6 @@ router.get(
     if (!agent) {
       throw new AppError(ErrorCode.NOT_FOUND, 'Agent not found');
     }
-
-    logger.info('Agent retrieval completed (%s): %s', auth.requestId, agent.name);
 
     res.status(200).json(ok(req, { agent }, { userId }));
   })
@@ -136,16 +110,6 @@ router.post(
     const userId = req.targetUserId!;
     const input = req.body;
 
-    logger.info(
-      {
-        userId,
-        username: auth.username,
-        agentName: input.name,
-      },
-      'Agent creation started (%s):',
-      auth.requestId
-    );
-
     const agentsService = createAgentsService();
     // `scenarios` is optional on the wire but `createAgent` dereferences it
     // unconditionally; default to an empty array so an omitted field is a
@@ -155,8 +119,6 @@ router.post(
       { ...input, scenarios: input.scenarios ?? [] },
       auth.username
     );
-
-    logger.info('Agent creation completed (%s): %s', auth.requestId, agent.agentId);
 
     res.status(201).json(ok(req, { agent }, { userId }));
   })
@@ -172,20 +134,9 @@ router.put(
   resolveTargetUser,
   validate({ params: agentIdParams, body: updateAgentBody }),
   asyncHandler(async (req: AuthenticatedRequest, res) => {
-    const auth = getCurrentAuth(req);
     const userId = req.targetUserId!;
     const agentId = parseAgentId(req.params.agentId);
     const input = req.body;
-
-    logger.info(
-      {
-        userId,
-        username: auth.username,
-        agentId,
-      },
-      'Agent update started (%s):',
-      auth.requestId
-    );
 
     const agentsService = createAgentsService();
     const updateInput: UpdateAgentInput = {
@@ -203,8 +154,6 @@ router.put(
       throw e;
     }
 
-    logger.info('Agent update completed (%s): %s', auth.requestId, agent.name);
-
     res.status(200).json(ok(req, { agent }, { userId }));
   })
 );
@@ -218,24 +167,11 @@ router.delete(
   '/:agentId',
   validate({ params: agentIdParams }),
   asyncHandler(async (req: AuthenticatedRequest, res) => {
-    const auth = getCurrentAuth(req);
     const userId = requireUserId(req);
     const agentId = parseAgentId(req.params.agentId);
 
-    logger.info(
-      {
-        userId,
-        username: auth.username,
-        agentId,
-      },
-      'Agent deletion started (%s):',
-      auth.requestId
-    );
-
     const agentsService = createAgentsService();
     await agentsService.deleteAgent(userId, agentId);
-
-    logger.info('Agent deletion completed (%s): %s', auth.requestId, agentId);
 
     res.status(200).json(ok(req, { success: true }, { userId }));
   })
@@ -250,19 +186,8 @@ router.put(
   '/:agentId/share',
   validate({ params: agentIdParams }),
   asyncHandler(async (req: AuthenticatedRequest, res) => {
-    const auth = getCurrentAuth(req);
     const userId = requireUserId(req);
     const agentId = parseAgentId(req.params.agentId);
-
-    logger.info(
-      {
-        userId,
-        username: auth.username,
-        agentId,
-      },
-      'Agent share status toggle started (%s):',
-      auth.requestId
-    );
 
     const agentsService = createAgentsService();
     let agent;
@@ -274,12 +199,6 @@ router.put(
       }
       throw e;
     }
-
-    logger.info(
-      'Agent share status toggle completed (%s): isShared=%s',
-      auth.requestId,
-      agent.isShared
-    );
 
     res.status(200).json(ok(req, { agent }, { userId }));
   })
@@ -297,22 +216,13 @@ router.post(
     const auth = getCurrentAuth(req);
     const userId = requireUserId(req);
 
-    logger.info(
-      {
-        userId,
-        username: auth.username,
-      },
-      'Default Agent initialization started (%s):',
-      auth.requestId
-    );
-
     const agentsService = createAgentsService();
 
     // Check if existing Agents exist
     const existingAgents = await agentsService.listAgents(userId);
 
     if (existingAgents.length > 0) {
-      logger.info('ℹ️  Skipping initialization because existing Agents exist (%s)', auth.requestId);
+      req.log.info({ count: existingAgents.length }, 'Skipping initialization because existing Agents exist');
       res.status(200).json(
         ok(
           req,
@@ -332,12 +242,6 @@ router.post(
       userId,
       DEFAULT_AGENTS,
       auth.username
-    );
-
-    logger.info(
-      'Default Agent initialization completed (%s): %d items',
-      auth.requestId,
-      agents.length
     );
 
     res
@@ -361,7 +265,6 @@ router.post(
 router.get(
   '/shared-agents/list',
   asyncHandler(async (req: AuthenticatedRequest, res) => {
-    const auth = getCurrentAuth(req);
     // Clamp the page size with the shared helper (NaN/negative → default 20,
     // capped at MAX_PAGE_SIZE) instead of an unbounded parseInt, consistent
     // with the other list endpoints.
@@ -369,24 +272,8 @@ router.get(
     const searchQuery = queryString(req.query.q);
     const cursor = queryString(req.query.cursor);
 
-    logger.info(
-      {
-        searchQuery,
-        limit,
-        hasCursor: !!cursor,
-      },
-      'Shared Agent list retrieval started (%s):',
-      auth.requestId
-    );
-
     const agentsService = createAgentsService();
     const result = await agentsService.listSharedAgents(limit, searchQuery, cursor);
-
-    logger.info(
-      'Shared Agent list retrieval completed (%s): %d items',
-      auth.requestId,
-      result.items.length
-    );
 
     res.status(200).json(
       ok(
@@ -408,18 +295,8 @@ router.get(
   '/shared-agents/:userId/:agentId',
   validate({ params: sharedAgentParams }),
   asyncHandler(async (req: AuthenticatedRequest, res) => {
-    const auth = getCurrentAuth(req);
     const userId = parseUserId(req.params.userId);
     const agentId = parseAgentId(req.params.agentId);
-
-    logger.info(
-      {
-        userId,
-        agentId,
-      },
-      'Shared Agent detail retrieval started (%s):',
-      auth.requestId
-    );
 
     const agentsService = createAgentsService();
     const agent = await agentsService.getSharedAgent(userId, agentId);
@@ -427,8 +304,6 @@ router.get(
     if (!agent) {
       throw new AppError(ErrorCode.NOT_FOUND, 'Shared Agent not found');
     }
-
-    logger.info('Shared Agent detail retrieval completed (%s): %s', auth.requestId, agent.name);
 
     res.status(200).json(ok(req, { agent }));
   })
@@ -449,17 +324,6 @@ router.post(
     const sourceUserId = parseUserId(req.params.userId);
     const sourceAgentId = parseAgentId(req.params.agentId);
 
-    logger.info(
-      {
-        targetUserId,
-        targetUsername: auth.username,
-        sourceUserId,
-        sourceAgentId,
-      },
-      'Shared Agent clone started (%s):',
-      auth.requestId
-    );
-
     const agentsService = createAgentsService();
     let clonedAgent;
     try {
@@ -475,8 +339,6 @@ router.post(
       }
       throw e;
     }
-
-    logger.info('Shared Agent clone completed (%s): %s', auth.requestId, clonedAgent.agentId);
 
     res.status(201).json(ok(req, { agent: clonedAgent }, { userId: targetUserId }));
   })
