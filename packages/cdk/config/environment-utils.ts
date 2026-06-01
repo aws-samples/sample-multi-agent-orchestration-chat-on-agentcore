@@ -33,10 +33,15 @@ export function deriveBedrockIamResources(
   const resources: string[] = [];
 
   for (const model of models) {
-    // Inference profile ARN (for cross-region routing, e.g. global.*, us.*, etc.)
-    resources.push(`arn:aws:bedrock:${region}:${account}:inference-profile/${model.id}`);
+    // Inference profile ARN (only for cross-region inference profile IDs, e.g.
+    // global.*, us.*, etc.). In-Region models (e.g. qwen.*) have no inference
+    // profile, so we skip this ARN to keep the IAM policy least-privilege.
+    if (INFERENCE_PROFILE_STRIP.test(model.id)) {
+      resources.push(`arn:aws:bedrock:${region}:${account}:inference-profile/${model.id}`);
+    }
 
-    // Foundation model ARN (strip inference profile prefix for direct access)
+    // Foundation model ARN (strip inference profile prefix for direct access).
+    // For bare In-Region IDs this is the only resource needed.
     const baseId = model.id.replace(INFERENCE_PROFILE_STRIP, '');
     resources.push(`arn:aws:bedrock:*::foundation-model/${baseId}*`);
   }
@@ -94,11 +99,26 @@ const DEFAULT_CONFIG = {
       name: 'Nova Lite 2',
       provider: 'Amazon',
     },
+    {
+      // In-Region only, bare id (no -v1:0 suffix). maxOutputTokens lives in
+      // BEDROCK_MODEL_DEFINITIONS (@moca/core) — CDK config carries id/name/provider only.
+      id: 'qwen.qwen3-coder-next',
+      name: 'Qwen3 Coder Next',
+      provider: 'Qwen',
+    },
   ] satisfies BedrockModelConfig[],
 };
 
-const VALID_PROVIDERS: readonly string[] = ['Anthropic', 'Amazon'];
-const INFERENCE_PROFILE_PREFIX = /^(global|us|eu|apac|jp)\./;
+const VALID_PROVIDERS: readonly string[] = ['Anthropic', 'Amazon', 'Qwen'];
+
+/**
+ * A routable Bedrock model id must be namespaced: one or more `vendor.` segments
+ * followed by a model name. This accepts both cross-region inference profile IDs
+ * (e.g. `global.anthropic.claude-sonnet-4-6`) and bare In-Region foundation-model
+ * IDs (e.g. `qwen.qwen3-235b-a22b-2507-v1:0`). The check guards against
+ * typos / unqualified IDs rather than enforcing a specific inference profile prefix.
+ */
+const NAMESPACED_MODEL_ID = /^([a-z0-9-]+\.)+[a-z0-9][a-z0-9.:_-]*$/;
 
 /**
  * Cognito domain prefix regex.
@@ -149,9 +169,11 @@ function validateBedrockModels(models: BedrockModelConfig[], env: Environment): 
     if (!model.id || typeof model.id !== 'string') {
       throw new Error(`[${env}] bedrockModels: invalid model id: ${JSON.stringify(model)}`);
     }
-    if (!INFERENCE_PROFILE_PREFIX.test(model.id)) {
+    if (!NAMESPACED_MODEL_ID.test(model.id)) {
       throw new Error(
-        `[${env}] bedrockModels: model id "${model.id}" must start with inference profile prefix (global., us., eu., apac., jp.)`
+        `[${env}] bedrockModels: model id "${model.id}" must be a namespaced model id ` +
+          `(e.g. an inference profile id like "global.anthropic.claude-sonnet-4-6" ` +
+          `or a bare In-Region id like "qwen.qwen3-235b-a22b-2507-v1:0")`
       );
     }
     if (!model.name || typeof model.name !== 'string') {

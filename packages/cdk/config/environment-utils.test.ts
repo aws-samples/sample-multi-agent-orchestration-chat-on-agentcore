@@ -91,6 +91,48 @@ describe('deriveBedrockIamResources', () => {
     expect(result).toContain('arn:aws:bedrock:*::foundation-model/anthropic.claude-3-sonnet*');
   });
 
+  // ── In-Region (no CRIS prefix) models, e.g. Qwen3 ──────────────────────────
+
+  it('skips the inference-profile ARN for a bare In-Region model id (Qwen3)', () => {
+    const models = [
+      {
+        id: 'qwen.qwen3-235b-a22b-2507-v1:0',
+        name: 'Qwen3 235B',
+        provider: 'Qwen' as const,
+      },
+    ];
+    const result = deriveBedrockIamResources(models, REGION, ACCOUNT);
+
+    // Only the foundation-model ARN is produced (no inference-profile ARN).
+    expect(result).toEqual(['arn:aws:bedrock:*::foundation-model/qwen.qwen3-235b-a22b-2507-v1:0*']);
+    expect(result.some((r) => r.includes('inference-profile'))).toBe(false);
+  });
+
+  it('still emits an inference-profile ARN for CRIS-prefixed models alongside bare ones', () => {
+    const models = [
+      {
+        id: 'global.anthropic.claude-sonnet-4-6',
+        name: 'Claude',
+        provider: 'Anthropic' as const,
+      },
+      {
+        id: 'qwen.qwen3-coder-480b-a35b-v1:0',
+        name: 'Qwen3 Coder',
+        provider: 'Qwen' as const,
+      },
+    ];
+    const result = deriveBedrockIamResources(models, REGION, ACCOUNT);
+
+    // Claude → 2 ARNs (inference-profile + foundation-model); Qwen3 → 1 (foundation-model only).
+    expect(result).toHaveLength(3);
+    expect(result).toContain(
+      `arn:aws:bedrock:${REGION}:${ACCOUNT}:inference-profile/global.anthropic.claude-sonnet-4-6`
+    );
+    expect(result).toContain(
+      'arn:aws:bedrock:*::foundation-model/qwen.qwen3-coder-480b-a35b-v1:0*'
+    );
+  });
+
   // ── Multiple models ─────────────────────────────────────────────────────────
 
   it('produces two ARNs (inference-profile + foundation-model) per model', () => {

@@ -32,6 +32,7 @@ import {
   ToolUseBlock,
   ToolResultBlock,
   ImageBlock,
+  toolResultContentFromData,
   type ContentBlock,
   type ToolResultContent,
 } from '@strands-agents/sdk';
@@ -141,6 +142,46 @@ export function contentBlockToWire(block: ContentBlock): WireContentBlock {
 // ---------------------------------------------------------------------------
 
 /**
+ * Rehydrate the persisted `ToolResultBlock.content` (a plain-JSON projection)
+ * into SDK `ToolResultContent` instances.
+ *
+ * The wire shape uses the Bedrock-native key form (`{ text }`, `{ json }`,
+ * `{ image }`, …) which `toolResultContentFromData` understands. Anything
+ * unrecognised is downgraded to a `TextBlock` so a single malformed entry can
+ * never produce a `ToolResultBlock` with empty/invalid inner content (Bedrock
+ * rejects a `toolResult` whose `content` is missing or empty).
+ */
+function restoreToolResultContent(rawContent: unknown): ToolResultContent[] {
+  const entries = Array.isArray(rawContent) ? rawContent : [];
+  const restored: ToolResultContent[] = [];
+
+  for (const entry of entries) {
+    try {
+      restored.push(toolResultContentFromData(entry as never));
+    } catch {
+      // Unknown / legacy shape — fall back to a stringified text block so the
+      // result still carries content rather than dropping out entirely.
+      const text =
+        entry && typeof entry === 'object' && 'text' in entry
+          ? String((entry as { text: unknown }).text)
+          : JSON.stringify(entry);
+      restored.push(new TextBlock(text) as unknown as ToolResultContent);
+      logger.warn(
+        { entry },
+        'restoreToolResultContent: unrecognised toolResult content entry, coerced to TextBlock'
+      );
+    }
+  }
+
+  // Never return an empty array — Bedrock rejects a toolResult with no content.
+  if (restored.length === 0) {
+    restored.push(new TextBlock(' ') as unknown as ToolResultContent);
+  }
+
+  return restored;
+}
+
+/**
  * Restore a wire block back into a SDK `ContentBlock` instance suitable
  * for passing into `new Agent({ messages })`.
  *
@@ -168,8 +209,19 @@ export function wireToContentBlock(wire: WireContentBlock): ContentBlock {
       return new ToolResultBlock({
         toolUseId: wire.toolUseId,
         status: wire.status,
-        // We saved a JSONValue projection; cast back to `ToolResultContent[]`.
-        content: wire.content as unknown as ToolResultContent[],
+        // The inner content was persisted as a plain-JSON projection. It MUST be
+        // rehydrated into SDK content-block instances (TextBlock/JsonBlock/…) via
+        // `toolResultContentFromData` — `new ToolResultBlock` assigns `content`
+        // verbatim without normalising it. If left as plain objects, the blocks
+        // lack both a `.type` discriminator and a `.toJSON()` method, which breaks
+        // two downstream paths on the NEXT turn (when this restored message is
+        // re-sent):
+        //   1. BedrockModel._formatContentBlock switches on `content.type`; plain
+        //      objects match no case, the inner content becomes empty, and Bedrock
+        //      rejects the request with "Invalid 'messages': missing field `content`".
+        //   2. Message.toJSON()/telemetry call `block.toJSON()`, throwing
+        //      "block.toJSON is not a function".
+        content: restoreToolResultContent(wire.content),
       });
 
     case 'imageBlock': {

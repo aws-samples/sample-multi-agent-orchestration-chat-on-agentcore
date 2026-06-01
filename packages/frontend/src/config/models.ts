@@ -10,8 +10,14 @@ import { BEDROCK_MODEL_DEFINITIONS } from '@moca/core';
 export interface BedrockModel {
   id: string;
   name: string;
-  provider: 'Anthropic' | 'Amazon';
+  provider: 'Anthropic' | 'Amazon' | 'Qwen';
 }
+
+const VALID_PROVIDERS: ReadonlySet<BedrockModel['provider']> = new Set([
+  'Anthropic',
+  'Amazon',
+  'Qwen',
+]);
 
 /**
  * Fallback model list derived from the canonical BEDROCK_MODEL_DEFINITIONS.
@@ -29,8 +35,7 @@ function isValidModel(m: unknown): m is BedrockModel {
     ((m as Record<string, unknown>).id as string).length > 0 &&
     typeof (m as Record<string, unknown>).name === 'string' &&
     ((m as Record<string, unknown>).name as string).length > 0 &&
-    ((m as Record<string, unknown>).provider === 'Anthropic' ||
-      (m as Record<string, unknown>).provider === 'Amazon')
+    VALID_PROVIDERS.has((m as Record<string, unknown>).provider as BedrockModel['provider'])
   );
 }
 

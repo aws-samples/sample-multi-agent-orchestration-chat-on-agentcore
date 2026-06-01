@@ -3,7 +3,7 @@
  */
 
 import { describe, it, expect } from '@jest/globals';
-import { Message, TextBlock, ImageBlock } from '@strands-agents/sdk';
+import { Message, TextBlock, ImageBlock, ToolUseBlock, ToolResultBlock } from '@strands-agents/sdk';
 import {
   messageToAgentCorePayload,
   agentCorePayloadToMessage,
@@ -406,6 +406,69 @@ describe('agentCorePayloadToMessage', () => {
       expect(restoredBlock.format).toBe('jpeg');
       const restoredSource = restoredBlock.source as { bytes?: Uint8Array };
       expect(Array.from(restoredSource.bytes!)).toEqual([255, 216, 255, 224]);
+    });
+
+    // Regression: a toolResult message must restore with its INNER content as
+    // SDK content-block instances (not plain objects). Otherwise, on the next
+    // turn the restored history breaks both BedrockModel._formatContentBlock
+    // (which switches on `content.type` → empty content → Bedrock
+    // "missing field `content`") and Message.toJSON() (`block.toJSON is not a
+    // function`). See content-block-codec.ts:restoreToolResultContent.
+    it('toolResult message roundtrips with inner content as SDK instances', () => {
+      const original = new Message({
+        role: 'user',
+        content: [
+          new ToolResultBlock({
+            toolUseId: 'tool-123',
+            status: 'success',
+            content: [new TextBlock('a.txt b.txt')],
+          }),
+        ],
+      });
+
+      const payload = messageToAgentCorePayload(original);
+      const restored = agentCorePayloadToMessage(payload);
+
+      const block = restored.content[0] as ToolResultBlock;
+      expect(block.type).toBe('toolResultBlock');
+      expect(block.toolUseId).toBe('tool-123');
+      expect(block.status).toBe('success');
+
+      // Inner content must be a real TextBlock instance (has `type` + `toJSON`).
+      const inner = block.content[0] as TextBlock;
+      expect(inner.type).toBe('textBlock');
+      expect(inner.text).toBe('a.txt b.txt');
+      expect(typeof (inner as unknown as { toJSON?: unknown }).toJSON).toBe('function');
+
+      // The whole message must serialize without throwing (this is exactly what
+      // the SDK telemetry / Bedrock request path does on the next turn).
+      expect(() => restored.toJSON()).not.toThrow();
+      const json = restored.toJSON() as { content: Array<{ toolResult?: { content: unknown[] } }> };
+      // The Bedrock-native projection must carry the inner content (not empty).
+      expect(json.content[0].toolResult?.content).toHaveLength(1);
+    });
+
+    it('assistant toolUse + following toolResult turn roundtrips and re-serializes', () => {
+      // Mirrors a real tool-calling turn pair as stored/replayed across requests.
+      const assistant = new Message({
+        role: 'assistant',
+        content: [new ToolUseBlock({ name: 's3_list_files', toolUseId: 't1', input: { path: '/' } })],
+      });
+      const toolResult = new Message({
+        role: 'user',
+        content: [
+          new ToolResultBlock({
+            toolUseId: 't1',
+            status: 'success',
+            content: [new TextBlock('100 files')],
+          }),
+        ],
+      });
+
+      for (const original of [assistant, toolResult]) {
+        const restored = agentCorePayloadToMessage(messageToAgentCorePayload(original));
+        expect(() => restored.toJSON()).not.toThrow();
+      }
     });
   });
 });
