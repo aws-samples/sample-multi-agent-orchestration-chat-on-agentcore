@@ -19,7 +19,7 @@ export interface TooltipProps {
   maxWidth?: string;
   /** Disable the tooltip */
   disabled?: boolean;
-  /** Display delay time (milliseconds, default: 200) */
+  /** Display delay time (milliseconds, default: 0) */
   delay?: number;
 }
 
