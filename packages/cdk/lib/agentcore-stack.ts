@@ -69,7 +69,7 @@ export interface AgentCoreStackProps extends cdk.StackProps {
 
   /**
    * Memory expiration period in days (optional)
-   * Default: 90 days
+   * Default: 30 days (DEFAULT_CONFIG.memoryExpirationDays in config/environment-utils.ts)
    */
   readonly memoryExpirationDays?: number;
 
