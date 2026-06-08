@@ -72,6 +72,40 @@ test:workspaces:
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
     - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
 
+# L2 integration tests: exercise the DynamoDB data-access layer against a real
+# DynamoDB Local container started by Testcontainers. Requires a Docker daemon,
+# so this job runs under Docker-in-Docker rather than the plain node template.
+#
+# Testcontainers maps published ports on the dind host; TESTCONTAINERS_HOST_OVERRIDE
+# tells the test process to reach those mapped ports via the `docker` service
+# hostname instead of localhost.
+test:integration:
+  stage: test
+  image: node:22
+  services:
+    - docker:dind
+  variables:
+    DOCKER_HOST: 'tcp://docker:2375'
+    DOCKER_TLS_CERTDIR: ''
+    TESTCONTAINERS_HOST_OVERRIDE: 'docker'
+    TESTCONTAINERS_RYUK_DISABLED: 'true'
+    NODE_OPTIONS: '--max-old-space-size=4096'
+    npm_config_cache: '$CI_PROJECT_DIR/.npm-cache'
+  cache:
+    key: npm-cache
+    paths:
+      - node_modules/
+      - packages/*/node_modules/
+      - .npm-cache/
+  before_script:
+    - npm ci --prefer-offline --no-audit || (npm cache clean --force && npm ci --no-audit)
+  script:
+    - npm run build:ts
+    - npm run test:integration -w @moca/backend
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+
 test:root:
   <<: *node_template
   stage: test

@@ -93,6 +93,7 @@ temp/
 *.local.sh
 
 !jest.config.js
+!jest.integration.config.js
 
 # ASH security scanner output (keep config file)
 .ash/*
