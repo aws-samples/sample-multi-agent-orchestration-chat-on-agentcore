@@ -102,6 +102,7 @@ test:integration:
   script:
     - npm run build:ts
     - npm run test:integration -w @moca/backend
+    - npm run test:ddb -w @moca/agent
   rules:
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
     - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH

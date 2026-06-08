@@ -89,13 +89,19 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      # Backend repository integration tests spin up `amazon/dynamodb-local`
-      # via Testcontainers. The ubuntu-latest runner has a Docker daemon
+      # Repository integration tests spin up `amazon/dynamodb-local` via
+      # Testcontainers. The ubuntu-latest runner has a Docker daemon
       # preinstalled, so no services/dind setup is required (unlike GitLab).
-      # Scoped to @moca/backend so the agent package's real-AWS integration
-      # tests (which self-gate on credentials) are not pulled in.
+      # Each command is scoped so the agent package's real-AWS integration
+      # tests (which self-gate on credentials) are NOT pulled in:
+      #   - backend: test:integration runs only repositories/**.integration
+      #   - agent:   test:ddb runs only the DynamoDB-Local repository tests
+      #              (test:integration there is the separate real-AWS suite)
       - name: Run backend integration tests
         run: npm run test:integration -w @moca/backend
+
+      - name: Run agent DynamoDB Local tests
+        run: npm run test:ddb -w @moca/agent
 
   ash:
     name: Security Scan (ASH)
