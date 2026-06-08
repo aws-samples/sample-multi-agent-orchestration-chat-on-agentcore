@@ -117,6 +117,43 @@ jobs:
       - name: Run ASH
         run: uvx 'git+https://github.com/awslabs/automated-security-helper.git@v3.1.5'
 
+      # TEMPORARY DIAGNOSTIC: print the exact rule_id + location.uri ASH matches
+      # suppressions against, so the suppression globs can be aligned to the
+      # real CI finding paths. Remove once ASH is green.
+      - name: Debug — dump ASH finding rule_id/path
+        if: always()
+        run: |
+          echo "=== npm-audit SARIF locations ==="
+          find .ash/ash_output -path '*npm-audit*' -name '*.sarif' -exec sh -c '
+            python3 -c "
+import json,sys
+d=json.load(open(\"$1\"))
+for run in d.get(\"runs\",[]):
+    for r in run.get(\"results\",[]):
+        locs=[l.get(\"physicalLocation\",{}).get(\"artifactLocation\",{}).get(\"uri\") for l in r.get(\"locations\",[])]
+        print(repr(r.get(\"ruleId\")), \"|\", locs)
+"' _ {} \;
+          echo "=== aggregated/OCSF findings (rule_id + file_path) ==="
+          find .ash/ash_output -name '*.json' | while read f; do
+            python3 -c "
+import json,sys
+try:
+    d=json.load(open('$f'))
+except Exception:
+    sys.exit(0)
+def walk(o):
+    if isinstance(o,dict):
+        rid=o.get('rule_id') or o.get('ruleId')
+        fp=o.get('file_path') or o.get('path')
+        if rid and ('GHSA' in str(rid) or 'q7rr' in str(rid) or 'jxxr' in str(rid)):
+            print('$f', '::', repr(rid), '|', repr(fp))
+        for v in o.values(): walk(v)
+    elif isinstance(o,list):
+        for v in o: walk(v)
+walk(d)
+" 2>/dev/null
+          done | sort -u
+
   build:
     name: Build
     runs-on: ubuntu-latest
