@@ -117,36 +117,6 @@ jobs:
       - name: Run ASH
         run: uvx 'git+https://github.com/awslabs/automated-security-helper.git@v3.1.5'
 
-      # Diagnostic: on failure, dump the aggregated ASH report so we can see the
-      # exact `file_path` each GHSA finding carries (what suppressions match on).
-      - name: Debug ASH findings
-        if: always()
-        run: |
-          python3 - <<'PYEOF' || true
-          import json, glob
-          for f in glob.glob('.ash/ash_output/**/*.json', recursive=True):
-              try:
-                  d = json.load(open(f))
-              except Exception:
-                  continue
-              hits = []
-              def walk(o):
-                  if isinstance(o, dict):
-                      rid = o.get('rule_id') or o.get('ruleId')
-                      if rid and 'GHSA' in str(rid):
-                          hits.append((rid, o.get('file_path'), o.get('file_name')))
-                      for v in o.values():
-                          walk(v)
-                  elif isinstance(o, list):
-                      for v in o:
-                          walk(v)
-              walk(d)
-              if hits:
-                  print('###', f)
-                  for h in sorted(set(hits)):
-                      print('   rule_id=%r file_path=%r file_name=%r' % h)
-          PYEOF
-
   build:
     name: Build
     runs-on: ubuntu-latest

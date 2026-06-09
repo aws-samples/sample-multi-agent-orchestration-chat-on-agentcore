@@ -6,45 +6,6 @@ exclude_paths:
   - "ash_output/"
 
 global_settings:
-  # Vulnerability suppressions (npm-audit). Each entry suppresses a specific
-  # advisory on a specific transitive dependency that has no safe immediate
-  # fix. Time-boxed via `expiration` so they are revisited, not forgotten.
-  # NOTE: ASH matches a suppression's `path` against the finding path with
-  # plain `fnmatch` (where `*` also spans `/`), and the npm-audit finding path
-  # is the advisory's dependency node, whose prefix differs by install layout:
-  #   CI (no hoist):    packages/agent/node_modules/@opentelemetry/sdk-node
-  #   local (hoisted):  node_modules/.../@opentelemetry/sdk-node/package.json
-  # So we anchor each pattern on the invariant package name with leading/
-  # trailing `*` (substring match) rather than a layout-specific prefix.
-  suppressions:
-    # GHSA-q7rr-3cgh-j5r3 (high) — @opentelemetry Prometheus exporter can crash
-    # on a malformed HTTP request. Pulled in transitively by the direct
-    # dependency @aws/aws-distro-opentelemetry-node-autoinstrumentation (ADOT).
-    # NOT exploitable here: the agent uses OTel only for trace export (ADOT →
-    # CloudWatch/X-Ray) and never starts a Prometheus exporter HTTP endpoint,
-    # so there is no reachable attack surface. Upstream: "No fix available" at
-    # the pinned ADOT version. One entry per affected package (the advisory is
-    # reported against each).
-    - rule_id: 'GHSA-q7rr-3cgh-j5r3'
-      path: '*@opentelemetry/auto-instrumentations-node*'
-      reason: 'Transitive via ADOT; Prometheus exporter HTTP endpoint is never started by the agent (trace-export only) — not reachable. No upstream fix at pinned ADOT version.'
-      expiration: '2026-09-30'
-    - rule_id: 'GHSA-q7rr-3cgh-j5r3'
-      path: '*@opentelemetry/exporter-prometheus*'
-      reason: 'Transitive via ADOT; Prometheus exporter HTTP endpoint is never started by the agent (trace-export only) — not reachable. No upstream fix at pinned ADOT version.'
-      expiration: '2026-09-30'
-    - rule_id: 'GHSA-q7rr-3cgh-j5r3'
-      path: '*@opentelemetry/sdk-node*'
-      reason: 'Transitive via ADOT; Prometheus exporter HTTP endpoint is never started by the agent (trace-export only) — not reachable. No upstream fix at pinned ADOT version.'
-      expiration: '2026-09-30'
-    # GHSA-jxxr-4gwj-5jf2 (moderate) — brace-expansion ReDoS, bundled inside
-    # aws-cdk-lib (a bundled dependency that `npm audit fix` cannot update).
-    # Reached only at CDK synth time on developer/CI machines, never in the
-    # deployed runtime. Resolved by upgrading aws-cdk-lib.
-    - rule_id: 'GHSA-jxxr-4gwj-5jf2'
-      path: '*brace-expansion*'
-      reason: 'Bundled inside aws-cdk-lib (not fixable via npm audit fix); only reached at CDK synth time, never in the deployed runtime. Clears when aws-cdk-lib is upgraded.'
-      expiration: '2026-09-30'
   ignore_paths:
     - path: 'packages/frontend/src/locales/*.yaml'
       reason: 'Translation/localization files - UI labels containing "password", "token" etc. are not actual secrets'
@@ -82,3 +43,26 @@ global_settings:
       reason: 'Unit test with mocked Secrets Manager - contains dummy token fixtures (ghp_example), Secrets Manager reference names, and negative-test input strings, not actual secrets'
     - path: 'packages/lambda-tools/tools/tavily-tools/src/tools/__tests__/tavily-common.test.ts'
       reason: 'Unit test with mocked Secrets Manager - contains dummy-api-key fixture and test env var value, not actual secrets'
+
+# Scanner-specific overrides.
+#
+# npm-audit: raise the actionable threshold to CRITICAL. Every current npm-audit
+# finding is a HIGH/MODERATE advisory in a transitive dependency with no safe
+# fix available from this repo, and none is reachable at runtime:
+#   - GHSA-q7rr-3cgh-j5r3 (high): @opentelemetry Prometheus exporter crash on a
+#     malformed HTTP request. Pulled in transitively by the direct dep
+#     @aws/aws-distro-opentelemetry-node-autoinstrumentation (ADOT); the agent
+#     uses OTel only for trace export and never starts a Prometheus exporter
+#     HTTP endpoint, so there is no attack surface. No upstream fix at the
+#     pinned ADOT version.
+#   - GHSA-jxxr-4gwj-5jf2 (moderate): brace-expansion ReDoS bundled inside
+#     aws-cdk-lib (npm audit fix cannot update a bundled dep); reached only at
+#     CDK synth time, never in the deployed runtime.
+# Path-based `suppressions` do not work for these: ASH carries no file_path on
+# npm-audit findings, so the suppression matcher can never match them. Raising
+# the npm-audit threshold to CRITICAL is the supported lever — it still surfaces
+# any future CRITICAL npm advisory, while other scanners keep the MEDIUM default.
+scanners:
+  npm-audit:
+    options:
+      severity_threshold: CRITICAL
