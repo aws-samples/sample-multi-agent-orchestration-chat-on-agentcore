@@ -12,8 +12,8 @@
  * Normalize a storage path by stripping leading and trailing slashes. Interior
  * slashes are preserved. Root (`/`) and empty input normalize to `''`.
  */
-export function normalizePath(path: string): string {
-  return path.replace(/^\/+|\/+$/g, '');
+export function normalizePath(input: string): string {
+  return input.replace(/^\/+|\/+$/g, '');
 }
 
 /**
@@ -39,4 +39,37 @@ export function buildUserPrefix(storageKey: string, storagePath: string): string
   const base = getUserStoragePrefix(storageKey);
   const normalized = normalizePath(storagePath);
   return normalized ? `${base}/${normalized}/` : `${base}/`;
+}
+
+/**
+ * Resolve a user-supplied storage sub-path to an absolute directory that is
+ * guaranteed to stay within `baseDir`.
+ *
+ * The sub-path is split into segments; `.` and empty segments are dropped and
+ * `..` segments pop the accumulated path but are clamped at the base (they can
+ * never climb above it). The result is therefore always `baseDir` or a
+ * descendant — this is the sanitization that lets the join be safe against
+ * path traversal (`../../etc/passwd` → `baseDir/etc/passwd`).
+ */
+export function safeWorkspaceDir(baseDir: string, storagePath: string): string {
+  const safeSegments = normalizePath(storagePath)
+    .split('/')
+    .reduce<string[]>((acc, segment) => {
+      if (segment === '' || segment === '.') return acc;
+      if (segment === '..') {
+        acc.pop(); // clamp: never escape baseDir
+        return acc;
+      }
+      acc.push(segment);
+      return acc;
+    }, []);
+
+  if (safeSegments.length === 0) return baseDir;
+
+  // Every segment is now a plain name (no '', '.', or '..'), so concatenating
+  // them under baseDir cannot escape it. We build the path by hand (rather than
+  // path.join) because the segments are already sanitized and to keep the
+  // construction an explicit allowlist join.
+  const base = baseDir.replace(/\/+$/, '');
+  return `${base}/${safeSegments.join('/')}`;
 }
