@@ -14,12 +14,14 @@ import { parseTriggerId } from '@moca/core';
 import { type AuthenticatedRequest, requireUserId } from '../middleware/auth.js';
 import { asyncHandler } from '../middleware/async-handler.js';
 import { validate } from '../middleware/validate.js';
+import { createTriggerBody, updateTriggerBody } from './trigger-schemas.js';
+import { getTriggersRepository } from '../services/triggers-repository.factory.js';
 import {
-  getTriggersDynamoDBService,
   MAX_TRIGGERS_PER_USER,
   TriggerLimitExceededError,
+  type Trigger,
   type TriggerType,
-} from '../services/triggers-dynamodb.js';
+} from '../repositories/triggers/index.js';
 import {
   getSchedulerService,
   InvalidScheduleIntervalError,
@@ -42,28 +44,13 @@ const router = Router();
 const triggerIdParams = z.object({ id: zTriggerId });
 
 /**
- * Project a stored Trigger into the public API shape (omits DynamoDB
- * internals like PK/SK/GSI keys). Shared by every endpoint that returns a
- * trigger so the response shape cannot drift between routes.
+ * Project a domain Trigger into the public API shape. The repository already
+ * strips DynamoDB internals (PK/SK/GSI), so this drops only the internal
+ * `userId` owner key and pins the field set the API exposes — shared by every
+ * endpoint that returns a trigger so the response shape cannot drift between
+ * routes.
  */
-function serializeTrigger(trigger: {
-  id: string;
-  name: string;
-  description?: string;
-  type: string;
-  enabled: boolean;
-  agentId: string;
-  prompt: string;
-  sessionId?: string;
-  modelId?: string;
-  workingDirectory?: string;
-  enabledTools?: string[];
-  scheduleConfig?: unknown;
-  eventConfig?: unknown;
-  createdAt: string;
-  updatedAt: string;
-  lastExecutedAt?: string;
-}) {
+function serializeTrigger(trigger: Trigger) {
   return {
     id: trigger.id,
     name: trigger.name,
@@ -89,7 +76,7 @@ function serializeTrigger(trigger: {
  * the table is not wired up (kept as a guard so handlers stay flat).
  */
 function getConfiguredTriggersService() {
-  const service = getTriggersDynamoDBService();
+  const service = getTriggersRepository();
   if (!service.isConfigured()) {
     throw new AppError(ErrorCode.CONFIGURATION_ERROR, 'Triggers Table is not configured');
   }
@@ -112,6 +99,30 @@ function mapScheduleError(error: unknown): AppError {
     `Failed to create schedule: ${error instanceof Error ? error.message : String(error)}`,
     { cause: error }
   );
+}
+
+/**
+ * Cross-field guard: an event trigger must subscribe to a source. The zod
+ * `eventConfigSchema` only enforces "if eventConfig is present it carries an
+ * eventSourceId" — it cannot express "type=event ⟹ eventConfig present". This
+ * is the single place that rule lives for both POST (no existing record) and
+ * PUT (where an unchanged `eventConfig` may already supply the source).
+ *
+ * Throws VALIDATION_ERROR when the resulting trigger would be an event trigger
+ * with no eventSourceId. `existing` is the eventSourceId already stored on the
+ * record being updated (undefined on create).
+ */
+function assertEventTriggerHasSource(
+  resultingType: TriggerType | undefined,
+  eventSourceId: string | undefined,
+  existingEventSourceId?: string
+): void {
+  if (resultingType === 'event' && !eventSourceId && !existingEventSourceId) {
+    throw new AppError(
+      ErrorCode.VALIDATION_ERROR,
+      'eventConfig.eventSourceId is required for event type triggers'
+    );
+  }
 }
 
 /**
@@ -140,13 +151,15 @@ router.get(
 
     const nextToken = encodePageToken(result.lastEvaluatedKey);
 
-    res.status(200).json(
-      ok(
-        req,
-        { triggers: result.triggers.map(serializeTrigger), nextToken },
-        { userId, count: result.triggers.length }
-      )
-    );
+    res
+      .status(200)
+      .json(
+        ok(
+          req,
+          { triggers: result.triggers.map(serializeTrigger), nextToken },
+          { userId, count: result.triggers.length }
+        )
+      );
   })
 );
 
@@ -169,21 +182,6 @@ router.get(
     res.status(200).json(ok(req, { trigger: serializeTrigger(trigger) }, { userId }));
   })
 );
-
-/** Request body for creating a trigger. */
-const createTriggerBody = z.object({
-  name: z.string().min(1),
-  description: z.string().optional(),
-  type: z.enum(['schedule', 'event']),
-  agentId: z.string().min(1),
-  prompt: z.string().min(1),
-  sessionId: z.string().optional(),
-  modelId: z.string().optional(),
-  workingDirectory: z.string().optional(),
-  enabledTools: z.array(z.string()).optional(),
-  scheduleConfig: z.record(z.string(), z.unknown()).optional(),
-  eventConfig: z.record(z.string(), z.unknown()).optional(),
-});
 
 /**
  * Create a new trigger
@@ -214,6 +212,7 @@ router.post(
         'scheduleConfig.expression is required for schedule type triggers'
       );
     }
+    assertEventTriggerHasSource(type, eventConfig?.eventSourceId);
 
     const triggersService = getConfiguredTriggersService();
     let trigger;
@@ -285,9 +284,6 @@ router.post(
   })
 );
 
-/** Request body for updating a trigger (partial). */
-const updateTriggerBody = createTriggerBody.partial();
-
 /**
  * Update a trigger
  * PUT /triggers/:id
@@ -320,6 +316,16 @@ router.put(
     } = req.body;
 
     const typeChanged = type && type !== existingTrigger.type;
+
+    // Changing to (or staying) an event trigger requires a subscription. We
+    // never persist an event trigger with no source (which would also leave
+    // GSI2 unset). A PUT that omits eventConfig keeps the stored source.
+    const resultingType = type ?? existingTrigger.type;
+    assertEventTriggerHasSource(
+      resultingType,
+      eventConfig?.eventSourceId,
+      existingTrigger.eventConfig?.eventSourceId
+    );
 
     // Type change: schedule -> event — tear down the EventBridge Schedule.
     if (typeChanged && existingTrigger.type === 'schedule' && type === 'event') {
@@ -425,7 +431,10 @@ router.put(
         if (scheduleError instanceof InvalidScheduleIntervalError) {
           throw mapScheduleError(scheduleError);
         }
-        req.log.warn({ err: scheduleError }, 'Failed to update EventBridge Schedule (non-critical):');
+        req.log.warn(
+          { err: scheduleError },
+          'Failed to update EventBridge Schedule (non-critical):'
+        );
       }
     }
 
@@ -580,14 +589,13 @@ router.get(
       ok(
         req,
         {
+          // `executedAt` is already normalized by the repository (it backfills
+          // the legacy `startedAt` attribute on old rows), so the route just
+          // projects the response fields.
           executions: result.executions.map((execution) => ({
             executionId: execution.executionId,
             triggerId: execution.triggerId,
-            // Backward compatibility: old records have startedAt instead of executedAt
-            executedAt:
-              execution.executedAt ||
-              ((execution as unknown as Record<string, unknown>).startedAt as string) ||
-              '',
+            executedAt: execution.executedAt,
             sessionId: execution.sessionId,
             eventPayload: execution.eventPayload,
             errorMessage: execution.errorMessage,

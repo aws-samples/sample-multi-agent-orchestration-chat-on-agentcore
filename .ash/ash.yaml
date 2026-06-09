@@ -43,3 +43,8 @@ global_settings:
       reason: 'Unit test with mocked Secrets Manager - contains dummy token fixtures (ghp_example), Secrets Manager reference names, and negative-test input strings, not actual secrets'
     - path: 'packages/lambda-tools/tools/tavily-tools/src/tools/__tests__/tavily-common.test.ts'
       reason: 'Unit test with mocked Secrets Manager - contains dummy-api-key fixture and test env var value, not actual secrets'
+    # Both the backend and agent DDB-Local harnesses have an identical
+    # client.ts. A single fnmatch glob (where `*` also spans `/`) covers both
+    # regardless of the path prefix ASH hands the matcher.
+    - path: '*tests/integration/client.ts'
+      reason: 'DynamoDB Local test harness - the placeholder credential literal "local" for the local container (DynamoDB Local ignores credentials) is not a real secret'

@@ -14,7 +14,7 @@ import { type AuthenticatedRequest } from '../middleware/auth.js';
 import { asyncHandler } from '../middleware/async-handler.js';
 import { validate } from '../middleware/validate.js';
 import { createAgentCoreMemoryServiceForRequest } from '../services/agentcore-memory.js';
-import { getSessionsDynamoDBService } from '../services/sessions-dynamodb.js';
+import { getSessionsRepository } from '../services/sessions-repository.factory.js';
 import { config } from '../config/index.js';
 import {
   AppError,
@@ -48,12 +48,12 @@ router.get(
     // service that would surface as a 500.
     const exclusiveStartKey = decodePageToken(nextToken);
 
-    const sessionsDynamoDBService = getSessionsDynamoDBService();
-    if (!sessionsDynamoDBService.isConfigured()) {
+    const sessionsRepository = getSessionsRepository();
+    if (!sessionsRepository.isConfigured()) {
       throw new AppError(ErrorCode.CONFIGURATION_ERROR, 'Sessions Table is not configured');
     }
 
-    const result = await sessionsDynamoDBService.listSessions(actorId, limit, exclusiveStartKey);
+    const result = await sessionsRepository.listSessions(actorId, limit, exclusiveStartKey);
 
     res.status(200).json(
       ok(
@@ -91,9 +91,9 @@ router.get(
     // Ownership check, scoped to the caller's actorId. A missing row is
     // "not found" (404) rather than "forbidden" — returning 404 leaks nothing
     // because a cross-user lookup is also falsy. Matches agents/triggers.
-    const sessionsDynamoDBService = getSessionsDynamoDBService();
-    if (sessionsDynamoDBService.isConfigured()) {
-      const session = await sessionsDynamoDBService.getSession(actorId, sessionId);
+    const sessionsRepository = getSessionsRepository();
+    if (sessionsRepository.isConfigured()) {
+      const session = await sessionsRepository.getSession(actorId, sessionId);
       if (!session) {
         req.log.warn({ sessionId }, 'Session not found');
         throw new AppError(ErrorCode.NOT_FOUND, 'Session not found');
@@ -129,22 +129,19 @@ router.delete(
     // retry safe: if a previous attempt deleted the DynamoDB row but failed on
     // Memory, the row is now absent yet the Memory events may still be orphaned,
     // so we must NOT short-circuit to success here without re-attempting Memory.
-    const sessionsDynamoDBService = getSessionsDynamoDBService();
+    const sessionsRepository = getSessionsRepository();
     let sessionExists = true;
-    if (sessionsDynamoDBService.isConfigured()) {
-      sessionExists = !!(await sessionsDynamoDBService.getSession(actorId, sessionId));
+    if (sessionsRepository.isConfigured()) {
+      sessionExists = !!(await sessionsRepository.getSession(actorId, sessionId));
     }
 
     const errors: string[] = [];
 
-    if (sessionsDynamoDBService.isConfigured() && sessionExists) {
+    if (sessionsRepository.isConfigured() && sessionExists) {
       try {
-        await sessionsDynamoDBService.deleteSession(actorId, sessionId);
+        await sessionsRepository.deleteSession(actorId, sessionId);
       } catch (dynamoError) {
-        req.log.error(
-          { err: dynamoError, sessionId },
-          'Failed to delete session from DynamoDB'
-        );
+        req.log.error({ err: dynamoError, sessionId }, 'Failed to delete session from DynamoDB');
         errors.push(
           `DynamoDB: ${dynamoError instanceof Error ? dynamoError.message : 'Unknown error'}`
         );

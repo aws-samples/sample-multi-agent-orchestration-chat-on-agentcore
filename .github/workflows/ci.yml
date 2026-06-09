@@ -73,6 +73,36 @@ jobs:
             packages/*/coverage/
           retention-days: 7
 
+  integration-test:
+    name: Integration Tests (DynamoDB Local)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: ".node-version"
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      # Repository integration tests spin up `amazon/dynamodb-local` via
+      # Testcontainers. The ubuntu-latest runner has a Docker daemon
+      # preinstalled, so no services/dind setup is required (unlike GitLab).
+      # Each command is scoped so the agent package's real-AWS integration
+      # tests (which self-gate on credentials) are NOT pulled in:
+      #   - backend: test:integration runs only repositories/**.integration
+      #   - agent:   test:ddb runs only the DynamoDB-Local repository tests
+      #              (test:integration there is the separate real-AWS suite)
+      - name: Run backend integration tests
+        run: npm run test:integration -w @moca/backend
+
+      - name: Run agent DynamoDB Local tests
+        run: npm run test:ddb -w @moca/agent
+
   ash:
     name: Security Scan (ASH)
     runs-on: ubuntu-latest
