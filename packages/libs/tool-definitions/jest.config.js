@@ -25,4 +25,8 @@ export default {
     '^(\\.{1,2}/.*)\\.js$': '$1',
   },
   testTimeout: 30000,
+  coverageProvider: 'v8',
+  coverageDirectory: 'coverage',
+  coverageReporters: ['json', 'text-summary'],
+  collectCoverageFrom: ['src/**/*.ts', '!src/**/*.test.ts', '!src/**/*.d.ts'],
 };

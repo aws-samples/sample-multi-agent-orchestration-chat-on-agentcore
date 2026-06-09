@@ -1,6 +1,7 @@
 import path from 'path';
 import { generateDefaultContext } from './default-context.js';
 import { WORKSPACE_DIRECTORY } from '../index.js';
+import { normalizePath } from '../../libs/utils/storage-path.js';
 import { RUNTIME_TOOL_NAMES } from '@moca/tool-definitions';
 
 export interface SystemPromptOptions {
@@ -34,7 +35,7 @@ ${options.longTermMemories.map((memory, index) => `${index + 1}. ${memory}`).joi
   }
 
   // Compute active working directory (used in multiple prompt sections)
-  const normalizedStoragePath = (options.storagePath || '/').replace(/^\/+|\/+$/g, '');
+  const normalizedStoragePath = normalizePath(options.storagePath || '/');
   const activeWorkDir = normalizedStoragePath
     ? path.join(WORKSPACE_DIRECTORY, normalizedStoragePath)
     : WORKSPACE_DIRECTORY;

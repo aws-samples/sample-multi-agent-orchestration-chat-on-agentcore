@@ -52,4 +52,16 @@ export default {
   globalSetup: '<rootDir>/src/tests/integration/global-setup.ts',
   globalTeardown: '<rootDir>/src/tests/integration/global-teardown.ts',
   testTimeout: 60000,
+  // Emit into a separate directory so integration coverage does not clobber
+  // the unit-test `coverage/`; the root merge step picks up both and combines
+  // per-file hit counts across the two runs.
+  coverageProvider: 'v8',
+  coverageDirectory: 'coverage-integration',
+  coverageReporters: ['json', 'text-summary'],
+  collectCoverageFrom: [
+    'src/**/*.ts',
+    '!src/**/*.test.ts',
+    '!src/**/*.integration.test.ts',
+    '!src/tests/**',
+  ],
 };

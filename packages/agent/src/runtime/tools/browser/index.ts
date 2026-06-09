@@ -1,7 +1,5 @@
 /**
- * AgentCore Browser Tool Exports
+ * AgentCore Browser Tool - public entry point.
  */
 
 export { browserTool } from './tool.js';
-export { AgentCoreBrowserClient } from './client.js';
-export * from './types.js';

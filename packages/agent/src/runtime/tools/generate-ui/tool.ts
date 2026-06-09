@@ -10,7 +10,7 @@ import { tool } from '@strands-agents/sdk';
 import { z } from 'zod';
 import { logger } from '../../../libs/logger/index.js';
 import { AgentCoreCodeInterpreterClient } from '../code-interpreter/client.js';
-import { getCurrentContext } from '../../../libs/context/request-context.js';
+import { requireStoragePath } from '../_shared/index.js';
 import { generateUiDefinition } from '@moca/tool-definitions';
 import { validateUISpec } from './catalog.js';
 import { extractJsonFromOutput } from './extract-json.js';
@@ -51,7 +51,7 @@ export const generateUiTool = tool({
         logger.info(`generate_ui code mode: language=${language}, session=${sessionName}`);
 
         // Always populated by requestContextMiddleware
-        const storagePath = getCurrentContext()!.storagePath;
+        const storagePath = requireStoragePath();
         const client = new AgentCoreCodeInterpreterClient({
           autoCreate: true,
           persistSessions: true,

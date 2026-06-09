@@ -10,7 +10,7 @@
     "lint:fix": "eslint src --fix && prettier --write \"src/**/*.{ts,tsx,js,jsx}\"",
     "test": "NODE_OPTIONS='--experimental-vm-modules --no-warnings' jest --passWithNoTests --forceExit",
     "test:watch": "NODE_OPTIONS='--experimental-vm-modules --no-warnings' jest --watch",
-    "test:coverage": "NODE_OPTIONS='--experimental-vm-modules --no-warnings' jest --coverage",
+    "test:coverage": "NODE_OPTIONS='--experimental-vm-modules --no-warnings' jest --passWithNoTests --coverage",
     "clean": "rimraf dist tsconfig.tsbuildinfo"
   },
   "keywords": [

@@ -101,19 +101,37 @@ test:integration:
     - npm ci --prefer-offline --no-audit || (npm cache clean --force && npm ci --no-audit)
   script:
     - npm run build:ts
-    - npm run test:integration -w @moca/backend
-    - npm run test:ddb -w @moca/agent
+    - npm run test:integration:coverage -w @moca/backend
+    - npm run test:ddb:coverage -w @moca/agent
+  artifacts:
+    when: always
+    paths:
+      # DDB-Local integration coverage, merged into the repo-wide report by
+      # the coverage:report job (which `needs:` this job's artifacts).
+      - packages/*/coverage-integration/
+    expire_in: 1 week
   rules:
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
     - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
 
-test:root:
+# Repo-wide test coverage: run each workspace's `test:coverage` (Jest or
+# Vitest, both via the v8 provider), pull the DDB-Local integration coverage
+# produced by the test:integration job, and merge everything into a single
+# lcov/cobertura/HTML report. This is measurement-and-visualisation only —
+# no threshold gate yet.
+coverage:report:
   <<: *node_template
   stage: test
+  # Pull packages/*/coverage-integration/ from the dind job so the merge step
+  # combines unit + integration coverage. optional:true keeps this job green
+  # even if the integration job is skipped, falling back to unit-only.
+  needs:
+    - job: test:integration
+      artifacts: true
+      optional: true
   script:
-    - npm run build:ts
-    - node --max-old-space-size=8192 node_modules/.bin/jest --config jest.config.cjs --coverage --coverageReporters=cobertura --coverageReporters=text
-  coverage: '/All files[^|]*\|[^|]*\s+([\d\.]+)/'
+    - npm run coverage
+  coverage: '/Statements\s*:\s*([\d.]+)%/'
   artifacts:
     when: always
     reports:
