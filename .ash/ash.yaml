@@ -47,4 +47,4 @@ global_settings:
     # client.ts. A single fnmatch glob (where `*` also spans `/`) covers both
     # regardless of the path prefix ASH hands the matcher.
     - path: '*tests/integration/client.ts'
-      reason: 'DynamoDB Local test harness - the "secretAccessKey: local" literal is a placeholder credential for the local container (DynamoDB Local ignores credentials), not a real secret'
+      reason: 'DynamoDB Local test harness - the placeholder credential literal "local" for the local container (DynamoDB Local ignores credentials) is not a real secret'

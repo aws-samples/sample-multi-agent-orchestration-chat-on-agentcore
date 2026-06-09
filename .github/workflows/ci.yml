@@ -117,12 +117,6 @@ jobs:
       - name: Run ASH
         run: uvx 'git+https://github.com/awslabs/automated-security-helper.git@v3.1.5'
 
-      # Diagnostic: dump the detect-secrets finding locations so we can see the
-      # exact file/line still flagged. Remove once ASH is green.
-      - name: Debug detect-secrets
-        if: always()
-        run: cat .ash/ash_output/scanners/detect-secrets/source/*.sarif || true
-
   build:
     name: Build
     runs-on: ubuntu-latest
