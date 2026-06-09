@@ -23,7 +23,7 @@
  *   npm run test:integration
  */
 
-import { describe, test, expect, beforeAll } from '@jest/globals';
+import { test, expect, beforeAll } from '@jest/globals';
 import {
   CognitoIdentityClient,
   GetOpenIdTokenForDeveloperIdentityCommand,
@@ -33,6 +33,7 @@ import { S3Client, ListObjectsV2Command } from '@aws-sdk/client-s3';
 import { config as loadDotenv } from 'dotenv';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { describeIfEnv } from './integration-helpers.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 // packages/agent/src/tests/ → ../../ → packages/agent/.env
@@ -95,26 +96,22 @@ async function getMachineUserToken(): Promise<string> {
 // Suite 1: Developer Auth openIdToken → GetCredentialsForIdentity (Agent logic)
 // ---------------------------------------------------------------------------
 
-describe('Agent: Developer Auth openIdToken → Identity Pool credentials', () => {
+// Skips (rather than fails) when the developer-auth env is not configured, so
+// the suite is a no-op in environments without Cognito credentials.
+describeIfEnv(
+  [
+    'IDENTITY_POOL_ID',
+    'COGNITO_USER_POOL_ID',
+    'DEVELOPER_PROVIDER_NAME',
+    'AWS_REGION',
+    'USER_STORAGE_BUCKET_NAME',
+    'TEST_USER_ID',
+  ],
+  'Developer Auth → Identity Pool credentials'
+)('Agent: Developer Auth openIdToken → Identity Pool credentials', () => {
   let oidcResult: OidcResult;
 
   beforeAll(async () => {
-    const required = [
-      'IDENTITY_POOL_ID',
-      'COGNITO_USER_POOL_ID',
-      'DEVELOPER_PROVIDER_NAME',
-      'AWS_REGION',
-      'USER_STORAGE_BUCKET_NAME',
-      'TEST_USER_ID',
-    ];
-    const missing = required.filter((k) => !process.env[k]);
-    if (missing.length > 0) {
-      throw new Error(
-        `Missing required env vars: ${missing.join(', ')}\n` +
-          'Please configure packages/agent/.env'
-      );
-    }
-
     const userId = requireEnv('TEST_USER_ID');
     oidcResult = await getDeveloperAuthOpenIdToken(userId);
     console.log('Developer Auth identityId:', oidcResult.identityId);
@@ -194,7 +191,21 @@ describe('Agent: Developer Auth openIdToken → Identity Pool credentials', () =
 // Suite 2: HTTP invocation to local Agent with developer-auth token
 // ---------------------------------------------------------------------------
 
-describe('Agent HTTP endpoint: POST /invocations with developer-auth openIdToken', () => {
+// Requires the developer-auth env AND a locally-running agent, so it is opt-in
+// via RUN_AGENT_HTTP_INTEGRATION=1 (set it once the agent is up via `npm run dev`).
+describeIfEnv(
+  [
+    'RUN_AGENT_HTTP_INTEGRATION',
+    'IDENTITY_POOL_ID',
+    'DEVELOPER_PROVIDER_NAME',
+    'AWS_REGION',
+    'TEST_USER_ID',
+    'COGNITO_DOMAIN',
+    'COGNITO_CLIENT_ID',
+    'COGNITO_CLIENT_SECRET',
+  ],
+  'Agent HTTP endpoint (developer-auth openIdToken)'
+)('Agent HTTP endpoint: POST /invocations with developer-auth openIdToken', () => {
   const agentLocalUrl = process.env.AGENT_LOCAL_URL || 'http://localhost:8080';
 
   beforeAll(async () => {

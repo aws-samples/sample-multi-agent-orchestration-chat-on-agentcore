@@ -31,7 +31,8 @@ export default {
     '!src/**/*.d.ts',
     '!src/**/__tests__/**',
   ],
+  coverageProvider: 'v8',
   coverageDirectory: 'coverage',
-  coverageReporters: ['text', 'lcov', 'html'],
+  coverageReporters: ['json', 'text-summary'],
   testTimeout: 30000, // 30 seconds for integration tests
 };

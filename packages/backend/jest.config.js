@@ -32,6 +32,9 @@ export default {
   },
   setupFilesAfterEnv: ['<rootDir>/src/tests/setup.ts'],
   testTimeout: 30000,
+  coverageProvider: 'v8',
+  coverageDirectory: 'coverage',
+  coverageReporters: ['json', 'text-summary'],
   collectCoverageFrom: [
     'src/**/*.ts',
     '!src/**/*.test.ts',

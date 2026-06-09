@@ -15,7 +15,8 @@
     "build": "tsc --build",
     "clean": "rimraf dist tsconfig.tsbuildinfo",
     "dev": "tsc --build --watch",
-    "test": "vitest run"
+    "test": "vitest run",
+    "test:coverage": "vitest run --coverage"
   },
   "devDependencies": {
     "vitest": "^4.1.8"

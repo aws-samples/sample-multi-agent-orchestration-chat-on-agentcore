@@ -27,6 +27,7 @@ pids
 
 # Coverage directory used by tools like istanbul
 coverage/
+coverage-integration/
 *.lcov
 
 # nyc test coverage
@@ -99,3 +100,6 @@ temp/
 # ASH security scanner output (keep config file)
 .ash/*
 !.ash/ash.yaml
+
+# Claude Code ad-hoc workflow scripts (generated per task, not artifacts)
+.claude/workflows/

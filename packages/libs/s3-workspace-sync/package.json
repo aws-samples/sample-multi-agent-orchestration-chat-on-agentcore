@@ -21,6 +21,7 @@
     "build": "tsc --build",
     "clean": "rimraf dist",
     "test": "NODE_OPTIONS='--experimental-vm-modules --no-warnings' vitest run",
+    "test:coverage": "NODE_OPTIONS='--experimental-vm-modules --no-warnings' vitest run --coverage",
     "test:watch": "NODE_OPTIONS='--experimental-vm-modules --no-warnings' vitest",
     "test:integration": "NODE_OPTIONS='--experimental-vm-modules --no-warnings' vitest run --config vitest.integration.config.ts",
     "lint": "eslint src"

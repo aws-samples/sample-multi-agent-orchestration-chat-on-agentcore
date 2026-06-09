@@ -37,13 +37,17 @@ export const environments: Record<Environment, EnvironmentConfigInput> = {
    * Default environment
    */
   default: {
-    cognitoDomainPrefix: 'moca-<your-unique-suffix>', // Must be unique across all AWS accounts and regions
+    cognitoDomainPrefix: 'mocauserpool57dde685', // Must be unique across all AWS accounts and regions
+    customDomain: {
+      hostName: 'moca',
+      domainName: 'geeawa.net',
+    },
   },
   /**
    * Development environment
    */
   dev: {
-    cognitoDomainPrefix: 'mocadev-<your-unique-suffix>',
+    cognitoDomainPrefix: 'mocadev-user-pool-1316',
   },
 
   /**

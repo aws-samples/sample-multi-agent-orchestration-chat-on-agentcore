@@ -15,7 +15,7 @@
  *   npm run test:integration
  */
 
-import { describe, test, expect, beforeAll } from '@jest/globals';
+import { test, expect, beforeAll } from '@jest/globals';
 import {
   CognitoIdentityClient,
   GetCredentialsForIdentityCommand,
@@ -23,6 +23,7 @@ import {
 import { config } from 'dotenv';
 import { AuthService } from '../services/auth-service.js';
 import { handler } from '../index.js';
+import { describeIfEnv } from './integration-helpers.js';
 
 // Load environment variables from .env file (override existing)
 config({ override: true });
@@ -51,26 +52,20 @@ function decodeJwtPayload(token: string): Record<string, unknown> {
 // Test Suite 1: getOpenIdTokenForUser() — Developer Auth token issuance
 // ---------------------------------------------------------------------------
 
-describe('AuthService.getOpenIdTokenForUser() — Developer Authenticated Identities', () => {
+describeIfEnv(
+  [
+    'COGNITO_DOMAIN',
+    'COGNITO_CLIENT_ID',
+    'COGNITO_CLIENT_SECRET',
+    'IDENTITY_POOL_ID',
+    'DEVELOPER_PROVIDER_NAME',
+    'AWS_REGION',
+  ],
+  'AuthService.getOpenIdTokenForUser()'
+)('AuthService.getOpenIdTokenForUser() — Developer Authenticated Identities', () => {
   let authService: AuthService;
 
   beforeAll(() => {
-    const required = [
-      'COGNITO_DOMAIN',
-      'COGNITO_CLIENT_ID',
-      'COGNITO_CLIENT_SECRET',
-      'IDENTITY_POOL_ID',
-      'DEVELOPER_PROVIDER_NAME',
-      'AWS_REGION',
-    ];
-    const missing = required.filter((k) => !process.env[k]);
-    if (missing.length > 0) {
-      throw new Error(
-        `Missing required environment variables: ${missing.join(', ')}\n` +
-          'Please run npm run setup-env and configure .env'
-      );
-    }
-
     authService = AuthService.fromEnvironment();
     console.log('AuthService initialized');
     console.log('  IDENTITY_POOL_ID:', process.env.IDENTITY_POOL_ID);
@@ -120,23 +115,21 @@ describe('AuthService.getOpenIdTokenForUser() — Developer Authenticated Identi
 // Test Suite 2: GetCredentialsForIdentity with the developer-auth openIdToken
 // ---------------------------------------------------------------------------
 
-describe('GetCredentialsForIdentity — developer-auth token exchange', () => {
+describeIfEnv(
+  [
+    'COGNITO_DOMAIN',
+    'COGNITO_CLIENT_ID',
+    'COGNITO_CLIENT_SECRET',
+    'IDENTITY_POOL_ID',
+    'DEVELOPER_PROVIDER_NAME',
+    'AWS_REGION',
+    'TEST_USER_ID',
+  ],
+  'GetCredentialsForIdentity — developer-auth token exchange'
+)('GetCredentialsForIdentity — developer-auth token exchange', () => {
   let authService: AuthService;
 
   beforeAll(() => {
-    const required = [
-      'COGNITO_DOMAIN',
-      'COGNITO_CLIENT_ID',
-      'COGNITO_CLIENT_SECRET',
-      'IDENTITY_POOL_ID',
-      'DEVELOPER_PROVIDER_NAME',
-      'AWS_REGION',
-      'TEST_USER_ID',
-    ];
-    const missing = required.filter((k) => !process.env[k]);
-    if (missing.length > 0) {
-      throw new Error(`Missing required env vars: ${missing.join(', ')}`);
-    }
     authService = AuthService.fromEnvironment();
   });
 
@@ -182,30 +175,24 @@ describe('GetCredentialsForIdentity — developer-auth token exchange', () => {
 // Test Suite 3: End-to-end handler invocation with Developer Auth
 // ---------------------------------------------------------------------------
 
-describe('handler() end-to-end — event-driven invocation with per-user credentials', () => {
+describeIfEnv(
+  [
+    'COGNITO_DOMAIN',
+    'COGNITO_CLIENT_ID',
+    'COGNITO_CLIENT_SECRET',
+    'AGENT_API_URL',
+    'TRIGGERS_TABLE_NAME',
+    'AGENTS_TABLE_NAME',
+    'IDENTITY_POOL_ID',
+    'DEVELOPER_PROVIDER_NAME',
+    'AWS_REGION',
+    'TEST_USER_ID',
+    'TEST_AGENT_ID',
+    'TEST_TRIGGER_ID',
+  ],
+  'handler() end-to-end — event-driven invocation'
+)('handler() end-to-end — event-driven invocation with per-user credentials', () => {
   beforeAll(() => {
-    const required = [
-      'COGNITO_DOMAIN',
-      'COGNITO_CLIENT_ID',
-      'COGNITO_CLIENT_SECRET',
-      'AGENT_API_URL',
-      'TRIGGERS_TABLE_NAME',
-      'AGENTS_TABLE_NAME',
-      'IDENTITY_POOL_ID',
-      'DEVELOPER_PROVIDER_NAME',
-      'AWS_REGION',
-      'TEST_USER_ID',
-      'TEST_AGENT_ID',
-      'TEST_TRIGGER_ID',
-    ];
-    const missing = required.filter((k) => !process.env[k]);
-    if (missing.length > 0) {
-      throw new Error(
-        `Missing required environment variables: ${missing.join(', ')}\n` +
-          'Please set TEST_USER_ID / TEST_AGENT_ID / TEST_TRIGGER_ID in packages/trigger/.env'
-      );
-    }
-
     // Validate TEST_TRIGGER_ID is a valid UUID (required by parseTriggerId)
     const rawTriggerId = process.env.TEST_TRIGGER_ID || '';
     const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;

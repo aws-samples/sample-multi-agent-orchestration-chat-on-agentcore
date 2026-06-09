@@ -1,26 +1,36 @@
 /**
- * Call Agent Tool
- * Invoke sub-agents asynchronously with action-based workflow
+ * Action handlers for the call_agent tool.
+ *
+ * These are the impure I/O paths: they touch the sub-agent task manager
+ * singleton, the agent registry (network), and the request context. The pure
+ * pre-condition guards live in `./validation.js`.
  */
 
-import { tool, ToolContext } from '@strands-agents/sdk';
-import { subAgentTaskManager } from '../../services/sub-agent-task-manager.js';
-import { listAgents } from '../../services/agent-registry.js';
-import { logger } from '../../libs/logger/index.js';
-import { getCurrentContext } from '../../libs/context/request-context.js';
-import { callAgentDefinition } from '@moca/tool-definitions';
+import { ToolContext } from '@strands-agents/sdk';
+import { subAgentTaskManager } from '../../../services/sub-agent-task-manager.js';
+import { listAgents } from '../../../services/agent-registry.js';
+import { logger } from '../../../libs/logger/index.js';
+import { getCurrentContext } from '../../../libs/context/request-context.js';
+import {
+  DEFAULT_MAX_DEPTH,
+  checkRecursionDepth,
+  hasStartTaskParams,
+  hasTaskId,
+  validateStartTaskInput,
+  validateStatusInput,
+} from './validation.js';
 
 /**
  * Sleep utility for polling
  */
-function sleep(ms: number): Promise<void> {
+export function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 /**
  * Handle list_agents action
  */
-async function handleListAgents(): Promise<Record<string, unknown>> {
+export async function handleListAgents(): Promise<Record<string, unknown>> {
   try {
     // Pass auth context explicitly for Machine User support.
     // Forward the Cognito ID Token as well — the Backend `authMiddleware`
@@ -56,7 +66,7 @@ async function handleListAgents(): Promise<Record<string, unknown>> {
 /**
  * Handle start_task action
  */
-async function handleStartTask(
+export async function handleStartTask(
   input: {
     agentId?: string;
     query?: string;
@@ -66,27 +76,21 @@ async function handleStartTask(
   },
   context?: ToolContext
 ): Promise<Record<string, unknown>> {
-  // Validate required parameters
-  if (!input.agentId || !input.query) {
-    return {
-      error: 'Missing required parameters',
-      message: 'agentId and query are required for start_task action',
-    };
+  // Validate required parameters. The type guard narrows `input` so the
+  // createTask call below needs no non-null assertions.
+  if (!hasStartTaskParams(input)) {
+    return validateStartTaskInput(input) as Record<string, unknown>;
   }
 
   // Check recursion depth.
   // `agent.state` was renamed to `agent.appState` in
   // `@strands-agents/sdk@>=0.7.0` (PR #685).
   const currentDepth = (context?.agent?.appState?.get('subAgentDepth') as number) || 0;
-  const maxDepth = 2; // Default max depth
+  const maxDepth = DEFAULT_MAX_DEPTH; // Default max depth
 
-  if (currentDepth >= maxDepth) {
-    return {
-      error: 'Maximum recursion depth reached',
-      message: `Cannot invoke sub-agent at depth ${currentDepth}. Max depth is ${maxDepth}.`,
-      currentDepth,
-      maxDepth,
-    };
+  const depthError = checkRecursionDepth(currentDepth, maxDepth);
+  if (depthError) {
+    return depthError;
   }
 
   try {
@@ -133,7 +137,7 @@ async function handleStartTask(
 /**
  * Handle status action with optional polling
  */
-async function handleStatus(
+export async function handleStatus(
   input: {
     taskId?: string;
     waitForCompletion?: boolean;
@@ -142,12 +146,10 @@ async function handleStatus(
   },
   _context?: ToolContext
 ): Promise<Record<string, unknown>> {
-  // Validate required parameters
-  if (!input.taskId) {
-    return {
-      error: 'Missing required parameter',
-      message: 'taskId is required for status action',
-    };
+  // Validate required parameters. The type guard narrows `input.taskId` to a
+  // string for the getTask call below, so no non-null assertion is needed.
+  if (!hasTaskId(input)) {
+    return validateStatusInput(input) as Record<string, unknown>;
   }
 
   const waitForCompletion = input.waitForCompletion ?? false;
@@ -248,27 +250,3 @@ async function handleStatus(
     };
   }
 }
-
-/**
- * Call Agent Tool
- * Unified tool for starting and checking sub-agent tasks
- */
-export const callAgentTool = tool({
-  name: callAgentDefinition.name,
-  description: callAgentDefinition.description,
-  inputSchema: callAgentDefinition.zodSchema,
-  callback: async (input, context?: ToolContext) => {
-    let result: Record<string, unknown>;
-
-    if (input.action === 'list_agents') {
-      result = await handleListAgents();
-    } else if (input.action === 'start_task') {
-      result = await handleStartTask(input, context);
-    } else {
-      result = await handleStatus(input, context);
-    }
-
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    return result as any;
-  },
-});

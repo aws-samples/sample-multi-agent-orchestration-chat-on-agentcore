@@ -7,7 +7,7 @@ import { z } from 'zod';
 import { browserDefinition } from '@moca/tool-definitions';
 import { logger } from '../../../libs/logger/index.js';
 import { AgentCoreBrowserClient } from './client.js';
-import { getCurrentContext } from '../../../libs/context/request-context.js';
+import { requireStoragePath, ToolContextError } from '../_shared/index.js';
 import type {
   StartSessionAction,
   NavigateAction,
@@ -36,7 +36,7 @@ export const browserTool = tool({
 
     try {
       // Get storage path from request context (always populated by requestContextMiddleware)
-      const storagePath = getCurrentContext()!.storagePath;
+      const storagePath = requireStoragePath();
 
       // Create client
       const client = new AgentCoreBrowserClient({
@@ -149,6 +149,12 @@ export const browserTool = tool({
         return `Browser Error (${input.action}): ${errorMessage}`;
       }
     } catch (error) {
+      // A ToolContextError carries an actionable, user-facing message; surface
+      // it verbatim rather than wrapping it in the generic "Browser Error:".
+      if (error instanceof ToolContextError) {
+        logger.warn(`Browser context error: ${error.message}`);
+        return error.message;
+      }
       const errorMessage = error instanceof Error ? error.message : String(error);
       logger.error(`Browser tool error: ${errorMessage}`);
       return `Browser Error: ${errorMessage}`;

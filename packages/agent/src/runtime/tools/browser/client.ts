@@ -46,6 +46,7 @@ import {
 } from '@aws-sdk/client-bedrock-agentcore';
 import { PutObjectCommand } from '@aws-sdk/client-s3';
 import { createUserScopedS3Client } from '../../../libs/utils/scoped-credentials.js';
+import { formatFileSize } from '../../../libs/utils/format-size.js';
 import { SignatureV4 } from '@smithy/signature-v4';
 import { Sha256 } from '@aws-crypto/sha256-js';
 import { defaultProvider } from '@aws-sdk/credential-provider-node';
@@ -1629,7 +1630,7 @@ export class AgentCoreBrowserClient {
       // Return user-facing path
       const userPath = `/${storagePath}/browser-screenshots/${filename}`.replace(/\/+/g, '/');
       logger.info(
-        `[BROWSER] Screenshot saved to S3: ${s3Key} (${this.formatFileSize(imageBuffer.length)})`
+        `[BROWSER] Screenshot saved to S3: ${s3Key} (${formatFileSize(imageBuffer.length)})`
       );
 
       return userPath;
@@ -1667,16 +1668,5 @@ export class AgentCoreBrowserClient {
       return s;
     }
     return `${s.substring(0, maxLength)}... (Content truncated. Original length: ${s.length} characters)`;
-  }
-
-  /**
-   * Format file size to human-readable string
-   */
-  private formatFileSize(bytes: number): string {
-    if (bytes === 0) return '0 B';
-    const k = 1024;
-    const sizes = ['B', 'KB', 'MB'];
-    const i = Math.floor(Math.log(bytes) / Math.log(k));
-    return `${parseFloat((bytes / Math.pow(k, i)).toFixed(2))} ${sizes[i]}`;
   }
 }

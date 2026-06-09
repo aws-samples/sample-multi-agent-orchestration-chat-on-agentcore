@@ -8,12 +8,12 @@
  * filesystem paths align with S3 display paths after stripping WORKSPACE_DIRECTORY.
  */
 
-import path from 'path';
 import { S3WorkspaceSync } from '@moca/s3-workspace-sync';
 import type { SyncResult } from '@moca/s3-workspace-sync';
 import { config, WORKSPACE_DIRECTORY } from '../config/index.js';
 import { createLogger } from '../libs/logger/index.js';
 import { createUserScopedS3Client, getIdentityId } from '../libs/utils/scoped-credentials.js';
+import { normalizePath, buildUserPrefix, safeWorkspaceDir } from '../libs/utils/storage-path.js';
 
 const logger = createLogger('WorkspaceSync');
 export type { SyncResult };
@@ -38,11 +38,11 @@ export class WorkspaceSync {
 
   constructor(userId: string, storagePath: string) {
     this.bucketName = config.USER_STORAGE_BUCKET_NAME ?? '';
-    this.normalizedStoragePath = storagePath.replace(/^\/+|\/+$/g, '');
+    this.normalizedStoragePath = normalizePath(storagePath);
 
-    const workspaceDir = this.normalizedStoragePath
-      ? path.join(WORKSPACE_DIRECTORY, this.normalizedStoragePath)
-      : WORKSPACE_DIRECTORY;
+    // safeWorkspaceDir guarantees the local dir stays within WORKSPACE_DIRECTORY
+    // even if storagePath contains traversal segments.
+    const workspaceDir = safeWorkspaceDir(WORKSPACE_DIRECTORY, storagePath);
 
     this.activeWorkingDirectory = workspaceDir;
 
@@ -83,10 +83,10 @@ export class WorkspaceSync {
       );
     }
 
-    // Build S3 prefix using identityId (or userId fallback for local dev)
-    const prefix = this.normalizedStoragePath
-      ? `users/${storageKey}/${this.normalizedStoragePath}/`
-      : `users/${storageKey}/`;
+    // Build S3 prefix using identityId (or userId fallback for local dev).
+    // buildUserPrefix keeps the `users/{key}/{path}/` convention in one place
+    // so this never drifts from s3_list_files / browser screenshot paths.
+    const prefix = buildUserPrefix(storageKey, this.normalizedStoragePath);
 
     this.inner = new S3WorkspaceSync({
       bucket: this.bucketName,

@@ -14,7 +14,8 @@
   "scripts": {
     "build": "tsc --build",
     "clean": "rimraf dist",
-    "test": "NODE_OPTIONS='--experimental-vm-modules --no-warnings' jest --passWithNoTests"
+    "test": "NODE_OPTIONS='--experimental-vm-modules --no-warnings' jest --passWithNoTests",
+    "test:coverage": "NODE_OPTIONS='--experimental-vm-modules --no-warnings' jest --passWithNoTests --coverage"
   },
   "dependencies": {
     "@json-render/core": "^0.11.0",

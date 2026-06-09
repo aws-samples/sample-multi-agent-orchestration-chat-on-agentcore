@@ -11,3 +11,10 @@ export {
   getUserScopedEnvVars,
 } from './scoped-credentials.js';
 export { toDisplayPath } from './display-path.js';
+export { formatFileSize } from './format-size.js';
+export {
+  normalizePath,
+  getUserStoragePrefix,
+  buildUserPrefix,
+  safeWorkspaceDir,
+} from './storage-path.js';

@@ -6,7 +6,7 @@ import { tool } from '@strands-agents/sdk';
 import { z } from 'zod';
 import { logger } from '../../../libs/logger/index.js';
 import { AgentCoreCodeInterpreterClient } from './client.js';
-import { getCurrentContext } from '../../../libs/context/request-context.js';
+import { requireStoragePath, ToolContextError } from '../_shared/index.js';
 import type {
   InitSessionAction,
   ExecuteCodeAction,
@@ -36,7 +36,7 @@ export const codeInterpreterTool = tool({
 
     try {
       // Get storage path from request context (always populated by requestContextMiddleware)
-      const storagePath = getCurrentContext()!.storagePath;
+      const storagePath = requireStoragePath();
 
       // Create client (with default settings and storagePath)
       const client = new AgentCoreCodeInterpreterClient({
@@ -132,6 +132,13 @@ export const codeInterpreterTool = tool({
         return `Execution Error:\nOperation: ${input.action}\nError: ${errorText}`;
       }
     } catch (error: unknown) {
+      // A ToolContextError carries an actionable, user-facing message (e.g.
+      // missing request context); surface it verbatim rather than burying it
+      // under the generic "unexpected error" header.
+      if (error instanceof ToolContextError) {
+        logger.warn({ err: error.message }, `CodeInterpreter context error: ${input.action}`);
+        return error.message;
+      }
       const errorMessage = error instanceof Error ? error.message : String(error);
       logger.error({ err: errorMessage }, `CodeInterpreter unexpected error: ${input.action}`);
       return `An unexpected error occurred:\nOperation: ${input.action}\nError: ${errorMessage}`;

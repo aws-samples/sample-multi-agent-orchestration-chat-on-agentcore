@@ -7,6 +7,10 @@
  * npx jest --testMatch="glob-pattern-for-integration-tests"
  */
 
+// Importing `config` first runs config/index.ts's top-level `dotenv.config()`,
+// which loads packages/agent/.env into process.env. The integration jest config
+// does not run the default `setupFilesAfterEnv`, so this import IS the env load.
+import { config } from '../../config/index.js';
 import { WorkspaceSync } from '../workspace-sync.js';
 import {
   S3Client,
@@ -59,8 +63,26 @@ describe('WorkspaceSync Integration Tests', () => {
   let s3Client: S3Client;
   let testWorkspaceDir: string;
   let s3Prefix: string;
+  let originalIdentityPoolId: string;
+  let originalRegion: string;
 
   beforeAll(() => {
+    // Run via the userId-fallback path (no Identity Pool credential exchange).
+    // With IDENTITY_POOL_ID unset, WorkspaceSync keys storage on TEST_USER_ID
+    // and uses the ambient execution-role credentials for S3, so the test needs
+    // no Cognito ID Token in the request context. The S3 sync logic — including
+    // the buildUserPrefix `users/{key}/{path}/` layout — is still exercised end
+    // to end against the real bucket.
+    originalIdentityPoolId = config.IDENTITY_POOL_ID;
+    config.IDENTITY_POOL_ID = '';
+
+    // WorkspaceSync builds its internal S3WorkspaceSync with `region:
+    // config.AWS_REGION`. Pin it to the bucket's region so cross-region
+    // "must be addressed using the specified endpoint" errors cannot occur if
+    // the loaded .env region differs from the bucket.
+    originalRegion = config.AWS_REGION;
+    config.AWS_REGION = AWS_REGION;
+
     s3Client = new S3Client({ region: AWS_REGION });
     s3Prefix = `users/${TEST_USER_ID}/${TEST_STORAGE_PATH}/`;
 
@@ -68,6 +90,13 @@ describe('WorkspaceSync Integration Tests', () => {
     console.log(`  Bucket: ${BUCKET_NAME}`);
     console.log(`  Region: ${AWS_REGION}`);
     console.log(`  S3 Prefix: ${s3Prefix}`);
+    console.log('  Auth path: userId-fallback (IDENTITY_POOL_ID disabled for this suite)');
+  });
+
+  afterAll(() => {
+    // Restore so other suites in the same process see the real values.
+    config.IDENTITY_POOL_ID = originalIdentityPoolId;
+    config.AWS_REGION = originalRegion;
   });
 
   beforeEach(() => {

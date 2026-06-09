@@ -11,6 +11,7 @@
     "lint:fix": "eslint . --fix && prettier --write \"src/**/*.{ts,tsx,js,jsx}\"",
     "preview": "vite preview",
     "test": "vitest run",
+    "test:coverage": "vitest run --coverage",
     "test:watch": "vitest"
   },
   "dependencies": {
