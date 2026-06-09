@@ -43,26 +43,7 @@ global_settings:
       reason: 'Unit test with mocked Secrets Manager - contains dummy token fixtures (ghp_example), Secrets Manager reference names, and negative-test input strings, not actual secrets'
     - path: 'packages/lambda-tools/tools/tavily-tools/src/tools/__tests__/tavily-common.test.ts'
       reason: 'Unit test with mocked Secrets Manager - contains dummy-api-key fixture and test env var value, not actual secrets'
-
-# Scanner-specific overrides.
-#
-# npm-audit: raise the actionable threshold to CRITICAL. Every current npm-audit
-# finding is a HIGH/MODERATE advisory in a transitive dependency with no safe
-# fix available from this repo, and none is reachable at runtime:
-#   - GHSA-q7rr-3cgh-j5r3 (high): @opentelemetry Prometheus exporter crash on a
-#     malformed HTTP request. Pulled in transitively by the direct dep
-#     @aws/aws-distro-opentelemetry-node-autoinstrumentation (ADOT); the agent
-#     uses OTel only for trace export and never starts a Prometheus exporter
-#     HTTP endpoint, so there is no attack surface. No upstream fix at the
-#     pinned ADOT version.
-#   - GHSA-jxxr-4gwj-5jf2 (moderate): brace-expansion ReDoS bundled inside
-#     aws-cdk-lib (npm audit fix cannot update a bundled dep); reached only at
-#     CDK synth time, never in the deployed runtime.
-# Path-based `suppressions` do not work for these: ASH carries no file_path on
-# npm-audit findings, so the suppression matcher can never match them. Raising
-# the npm-audit threshold to CRITICAL is the supported lever — it still surfaces
-# any future CRITICAL npm advisory, while other scanners keep the MEDIUM default.
-scanners:
-  npm-audit:
-    options:
-      severity_threshold: CRITICAL
+    - path: 'packages/backend/src/tests/integration/client.ts'
+      reason: 'DynamoDB Local test harness - the "secretAccessKey: local" literal is a placeholder credential for the local container (DynamoDB Local ignores credentials), not a real secret'
+    - path: 'packages/agent/src/tests/integration/client.ts'
+      reason: 'DynamoDB Local test harness - the "secretAccessKey: local" literal is a placeholder credential for the local container (DynamoDB Local ignores credentials), not a real secret'
