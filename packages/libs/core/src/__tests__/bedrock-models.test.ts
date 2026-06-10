@@ -56,4 +56,31 @@ describe('BEDROCK_MODEL_DEFINITIONS invariants', () => {
       }
     }
   });
+
+  it('no Anthropic model advertises more than the Bedrock 128k output ceiling', () => {
+    // Bedrock rejects maxTokens > 128000 for current Anthropic models with
+    // ValidationException "exceeds the model limit of 128000" (verified live
+    // against Fable 5). maxOutputTokens feeds the agent's maxTokens, so an
+    // over-advertised limit makes every request fail. This guard would have
+    // caught the issue's suggested 131072 for Fable 5 without hitting AWS.
+    for (const m of BEDROCK_MODEL_DEFINITIONS) {
+      if (m.provider === 'Anthropic') {
+        expect(m.maxOutputTokens).toBeLessThanOrEqual(128000);
+      }
+    }
+  });
+
+  it('registers Claude Opus 4.8 as the default (first) model with the correct limit', () => {
+    const first = BEDROCK_MODEL_DEFINITIONS[0];
+    expect(first.id).toBe('global.anthropic.claude-opus-4-8');
+    expect(first.name).toBe('Claude Opus 4.8');
+    expect(first.provider).toBe('Anthropic');
+    expect(getMaxOutputTokens('global.anthropic.claude-opus-4-8')).toBe(128000);
+  });
+
+  it('does not region-pin the default model (Opus 4.8 must use the deploy region)', () => {
+    // The default model must work in any deployment region with no special
+    // account setup, so it must not be pinned to a specific region.
+    expect(getModelRegion('global.anthropic.claude-opus-4-8')).toBeUndefined();
+  });
 });

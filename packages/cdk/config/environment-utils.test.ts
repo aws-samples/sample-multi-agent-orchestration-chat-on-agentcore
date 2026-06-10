@@ -1,4 +1,4 @@
-import { deriveBedrockIamResources } from './environment-utils';
+import { deriveBedrockIamResources, validateBedrockModelsForTest } from './environment-utils';
 
 const REGION = 'us-east-1';
 const ACCOUNT = '123456789012';
@@ -235,5 +235,119 @@ describe('deriveBedrockIamResources', () => {
     const result = deriveBedrockIamResources(models, REGION, customAccount);
 
     expect(result.find((r) => r.includes('inference-profile'))).toContain(customAccount);
+  });
+
+  // ── Per-model region pin ─────────────────────────────────────────────────────
+  //
+  // A model may pin its invocation region (BedrockModelConfig.region). The agent
+  // invokes that model in the pinned region (via @moca/core getModelRegion), so
+  // the inference-profile ARN MUST be scoped to the pinned region — not the
+  // deployment region — or bedrock:InvokeModelWithResponseStream is AccessDenied.
+  // Regression for the Fable 5 us-east-1 pin vs ap-northeast-1 deploy mismatch.
+
+  it('scopes the inference-profile ARN to a model.region pin instead of the deploy region', () => {
+    const models = [
+      {
+        id: 'global.anthropic.claude-fable-5',
+        name: 'Claude Fable 5',
+        provider: 'Anthropic' as const,
+        region: 'us-east-1',
+      },
+    ];
+    // Deploy region is ap-northeast-1, but the model is pinned to us-east-1.
+    const result = deriveBedrockIamResources(models, 'ap-northeast-1', ACCOUNT);
+
+    expect(result).toContain(
+      `arn:aws:bedrock:us-east-1:${ACCOUNT}:inference-profile/global.anthropic.claude-fable-5`
+    );
+    // The deploy-region ARN must NOT be produced — it would not match the call
+    // and the pinned-region ARN above is the only one the agent uses.
+    expect(result).not.toContain(
+      `arn:aws:bedrock:ap-northeast-1:${ACCOUNT}:inference-profile/global.anthropic.claude-fable-5`
+    );
+  });
+
+  it('falls back to the deploy region for the inference-profile ARN when no region pin is set', () => {
+    const models = [
+      {
+        id: 'global.anthropic.claude-fable-5',
+        name: 'Claude Fable 5',
+        provider: 'Anthropic' as const,
+      },
+    ];
+    const result = deriveBedrockIamResources(models, 'ap-northeast-1', ACCOUNT);
+
+    expect(result).toContain(
+      `arn:aws:bedrock:ap-northeast-1:${ACCOUNT}:inference-profile/global.anthropic.claude-fable-5`
+    );
+  });
+
+  it('keeps the foundation-model ARN region-wildcarded regardless of a region pin', () => {
+    const models = [
+      {
+        id: 'global.anthropic.claude-fable-5',
+        name: 'Claude Fable 5',
+        provider: 'Anthropic' as const,
+        region: 'us-east-1',
+      },
+    ];
+    const result = deriveBedrockIamResources(models, 'ap-northeast-1', ACCOUNT);
+
+    expect(result).toContain('arn:aws:bedrock:*::foundation-model/anthropic.claude-fable-5*');
+  });
+
+  it('uses each model’s own region pin when models pin different regions', () => {
+    const models = [
+      {
+        id: 'global.anthropic.claude-fable-5',
+        name: 'Claude Fable 5',
+        provider: 'Anthropic' as const,
+        region: 'us-east-1',
+      },
+      {
+        id: 'global.anthropic.claude-sonnet-4-6',
+        name: 'Claude Sonnet 4.6',
+        provider: 'Anthropic' as const,
+        region: 'us-west-2',
+      },
+    ];
+    const result = deriveBedrockIamResources(models, 'ap-northeast-1', ACCOUNT);
+
+    expect(result).toContain(
+      `arn:aws:bedrock:us-east-1:${ACCOUNT}:inference-profile/global.anthropic.claude-fable-5`
+    );
+    expect(result).toContain(
+      `arn:aws:bedrock:us-west-2:${ACCOUNT}:inference-profile/global.anthropic.claude-sonnet-4-6`
+    );
+  });
+});
+
+// Region-format validation surfaces at synth time via getEnvironmentConfig →
+// resolveConfig → validateBedrockModels. A malformed region pin should throw.
+describe('validateBedrockModels — region pin format', () => {
+  it('rejects a model whose region is not a valid AWS region token', () => {
+    const models = [
+      {
+        id: 'global.anthropic.claude-fable-5',
+        name: 'Claude Fable 5',
+        provider: 'Anthropic' as const,
+        region: 'US-East-1', // wrong: uppercase / not a region token
+      },
+    ];
+    expect(() => deriveBedrockIamResources(models, REGION, ACCOUNT)).not.toThrow();
+    // Validation lives on the config path; assert there via the exported guard.
+    expect(() => validateBedrockModelsForTest(models)).toThrow(/region/i);
+  });
+
+  it('accepts a model with a well-formed region pin', () => {
+    const models = [
+      {
+        id: 'global.anthropic.claude-fable-5',
+        name: 'Claude Fable 5',
+        provider: 'Anthropic' as const,
+        region: 'ap-northeast-1',
+      },
+    ];
+    expect(() => validateBedrockModelsForTest(models)).not.toThrow();
   });
 });

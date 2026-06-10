@@ -24,6 +24,10 @@ const INFERENCE_PROFILE_STRIP = /^(global|us|eu|apac|jp)\./;
  * NOTE: Nova Reel async-invoke resources are intentionally excluded here.
  * Nova Reel is executed exclusively by the Gateway Target Lambda (NovaReelToolsTarget),
  * which manages its own IAM policy with async-invoke permissions.
+ *
+ * @param region The DEPLOYMENT region — used for any model that does not pin its
+ *   own region. A model with `region` set overrides this for its inference-profile
+ *   ARN so the grant matches the region the agent actually invokes it in.
  */
 export function deriveBedrockIamResources(
   models: BedrockModelConfig[],
@@ -37,10 +41,15 @@ export function deriveBedrockIamResources(
     // global.*, us.*, etc.). In-Region models (e.g. qwen.*) have no inference
     // profile, so we skip this ARN to keep the IAM policy least-privilege.
     if (INFERENCE_PROFILE_STRIP.test(model.id)) {
-      resources.push(`arn:aws:bedrock:${region}:${account}:inference-profile/${model.id}`);
+      // A region-pinned model is invoked in model.region (via @moca/core
+      // getModelRegion), so the inference-profile ARN MUST be scoped to that
+      // region — not the deployment region — or InvokeModel is AccessDenied.
+      const profileRegion = model.region ?? region;
+      resources.push(`arn:aws:bedrock:${profileRegion}:${account}:inference-profile/${model.id}`);
     }
 
     // Foundation model ARN (strip inference profile prefix for direct access).
+    // Region-wildcarded, so a region pin needs no change here.
     // For bare In-Region IDs this is the only resource needed.
     const baseId = model.id.replace(INFERENCE_PROFILE_STRIP, '');
     resources.push(`arn:aws:bedrock:*::foundation-model/${baseId}*`);
@@ -70,13 +79,29 @@ const DEFAULT_CONFIG = {
   /**
    * CDK intentionally does not depend on @moca/core to keep infrastructure free
    * of runtime library dependencies. Keep this list in sync with
-   * BEDROCK_MODEL_DEFINITIONS in packages/libs/core/src/bedrock-models.ts.
-   * (validateBedrockModels() enforces id/name/provider shape at synth time.)
+   * BEDROCK_MODEL_DEFINITIONS in packages/libs/core/src/bedrock-models.ts —
+   * including the optional `region` pin: if a model sets `region` there it must
+   * set the SAME `region` here, because deriveBedrockIamResources() uses it to
+   * scope the inference-profile IAM ARN. An out-of-sync region pin grants the
+   * wrong-region ARN and the agent's invocation fails with AccessDenied.
+   * (validateBedrockModels() enforces id/name/provider/region shape at synth time.)
    */
   bedrockModels: [
     {
+      // Default model. No account-level prerequisite, so it works out of the box.
       id: 'global.anthropic.claude-opus-4-8',
       name: 'Claude Opus 4.8',
+      provider: 'Anthropic',
+    },
+    {
+      // Requires Bedrock Data Retention mode `provider_data_share` in the
+      // deployment region — see the registry note in
+      // packages/libs/core/src/bedrock-models.ts and the README. Invoked in the
+      // deployment region (no region pin), so deriveBedrockIamResources() scopes
+      // the inference-profile IAM ARN to the deploy region. Keep in sync with
+      // BEDROCK_MODEL_DEFINITIONS.
+      id: 'global.anthropic.claude-fable-5',
+      name: 'Claude Fable 5',
       provider: 'Anthropic',
     },
     {
@@ -119,6 +144,13 @@ const VALID_PROVIDERS: readonly string[] = ['Anthropic', 'Amazon', 'Qwen'];
  * typos / unqualified IDs rather than enforcing a specific inference profile prefix.
  */
 const NAMESPACED_MODEL_ID = /^([a-z0-9-]+\.)+[a-z0-9][a-z0-9.:_-]*$/;
+
+/**
+ * AWS region token, e.g. `us-east-1`, `ap-northeast-1`, `eu-central-1`.
+ * Lowercase only; guards a model's optional `region` pin against typos like
+ * `US-East-1` that would silently produce an unmatched IAM ARN.
+ */
+const AWS_REGION_TOKEN = /^[a-z]{2}-[a-z]+-\d+$/;
 
 /**
  * Cognito domain prefix regex.
@@ -184,7 +216,22 @@ function validateBedrockModels(models: BedrockModelConfig[], env: Environment): 
         `[${env}] bedrockModels: invalid provider "${model.provider}" for model "${model.id}". Must be one of: ${VALID_PROVIDERS.join(', ')}`
       );
     }
+    if (model.region !== undefined && !AWS_REGION_TOKEN.test(model.region)) {
+      throw new Error(
+        `[${env}] bedrockModels: invalid region "${model.region}" for model "${model.id}". ` +
+          `Must be a lowercase AWS region token (e.g. "us-east-1", "ap-northeast-1").`
+      );
+    }
   }
+}
+
+/**
+ * Test-only wrapper around the private validateBedrockModels(). Lets unit tests
+ * assert validation behavior (e.g. region-pin format) without going through the
+ * full getEnvironmentConfig() path. Not used by production code.
+ */
+export function validateBedrockModelsForTest(models: BedrockModelConfig[]): void {
+  validateBedrockModels(models, 'default');
 }
 
 /**

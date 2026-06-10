@@ -132,6 +132,19 @@ This secret is used to verify HMAC-SHA256 signatures on incoming GitHub webhooks
 
 For local development, you can also set these as environment variables in `packages/agent/.env`.
 
+<details>
+<summary><strong>⚠️ Data Retention required to use Claude Fable 5</strong></summary>
+
+The default model is **Claude Opus 4.8**, which works out of the box. **Claude Fable 5** (`global.anthropic.claude-fable-5`) is also available as a selectable option, but it is a Mythos-class model: Mythos-class models can **only** be invoked when your account's Amazon Bedrock **Data Retention mode is set to `provider_data_share`** in the invocation region. With the default mode, every Fable 5 request fails with:
+
+```
+ValidationException: data retention mode 'default' is not available for this model
+```
+
+This is an account/region-level Bedrock setting — it cannot be worked around per-request. If you want to use Fable 5, enable `provider_data_share` in **each region you deploy to** (e.g. `ap-northeast-1`). See [Amazon Bedrock — Data retention](https://docs.aws.amazon.com/bedrock/latest/userguide/data-retention.html) for how to configure it. Other models (including the default Opus 4.8) are unaffected.
+
+</details>
+
 #### 3. Bootstrap CDK (first time only)
 
 For the first deployment, run CDK bootstrap.

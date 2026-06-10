@@ -27,13 +27,22 @@ export interface BedrockModelDefinition {
   /**
    * Optional invocation-region override.
    *
-   * Most models are invoked in the deployment's BEDROCK_REGION. But some
-   * In-Region-only models are not yet rolled out to every region (despite what
-   * the AWS docs list), so they must be invoked in a region where they actually
-   * exist. When set, createBedrockModel() routes this model's Bedrock calls to
-   * this region regardless of BEDROCK_REGION. The IAM foundation-model ARN is
-   * region-wildcarded (arn:aws:bedrock:*::foundation-model/…), so cross-region
-   * invocation from another deployment region requires no extra IAM.
+   * Most models are invoked in the deployment's BEDROCK_REGION. But some must be
+   * invoked in a specific region — an In-Region-only model not yet rolled out
+   * everywhere (despite what the AWS docs list), or a model whose account-level
+   * prerequisite (e.g. Bedrock Data Retention mode) is only enabled in certain
+   * regions. When set, createBedrockModel() routes this model's Bedrock calls to
+   * this region regardless of BEDROCK_REGION.
+   *
+   * IAM: the foundation-model ARN is region-wildcarded
+   * (arn:aws:bedrock:*::foundation-model/…), but a cross-region inference profile
+   * (global.*, us.*, …) ALSO needs an inference-profile ARN, which is
+   * region-scoped. CDK's deriveBedrockIamResources() therefore scopes that ARN to
+   * THIS region (not the deployment region) so the pinned-region invocation is
+   * authorized. For that to work the matching CDK config entry
+   * (DEFAULT_CONFIG.bedrockModels in packages/cdk/config/environment-utils.ts)
+   * MUST carry the same `region` value — the two lists are synced by hand because
+   * CDK does not import @moca/core.
    *
    * Omit for models available in the deployment region (the common case).
    */
@@ -47,13 +56,47 @@ export interface BedrockModelDefinition {
  *
  * When adding a model, also update:
  *   - packages/cdk/config/environment-utils.ts  DEFAULT_CONFIG.bedrockModels
+ *     (mirror id/name/provider AND `region` if the model pins one — the region
+ *     pin drives CDK's inference-profile IAM ARN, so an out-of-sync CDK entry
+ *     causes AccessDenied at invocation time).
  */
 export const BEDROCK_MODEL_DEFINITIONS = [
   {
+    // Default model. No account-level prerequisite (unlike Fable 5's data
+    // retention requirement), so it works out of the box in every region.
     id: 'global.anthropic.claude-opus-4-8',
     name: 'Claude Opus 4.8',
     provider: 'Anthropic',
     maxOutputTokens: 128000, // 128k (AWS Bedrock model card, 2026-05-28)
+  },
+  {
+    // First Mythos-class model GA'd on Bedrock (2026-06-09). 1M context window,
+    // 128k max output. Inference profile id verified ACTIVE via
+    // `aws bedrock get-foundation-model` + a live ConverseCommand (PONG) in
+    // us-east-1 / us-west-2.
+    //
+    // ⚠️ Data retention: Fable 5 (Mythos-class) can ONLY be invoked when the
+    // account's Bedrock Data Retention mode is `provider_data_share` in the
+    // invocation region. With the default mode the runtime rejects every
+    // request — regardless of body — with:
+    //   ValidationException: data retention mode 'default' is not available for this model
+    // This is an account/region setting (Bedrock Data Retention API), not a
+    // per-request field, so no code change works around it. Enable
+    // provider_data_share in the deployment region (see README) before using
+    // Fable 5.
+    //
+    // No region pin: Fable 5 is invoked in the deployment's BEDROCK_REGION, so
+    // its inference-profile IAM ARN (scoped to the deploy region by
+    // deriveBedrockIamResources) matches the call.
+    id: 'global.anthropic.claude-fable-5',
+    name: 'Claude Fable 5',
+    provider: 'Anthropic',
+    // 128k. NOTE: the Bedrock runtime enforces a hard ceiling of exactly
+    // 128000 (verified live: maxTokens:131072 → ValidationException "exceeds the
+    // model limit of 128000"). The issue's suggested 131072 is wrong — it would
+    // make every request fail. Match the documented limit and the other Anthropic
+    // entries here.
+    maxOutputTokens: 128000, // 128k (verified via live ConverseCommand, 2026-06-09)
   },
   {
     id: 'global.anthropic.claude-opus-4-7',

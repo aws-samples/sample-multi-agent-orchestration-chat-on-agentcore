@@ -23,6 +23,23 @@ export interface BedrockModelConfig {
   name: string;
   /** Provider name */
   provider: 'Anthropic' | 'Amazon' | 'Qwen';
+  /**
+   * Optional invocation-region pin.
+   *
+   * Most models are invoked in the deployment region. Some must be invoked in a
+   * specific region (an In-Region-only model not yet rolled out everywhere, or a
+   * model whose account-level prerequisite — e.g. Bedrock Data Retention mode —
+   * is only enabled in certain regions). When set, the agent invokes this model
+   * in `region` (via @moca/core getModelRegion), and deriveBedrockIamResources()
+   * scopes the model's inference-profile IAM ARN to the SAME region so the call
+   * is authorized. Omit for models invoked in the deployment region (the common
+   * case).
+   *
+   * MUST be kept in sync with the `region` field of the matching entry in
+   * BEDROCK_MODEL_DEFINITIONS (packages/libs/core/src/bedrock-models.ts) — CDK
+   * does not import @moca/core, so the two lists are synced by hand.
+   */
+  region?: string;
 }
 
 /**

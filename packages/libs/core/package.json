@@ -15,9 +15,11 @@
     "build": "tsc --build",
     "clean": "rimraf dist tsconfig.tsbuildinfo",
     "dev": "tsc --build --watch",
-    "test": "vitest run"
+    "test": "vitest run",
+    "test:integration": "vitest run --config vitest.integration.config.ts"
   },
   "devDependencies": {
+    "@aws-sdk/client-bedrock-runtime": "^3.1051.0",
     "vitest": "^4.1.8"
   }
 }

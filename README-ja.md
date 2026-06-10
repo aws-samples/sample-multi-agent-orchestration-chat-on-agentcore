@@ -122,6 +122,19 @@ aws secretsmanager create-secret \
 
 ローカル開発の場合は、`packages/agent/.env`で環境変数として設定することもできます。
 
+<details>
+<summary><strong>⚠️ Claude Fable 5 を利用するにはデータ保持設定が必要</strong></summary>
+
+デフォルトモデルは **Claude Opus 4.8** で、追加設定なしで利用できます。**Claude Fable 5**（`global.anthropic.claude-fable-5`）も選択可能なモデルとして用意していますが、これは Mythos クラスのモデルです。Mythos クラスのモデルは、呼び出し先リージョンにおいて Amazon Bedrock の **データ保持モードが `provider_data_share` に設定されている場合のみ** 呼び出せます。デフォルトのモードのままだと、Fable 5 へのすべてのリクエストが次のエラーで失敗します。
+
+```
+ValidationException: data retention mode 'default' is not available for this model
+```
+
+これはアカウント／リージョン単位の Bedrock 設定であり、リクエスト単位で回避することはできません。Fable 5 を利用する場合は、デプロイする**各リージョン**（例: `ap-northeast-1`）で `provider_data_share` を有効化してください。設定方法は [Amazon Bedrock — データ保持](https://docs.aws.amazon.com/bedrock/latest/userguide/data-retention.html) を参照してください。デフォルトの Opus 4.8 を含む他のモデルには影響ありません。
+
+</details>
+
 #### 3. CDKのブートストラップ（初回のみ）
 
 初回デプロイ時のみ、CDKのブートストラップを実行します。
