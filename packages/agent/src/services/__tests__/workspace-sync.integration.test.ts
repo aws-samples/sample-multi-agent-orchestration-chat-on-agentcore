@@ -7,6 +7,7 @@
  * npx jest --testMatch="glob-pattern-for-integration-tests"
  */
 
+import { describe, test, expect, beforeEach, afterEach, beforeAll } from '@jest/globals';
 import { WorkspaceSync } from '../workspace-sync.js';
 import {
   S3Client,
