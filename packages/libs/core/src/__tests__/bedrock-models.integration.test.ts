@@ -23,7 +23,7 @@
  *     ValidationException: data retention mode 'default' is not available for this model
  *   See packages/libs/core/src/bedrock-models.ts for the registry note.
  *
- *   Run (us-west-2 has provider_data_share enabled and Fable 5 verified ACTIVE):
+ *   Run (point BEDROCK_REGION at a region where provider_data_share is enabled):
  *     cd packages/libs/core
  *     RUN_BEDROCK_MODEL_INTEGRATION=1 BEDROCK_REGION=us-west-2 \
  *       npm run test:integration

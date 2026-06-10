@@ -20,7 +20,9 @@
  * the real Bedrock Converse / ConverseStream API, so it requires:
  *   - AWS credentials with bedrock:InvokeModelWithResponseStream on Fable 5
  *   - Fable 5's data-retention prerequisite satisfied in the invocation region
- *     (provider_data_share). The registry pins Fable 5 to us-east-1.
+ *     (provider_data_share). Fable 5 is invoked in BEDROCK_REGION (no registry
+ *     region pin in the OSS default), so point BEDROCK_REGION at a region where
+ *     provider_data_share is enabled.
  *
  * Run:
  *   cd packages/agent
