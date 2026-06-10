@@ -34,6 +34,7 @@ import { extractMemoryParams, fetchLongTermMemories } from './runtime/agent/memo
 import { loadSessionHistory } from './runtime/agent/session-loader.js';
 import { StreamTerminationRetryStrategy } from './runtime/agent/stream-termination-retry-strategy.js';
 import { EmptyTextBlockHook } from './services/session/empty-text-block-hook.js';
+import { EmptyReasoningBlockHook } from './services/session/empty-reasoning-block-hook.js';
 
 import type { CreateAgentOptions, CreateAgentResult } from './runtime/agent/types.js';
 
@@ -113,11 +114,19 @@ export async function createAgent(options?: CreateAgentOptions): Promise<CreateA
     systemPrompt,
     tools: [...toolSet.tools, ...toolSet.mcpClients],
     messages: savedMessages,
-    // EmptyTextBlockHook is registered first so it sanitizes assistant messages
-    // (stripping the empty leading TextBlock that Qwen3 emits before a toolUse)
-    // before any caller-supplied plugin observes them. Harmless no-op for models
-    // that don't emit empty blocks (e.g. Claude). See empty-text-block-hook.ts.
-    plugins: [new EmptyTextBlockHook(), ...(options?.plugins ?? [])],
+    // Sanitizer hooks run first so they clean assistant messages before any
+    // caller-supplied plugin observes them. Both are harmless no-ops for models
+    // that don't emit the offending blocks:
+    //   - EmptyTextBlockHook strips the empty leading TextBlock Qwen3 emits
+    //     before a toolUse (see empty-text-block-hook.ts).
+    //   - EmptyReasoningBlockHook strips the empty-text reasoning block Fable 5
+    //     (Mythos-class, adaptive thinking) emits, which the SDK formatter would
+    //     otherwise reject on the next turn (see empty-reasoning-block-hook.ts).
+    plugins: [
+      new EmptyTextBlockHook(),
+      new EmptyReasoningBlockHook(),
+      ...(options?.plugins ?? []),
+    ],
     conversationManager,
     id: options?.agentId,
     traceAttributes,
