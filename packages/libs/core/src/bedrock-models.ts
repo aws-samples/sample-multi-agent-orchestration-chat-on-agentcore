@@ -83,13 +83,13 @@ export const BEDROCK_MODEL_DEFINITIONS = [
     // This is an account/region setting (Bedrock Data Retention API), not a
     // per-request field, so no code change works around it.
     //
-    // Region pin: provider_data_share is enabled in us-east-1 (and us-west-2)
-    // but NOT in the default deployment region ap-northeast-1, so Fable 5 is
-    // pinned to us-east-1 — the agent invokes it there regardless of
-    // BEDROCK_REGION. The matching CDK entry MUST carry the same region so
-    // deriveBedrockIamResources() scopes the inference-profile IAM ARN to
-    // us-east-1 (otherwise InvokeModelWithResponseStream is AccessDenied).
-    // Remove the pin once provider_data_share is enabled in the deploy region.
+    // No region pin: Fable 5 is invoked in the deployment's BEDROCK_REGION, so
+    // its inference-profile IAM ARN (scoped to the deploy region by
+    // deriveBedrockIamResources) matches the call. To use Fable 5, enable
+    // provider_data_share in the deployment region (see README). If your
+    // deployment region cannot enable it, pin Fable 5 to a region that has it
+    // by overriding `bedrockModels` (with a `region`) in environments.ts —
+    // that is environment-specific config and is kept OUT of this OSS default.
     id: 'global.anthropic.claude-fable-5',
     name: 'Claude Fable 5',
     provider: 'Anthropic',
@@ -99,7 +99,6 @@ export const BEDROCK_MODEL_DEFINITIONS = [
     // make every request fail. Match the documented limit and the other Anthropic
     // entries here.
     maxOutputTokens: 128000, // 128k (verified via live ConverseCommand, 2026-06-09)
-    region: 'us-east-1',
   },
   {
     id: 'global.anthropic.claude-opus-4-7',

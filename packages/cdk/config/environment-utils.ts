@@ -94,18 +94,18 @@ const DEFAULT_CONFIG = {
       provider: 'Anthropic',
     },
     {
-      // Requires Bedrock Data Retention mode `provider_data_share`, which is
-      // enabled in us-east-1 but not in the default deploy region
-      // (ap-northeast-1) — see the registry note in
-      // packages/libs/core/src/bedrock-models.ts and the README. Pinned to
-      // us-east-1 to match BEDROCK_MODEL_DEFINITIONS; this region MUST stay in
-      // sync with the core registry so deriveBedrockIamResources() scopes the
-      // inference-profile IAM ARN to the region the agent actually invokes in
-      // (otherwise InvokeModelWithResponseStream is AccessDenied).
+      // Requires Bedrock Data Retention mode `provider_data_share` in the
+      // deployment region — see the registry note in
+      // packages/libs/core/src/bedrock-models.ts and the README. No region pin
+      // in this OSS default: Fable 5 is invoked in the deploy region, so
+      // deriveBedrockIamResources() scopes its inference-profile IAM ARN to the
+      // deploy region. If your deploy region cannot enable provider_data_share,
+      // pin Fable 5 to a region that has it by overriding bedrockModels (with a
+      // `region`) for your environment in environments.ts — and mirror that
+      // region in BEDROCK_MODEL_DEFINITIONS so the agent invokes there too.
       id: 'global.anthropic.claude-fable-5',
       name: 'Claude Fable 5',
       provider: 'Anthropic',
-      region: 'us-east-1',
     },
     {
       id: 'global.anthropic.claude-opus-4-7',

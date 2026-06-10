@@ -84,12 +84,14 @@ describe('BEDROCK_MODEL_DEFINITIONS invariants', () => {
     expect(getModelRegion('global.anthropic.claude-opus-4-8')).toBeUndefined();
   });
 
-  it('pins Claude Fable 5 to us-east-1 (provider_data_share enabled there, not in ap-northeast-1)', () => {
-    // Fable 5 needs Bedrock Data Retention mode `provider_data_share`, enabled
-    // in us-east-1 but not the default deploy region. The pin sends invocations
-    // to us-east-1; the matching CDK config entry MUST carry the same region so
-    // the inference-profile IAM ARN is scoped to us-east-1 — otherwise
-    // InvokeModelWithResponseStream is AccessDenied (the deployed failure mode).
-    expect(getModelRegion('global.anthropic.claude-fable-5')).toBe('us-east-1');
+  it('does not region-pin Claude Fable 5 in the OSS default (invoked in the deploy region)', () => {
+    // Fable 5 needs Bedrock Data Retention mode `provider_data_share` in its
+    // invocation region, but WHICH region has it is account/deployment-specific.
+    // The OSS default therefore ships no pin (Fable 5 runs in the deploy region);
+    // operators whose deploy region lacks provider_data_share pin it to another
+    // region via the bedrockModels override in environments.ts. Keeping a
+    // concrete region out of the source avoids baking one account's setup into
+    // the published default.
+    expect(getModelRegion('global.anthropic.claude-fable-5')).toBeUndefined();
   });
 });
