@@ -26,9 +26,13 @@ export interface TriggersTableProps {
  * - PK: TRIGGER#{userId} or TRIGGER#{triggerId}
  * - SK: TRIGGER#{triggerId} or EXECUTION#{executionId}
  *
- * GSI1:
+ * GSI1 (query triggers by type):
  * - GSI1PK: TYPE#{type}
  * - GSI1SK: USER#{userId}#{triggerId}
+ *
+ * GSI2 (query triggers by eventSourceId — event subscription model):
+ * - GSI2PK: EVENTSOURCE#{eventSourceId}
+ * - GSI2SK: USER#{userId}#TRIGGER#{triggerId}
  *
  * TTL: enabled on 'ttl' attribute for automatic cleanup of execution history
  */
