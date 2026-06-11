@@ -23,7 +23,12 @@ import { createLogger } from '../libs/logger/index.js';
 import { createUserScopedDynamoDBClient, getIdentityId } from '../libs/utils/scoped-credentials.js';
 import { SessionsRepository } from '../repositories/sessions-repository.js';
 
-export type { SessionType, SessionData } from '../repositories/sessions-repository.js';
+export type {
+  SessionType,
+  SessionData,
+  SessionSummary,
+  SessionListResult,
+} from '../repositories/sessions-repository.js';
 
 const logger = createLogger('SessionsService');
 
@@ -113,6 +118,19 @@ export class SessionsService {
     }
     const repo = await this.repositoryForUser(userId);
     return repo.getSession(sessionId);
+  }
+
+  /**
+   * List a user's sessions newest-first with opaque-token pagination. Returns
+   * an empty page (no token) when the service is not configured.
+   */
+  async listSessions(userId: string, maxResults?: number, nextToken?: string) {
+    if (!this.isConfigured()) {
+      logger.warn('Not configured, returning empty session list');
+      return { sessions: [], hasMore: false };
+    }
+    const repo = await this.repositoryForUser(userId);
+    return repo.listSessions(maxResults, nextToken);
   }
 
   async updateSessionAgentAndStorage(

@@ -155,3 +155,67 @@ describe('SessionsRepository (DynamoDB Local)', () => {
     expect(stored?.storagePath).toBe('orig/path');
   });
 });
+
+describe('SessionsRepository.listSessions (DynamoDB Local)', () => {
+  // A dedicated partition key so this suite's rows are isolated from the
+  // create/update suite above (which shares the same table).
+  const LIST_PK = 'us-east-1:00000000-aaaa-aaaa-aaaa-000000000099';
+  let listRepo: SessionsRepository;
+
+  beforeAll(async () => {
+    listRepo = new SessionsRepository(client, tableName, LIST_PK);
+    // Seed five sessions with strictly increasing updatedAt values. The
+    // repository sets updatedAt = now on create, so we space them out by
+    // writing sequentially with distinct timestamps via updateSessionTimestamp.
+    for (let i = 0; i < 5; i++) {
+      await listRepo.createSession({ sessionId: `list-${i}`, title: `session ${i}` });
+      // Ensure a distinct, monotonically increasing updatedAt per row.
+      await new Promise((r) => setTimeout(r, 5));
+      await listRepo.updateSessionTimestamp(`list-${i}`);
+    }
+  });
+
+  it('returns the caller sessions newest-first', async () => {
+    const result = await listRepo.listSessions(10);
+    expect(result.sessions).toHaveLength(5);
+    expect(result.hasMore).toBe(false);
+    expect(result.nextToken).toBeUndefined();
+    // Newest first: list-4 was written last, so it must come first.
+    expect(result.sessions[0].sessionId).toBe('list-4');
+    expect(result.sessions[4].sessionId).toBe('list-0');
+    // Only summary fields are projected (no userId / channelUserId leak).
+    expect(result.sessions[0]).not.toHaveProperty('userId');
+    expect(result.sessions[0]).not.toHaveProperty('channelUserId');
+  });
+
+  it('paginates with an opaque nextToken', async () => {
+    const page1 = await listRepo.listSessions(2);
+    expect(page1.sessions).toHaveLength(2);
+    expect(page1.hasMore).toBe(true);
+    expect(page1.nextToken).toBeDefined();
+
+    const page2 = await listRepo.listSessions(2, page1.nextToken);
+    expect(page2.sessions).toHaveLength(2);
+    // Pages must not overlap.
+    const ids1 = page1.sessions.map((s) => s.sessionId);
+    const ids2 = page2.sessions.map((s) => s.sessionId);
+    expect(ids1.some((id) => ids2.includes(id))).toBe(false);
+  });
+
+  it('returns an empty page for a user with no sessions', async () => {
+    const emptyRepo = new SessionsRepository(
+      client,
+      tableName,
+      'us-east-1:00000000-aaaa-aaaa-aaaa-0000000000ee'
+    );
+    const result = await emptyRepo.listSessions(10);
+    expect(result.sessions).toEqual([]);
+    expect(result.hasMore).toBe(false);
+  });
+
+  it('throws on a malformed pagination token', async () => {
+    await expect(listRepo.listSessions(2, 'not-base64-json!!')).rejects.toThrow(
+      'Invalid pagination token'
+    );
+  });
+});

@@ -20,11 +20,50 @@ import {
   PutItemCommand,
   UpdateItemCommand,
   GetItemCommand,
+  QueryCommand,
+  type AttributeValue,
 } from '@aws-sdk/client-dynamodb';
 import { marshall, unmarshall } from '@aws-sdk/util-dynamodb';
 import { createLogger } from '../libs/logger/index.js';
 
 const logger = createLogger('SessionsRepository');
+
+/**
+ * Name of the GSI used to list a user's sessions newest-first. Mirrors the
+ * index the Backend's read path queries (see
+ * packages/backend/src/repositories/sessions/dynamodb/repository.ts) and the
+ * CDK table definition.
+ */
+const USER_UPDATED_AT_INDEX = 'userId-updatedAt-index';
+
+/**
+ * Encode a DynamoDB LastEvaluatedKey into an opaque base64 page token.
+ * Returns `undefined` when there are no further pages. Uses the same
+ * base64(JSON) format as the Backend sessions route so a token is portable.
+ */
+function encodePageToken(key: Record<string, unknown> | undefined): string | undefined {
+  if (!key) return undefined;
+  return Buffer.from(JSON.stringify(key)).toString('base64');
+}
+
+/**
+ * Decode an opaque base64 page token into a DynamoDB ExclusiveStartKey.
+ * Returns `undefined` for a missing token; throws on a malformed one so the
+ * caller can surface a clear error rather than silently scanning from the top.
+ */
+function decodePageToken(token: string | undefined): Record<string, AttributeValue> | undefined {
+  if (!token) return undefined;
+  let decoded: unknown;
+  try {
+    decoded = JSON.parse(Buffer.from(token, 'base64').toString('utf-8'));
+  } catch {
+    throw new Error('Invalid pagination token');
+  }
+  if (typeof decoded !== 'object' || decoded === null || Array.isArray(decoded)) {
+    throw new Error('Invalid pagination token');
+  }
+  return decoded as Record<string, AttributeValue>;
+}
 
 /**
  * Session type
@@ -65,6 +104,31 @@ export interface CreateSessionOptions {
   sessionType?: SessionType;
   /** Cognito User Pool sub — used for AppSync channel paths (no colons). */
   channelUserId?: string;
+}
+
+/**
+ * A single session as surfaced to a session listing. A read-only projection of
+ * {@link SessionData} that omits the partition key (`userId`) and internal
+ * routing field (`channelUserId`) so the listing only exposes display data.
+ */
+export interface SessionSummary {
+  sessionId: string;
+  title: string;
+  agentId?: string;
+  storagePath?: string;
+  sessionType?: SessionType;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/**
+ * Result of {@link SessionsRepository.listSessions}: a page of summaries plus an
+ * opaque `nextToken` (absent when the last page has been reached).
+ */
+export interface SessionListResult {
+  sessions: SessionSummary[];
+  nextToken?: string;
+  hasMore: boolean;
 }
 
 /**
@@ -192,6 +256,58 @@ export class SessionsRepository {
       return unmarshall(result.Item) as SessionData;
     } catch (error) {
       logger.error({ error }, 'Error getting session:');
+      throw error;
+    }
+  }
+
+  /**
+   * List this user's sessions, newest first (by `updatedAt`), with opaque-key
+   * pagination. Queries the {@link USER_UPDATED_AT_INDEX} GSI scoped to the
+   * repository's partition key, so it only ever returns the caller's own
+   * sessions. `maxResults` bounds the page size; pass the returned `nextToken`
+   * back in to fetch the next page.
+   */
+  async listSessions(maxResults = 20, nextToken?: string): Promise<SessionListResult> {
+    try {
+      const exclusiveStartKey = decodePageToken(nextToken);
+      const result = await this.client.send(
+        new QueryCommand({
+          TableName: this.tableName,
+          IndexName: USER_UPDATED_AT_INDEX,
+          KeyConditionExpression: 'userId = :userId',
+          ExpressionAttributeValues: marshall({ ':userId': this.partitionKey }),
+          ScanIndexForward: false, // newest first
+          Limit: maxResults,
+          ExclusiveStartKey: exclusiveStartKey,
+        })
+      );
+
+      const sessions: SessionSummary[] = (result.Items || []).map((item) => {
+        const data = unmarshall(item) as SessionData;
+        return {
+          sessionId: data.sessionId,
+          title: data.title,
+          agentId: data.agentId,
+          storagePath: data.storagePath,
+          sessionType: data.sessionType,
+          createdAt: data.createdAt,
+          updatedAt: data.updatedAt,
+        };
+      });
+
+      const hasMore = !!result.LastEvaluatedKey;
+      logger.debug(
+        { userId: this.partitionKey, count: sessions.length, hasMore },
+        'Listed sessions:'
+      );
+
+      return {
+        sessions,
+        nextToken: encodePageToken(result.LastEvaluatedKey),
+        hasMore,
+      };
+    } catch (error) {
+      logger.error({ error }, 'Error listing sessions:');
       throw error;
     }
   }
