@@ -27,7 +27,7 @@ common:
   inputParameters: 入力パラメータ
   unsupportedContentType: '未対応のコンテンツタイプ: {{type}}'
   reasoning: 思考プロセス
-  thinking: 思考中…
+  thinking: Thinking…
   reasoningDepth: 思考の深さ
   reasoningDepthOff: オフ
   reasoningDepthLow: 低

@@ -267,7 +267,13 @@ export const Message: React.FC<MessageProps> = ({ message }) => {
                       <ReasoningBlock
                         key={`reasoning-${index}`}
                         reasoning={content.reasoning}
-                        isStreaming={message.isStreaming}
+                        // "Thinking…" only while this reasoning block is the one
+                        // actively streaming — i.e. it's the last content and the
+                        // turn is still running. Once text/toolUse follows, the
+                        // reasoning is complete, so stop the indicator.
+                        isStreaming={
+                          message.isStreaming && index === message.contents.length - 1
+                        }
                       />
                     ) : null;
 
