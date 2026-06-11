@@ -10,12 +10,12 @@ describe('Manage Trigger Tool Definition', () => {
   });
 
   it('should expose the supported actions only', () => {
-    const accepted = ['create', 'update', 'get', 'list', 'list_event_sources'];
+    const accepted = ['create', 'update', 'get', 'list'];
     for (const action of accepted) {
       expect(manageTriggerSchema.shape.action.safeParse(action).success).toBe(true);
     }
     // Out-of-scope actions must be rejected
-    for (const action of ['delete', 'enable', 'disable']) {
+    for (const action of ['delete', 'enable', 'disable', 'list_event_sources']) {
       expect(manageTriggerSchema.shape.action.safeParse(action).success).toBe(false);
     }
   });
@@ -31,26 +31,26 @@ describe('Manage Trigger Tool Definition', () => {
   it('should accept a valid create input', () => {
     const result = manageTriggerSchema.safeParse({
       action: 'create',
-      name: 'PR opened',
+      name: 'Daily report',
       agentId: 'agent-1',
-      prompt: 'Review the PR',
-      eventConfig: { eventSourceId: 'github-pr' },
+      prompt: 'Generate the daily report',
+      scheduleConfig: { expression: '0 0 * * ? *', timezone: 'Asia/Tokyo' },
     });
     expect(result.success).toBe(true);
   });
 
-  it('should require eventConfig.eventSourceId when eventConfig is provided', () => {
+  it('should require scheduleConfig.expression when scheduleConfig is provided', () => {
     const result = manageTriggerSchema.safeParse({
       action: 'create',
-      eventConfig: {},
+      scheduleConfig: {},
     });
     expect(result.success).toBe(false);
   });
 
-  it('should pass through additive eventConfig keys', () => {
+  it('should pass through additive scheduleConfig keys', () => {
     const result = manageTriggerSchema.safeParse({
       action: 'create',
-      eventConfig: { eventSourceId: 'github-pr', eventBusName: 'default' },
+      scheduleConfig: { expression: '0 0 * * ? *', scheduleGroupName: 'default' },
     });
     expect(result.success).toBe(true);
   });

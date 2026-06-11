@@ -2,8 +2,7 @@
  * Unit tests for the manage_trigger tool handler (runManageTrigger).
  *
  * Uses jest.unstable_mockModule + dynamic import for ESM compatibility.
- * The Backend `/triggers` and `/events` endpoints are exercised through a
- * mocked global fetch.
+ * The Backend `/triggers` endpoints are exercised through a mocked global fetch.
  */
 
 import { describe, it, expect, jest, beforeEach } from '@jest/globals';
@@ -70,29 +69,35 @@ describe('runManageTrigger', () => {
       expect(fetchMock).not.toHaveBeenCalled();
     });
 
-    it('creates an event trigger then disables it (enabled=false default)', async () => {
+    it('creates a schedule trigger then disables it (enabled=false default)', async () => {
       fetchMock
-        .mockResolvedValueOnce(jsonResponse({ trigger: { id: 't1', name: 'PR', enabled: true } }))
-        .mockResolvedValueOnce(jsonResponse({ trigger: { id: 't1', name: 'PR', enabled: false } }));
+        .mockResolvedValueOnce(
+          jsonResponse({ trigger: { id: 't1', name: 'Daily', enabled: true } })
+        )
+        .mockResolvedValueOnce(
+          jsonResponse({ trigger: { id: 't1', name: 'Daily', enabled: false } })
+        );
 
       const result = JSON.parse(
         await runManageTrigger({
           action: 'create',
-          name: 'PR',
+          name: 'Daily',
           agentId: 'a1',
-          prompt: 'review',
-          eventConfig: { eventSourceId: 'github-pr' },
+          prompt: 'report',
+          scheduleConfig: { expression: '0 0 * * ? *' },
         })
       );
 
       expect(result.success).toBe(true);
       expect(result.trigger.enabled).toBe(false);
 
-      // First call: POST /triggers with type=event
+      // First call: POST /triggers with type=schedule
       const [createUrl, createOpts] = fetchMock.mock.calls[0];
       expect(createUrl).toBe('https://api.test/triggers');
       expect(createOpts.method).toBe('POST');
-      expect(JSON.parse(createOpts.body).type).toBe('event');
+      const createBody = JSON.parse(createOpts.body);
+      expect(createBody.type).toBe('schedule');
+      expect(createBody.scheduleConfig.expression).toBe('0 0 * * ? *');
 
       // Second call: POST /triggers/t1/disable
       const [disableUrl, disableOpts] = fetchMock.mock.calls[1];
@@ -107,10 +112,10 @@ describe('runManageTrigger', () => {
 
       await runManageTrigger({
         action: 'create',
-        name: 'PR',
+        name: 'Daily',
         agentId: 'a1',
-        prompt: 'review',
-        eventConfig: { eventSourceId: 'github-pr' },
+        prompt: 'report',
+        scheduleConfig: { expression: '0 0 * * ? *' },
       });
 
       const headers = fetchMock.mock.calls[0][1].headers;
@@ -127,10 +132,10 @@ describe('runManageTrigger', () => {
       const result = JSON.parse(
         await runManageTrigger({
           action: 'create',
-          name: 'PR',
+          name: 'Daily',
           agentId: 'a1',
-          prompt: 'review',
-          eventConfig: { eventSourceId: 'github-pr' },
+          prompt: 'report',
+          scheduleConfig: { expression: '0 0 * * ? *' },
         })
       );
 
@@ -143,10 +148,10 @@ describe('runManageTrigger', () => {
       const result = JSON.parse(
         await runManageTrigger({
           action: 'create',
-          name: 'PR',
+          name: 'Daily',
           agentId: 'a1',
-          prompt: 'review',
-          eventConfig: { eventSourceId: 'github-pr' },
+          prompt: 'report',
+          scheduleConfig: { expression: '0 0 * * ? *' },
         })
       );
       expect(result.success).toBe(false);
@@ -203,18 +208,6 @@ describe('runManageTrigger', () => {
       expect(result.success).toBe(true);
       expect(result.count).toBe(2);
       expect(fetchMock.mock.calls[0][0]).toBe('https://api.test/triggers');
-    });
-  });
-
-  describe('list_event_sources', () => {
-    it('lists event sources from /events', async () => {
-      fetchMock.mockResolvedValueOnce(
-        jsonResponse({ eventSources: [{ id: 'github-pr', name: 'GitHub PR', description: '' }] })
-      );
-      const result = JSON.parse(await runManageTrigger({ action: 'list_event_sources' }));
-      expect(result.success).toBe(true);
-      expect(result.count).toBe(1);
-      expect(fetchMock.mock.calls[0][0]).toBe('https://api.test/events');
     });
   });
 });

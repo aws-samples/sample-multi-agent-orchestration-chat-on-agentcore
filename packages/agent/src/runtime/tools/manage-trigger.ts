@@ -1,9 +1,11 @@
 /**
  * Manage Trigger Tool
- * Create, update, retrieve, or list event-driven triggers.
+ * Create, update, retrieve, or list schedule triggers.
  *
- * Backed entirely by the existing Backend `/triggers` and `/events` endpoints;
- * this tool performs no direct AWS/DynamoDB access.
+ * Backed entirely by the existing Backend `/triggers` endpoints; this tool
+ * performs no direct AWS/DynamoDB access. Creating a schedule trigger provisions
+ * a backing EventBridge Schedule on the Backend side (cron/rate validation,
+ * 10-minute minimum interval, scheduler ARN persistence).
  *
  * Safety note: the Backend `POST /triggers` creates triggers with
  * `enabled: true`. To keep agent-created triggers inert until a human reviews
@@ -51,7 +53,7 @@ interface TriggerPayload {
   enabled: boolean;
   agentId: string;
   prompt: string;
-  eventConfig?: Record<string, unknown>;
+  scheduleConfig?: Record<string, unknown>;
   enabledTools?: string[];
   modelId?: string;
   workingDirectory?: string;
@@ -68,17 +70,13 @@ interface TriggerListResponse {
   nextToken?: string;
 }
 
-interface EventSourcesResponse {
-  eventSources: Array<{ id: string; name: string; description: string; icon?: string }>;
-}
-
 type ManageTriggerInput = {
   triggerId?: string;
   name?: string;
   description?: string;
   agentId?: string;
   prompt?: string;
-  eventConfig?: { eventSourceId: string } & Record<string, unknown>;
+  scheduleConfig?: { expression: string; timezone?: string } & Record<string, unknown>;
   enabledTools?: string[];
   modelId?: string;
   workingDirectory?: string;
@@ -101,35 +99,37 @@ async function errorResult(action: string, response: Response): Promise<string> 
 /**
  * Handle create action.
  *
- * Creates an EVENT trigger then disables it so the returned trigger is always
- * inactive (enabled=false) until a human enables it.
+ * Creates a SCHEDULE trigger then disables it so the returned trigger is always
+ * inactive (enabled=false) until a human enables it. Schedule triggers actually
+ * fire (and incur cost) once enabled, so the disabled-by-default policy is the
+ * safety gate keeping agent-created schedules inert until a human reviews them.
  */
 async function handleCreate(input: ManageTriggerInput, authHeader: string): Promise<string> {
-  const { name, agentId, prompt, eventConfig } = input;
+  const { name, agentId, prompt, scheduleConfig } = input;
 
-  if (!name || !agentId || !prompt || !eventConfig?.eventSourceId) {
+  if (!name || !agentId || !prompt || !scheduleConfig?.expression) {
     return JSON.stringify({
       success: false,
       error: 'Missing required parameters for create action',
       message:
-        'name, agentId, prompt, and eventConfig.eventSourceId are required to create an event trigger',
+        'name, agentId, prompt, and scheduleConfig.expression are required to create a schedule trigger',
     });
   }
 
   const requestBody = {
     name,
     description: input.description,
-    type: 'event',
+    type: 'schedule',
     agentId,
     prompt,
-    eventConfig,
+    scheduleConfig,
     enabledTools: input.enabledTools,
     modelId: input.modelId,
     workingDirectory: input.workingDirectory,
   };
 
   const createUrl = `${config.BACKEND_API_URL}/triggers`;
-  logger.info({ url: createUrl, name }, 'Creating event trigger via backend API:');
+  logger.info({ url: createUrl, name }, 'Creating schedule trigger via backend API:');
 
   const createResponse = await fetch(createUrl, {
     method: 'POST',
@@ -171,7 +171,7 @@ async function handleCreate(input: ManageTriggerInput, authHeader: string): Prom
   return JSON.stringify({
     success: true,
     trigger,
-    message: `Event trigger "${trigger.name}" created (id: ${trigger.id}). It is disabled by default; enable it from the Triggers UI to activate.`,
+    message: `Schedule trigger "${trigger.name}" created (id: ${trigger.id}). It is disabled by default; enable it from the Triggers UI to activate.`,
   });
 }
 
@@ -191,7 +191,7 @@ async function handleUpdate(input: ManageTriggerInput, authHeader: string): Prom
   if (input.description !== undefined) updatePayload.description = input.description;
   if (input.agentId !== undefined) updatePayload.agentId = input.agentId;
   if (input.prompt !== undefined) updatePayload.prompt = input.prompt;
-  if (input.eventConfig !== undefined) updatePayload.eventConfig = input.eventConfig;
+  if (input.scheduleConfig !== undefined) updatePayload.scheduleConfig = input.scheduleConfig;
   if (input.enabledTools !== undefined) updatePayload.enabledTools = input.enabledTools;
   if (input.modelId !== undefined) updatePayload.modelId = input.modelId;
   if (input.workingDirectory !== undefined) updatePayload.workingDirectory = input.workingDirectory;
@@ -201,7 +201,7 @@ async function handleUpdate(input: ManageTriggerInput, authHeader: string): Prom
       success: false,
       error: 'No fields to update',
       message:
-        'At least one field (name, description, agentId, prompt, eventConfig, enabledTools, modelId, workingDirectory) must be provided',
+        'At least one field (name, description, agentId, prompt, scheduleConfig, enabledTools, modelId, workingDirectory) must be provided',
     });
   }
 
@@ -276,28 +276,6 @@ async function handleList(authHeader: string): Promise<string> {
   });
 }
 
-/** Handle list_event_sources action. */
-async function handleListEventSources(authHeader: string): Promise<string> {
-  const url = `${config.BACKEND_API_URL}/events`;
-  logger.info({ url }, 'Listing event sources:');
-
-  const response = await fetch(url, {
-    method: 'GET',
-    headers: buildRequestHeaders(authHeader),
-  });
-
-  if (!response.ok) {
-    return errorResult('list_event_sources', response);
-  }
-
-  const data = (await response.json()) as EventSourcesResponse;
-  return JSON.stringify({
-    success: true,
-    eventSources: data.eventSources,
-    count: data.eventSources.length,
-  });
-}
-
 /**
  * Dispatch a manage_trigger action. Exported for unit testing.
  */
@@ -327,13 +305,11 @@ export async function runManageTrigger(
         return await handleGet(input, authHeader);
       case 'list':
         return await handleList(authHeader);
-      case 'list_event_sources':
-        return await handleListEventSources(authHeader);
       default:
         return JSON.stringify({
           success: false,
           error: 'Invalid action',
-          message: `Unknown action: ${action}. Valid actions are: create, update, get, list, list_event_sources`,
+          message: `Unknown action: ${action}. Valid actions are: create, update, get, list`,
         });
     }
   } catch (error) {
