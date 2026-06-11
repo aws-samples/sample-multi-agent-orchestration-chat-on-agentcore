@@ -1163,6 +1163,9 @@ defaultAgents:
       taskAutomation:
         title: Create Task Automation Agent
         prompt: "I want to create an agent that automates specific tasks.\n\nTask to automate: \nInput format: \nExpected output: \nFrequency: \n\nPlease design an agent optimized for this workflow."
+      scheduledSelfEvolving:
+        title: Create Scheduled Self-Evolving Agent
+        prompt: "I want to create an agent that runs automatically on a schedule and improves itself over time.\n\nPurpose: \nSchedule (e.g. every day 09:00 JST): \n\nPlease:\n1. Design the agent and create it\n2. Set it up to persist learnings to the filesystem (reusable scripts + memory notes synced to S3) so each run builds on the last\n3. Create a schedule trigger that runs it, with a prompt that reads memory first, acts, then writes memory back\n4. Remind me that the trigger is disabled by default and I need to enable it in the Triggers UI"
   browserAgent:
     name: Web Browser Agent
     description: An agent that operates websites and performs web tasks on your behalf, showing progress with screenshots at every step

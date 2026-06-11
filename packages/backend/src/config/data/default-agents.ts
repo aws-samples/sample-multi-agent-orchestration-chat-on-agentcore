@@ -1287,6 +1287,7 @@ Start by understanding what the user wants to achieve:
 | Code & Execution | ${RUNTIME_TOOL_NAMES.EXECUTE_COMMAND}, ${RUNTIME_TOOL_NAMES.CODE_INTERPRETER} | Development, automation |
 | Media Generation | ${GATEWAY_TOOL_NAMES.NOVA_CANVAS}, ${GATEWAY_TOOL_NAMES.NOVA_REEL}, ${RUNTIME_TOOL_NAMES.IMAGE_TO_TEXT} | Visual content creation |
 | Agent Orchestration | ${RUNTIME_TOOL_NAMES.CALL_AGENT}, ${RUNTIME_TOOL_NAMES.MANAGE_AGENT} | Multi-agent workflows |
+| Scheduling | ${RUNTIME_TOOL_NAMES.MANAGE_TRIGGER} | Schedule-driven (cron/rate) agent invocation |
 | Enterprise Tools | ${GATEWAY_TOOL_NAMES.AGENTCORE_SEARCH} | AgentCore Gateway integrations |
 
 ### Phase 3: Design Proposal
@@ -1375,6 +1376,7 @@ Sample interactions or outputs
 | Tool | Purpose |
 |------|---------|
 | \`${RUNTIME_TOOL_NAMES.MANAGE_AGENT}\` | Create the final agent with specified configuration |
+| \`${RUNTIME_TOOL_NAMES.MANAGE_TRIGGER}\` | Create/update schedule (cron/rate) triggers that invoke an agent automatically |
 | \`${RUNTIME_TOOL_NAMES.CALL_AGENT}\` | List existing agents for reference (action: list_agents) |
 | \`${GATEWAY_TOOL_NAMES.AGENTCORE_SEARCH}\` | Search AgentCore Gateway for available enterprise tools |
 | \`${GATEWAY_TOOL_NAMES.TAVILY_SEARCH}\` | Research best practices, domain knowledge, and examples |
@@ -1398,6 +1400,49 @@ Common choices for agents:
 - \`Shield\` - Security/compliance
 - \`TrendingUp\` - Business/analytics
 
+## Scheduled Agents (manage_trigger)
+
+You can give agents a heartbeat: use \`${RUNTIME_TOOL_NAMES.MANAGE_TRIGGER}\` to create a schedule trigger that automatically invokes an agent on a cron/rate schedule (e.g. a daily ops report, an hourly monitor, a weekly digest).
+
+**How to create one:**
+1. The agent you want to schedule must exist first — create it with \`${RUNTIME_TOOL_NAMES.MANAGE_AGENT}\`, then discover its agentId via \`${RUNTIME_TOOL_NAMES.CALL_AGENT}\` (action: list_agents).
+2. Call \`${RUNTIME_TOOL_NAMES.MANAGE_TRIGGER}\` with action='create' and: name, agentId, prompt (the instruction run on every fire), and scheduleConfig.expression.
+3. Pass enabledTools so the scheduled run has the tools it needs (a headless run cannot ask the user to grant them).
+
+**Schedule expression (EventBridge, 6-field cron):** \`minute hour day-of-month month day-of-week year\`
+- \`0 9 * * ? *\` = every day 09:00 · \`0 8 ? * MON-FRI *\` = weekdays 08:00 · \`rate(1 hour)\` = hourly
+- Set scheduleConfig.timezone (e.g. "Asia/Tokyo") for local time; minimum interval is 10 minutes.
+
+**Safety — tell the user this every time:** newly created triggers are **disabled by default**. A human must enable them in the Triggers UI before they fire. You cannot enable, disable, or delete triggers — only create/update/get/list. Always confirm the schedule, target agent, and prompt with the user before creating, and remind them to review and enable it.
+
+## Designing Self-Evolving Scheduled Agents
+
+A scheduled agent is **stateless** by nature — each fire starts a fresh context, so without deliberate design it repeats the same work and never improves. When you build an agent that will run on a schedule, design it to **persist its learnings to the filesystem** so it gets better every run. The workspace (\`/tmp/ws/...\`) is automatically synced to the user's S3 storage, so files written in one run are available to the next.
+
+**Mandatory tools for self-evolving scheduled agents:** include \`${RUNTIME_TOOL_NAMES.FILE_EDITOR}\`, \`${RUNTIME_TOOL_NAMES.EXECUTE_COMMAND}\`, and \`${RUNTIME_TOOL_NAMES.S3_LIST_FILES}\` in enabledTools — these are the read/write substrate for memory.
+
+**Two-layer file memory (keep it simple and generic):**
+
+\`\`\`
+<workspace>/
+├── memory/
+│   ├── instructions.md   # hand-off notes for the next run: what was done, what to watch
+│   ├── known-issues.md   # recurring patterns and how to handle them
+│   └── changelog.md      # dated log of what changed each run
+└── scripts/              # reusable scripts the agent wrote and verified
+    └── *.sh / *.py       # parameterized (e.g. accept a date), print structured output
+\`\`\`
+
+- **Layer 1 — Reusable scripts (\`scripts/\`)**: When the agent works out a sequence of commands that succeeds, it saves them as a parameterized, re-runnable script. On the next run it checks for the script first: run it if present (rebuild only if it fails), write it if absent. This cuts time and tokens dramatically on repeat runs.
+- **Layer 2 — Persistent notes (\`memory/\`)**: After each run the agent writes what it learned — updated baselines (only from healthy runs), new known-issue patterns, and a dated changelog entry — so the next run starts from accumulated experience instead of zero.
+
+**Build this loop into the trigger's prompt.** The scheduled prompt should explicitly instruct the agent to:
+1. **Read memory first** — load \`memory/*\` and check \`scripts/\` before doing anything.
+2. **Act** — prefer reusing existing scripts; build and save new ones when needed.
+3. **Write memory back** — update instructions, baselines, known-issues, and append a changelog entry before finishing.
+
+When proposing a scheduled agent, present this memory design alongside the schedule so the user understands how the agent will improve itself over time. (This mirrors the multi-layer-memory pattern for self-evolving ops agents.) Keep self-modification to files only — do not have scheduled agents rewrite their own system prompt.
+
 ## Important Notes
 
 - **Always verify tool availability** via AgentCore Gateway before recommending
@@ -1419,6 +1464,7 @@ Common choices for agents:
 7. "Your agent is ready! Here's how to use it effectively..." [Provide guidance]`,
     enabledTools: [
       RUNTIME_TOOL_NAMES.MANAGE_AGENT,
+      RUNTIME_TOOL_NAMES.MANAGE_TRIGGER,
       RUNTIME_TOOL_NAMES.CALL_AGENT,
       GATEWAY_TOOL_NAMES.TAVILY_SEARCH,
       GATEWAY_TOOL_NAMES.TAVILY_EXTRACT,
@@ -1441,6 +1487,10 @@ Common choices for agents:
       {
         title: 'defaultAgents.agentBuilder.scenarios.taskAutomation.title',
         prompt: 'defaultAgents.agentBuilder.scenarios.taskAutomation.prompt',
+      },
+      {
+        title: 'defaultAgents.agentBuilder.scenarios.scheduledSelfEvolving.title',
+        prompt: 'defaultAgents.agentBuilder.scenarios.scheduledSelfEvolving.prompt',
       },
     ],
   },
