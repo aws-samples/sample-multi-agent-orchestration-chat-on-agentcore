@@ -14,7 +14,7 @@
  * - Reads of a missing trigger return `null` (get) or an empty list, never throw.
  */
 
-import type { UserId, AgentId, TriggerId } from '@moca/core';
+import type { UserId, AgentId, TriggerId, ReasoningDepth } from '@moca/core';
 import type { Trigger, TriggerType, TriggerExecution, ScheduleTriggerConfig, EventTriggerConfig } from './types.js';
 
 // --- Method input/output types ----------------------------------------------
@@ -32,6 +32,7 @@ export interface CreateTriggerInput {
   prompt: string;
   sessionId?: string;
   modelId?: string;
+  reasoningEffort?: ReasoningDepth;
   workingDirectory?: string;
   enabledTools?: string[];
   scheduleConfig?: Omit<ScheduleTriggerConfig, 'schedulerArn' | 'scheduleGroupName'>;
@@ -46,6 +47,7 @@ export interface UpdateTriggerInput {
   prompt?: string;
   sessionId?: string;
   modelId?: string;
+  reasoningEffort?: ReasoningDepth;
   workingDirectory?: string;
   enabledTools?: string[];
   enabled?: boolean;

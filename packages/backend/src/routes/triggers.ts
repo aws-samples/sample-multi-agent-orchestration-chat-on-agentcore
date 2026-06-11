@@ -61,6 +61,7 @@ function serializeTrigger(trigger: Trigger) {
     prompt: trigger.prompt,
     sessionId: trigger.sessionId,
     modelId: trigger.modelId,
+    reasoningEffort: trigger.reasoningEffort,
     workingDirectory: trigger.workingDirectory,
     enabledTools: trigger.enabledTools,
     scheduleConfig: trigger.scheduleConfig,
@@ -200,6 +201,7 @@ router.post(
       prompt,
       sessionId,
       modelId,
+      reasoningEffort,
       workingDirectory,
       enabledTools,
       scheduleConfig,
@@ -226,6 +228,7 @@ router.post(
         prompt,
         sessionId,
         modelId,
+        reasoningEffort,
         workingDirectory,
         enabledTools,
         scheduleConfig,
@@ -259,6 +262,7 @@ router.post(
             prompt,
             sessionId,
             modelId,
+            reasoningEffort,
             workingDirectory,
             enabledTools,
           },
@@ -309,6 +313,7 @@ router.put(
       prompt,
       sessionId,
       modelId,
+      reasoningEffort,
       workingDirectory,
       enabledTools,
       scheduleConfig,
@@ -368,6 +373,8 @@ router.put(
             prompt: prompt || existingTrigger.prompt,
             sessionId: sessionId !== undefined ? sessionId : existingTrigger.sessionId,
             modelId: modelId !== undefined ? modelId : existingTrigger.modelId,
+            reasoningEffort:
+              reasoningEffort !== undefined ? reasoningEffort : existingTrigger.reasoningEffort,
             workingDirectory:
               workingDirectory !== undefined ? workingDirectory : existingTrigger.workingDirectory,
             enabledTools: enabledTools || existingTrigger.enabledTools,
@@ -393,6 +400,7 @@ router.put(
       prompt,
       sessionId,
       modelId,
+      reasoningEffort,
       workingDirectory,
       enabledTools,
       scheduleConfig,
@@ -416,6 +424,8 @@ router.put(
               prompt: prompt || existingTrigger.prompt,
               sessionId: sessionId !== undefined ? sessionId : existingTrigger.sessionId,
               modelId: modelId !== undefined ? modelId : existingTrigger.modelId,
+              reasoningEffort:
+                reasoningEffort !== undefined ? reasoningEffort : existingTrigger.reasoningEffort,
               workingDirectory:
                 workingDirectory !== undefined
                   ? workingDirectory

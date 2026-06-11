@@ -53,5 +53,19 @@ export { getSecureRandomBytes } from './crypto.js';
 export { SYSTEM_USER_ID } from './system-ids.js';
 
 // Bedrock model definitions — Single Source of Truth
-export type { BedrockModelDefinition } from './bedrock-models.js';
-export { BEDROCK_MODEL_DEFINITIONS, getMaxOutputTokens, getModelRegion } from './bedrock-models.js';
+export type {
+  BedrockModelDefinition,
+  ReasoningDepth,
+  ReasoningRequestConfig,
+} from './bedrock-models.js';
+export {
+  BEDROCK_MODEL_DEFINITIONS,
+  REASONING_DEPTHS,
+  EFFORT_ORDER,
+  getMaxOutputTokens,
+  getModelRegion,
+  getReasoningConfig,
+  getMaxReasoningDepth,
+  isReasoningCapable,
+  isReasoningDepth,
+} from './bedrock-models.js';

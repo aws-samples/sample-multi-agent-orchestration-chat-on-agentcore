@@ -53,6 +53,31 @@ describe('createTriggerBody', () => {
       createTriggerBody.parse({ ...base, eventConfig: { eventBusName: 'b' } })
     ).toThrow();
   });
+
+  it('accepts a valid reasoningEffort value', () => {
+    const parsed = createTriggerBody.parse({
+      ...base,
+      eventConfig: { eventSourceId: 'src' },
+      reasoningEffort: 'max',
+    });
+    expect(parsed.reasoningEffort).toBe('max');
+  });
+
+  it('rejects an unknown reasoningEffort value', () => {
+    expect(() =>
+      createTriggerBody.parse({
+        ...base,
+        eventConfig: { eventSourceId: 'src' },
+        reasoningEffort: 'medium',
+      })
+    ).toThrow();
+  });
+
+  it('allows omitting reasoningEffort (optional)', () => {
+    expect(() =>
+      createTriggerBody.parse({ ...base, eventConfig: { eventSourceId: 'src' } })
+    ).not.toThrow();
+  });
 });
 
 describe('updateTriggerBody (partial)', () => {

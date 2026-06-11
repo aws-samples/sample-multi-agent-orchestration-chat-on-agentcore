@@ -109,6 +109,32 @@ function isKnownContentBlockType(type: string): boolean {
 }
 
 /**
+ * Normalise a `modelContentBlockDeltaEvent.delta` for the wire.
+ *
+ * A `reasoningContentDelta` may carry `redactedContent` as a `Uint8Array`
+ * (encrypted thinking). Forwarding it verbatim through `JSON.stringify` would
+ * corrupt it into `{"0":..}`. We base64-encode it under `redactedContentBase64`
+ * (and drop the raw field) so the frontend — which never displays redacted
+ * content anyway — receives a stable, non-garbled shape. `text`/`signature`
+ * pass through untouched. All other delta types are forwarded unchanged.
+ */
+function normalizeDelta(delta: unknown): unknown {
+  if (!delta || typeof delta !== 'object') return delta;
+  const d = delta as { type?: string; redactedContent?: unknown; [k: string]: unknown };
+  if (d.type !== 'reasoningContentDelta' || d.redactedContent == null) {
+    return delta;
+  }
+  const { redactedContent, ...rest } = d;
+  const bytes = redactedContent as Uint8Array;
+  return {
+    ...rest,
+    ...(bytes.length > 0
+      ? { redactedContentBase64: Buffer.from(bytes).toString('base64') }
+      : {}),
+  };
+}
+
+/**
  * Project a Strands `Message`-shaped object onto the wire by normalising
  * each content block. Returns `undefined` when input is falsy so callers
  * can pass through `eventObj.message` without a guard.
@@ -163,7 +189,7 @@ export function serializeStreamEvent(event: unknown): object[] {
       return [
         {
           ...baseEvent,
-          delta: eventObj.delta,
+          delta: normalizeDelta(eventObj.delta),
         },
       ];
 

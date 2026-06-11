@@ -6,7 +6,7 @@
  */
 
 import type { Agent, Plugin } from '@strands-agents/sdk';
-import type { IdentityId } from '@moca/core';
+import type { IdentityId, ReasoningDepth } from '@moca/core';
 import type { SessionStorage, SessionConfig } from './session-types.js';
 // Type-only import: no runtime dependency on the runtime/ layer, so this does
 // not introduce a layering violation or import cycle.
@@ -22,6 +22,8 @@ import type { StreamTerminationRetryStrategy } from '../runtime/agent/stream-ter
 export interface CreateAgentOptions {
   plugins?: Plugin[];
   modelId?: string;
+  /** Extended-thinking depth resolved against the model registry in createBedrockModel. */
+  reasoningEffort?: ReasoningDepth;
   enabledTools?: string[];
   systemPrompt?: string;
   sessionStorage?: SessionStorage;

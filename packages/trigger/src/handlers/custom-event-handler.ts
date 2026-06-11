@@ -131,6 +131,7 @@ async function invokeTrigger(
       prompt: trigger.prompt,
       sessionId: trigger.sessionId,
       modelId: trigger.modelId,
+      reasoningEffort: trigger.reasoningEffort,
       workingDirectory: trigger.workingDirectory,
       enabledTools: trigger.enabledTools,
     };

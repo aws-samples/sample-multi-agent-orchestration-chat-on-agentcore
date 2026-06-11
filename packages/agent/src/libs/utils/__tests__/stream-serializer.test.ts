@@ -171,4 +171,30 @@ describe('serializeStreamEvent', () => {
       expect((out[0] as { delta: unknown }).delta).toEqual(inner.delta);
     });
   });
+
+  describe('reasoningContentDelta', () => {
+    it('forwards reasoning text + signature untouched', () => {
+      const [out] = serializeStreamEvent({
+        type: 'modelContentBlockDeltaEvent',
+        delta: { type: 'reasoningContentDelta', text: 'thinking…', signature: 'sig' },
+      }) as Array<{ delta: Record<string, unknown> }>;
+      expect(out.delta).toEqual({
+        type: 'reasoningContentDelta',
+        text: 'thinking…',
+        signature: 'sig',
+      });
+    });
+
+    it('base64-encodes a redactedContent Uint8Array and drops the raw field', () => {
+      const bytes = new Uint8Array([1, 2, 3, 250]);
+      const [out] = serializeStreamEvent({
+        type: 'modelContentBlockDeltaEvent',
+        delta: { type: 'reasoningContentDelta', redactedContent: bytes },
+      }) as Array<{ delta: Record<string, unknown> }>;
+      expect(out.delta.redactedContent).toBeUndefined();
+      expect(out.delta.redactedContentBase64).toBe(Buffer.from(bytes).toString('base64'));
+      // The serialized line must be valid JSON (no Uint8Array corruption).
+      expect(() => JSON.stringify(out)).not.toThrow();
+    });
+  });
 });

@@ -1,5 +1,6 @@
-import { BedrockModel } from '@strands-agents/sdk';
-import { getMaxOutputTokens, getModelRegion } from '@moca/core';
+import { BedrockModel, type JSONValue } from '@strands-agents/sdk';
+import { getMaxOutputTokens, getModelRegion, getReasoningConfig } from '@moca/core';
+import type { ReasoningDepth } from '@moca/core';
 import { config } from './index.js';
 import { logger } from '../libs/logger/index.js';
 
@@ -15,6 +16,12 @@ export interface BedrockModelOptions {
    * When omitted, getMaxOutputTokens() from @moca/core derives the value from the model ID.
    */
   maxTokens?: number;
+  /**
+   * Reasoning (extended thinking) depth selected for this request.
+   * Resolved against the model registry into a `thinking` request field; a
+   * non-capable model or `off` (or omitted) yields no thinking field.
+   */
+  reasoningEffort?: ReasoningDepth;
 }
 
 // ---------------------------------------------------------------------------
@@ -45,11 +52,21 @@ export function createBedrockModel(options?: BedrockModelOptions): BedrockModel 
   //   3. the deployment's BEDROCK_REGION (default for almost every model)
   const region = options?.region || getModelRegion(modelId) || config.BEDROCK_REGION;
 
+  // Resolve the reasoning depth into a Bedrock `thinking` request field. Returns
+  // undefined for off / non-capable models, in which case no thinking field is
+  // sent. The SDK strips `thinking` automatically when toolChoice forces a tool
+  // (Bedrock disallows thinking + forced tool_use), so this is safe with tools.
+  const reasoningConfig = getReasoningConfig(modelId, options?.reasoningEffort ?? 'off');
+
   logger.debug(
     {
       modelId,
       region,
       promptCachingEnabled: config.ENABLE_PROMPT_CACHING,
+      reasoningEffort: options?.reasoningEffort ?? 'off',
+      // The effort actually sent (may be clamped below the requested depth, e.g.
+      // Sonnet 4.6 'max' → 'high'). undefined when no thinking field is sent.
+      reasoningEffortSent: reasoningConfig?.output_config.effort,
     },
     'Creating BedrockModel:'
   );
@@ -60,6 +77,13 @@ export function createBedrockModel(options?: BedrockModelOptions): BedrockModel 
     // Prefer an explicit override; fall back to the per-model limit from @moca/core.
     maxTokens: options?.maxTokens ?? getMaxOutputTokens(modelId),
     ...(config.ENABLE_PROMPT_CACHING ? { cacheConfig: { strategy: 'auto' as const } } : {}),
+    // Extended thinking is configured at the model layer via the Bedrock
+    // `additionalModelRequestFields`. Only attach when a budget resolved. Cast to
+    // the SDK's JSONValue: ReasoningRequestConfig is a readonly interface without
+    // an index signature, which JSONValue's `{ [key: string]: JSONValue }` wants.
+    ...(reasoningConfig
+      ? { additionalRequestFields: reasoningConfig as unknown as JSONValue }
+      : {}),
     clientConfig: {
       retryMode: 'adaptive',
       maxAttempts: 5,

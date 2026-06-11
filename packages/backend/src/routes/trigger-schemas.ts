@@ -7,6 +7,7 @@
  */
 
 import { z } from 'zod';
+import { REASONING_DEPTHS } from '@moca/core';
 
 /**
  * Event subscription config. `eventSourceId` is REQUIRED whenever an
@@ -35,6 +36,8 @@ export const createTriggerBody = z.object({
   prompt: z.string().min(1),
   sessionId: z.string().optional(),
   modelId: z.string().optional(),
+  // Extended-thinking depth; enum kept in sync with @moca/core's ReasoningDepth.
+  reasoningEffort: z.enum(REASONING_DEPTHS).optional(),
   workingDirectory: z.string().optional(),
   enabledTools: z.array(z.string()).optional(),
   scheduleConfig: z.record(z.string(), z.unknown()).optional(),

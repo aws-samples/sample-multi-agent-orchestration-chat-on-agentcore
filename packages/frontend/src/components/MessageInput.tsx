@@ -8,7 +8,7 @@ import { useSettingsStore } from '../stores/settingsStore';
 import { useUIStore } from '../stores/uiStore';
 import { StoragePathDisplay } from './StoragePathDisplay';
 import { StorageManagementModal } from './StorageManagementModal';
-import { ModelSelector } from './ui/ModelSelector';
+import { ModelReasoningSelector } from './ui/ModelReasoningSelector';
 import { ImagePreview } from './ImagePreview';
 import type { ImageAttachment } from '../types/index';
 import { IMAGE_ATTACHMENT_CONFIG } from '../types/index';
@@ -363,56 +363,68 @@ export const MessageInput: React.FC<MessageInputProps> = ({
             className="hidden"
           />
 
-          {/* Text input area - Reserve space for 2 rows */}
-          <textarea
-            ref={textareaRef}
-            value={input}
-            onChange={handleChange}
-            onKeyDown={handleKeyDown}
-            onPaste={handlePaste}
-            placeholder={t('chat.messageInputPlaceholder')}
-            className="w-full px-4 py-3 pr-12 pb-12 border border-border rounded-2xl focus:outline-none focus:ring-1 focus:ring-gray-200 focus:border-transparent resize-none min-h-[72px] max-h-[200px] bg-surface-primary"
-            rows={2}
-            style={{ height: 'auto' }}
-          />
+          {/* Text input + toolbar live in one bordered box. The toolbar is a
+              normal flex row (not absolute) so the left controls and the send
+              button can never overlap: the left group shrinks/scrolls while the
+              send button keeps its fixed width at the right edge. */}
+          <div className="border border-border rounded-2xl bg-surface-primary focus-within:ring-1 focus-within:ring-gray-200">
+            {/* Text input area - Reserve space for 2 rows */}
+            <textarea
+              ref={textareaRef}
+              value={input}
+              onChange={handleChange}
+              onKeyDown={handleKeyDown}
+              onPaste={handlePaste}
+              placeholder={t('chat.messageInputPlaceholder')}
+              className="w-full px-4 py-3 bg-transparent border-0 focus:outline-none resize-none min-h-[60px] max-h-[200px]"
+              rows={2}
+              style={{ height: 'auto' }}
+            />
 
-          {/* Model selector - Positioned at bottom */}
-          <div className="absolute bottom-3 left-1.5 flex items-center gap-1">
-            <ModelSelector />
-            {/* Image attachment button */}
-            <button
-              type="button"
-              onClick={() => fileInputRef.current?.click()}
-              disabled={isLoading || attachedImages.length >= IMAGE_ATTACHMENT_CONFIG.MAX_COUNT}
-              className={`p-1.5 rounded-md transition-colors ${
-                isLoading || attachedImages.length >= IMAGE_ATTACHMENT_CONFIG.MAX_COUNT
-                  ? 'text-fg-disabled cursor-not-allowed'
-                  : 'text-fg-muted hover:text-fg-secondary hover:bg-surface-secondary'
-              }`}
-              title={t('chat.imageAttachment.attach')}
-            >
-              <Paperclip className="w-4 h-4" />
-            </button>
+            {/* Bottom toolbar row */}
+            <div className="flex items-center gap-1 px-2 pb-2">
+              {/* Left controls. `min-w-0` lets this group shrink so the send
+                  button keeps its place; NOTE: no `overflow-*` here — it would
+                  also clip overflow-y and hide the upward-opening model/depth
+                  dropdowns (they render with `absolute bottom-full`). */}
+              <div className="flex items-center gap-1 min-w-0">
+                <ModelReasoningSelector />
+                {/* Image attachment button */}
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={isLoading || attachedImages.length >= IMAGE_ATTACHMENT_CONFIG.MAX_COUNT}
+                  className={`shrink-0 p-1.5 rounded-md transition-colors ${
+                    isLoading || attachedImages.length >= IMAGE_ATTACHMENT_CONFIG.MAX_COUNT
+                      ? 'text-fg-disabled cursor-not-allowed'
+                      : 'text-fg-muted hover:text-fg-secondary hover:bg-surface-secondary'
+                  }`}
+                  title={t('chat.imageAttachment.attach')}
+                >
+                  <Paperclip className="w-4 h-4" />
+                </button>
+              </div>
+
+              {/* Send button - fixed width, pinned to the right, never overlapped. */}
+              <button
+                type="submit"
+                disabled={
+                  (!input.trim() && attachedImages.length === 0) || isLoading || isAgentStoreLoading
+                }
+                className={`ml-auto shrink-0 w-8 h-8 rounded-md flex items-center justify-center transition-all duration-200 ${
+                  (!input.trim() && attachedImages.length === 0) || isLoading || isAgentStoreLoading
+                    ? 'text-fg-disabled cursor-not-allowed'
+                    : 'text-black hover:bg-surface-secondary'
+                }`}
+              >
+                {isLoading ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <Send className="w-4 h-4" />
+                )}
+              </button>
+            </div>
           </div>
-
-          {/* Send button */}
-          <button
-            type="submit"
-            disabled={
-              (!input.trim() && attachedImages.length === 0) || isLoading || isAgentStoreLoading
-            }
-            className={`absolute right-2 bottom-2 w-8 h-8 rounded-md flex items-center justify-center transition-all duration-200 ${
-              (!input.trim() && attachedImages.length === 0) || isLoading || isAgentStoreLoading
-                ? 'text-fg-disabled cursor-not-allowed'
-                : 'text-black hover:bg-surface-secondary'
-            }`}
-          >
-            {isLoading ? (
-              <Loader2 className="w-4 h-4 animate-spin" />
-            ) : (
-              <Send className="w-4 h-4" />
-            )}
-          </button>
         </div>
       </form>
 

@@ -69,7 +69,10 @@ export async function createAgent(options?: CreateAgentOptions): Promise<CreateA
   // 3. Create Bedrock model. Prompt cache points are managed by the SDK's
   // auto strategy (see createBedrockModel), so saved history is forwarded
   // to the Agent unmodified.
-  const model = createBedrockModel({ modelId: options?.modelId });
+  const model = createBedrockModel({
+    modelId: options?.modelId,
+    reasoningEffort: options?.reasoningEffort,
+  });
 
   // 4. Generate system prompt. RequestContext exists by this point (set
   // by requestContextMiddleware) and guarantees a populated storagePath.

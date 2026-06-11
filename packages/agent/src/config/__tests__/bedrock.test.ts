@@ -66,3 +66,28 @@ describe('createBedrockModel region resolution', () => {
     expect(constructorCalls[0].maxTokens).toBe(16384);
   });
 });
+
+describe('createBedrockModel reasoning (extended thinking)', () => {
+  it('injects adaptive thinking + effort for a capable model + non-off depth', () => {
+    createBedrockModel({ modelId: 'global.anthropic.claude-opus-4-8', reasoningEffort: 'high' });
+    expect(constructorCalls[0].additionalRequestFields).toEqual({
+      thinking: { type: 'adaptive', display: 'summarized' },
+      output_config: { effort: 'high' },
+    });
+  });
+
+  it('omits additionalRequestFields when depth is off', () => {
+    createBedrockModel({ modelId: 'global.anthropic.claude-opus-4-8', reasoningEffort: 'off' });
+    expect(constructorCalls[0].additionalRequestFields).toBeUndefined();
+  });
+
+  it('omits additionalRequestFields when reasoningEffort is not provided', () => {
+    createBedrockModel({ modelId: 'global.anthropic.claude-opus-4-8' });
+    expect(constructorCalls[0].additionalRequestFields).toBeUndefined();
+  });
+
+  it('omits additionalRequestFields for a non-capable model even with a depth', () => {
+    createBedrockModel({ modelId: 'qwen.qwen3-coder-next', reasoningEffort: 'max' });
+    expect(constructorCalls[0].additionalRequestFields).toBeUndefined();
+  });
+});

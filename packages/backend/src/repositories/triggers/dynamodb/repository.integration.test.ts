@@ -16,7 +16,7 @@ import {
   QueryCommand,
 } from '@aws-sdk/client-dynamodb';
 import { marshall, unmarshall } from '@aws-sdk/util-dynamodb';
-import type { AgentId, TriggerId, UserId } from '@moca/core';
+import type { AgentId, ReasoningDepth, TriggerId, UserId } from '@moca/core';
 import { MAX_TRIGGERS_PER_USER, TriggerLimitExceededError, type Trigger } from '../types.js';
 import { DynamoDBTriggersRepository } from './repository.js';
 import { makeLocalClient } from '../../../tests/integration/client.js';
@@ -216,6 +216,51 @@ describe('TriggersRepository (DynamoDB Local)', () => {
     const created = await repo.createTrigger(makeScheduleInput(USER_A, 'to-delete'));
     await repo.deleteTrigger(USER_A, created.id);
     expect(await repo.getTrigger(USER_A, created.id)).toBeNull();
+  });
+
+  // reasoningEffort/modelId drive the extended-thinking depth a trigger invokes
+  // the agent with. The marshall-stubbed unit (item.reasoning.test.ts) checks the
+  // allowlist projection in isolation; these assert the values actually survive
+  // a real marshall → DynamoDB → unmarshall round-trip.
+  it('persists reasoningEffort and modelId through a real create/read-back', async () => {
+    const u = 'user-reasoning' as UserId;
+    const created = await repo.createTrigger({
+      ...makeScheduleInput(u, 'with-reasoning'),
+      modelId: 'global.anthropic.claude-opus-4-8',
+      reasoningEffort: 'high' as ReasoningDepth,
+    });
+    expect(created.reasoningEffort).toBe('high');
+    expect(created.modelId).toBe('global.anthropic.claude-opus-4-8');
+
+    const fetched = await repo.getTrigger(u, created.id);
+    expect(fetched!.reasoningEffort).toBe('high');
+    expect(fetched!.modelId).toBe('global.anthropic.claude-opus-4-8');
+
+    // The raw row (post real marshall/unmarshall) must carry both attributes —
+    // confirms the allowlist projection keeps them, not just the domain mapper.
+    const raw = await getRawItem(u, created.id);
+    expect(raw?.reasoningEffort).toBe('high');
+    expect(raw?.modelId).toBe('global.anthropic.claude-opus-4-8');
+  });
+
+  it('updates reasoningEffort via the dynamic UpdateExpression', async () => {
+    const u = 'user-reasoning-upd' as UserId;
+    const created = await repo.createTrigger({
+      ...makeScheduleInput(u, 'r-upd'),
+      reasoningEffort: 'low' as ReasoningDepth,
+    });
+    const updated = await repo.updateTrigger(u, created.id, {
+      reasoningEffort: 'max' as ReasoningDepth,
+    });
+    expect(updated.reasoningEffort).toBe('max');
+    expect((await getRawItem(u, created.id))?.reasoningEffort).toBe('max');
+  });
+
+  it('omits reasoningEffort when not provided', async () => {
+    const u = 'user-no-reasoning' as UserId;
+    const created = await repo.createTrigger(makeScheduleInput(u, 'plain'));
+    expect(created.reasoningEffort).toBeUndefined();
+    expect((await getRawItem(u, created.id))?.reasoningEffort).toBeUndefined();
   });
 
   // Regression: an event trigger whose eventConfig is replaced WITHOUT an

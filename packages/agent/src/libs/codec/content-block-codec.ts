@@ -32,6 +32,7 @@ import {
   ToolUseBlock,
   ToolResultBlock,
   ImageBlock,
+  ReasoningBlock,
   toolResultContentFromData,
   type ContentBlock,
   type ToolResultContent,
@@ -41,6 +42,7 @@ import { logger } from '../logger/index.js';
 import type {
   WireContentBlock,
   WireImageBlock,
+  WireReasoningBlock,
   WireTextBlock,
   WireToolResultBlock,
   WireToolUseBlock,
@@ -113,7 +115,28 @@ export function contentBlockToWire(block: ContentBlock): WireContentBlock {
       return wire;
     }
 
-    case 'reasoningBlock':
+    case 'reasoningBlock': {
+      // Structured projection (NOT a passthrough spread): redactedContent is a
+      // Uint8Array and would be corrupted by JSON.stringify. Encode it as base64
+      // — mirrors the imageBlock byte handling above.
+      const reasoning = block as {
+        text?: string;
+        signature?: string;
+        redactedContent?: Uint8Array;
+      };
+      const wire: WireReasoningBlock = { type: 'reasoningBlock' };
+      if (reasoning.text !== undefined) {
+        wire.text = reasoning.text;
+      }
+      if (reasoning.signature !== undefined) {
+        wire.signature = reasoning.signature;
+      }
+      if (reasoning.redactedContent && reasoning.redactedContent.length > 0) {
+        wire.redactedContentBase64 = Buffer.from(reasoning.redactedContent).toString('base64');
+      }
+      return wire;
+    }
+
     case 'cachePointBlock':
     case 'guardContentBlock':
     case 'videoBlock':
@@ -231,7 +254,24 @@ export function wireToContentBlock(wire: WireContentBlock): ContentBlock {
       return new ImageBlock({ format: wire.format, source: { bytes } });
     }
 
-    case 'reasoningBlock':
+    case 'reasoningBlock': {
+      // Rebuild a real SDK ReasoningBlock instance (not a plain cast) so that
+      // BedrockModel._formatContentBlock sees `reasoningText`/`redactedContent`
+      // on re-send and does not throw "reasoning content format incorrect".
+      // redactedContent is decoded from base64 back to a Uint8Array.
+      const data: { text?: string; signature?: string; redactedContent?: Uint8Array } = {};
+      if (wire.text !== undefined) {
+        data.text = wire.text;
+      }
+      if (wire.signature !== undefined) {
+        data.signature = wire.signature;
+      }
+      if (wire.redactedContentBase64) {
+        data.redactedContent = new Uint8Array(Buffer.from(wire.redactedContentBase64, 'base64'));
+      }
+      return new ReasoningBlock(data);
+    }
+
     case 'cachePointBlock':
     case 'guardContentBlock':
     case 'videoBlock':

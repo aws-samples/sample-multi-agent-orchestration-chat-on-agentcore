@@ -1,3 +1,4 @@
+import type { ReasoningDepth } from '@moca/core';
 import type {
   AgentStreamEvent,
   ModelContentBlockDeltaEvent,
@@ -17,6 +18,7 @@ import { logger } from '../utils/logger';
  */
 interface StreamingCallbacks {
   onTextDelta?: (text: string) => void;
+  onReasoningDelta?: (text: string) => void;
   onToolStart?: (toolName: string) => void;
   onToolEnd?: (toolName: string) => void;
   onToolUse?: (toolUse: ToolUse) => void;
@@ -31,6 +33,7 @@ interface StreamingCallbacks {
  */
 interface AgentConfig {
   modelId?: string;
+  reasoningEffort?: ReasoningDepth;
   enabledTools?: string[];
   systemPrompt?: string;
   storagePath?: string;
@@ -174,6 +177,14 @@ const handleStreamEvent = (event: AgentStreamEvent, callbacks: StreamingCallback
       const deltaEvent = event as ModelContentBlockDeltaEvent;
       if (deltaEvent.delta.type === 'textDelta' && callbacks.onTextDelta) {
         callbacks.onTextDelta(deltaEvent.delta.text);
+      } else if (
+        deltaEvent.delta.type === 'reasoningContentDelta' &&
+        deltaEvent.delta.text &&
+        callbacks.onReasoningDelta
+      ) {
+        // Only the human-readable reasoning text is consumed; signature /
+        // redactedContent are intentionally ignored on the UI.
+        callbacks.onReasoningDelta(deltaEvent.delta.text);
       }
       break;
     }

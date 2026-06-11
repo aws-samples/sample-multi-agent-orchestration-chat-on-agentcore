@@ -198,7 +198,10 @@ export interface EnvironmentConfig {
    * Available Bedrock models for frontend model selector (optional)
    * Each model ID should include the cross-region inference profile prefix
    * (e.g., 'global.', 'jp.', 'us.', 'eu.', 'apac.')
-   * @default global.* prefixed models (Opus 4.6, Sonnet 4.6, Nova Lite 2)
+   * @default The bedrockModels list in DEFAULT_CONFIG
+   *   (packages/cdk/config/environment-utils.ts); Claude Opus 4.8 is the
+   *   default-selected model. See that list for the authoritative set, which
+   *   grows as new models are added.
    */
   bedrockModels?: BedrockModelConfig[];
 

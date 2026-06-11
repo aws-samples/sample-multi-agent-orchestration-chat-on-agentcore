@@ -2,6 +2,7 @@
  * Type definitions for invocation requests
  */
 
+import type { ReasoningDepth } from '@moca/core';
 import type { ImageData } from './validation/image-validator.js';
 
 /**
@@ -10,6 +11,7 @@ import type { ImageData } from './validation/image-validator.js';
 export interface InvocationRequest {
   prompt: string; // Required: User input
   modelId?: string; // Optional: Model ID to use (default: environment variable)
+  reasoningEffort?: ReasoningDepth; // Optional: extended-thinking depth (off|low|high|max). Ignored for non-capable models.
   enabledTools?: string[]; // Optional: Array of tool names to enable (undefined=all, []=none)
   systemPrompt?: string; // Optional: Custom system prompt
   storagePath?: string; // Optional: S3 directory path selected by user

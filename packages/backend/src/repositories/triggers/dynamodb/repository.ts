@@ -93,6 +93,7 @@ export class DynamoDBTriggersRepository implements TriggersRepository {
       prompt: input.prompt,
       sessionId: input.sessionId,
       modelId: input.modelId,
+      reasoningEffort: input.reasoningEffort,
       workingDirectory: input.workingDirectory,
       enabledTools: input.enabledTools,
       scheduleConfig: input.scheduleConfig,

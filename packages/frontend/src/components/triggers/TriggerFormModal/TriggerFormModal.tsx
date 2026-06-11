@@ -24,7 +24,8 @@ import { EventTypeSelector, type EventType } from './EventTypeSelector';
 import { EventSourceSelector } from './EventSourceSelector';
 import { useTriggerStore } from '../../../stores/triggerStore';
 import type { Trigger, CreateTriggerRequest, UpdateTriggerRequest } from '../../../types/trigger';
-import type { AgentId } from '@moca/core';
+import type { AgentId, ReasoningDepth } from '@moca/core';
+import { DEFAULT_MODEL_ID } from '../../../config/models';
 import toast from 'react-hot-toast';
 import { logger } from '../../../utils/logger';
 import { ApiError } from '../../../types/errors';
@@ -68,7 +69,11 @@ interface FormData {
   timezone: string;
   eventSourceId?: string;
   inputMessage: string;
-  modelId?: string;
+  // Always set: new triggers default to DEFAULT_MODEL_ID, and legacy triggers
+  // whose stored modelId is undefined also fall back to it (see
+  // computeFormDataFromTrigger). The reasoning-depth selector keys off this.
+  modelId: string;
+  reasoningEffort?: ReasoningDepth;
   workingDirectory?: string;
 }
 
@@ -109,7 +114,8 @@ function computeFormDataFromTrigger(trigger: Trigger | null | undefined): FormDa
       cronExpression: trigger.scheduleConfig.expression,
       timezone: trigger.scheduleConfig.timezone || 'Asia/Tokyo',
       inputMessage: trigger.prompt,
-      modelId: trigger.modelId,
+      modelId: trigger.modelId ?? DEFAULT_MODEL_ID,
+      reasoningEffort: trigger.reasoningEffort,
       workingDirectory: trigger.workingDirectory ?? '/',
     };
   }
@@ -122,7 +128,8 @@ function computeFormDataFromTrigger(trigger: Trigger | null | undefined): FormDa
       timezone: 'Asia/Tokyo',
       eventSourceId: trigger.eventConfig.eventSourceId,
       inputMessage: trigger.prompt,
-      modelId: trigger.modelId,
+      modelId: trigger.modelId ?? DEFAULT_MODEL_ID,
+      reasoningEffort: trigger.reasoningEffort,
       workingDirectory: trigger.workingDirectory ?? '/',
     };
   }
@@ -134,7 +141,8 @@ function computeFormDataFromTrigger(trigger: Trigger | null | undefined): FormDa
     timezone: 'Asia/Tokyo',
     eventSourceId: undefined,
     inputMessage: '',
-    modelId: undefined,
+    modelId: DEFAULT_MODEL_ID,
+    reasoningEffort: undefined,
     workingDirectory: '/',
   };
 }
@@ -265,6 +273,7 @@ export function TriggerFormModal({ isOpen, onClose, trigger, onSave }: TriggerFo
           type: selectedEventType as 'schedule' | 'event',
           prompt: formData.inputMessage,
           modelId: formData.modelId,
+          reasoningEffort: formData.reasoningEffort,
           workingDirectory,
         };
 
@@ -290,6 +299,7 @@ export function TriggerFormModal({ isOpen, onClose, trigger, onSave }: TriggerFo
           type: selectedEventType as 'schedule' | 'event',
           prompt: formData.inputMessage,
           modelId: formData.modelId,
+          reasoningEffort: formData.reasoningEffort,
           workingDirectory,
         };
 
@@ -374,7 +384,11 @@ export function TriggerFormModal({ isOpen, onClose, trigger, onSave }: TriggerFo
                 <AgentExecutionConfig
                   modelId={formData.modelId}
                   workingDirectory={formData.workingDirectory}
+                  reasoningEffort={formData.reasoningEffort}
                   onModelIdChange={(modelId) => setFormData({ ...formData, modelId })}
+                  onReasoningEffortChange={(reasoningEffort) =>
+                    setFormData({ ...formData, reasoningEffort })
+                  }
                   onWorkingDirectoryChange={(workingDirectory) =>
                     setFormData({ ...formData, workingDirectory })
                   }

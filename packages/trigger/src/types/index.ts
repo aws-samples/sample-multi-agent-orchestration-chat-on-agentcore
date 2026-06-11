@@ -3,7 +3,7 @@
  * These types define the data models for event-driven agent invocations
  */
 
-import type { TriggerId } from '@moca/core';
+import type { TriggerId, ReasoningDepth } from '@moca/core';
 
 /**
  * Trigger type - supports extensibility for future trigger sources
@@ -82,6 +82,7 @@ export interface Trigger {
   prompt: string;
   sessionId?: string;
   modelId?: string;
+  reasoningEffort?: ReasoningDepth;
   workingDirectory?: string;
   enabledTools?: string[];
 
@@ -138,6 +139,7 @@ export interface CreateTriggerRequest {
   prompt: string;
   sessionId?: string;
   modelId?: string;
+  reasoningEffort?: ReasoningDepth;
   workingDirectory?: string;
   enabledTools?: string[];
   scheduleConfig?: Omit<ScheduleTriggerConfig, 'schedulerArn' | 'scheduleGroupName'>;
@@ -165,6 +167,7 @@ export interface TriggerResponse {
   prompt: string;
   sessionId?: string;
   modelId?: string;
+  reasoningEffort?: ReasoningDepth;
   workingDirectory?: string;
   enabledTools?: string[];
   scheduleConfig?: ScheduleTriggerConfig;
@@ -196,6 +199,7 @@ export interface SchedulerEventPayload {
   prompt: string;
   sessionId?: string;
   modelId?: string;
+  reasoningEffort?: ReasoningDepth;
   workingDirectory?: string;
   enabledTools?: string[];
 }

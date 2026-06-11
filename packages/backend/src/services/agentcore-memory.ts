@@ -88,7 +88,8 @@ export type MessageContent =
   | { type: 'text'; text: string }
   | { type: 'toolUse'; toolUse: ToolUse }
   | { type: 'toolResult'; toolResult: ToolResult }
-  | { type: 'image'; image: { base64: string; mimeType: string; fileName?: string } };
+  | { type: 'image'; image: { base64: string; mimeType: string; fileName?: string } }
+  | { type: 'reasoning'; reasoning: { text: string } };
 
 /**
  * Event information type definition (formatted for Frontend)
@@ -134,6 +135,11 @@ interface BackendContentBlock {
   // ImageBlock fields
   format?: string;
   base64?: string;
+  // ReasoningBlock fields. `signature` / `redactedContentBase64` are
+  // round-trip-only metadata the agent persists; they are intentionally NOT
+  // surfaced to the UI (only `text` is converted below).
+  signature?: string;
+  redactedContentBase64?: string;
 }
 
 /**
@@ -155,7 +161,9 @@ interface BlobData {
  * only originate from a code path that bypassed the codec — there is no
  * such path in this repository.
  */
-function convertToMessageContents(contentBlocks: BackendContentBlock[]): MessageContent[] {
+export function convertToMessageContents(
+  contentBlocks: BackendContentBlock[]
+): MessageContent[] {
   const messageContents: MessageContent[] = [];
 
   for (const block of contentBlocks) {
@@ -227,6 +235,15 @@ function convertToMessageContents(contentBlocks: BackendContentBlock[]): Message
               mimeType,
             },
           });
+        }
+        break;
+
+      case 'reasoningBlock':
+        // Surface only the human-readable reasoning text. A reasoning block with
+        // empty/absent text (signature- or redactedContent-only) carries nothing
+        // displayable, so it is dropped. redactedContentBase64 is never exposed.
+        if (typeof block.text === 'string' && block.text.length > 0) {
+          messageContents.push({ type: 'reasoning', reasoning: { text: block.text } });
         }
         break;
 

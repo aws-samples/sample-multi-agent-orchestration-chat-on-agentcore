@@ -3,6 +3,7 @@
  */
 
 import { generateSessionId } from '@moca/core';
+import type { ReasoningDepth } from '@moca/core';
 import { SchedulerEventPayload, EventDrivenContext } from '../types/index.js';
 import { AgentsService, MCPConfig } from './agents-service.js';
 import { buildEventDrivenPrompt } from './prompt-builder.js';
@@ -30,6 +31,7 @@ function encodeAgentUrl(url: string): string {
 interface AgentInvocationRequest {
   prompt: string;
   modelId?: string;
+  reasoningEffort?: ReasoningDepth;
   storagePath?: string;
   enabledTools?: string[];
   targetUserId: string;
@@ -121,6 +123,7 @@ export class AgentInvoker {
         targetUserId: payload.userId,
         sessionId,
         modelId: payload.modelId,
+        reasoningEffort: payload.reasoningEffort,
         storagePath: payload.workingDirectory ?? '/',
         systemPrompt: agent.systemPrompt,
         enabledTools: agent.enabledTools,

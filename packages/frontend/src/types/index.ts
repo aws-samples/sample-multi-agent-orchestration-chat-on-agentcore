@@ -50,13 +50,21 @@ export const IMAGE_ATTACHMENT_CONFIG = {
 
 export type AcceptedImageType = (typeof IMAGE_ATTACHMENT_CONFIG.ACCEPTED_TYPES)[number];
 
+// Reasoning (extended thinking) types. Only the human-readable `text` is ever
+// shown; the cryptographic signature / redactedContent are round-trip-only and
+// never reach the frontend.
+export interface Reasoning {
+  text: string;
+}
+
 // Message Content types
 export interface MessageContent {
-  type: 'text' | 'toolUse' | 'toolResult' | 'image';
+  type: 'text' | 'toolUse' | 'toolResult' | 'image' | 'reasoning';
   text?: string;
   toolUse?: ToolUse;
   toolResult?: ToolResult;
   image?: ImageAttachment;
+  reasoning?: Reasoning;
 }
 
 // Message types
@@ -126,10 +134,20 @@ export interface AgentStreamEvent {
 
 export interface ModelContentBlockDeltaEvent extends AgentStreamEvent {
   type: 'modelContentBlockDeltaEvent';
-  delta: {
-    type: 'textDelta';
-    text: string;
-  };
+  delta:
+    | {
+        type: 'textDelta';
+        text: string;
+      }
+    | {
+        // Reasoning (extended thinking) delta. `text` carries the human-readable
+        // reasoning; `signature` / `redactedContentBase64` are round-trip-only
+        // and intentionally not consumed by the UI.
+        type: 'reasoningContentDelta';
+        text?: string;
+        signature?: string;
+        redactedContentBase64?: string;
+      };
 }
 
 export interface ModelContentBlockStartEvent extends AgentStreamEvent {

@@ -177,6 +177,28 @@ describe('AgentInvoker', () => {
       expect(result.error).toContain('503');
     });
 
+    it('forwards reasoningEffort from the payload into the agent request body', async () => {
+      const service = makeAgentsService();
+      fetchMock.mockResolvedValue(new Response(null, { status: 200 }));
+
+      const invoker = new AgentInvoker('https://api.example.com/invocations', service);
+      await invoker.invokeAsync(makePayload({ reasoningEffort: 'high' }), 'token');
+
+      const body = JSON.parse(fetchMock.mock.calls[0][1]!.body as string);
+      expect(body.reasoningEffort).toBe('high');
+    });
+
+    it('omits reasoningEffort from the body when the payload has none', async () => {
+      const service = makeAgentsService();
+      fetchMock.mockResolvedValue(new Response(null, { status: 200 }));
+
+      const invoker = new AgentInvoker('https://api.example.com/invocations', service);
+      await invoker.invokeAsync(makePayload(), 'token');
+
+      const body = JSON.parse(fetchMock.mock.calls[0][1]!.body as string);
+      expect('reasoningEffort' in body).toBe(false);
+    });
+
     it('should call fetch with same URL encoding as invoke', async () => {
       const rawUrl =
         'https://xxx.bedrock-agentcore.us-east-1.amazonaws.com/runtimes/arn:aws:bedrock-agentcore:us-east-1:123456:runtime/my-runtime/invocations';

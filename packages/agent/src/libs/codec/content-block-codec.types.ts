@@ -35,6 +35,7 @@ import type {
   ToolUseBlock,
   ToolResultBlock,
   ImageBlock,
+  ReasoningBlock,
   ContentBlock,
   JSONValue,
 } from '@strands-agents/sdk';
@@ -95,13 +96,34 @@ export interface WireImageBlock {
 }
 
 /**
+ * Reasoning (extended thinking) block on the wire.
+ *
+ * A passthrough spread would corrupt the block: `ReasoningBlock.redactedContent`
+ * is a `Uint8Array`, and `JSON.stringify` turns a `Uint8Array` into
+ * `{"0":12,...}` — un-round-trippable, so Bedrock would reject the block on the
+ * next turn. We therefore project it into a structured shape: `text`/`signature`
+ * pulled from the SDK class (so a rename breaks compilation, mirroring
+ * `WireToolUseBlock`), and `redactedContent` stored as a base64 string.
+ *
+ * `redactedContentBase64` is round-trip only — it is NEVER surfaced to the UI
+ * (the backend converter drops it); it exists solely so the encrypted thinking
+ * survives Memory persistence and can be re-sent to Bedrock verbatim.
+ */
+export interface WireReasoningBlock {
+  type: 'reasoningBlock';
+  text?: ReasoningBlock['text'];
+  signature?: ReasoningBlock['signature'];
+  /** Base64-encoded `redactedContent` (decoded back to Uint8Array on read-back). */
+  redactedContentBase64?: string;
+}
+
+/**
  * Passthrough block for `ContentBlock` subtypes we don't yet need a
  * structured wire shape for. The runtime stores whatever fields the SDK
  * exposes and the read-back path tolerates schema drift.
  */
 export interface WirePassthroughBlock {
   type:
-    | 'reasoningBlock'
     | 'cachePointBlock'
     | 'guardContentBlock'
     | 'videoBlock'
@@ -125,6 +147,7 @@ export type WireContentBlock =
   | WireToolUseBlock
   | WireToolResultBlock
   | WireImageBlock
+  | WireReasoningBlock
   | WirePassthroughBlock;
 
 /** Role discriminator on the wire. Stays in sync with `Message.role`. */

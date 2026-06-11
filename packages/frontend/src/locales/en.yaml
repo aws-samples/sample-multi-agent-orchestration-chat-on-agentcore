@@ -24,6 +24,13 @@ common:
   noFolders: No folders
   inputParameters: Input Parameters
   unsupportedContentType: 'Unsupported content type: {{type}}'
+  reasoning: Reasoning
+  thinking: Thinking…
+  reasoningDepth: Reasoning
+  reasoningDepthOff: 'Off'
+  reasoningDepthLow: Low
+  reasoningDepthHigh: High
+  reasoningDepthMax: Max
   yes: Yes
   no: No
   back: Back

@@ -2,7 +2,7 @@
  * Trigger types for frontend
  */
 
-import type { AgentId, SessionId, TriggerId, UserId } from '@moca/core';
+import type { AgentId, ReasoningDepth, SessionId, TriggerId, UserId } from '@moca/core';
 
 export type TriggerType = 'schedule' | 'event';
 export type TriggerStatus = 'enabled' | 'disabled';
@@ -26,6 +26,8 @@ export interface Trigger {
    */
   sessionId?: SessionId;
   modelId?: string;
+  /** Extended-thinking depth used when this trigger invokes the agent. */
+  reasoningEffort?: ReasoningDepth;
   workingDirectory?: string;
   enabledTools?: string[];
   scheduleConfig?: ScheduleConfig;
@@ -65,6 +67,7 @@ export interface CreateTriggerRequest {
   prompt: string;
   sessionId?: SessionId;
   modelId?: string;
+  reasoningEffort?: ReasoningDepth;
   workingDirectory?: string;
   enabledTools?: string[];
   scheduleConfig?: ScheduleConfig;
@@ -79,6 +82,7 @@ export interface UpdateTriggerRequest {
   prompt?: string;
   sessionId?: SessionId;
   modelId?: string;
+  reasoningEffort?: ReasoningDepth;
   workingDirectory?: string;
   enabledTools?: string[];
   scheduleConfig?: ScheduleConfig;

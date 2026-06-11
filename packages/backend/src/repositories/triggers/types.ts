@@ -16,7 +16,7 @@
  * `item.ts`). Adding/altering an index never ripples into route or service code.
  */
 
-import type { UserId, AgentId, TriggerId } from '@moca/core';
+import type { UserId, AgentId, TriggerId, ReasoningDepth } from '@moca/core';
 
 /**
  * Maximum number of triggers a single user may register.
@@ -75,6 +75,8 @@ export interface Trigger {
   prompt: string;
   sessionId?: string;
   modelId?: string;
+  /** Extended-thinking depth used when this trigger invokes the agent. */
+  reasoningEffort?: ReasoningDepth;
   workingDirectory?: string;
   enabledTools?: string[];
   scheduleConfig?: ScheduleTriggerConfig;

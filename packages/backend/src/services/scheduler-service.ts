@@ -10,7 +10,7 @@ import {
   DeleteScheduleCommand,
   GetScheduleCommand,
 } from '@aws-sdk/client-scheduler';
-import type { UserId, AgentId, TriggerId } from '@moca/core';
+import type { UserId, AgentId, TriggerId, ReasoningDepth } from '@moca/core';
 import { config as appConfig } from '../config/index.js';
 import { logger } from '../libs/logger/index.js';
 
@@ -24,6 +24,7 @@ export interface SchedulePayload {
   prompt: string;
   sessionId?: string;
   modelId?: string;
+  reasoningEffort?: ReasoningDepth;
   workingDirectory?: string;
   enabledTools?: string[];
 }

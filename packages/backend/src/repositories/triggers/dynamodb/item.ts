@@ -44,6 +44,7 @@ const TRIGGER_FIELDS: readonly (keyof Trigger)[] = [
   'prompt',
   'sessionId',
   'modelId',
+  'reasoningEffort',
   'workingDirectory',
   'enabledTools',
   'scheduleConfig',
@@ -178,6 +179,10 @@ export function buildUpdateExpression(
   if (updates.modelId !== undefined) {
     updateParts.push('modelId = :modelId');
     attributeValues[':modelId'] = updates.modelId;
+  }
+  if (updates.reasoningEffort !== undefined) {
+    updateParts.push('reasoningEffort = :reasoningEffort');
+    attributeValues[':reasoningEffort'] = updates.reasoningEffort;
   }
   if (updates.workingDirectory !== undefined) {
     updateParts.push('workingDirectory = :workingDirectory');

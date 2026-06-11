@@ -28,6 +28,7 @@
  */
 
 import type { Request, Response } from 'express';
+import { isReasoningDepth } from '@moca/core';
 import type { InvocationRequest } from '../types/index.js';
 import { createAgent } from '../agent.js';
 import {
@@ -99,6 +100,8 @@ export async function handleInvocation(req: Request, res: Response): Promise<voi
       ...(workspaceSyncResult ? [workspaceSyncResult.hook] : []),
     ],
     modelId: body.modelId,
+    // Clamp an unknown/absent reasoning depth to 'off' (no thinking field).
+    reasoningEffort: isReasoningDepth(body.reasoningEffort) ? body.reasoningEffort : 'off',
     enabledTools: body.enabledTools,
     systemPrompt: body.systemPrompt,
     memoryEnabled: body.memoryEnabled,

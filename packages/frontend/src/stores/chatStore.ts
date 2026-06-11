@@ -41,24 +41,35 @@ const addContentToMessage = (
   return [...contents, newContent];
 };
 
-// Helper function: Update or add text content
-const updateOrAddTextContent = (contents: MessageContent[], text: string): MessageContent[] => {
-  // If contents is empty, add a new text block
-  if (contents.length === 0) {
-    return [{ type: 'text', text }];
-  }
+// Append a streaming delta to the trailing block of the given `kind`, or start
+// a new block when the last block is a different kind (after a tool result, or
+// when reasoning follows answer text and vice-versa).
+//
+// WHY this shape: the message `contents` array is the single source of truth for
+// streaming accumulation. The previous design kept external `accumulatedContent`
+// / `accumulatedReasoning` strings plus an `isAfterToolExecution` flag, and a
+// second reasoning burst (think → tool → think → answer) re-used a stale
+// accumulator, duplicating the earlier reasoning into the later panel. Reading
+// and extending the trailing block removes that entire class of reset bugs.
+const appendStreamingDelta = (
+  contents: MessageContent[],
+  kind: 'text' | 'reasoning',
+  delta: string
+): MessageContent[] => {
+  const make = (text: string): MessageContent =>
+    kind === 'text' ? { type: 'text', text } : { type: 'reasoning', reasoning: { text } };
+  const textOf = (c: MessageContent): string =>
+    c.type === 'text' ? (c.text ?? '') : (c.reasoning?.text ?? '');
 
   const lastContent = contents[contents.length - 1];
-
-  // Update only if the last item is a text block (streaming continuation)
-  if (lastContent.type === 'text') {
+  // Extend the trailing block in place only when it is the same kind (streaming
+  // continuation); otherwise start a fresh block so stream order is preserved.
+  if (lastContent?.type === kind) {
     const updated = [...contents];
-    updated[contents.length - 1] = { type: 'text', text };
+    updated[contents.length - 1] = make(textOf(lastContent) + delta);
     return updated;
   }
-
-  // Add a new text block if the last item is toolUse or toolResult
-  return [...contents, { type: 'text', text }];
+  return [...contents, make(delta)];
 };
 
 // Helper function: Update ToolUse status
@@ -282,8 +293,26 @@ export const useChatStore = create<ChatStore>()(
             isStreaming: true,
           });
 
-          let accumulatedContent = '';
-          let isAfterToolExecution = false;
+          // Build a streaming-delta callback for the given block kind. Shared by
+          // onTextDelta/onReasoningDelta so their session-scoping and append logic
+          // stay in lockstep.
+          const makeDeltaHandler = (kind: 'text' | 'reasoning') => (text: string) => {
+            const { activeSessionId, sessions } = get();
+            if (activeSessionId !== sessionId) {
+              logger.log(
+                `Session switch detected (${sessionId} → ${activeSessionId}), skipping ${kind} delta`
+              );
+              return;
+            }
+            const currentMessage = sessions[sessionId]?.messages.find(
+              (msg) => msg.id === assistantMessageId
+            );
+            if (!currentMessage) return;
+            updateMessage(sessionId, assistantMessageId, {
+              contents: appendStreamingDelta(currentMessage.contents, kind, text),
+              isStreaming: true,
+            });
+          };
 
           // Get selected agent configuration
           const selectedAgent = useAgentStore.getState().selectedAgent;
@@ -294,8 +323,9 @@ export const useChatStore = create<ChatStore>()(
           // Get long-term memory settings
           const { isMemoryEnabled } = useMemoryStore.getState();
 
-          // Get selected model ID
-          const { selectedModelId } = useSettingsStore.getState();
+          // Get selected model ID and its reasoning depth (per-model selection)
+          const { selectedModelId, getReasoningDepthFor } = useSettingsStore.getState();
+          const reasoningEffort = getReasoningDepthFor(selectedModelId);
 
           // Convert images to Base64
           let imageData: Array<{ base64: string; mimeType: string }> | undefined;
@@ -313,6 +343,7 @@ export const useChatStore = create<ChatStore>()(
           const agentConfig = selectedAgent
             ? {
                 modelId: selectedModelId,
+                reasoningEffort,
                 systemPrompt: selectedAgent.systemPrompt,
                 enabledTools: selectedAgent.enabledTools,
                 storagePath: agentWorkingDirectory,
@@ -323,6 +354,7 @@ export const useChatStore = create<ChatStore>()(
               }
             : {
                 modelId: selectedModelId,
+                reasoningEffort,
                 storagePath: agentWorkingDirectory,
                 memoryEnabled: isMemoryEnabled,
                 images: imageData,
@@ -342,46 +374,19 @@ export const useChatStore = create<ChatStore>()(
             prompt,
             sessionId,
             {
-              onTextDelta: (text: string) => {
-                // Scope by session ID
-                const { activeSessionId } = get();
-
-                // Skip update if active session has switched
-                if (activeSessionId !== sessionId) {
-                  logger.log(
-                    `Session switch detected (${sessionId} → ${activeSessionId}), skipping update`
-                  );
-                  return;
-                }
-
-                // For first text after tool execution, start a new text block
-                if (isAfterToolExecution) {
-                  accumulatedContent = text;
-                  isAfterToolExecution = false;
-                } else {
-                  accumulatedContent += text;
-                }
-
-                const { sessions } = get();
-                const sessionState = sessions[sessionId];
-                if (!sessionState) return;
-
-                const currentMessage = sessionState.messages.find(
-                  (msg) => msg.id === assistantMessageId
-                );
-
-                if (currentMessage) {
-                  // Update text while preserving existing contents
-                  const newContents = updateOrAddTextContent(
-                    currentMessage.contents,
-                    accumulatedContent
-                  );
-                  updateMessage(sessionId, assistantMessageId, {
-                    contents: newContents,
-                    isStreaming: true,
-                  });
-                }
-              },
+              // Text and reasoning deltas share the same accumulation path: scope
+              // by session, find the streaming assistant message, append the delta
+              // to its trailing block of the matching kind. A single factory keeps
+              // the two callbacks from drifting (e.g. session-switch logging that
+              // was previously only on the text path).
+              //
+              // Idempotency note: the SDK emits each `*ContentBlockDelta` as a pure
+              // increment, never a cumulative resend, so appending is safe. There is
+              // no live-stream replay path today; if one is ever added, dedup must
+              // happen at the transport layer, not here (a content-level guard would
+              // wrongly drop legitimately repeated tokens).
+              onReasoningDelta: makeDeltaHandler('reasoning'),
+              onTextDelta: makeDeltaHandler('text'),
               onToolUse: (toolUse: ToolUse) => {
                 const { activeSessionId, sessions } = get();
                 if (activeSessionId !== sessionId) return;
@@ -467,9 +472,9 @@ export const useChatStore = create<ChatStore>()(
                   updateMessage(sessionId, assistantMessageId, {
                     contents: finalContents,
                   });
-
-                  // Set flag for next text to start as a new block
-                  isAfterToolExecution = true;
+                  // No flag needed: the trailing block is now a toolResult, so the
+                  // next text/reasoning delta starts a fresh block automatically
+                  // (see appendStreamingDelta).
                 }
               },
               onComplete: () => {

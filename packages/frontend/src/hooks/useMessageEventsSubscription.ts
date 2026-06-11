@@ -124,6 +124,12 @@ function convertContent(apiContent: unknown): MessageContent {
     };
   }
 
+  // reasoningBlock → reasoning. Only the human-readable text is surfaced;
+  // signature / redactedContentBase64 are intentionally dropped (never shown).
+  if (content.type === 'reasoningBlock' && typeof content.text === 'string' && content.text) {
+    return { type: 'reasoning', reasoning: { text: content.text } };
+  }
+
   // Pass through for already-converted or unknown types
   return content as unknown as MessageContent;
 }

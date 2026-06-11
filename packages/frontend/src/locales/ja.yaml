@@ -26,6 +26,13 @@ common:
   noFolders: フォルダがありません
   inputParameters: 入力パラメータ
   unsupportedContentType: '未対応のコンテンツタイプ: {{type}}'
+  reasoning: 思考プロセス
+  thinking: Thinking…
+  reasoningDepth: 思考の深さ
+  reasoningDepthOff: オフ
+  reasoningDepthLow: 低
+  reasoningDepthHigh: 高
+  reasoningDepthMax: 最大
   yes: はい
   no: いいえ
   back: 戻る
