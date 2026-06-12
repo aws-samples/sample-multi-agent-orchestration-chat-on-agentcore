@@ -50,8 +50,8 @@ interface AppSyncConnectionState {
 
   // Internal refs (not reactive - prefixed with _ to indicate internal use)
   _ws: WebSocket | null;
-  _reconnectTimeout: NodeJS.Timeout | null;
-  _keepAliveTimeout: NodeJS.Timeout | null;
+  _reconnectTimeout: ReturnType<typeof setTimeout> | null;
+  _keepAliveTimeout: ReturnType<typeof setTimeout> | null;
   _reconnectAttempts: number;
   _isConnecting: boolean;
   _subscriptionHandlers: Map<string, SubscriptionHandler>;

@@ -20,6 +20,7 @@ import { useSessionStore } from '../stores/sessionStore';
 import { useSwipeGesture } from '../hooks/useSwipeGesture';
 import { useSidebarShortcut } from '../hooks/useSidebarShortcut';
 import { useNewChatShortcut } from '../hooks/useNewChatShortcut';
+import { useDocumentTitle } from '../hooks/useDocumentTitle';
 import { useShortcutsHelp } from '../hooks/useShortcutsHelp';
 import { ShortcutsModal } from '../components/ShortcutsModal';
 
@@ -144,6 +145,9 @@ export function MainLayout() {
       narrowDesktopQuery.removeEventListener('change', handleResize);
     };
   }, [setSidebarOpen, setMobileView, setNarrowDesktop]);
+
+  // Sync the browser tab title with the active session's title
+  useDocumentTitle();
 
   // Cmd+B / Ctrl+B shortcut to toggle sidebar (desktop only)
   useSidebarShortcut();
