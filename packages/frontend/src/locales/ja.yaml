@@ -207,6 +207,11 @@ chat:
     tooLarge: ファイルサイズが大きすぎます。最大5MBまでです。
     maxReached: 添付できる画像は最大4枚までです。
     totalSizeExceeded: 添付画像の合計サイズが7MBを超えています。画像を減らすか、小さいサイズの画像を選択してください。
+  fileDrop:
+    uploading: '{{name}} をアップロード中...'
+    uploaded: '{{count}}件のファイルをアップロードしました'
+    failed: '{{name}} のアップロードに失敗しました: {{error}}'
+    tooLarge: '{{name}} は500MBの上限を超えています。'
   searchPlaceholder: 'セッションを検索...'
   searchDateRange: '期間'
   searchDateStart: '開始日'
@@ -458,6 +463,17 @@ storage:
   currentWorkingDirectory: 現在の作業ディレクトリ
   workingDirectory: 作業ディレクトリ
 
+  # 複数選択・一括操作
+  selectedCount: '{{count}} 件選択中'
+  selectAll: すべて選択
+  selectItem: '{{name}} を選択'
+  clearSelection: 選択を解除
+  bulkDownload: 一括ダウンロード
+  bulkDelete: 一括削除
+  bulkDeleteConfirmTitle: 選択したアイテムを削除
+  bulkDeleteConfirm: '選択した {{count}} 件（フォルダ {{folders}} 件・ファイル {{files}} 件）を削除しますか？フォルダ内のすべてのファイルとサブフォルダも削除されます。'
+  bulkDownloadName: 選択アイテム
+
   # 大容量ディレクトリの警告
   largeSizeWarningTitle: 大容量のストレージディレクトリ
   largeSizeWarningMessage: 'このディレクトリには {{size}} のデータ（{{count}} ファイル）が含まれています。セッション開始時の同期に時間がかかる場合があります。'
@@ -472,6 +488,7 @@ storage:
     currentFile: 現在のファイル
     successMessage: フォルダのダウンロードが完了しました。ZIPファイルが保存されています。
     cancelledMessage: ダウンロードがキャンセルされました。
+    partialWarning: '{{total}} 件中 {{failed}} 件のファイルを取得できませんでした。ZIPには取得できたファイルのみ含まれています。'
 
 # メモリ
 memory:

@@ -35,6 +35,7 @@ interface StorageState {
   uploadFiles: (files: Array<{ file: File; relativePath: string }>) => Promise<void>;
   createDirectory: (directoryName: string, path?: string) => Promise<void>;
   deleteItem: (item: StorageItem) => Promise<void>;
+  deleteItems: (items: StorageItem[]) => Promise<void>;
   refresh: () => Promise<void>;
   clearError: () => void;
 
@@ -266,38 +267,63 @@ export const useStorageStore = create<StorageState>()(
             }
           },
 
-          // Delete item (optimistic UI)
+          // Delete a single item (delegates to batch delete)
           deleteItem: async (item: StorageItem) => {
-            const previousItems = get().items;
+            await get().deleteItems([item]);
+          },
 
-            // Optimistic update: remove the item immediately
+          // Delete multiple items in one batch (optimistic UI)
+          deleteItems: async (items: StorageItem[]) => {
+            if (items.length === 0) return;
+
+            const previousItems = get().items;
+            const targetPaths = new Set(items.map((i) => i.path));
+
+            // Optimistic update: remove all targeted items immediately
             set({
-              items: previousItems.filter((i) => i.path !== item.path),
+              items: previousItems.filter((i) => !targetPaths.has(i.path)),
               error: null,
             });
 
-            try {
-              if (item.type === 'file') {
-                await storageApi.deleteFile(item.path);
-              } else {
-                // Force delete directory (including contents)
-                await storageApi.deleteDirectory(item.path, true);
-              }
+            // Delete each item in parallel; collect per-item outcomes
+            const results = await Promise.allSettled(
+              items.map((item) =>
+                item.type === 'file'
+                  ? storageApi.deleteFile(item.path)
+                  : // Force delete directory (including contents)
+                    storageApi.deleteDirectory(item.path, true)
+              )
+            );
 
-              // Silent sync: reload without showing loading spinner
-              await silentSyncItems(get().currentPath);
-
-              // Silent tree sync if directory was deleted
-              if (item.type === 'directory') {
-                await silentSyncFolderTree();
+            // Identify failures and re-add only the items that failed to delete
+            const failedItems: StorageItem[] = [];
+            const errors: string[] = [];
+            results.forEach((result, index) => {
+              if (result.status === 'rejected') {
+                const item = items[index];
+                failedItems.push(item);
+                logger.error('Failed to delete item %s:', item.path, result.reason);
+                errors.push(`${item.name}: ${extractErrorMessage(result.reason, 'Unknown error')}`);
               }
-            } catch (error) {
-              logger.error('Failed to delete item:', error);
-              // Rollback on failure
+            });
+
+            if (failedItems.length > 0) {
+              // Partial rollback: restore failed items in their original order
+              const failedPaths = new Set(failedItems.map((i) => i.path));
               set({
-                items: previousItems,
-                error: extractErrorMessage(error, 'Failed to delete item'),
+                items: previousItems.filter(
+                  (i) => failedPaths.has(i.path) || !targetPaths.has(i.path)
+                ),
+                error: errors.join('\n'),
               });
+            }
+
+            // Silent sync once after all deletions
+            await silentSyncItems(get().currentPath);
+
+            // Silent tree sync if any directory was deleted
+            if (items.some((i) => i.type === 'directory')) {
+              await silentSyncFolderTree();
             }
           },
 

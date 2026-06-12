@@ -1,11 +1,13 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Send, Loader2, Paperclip } from 'lucide-react';
+import { Send, Loader2, Paperclip, CheckCircle2 } from 'lucide-react';
 import { randomId } from '../utils/randomId';
 import { useChatStore } from '../stores/chatStore';
 import { useAgentStore } from '../stores/agentStore';
 import { useSettingsStore } from '../stores/settingsStore';
 import { useUIStore } from '../stores/uiStore';
+import { useStorageStore } from '../stores/storageStore';
+import * as storageApi from '../api/storage';
 import { StoragePathDisplay } from './StoragePathDisplay';
 import { StorageManagementModal } from './StorageManagementModal';
 import { ModelReasoningSelector } from './ui/ModelReasoningSelector';
@@ -34,13 +36,28 @@ export const MessageInput: React.FC<MessageInputProps> = ({
   const isLoading = sessionState?.isLoading || false;
   const isAgentStoreLoading = useAgentStore((state) => state.isLoading);
   const isWideView = useUIStore((state) => state.isWideView);
+  const agentWorkingDirectory = useStorageStore((state) => state.agentWorkingDirectory);
   const [input, setInput] = useState('');
   const [attachedImages, setAttachedImages] = useState<ImageAttachment[]>([]);
   const [isStorageModalOpen, setIsStorageModalOpen] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
+  const [uploadingFileName, setUploadingFileName] = useState<string | null>(null);
+  // Brief "upload complete" message shown in the same spot as the uploading
+  // overlay, right after it disappears. null when nothing to show.
+  const [uploadDoneMessage, setUploadDoneMessage] = useState<string | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const prevLoadingRef = useRef(isLoading);
+  const doneTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Clear the completion-message timer on unmount
+  useEffect(() => {
+    return () => {
+      if (doneTimerRef.current) {
+        clearTimeout(doneTimerRef.current);
+      }
+    };
+  }, []);
 
   // Auto-resize textarea
   useEffect(() => {
@@ -171,6 +188,96 @@ export const MessageInput: React.FC<MessageInputProps> = ({
     [processAndAttachImages]
   );
 
+  // Insert text at the textarea cursor (falls back to appending). Keeps the
+  // caret right after the inserted text so the user can keep typing.
+  const insertTextAtCursor = useCallback((text: string) => {
+    setInput((prev) => {
+      const textarea = textareaRef.current;
+      const start = textarea?.selectionStart ?? prev.length;
+      const end = textarea?.selectionEnd ?? prev.length;
+      const next = prev.slice(0, start) + text + prev.slice(end);
+      // Restore the caret after React commits the new value
+      requestAnimationFrame(() => {
+        const el = textareaRef.current;
+        if (el) {
+          const pos = start + text.length;
+          el.focus();
+          el.setSelectionRange(pos, pos);
+        }
+      });
+      return next;
+    });
+  }, []);
+
+  // Join a directory and file name into a normalized absolute path
+  const joinWorkingPath = useCallback((dir: string, fileName: string): string => {
+    if (!dir || dir === '/') {
+      return `/${fileName}`;
+    }
+    const trimmed = dir.endsWith('/') ? dir.slice(0, -1) : dir;
+    return `${trimmed}/${fileName}`;
+  }, []);
+
+  // Upload non-image files to the current agent working directory and insert
+  // their resulting paths into the message input. Uploads sequentially so the
+  // inserted paths keep the drop order.
+  const uploadFilesToWorkingDirectory = useCallback(
+    async (files: File[]) => {
+      if (files.length === 0) return;
+
+      const maxSize = 500 * 1024 * 1024; // 500MB (matches storage store limit)
+      let uploadedCount = 0;
+      try {
+        for (const file of files) {
+          if (file.size > maxSize) {
+            alert(t('chat.fileDrop.tooLarge', { name: file.name }));
+            continue;
+          }
+          try {
+            setUploadingFileName(file.name);
+            const { uploadUrl } = await storageApi.generateUploadUrl(
+              file.name,
+              agentWorkingDirectory,
+              file.type
+            );
+            await storageApi.uploadFileToS3(uploadUrl, file);
+
+            const uploadedPath = joinWorkingPath(agentWorkingDirectory, file.name);
+            insertTextAtCursor(`${uploadedPath} `);
+            uploadedCount++;
+          } catch (error) {
+            logger.error('Failed to upload dropped file %s:', file.name, error);
+            alert(
+              t('chat.fileDrop.failed', {
+                name: file.name,
+                error: error instanceof Error ? error.message : String(error),
+              })
+            );
+          }
+        }
+        // Refresh the storage modal view/tree so the new files show up
+        await useStorageStore.getState().loadFolderTree();
+        if (useStorageStore.getState().currentPath === agentWorkingDirectory) {
+          await useStorageStore.getState().loadItems(agentWorkingDirectory);
+        }
+      } finally {
+        setUploadingFileName(null);
+        // Briefly show a completion message in the same spot, then hide it.
+        if (uploadedCount > 0) {
+          setUploadDoneMessage(t('chat.fileDrop.uploaded', { count: uploadedCount }));
+          if (doneTimerRef.current) {
+            clearTimeout(doneTimerRef.current);
+          }
+          doneTimerRef.current = setTimeout(() => {
+            setUploadDoneMessage(null);
+            doneTimerRef.current = null;
+          }, 1000);
+        }
+      }
+    },
+    [agentWorkingDirectory, insertTextAtCursor, joinWorkingPath, t]
+  );
+
   // Drag and drop handlers
   const handleDragOver = useCallback((e: React.DragEvent) => {
     e.preventDefault();
@@ -190,17 +297,26 @@ export const MessageInput: React.FC<MessageInputProps> = ({
       e.stopPropagation();
       setIsDragging(false);
 
-      const files = e.dataTransfer.files;
-      if (files.length > 0) {
-        const imageFiles = Array.from(files).filter((file) =>
-          IMAGE_ATTACHMENT_CONFIG.ACCEPTED_TYPES.includes(file.type as never)
-        );
-        if (imageFiles.length > 0) {
-          processAndAttachImages(imageFiles);
-        }
+      const files = Array.from(e.dataTransfer.files);
+      if (files.length === 0) return;
+
+      // Images keep the existing "attach to message" behavior; every other file
+      // is uploaded to the working directory and its path inserted into the input.
+      const imageFiles = files.filter((file) =>
+        IMAGE_ATTACHMENT_CONFIG.ACCEPTED_TYPES.includes(file.type as never)
+      );
+      const otherFiles = files.filter(
+        (file) => !IMAGE_ATTACHMENT_CONFIG.ACCEPTED_TYPES.includes(file.type as never)
+      );
+
+      if (imageFiles.length > 0) {
+        processAndAttachImages(imageFiles);
+      }
+      if (otherFiles.length > 0) {
+        void uploadFilesToWorkingDirectory(otherFiles);
       }
     },
-    [processAndAttachImages]
+    [processAndAttachImages, uploadFilesToWorkingDirectory]
   );
 
   // Handle paste from clipboard (screenshots)
@@ -350,6 +466,22 @@ export const MessageInput: React.FC<MessageInputProps> = ({
           onDragLeave={handleDragLeave}
           onDrop={handleDrop}
         >
+          {/* Upload status overlay for dropped files: shows progress while
+              uploading, then a brief completion message in the same spot. */}
+          {uploadingFileName ? (
+            <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-start gap-2 rounded-2xl bg-surface-primary/80 px-4 text-sm text-fg-secondary">
+              <Loader2 className="w-4 h-4 animate-spin" />
+              <span>{t('chat.fileDrop.uploading', { name: uploadingFileName })}</span>
+            </div>
+          ) : (
+            uploadDoneMessage && (
+              <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-start gap-2 rounded-2xl bg-surface-primary/80 px-4 text-sm text-fg-secondary">
+                <CheckCircle2 className="w-4 h-4 text-emerald-500" />
+                <span>{uploadDoneMessage}</span>
+              </div>
+            )
+          )}
+
           {/* Image preview */}
           <ImagePreview images={attachedImages} onRemove={handleRemoveImage} disabled={isLoading} />
 

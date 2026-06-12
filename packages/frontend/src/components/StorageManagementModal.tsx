@@ -5,191 +5,35 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
-import {
-  X,
-  Folder,
-  File,
-  Upload,
-  FolderPlus,
-  Trash2,
-  Loader2,
-  AlertCircle,
-  AlertTriangle,
-  ChevronRight,
-  Home,
-  Download,
-  Copy,
-  Check,
-  HelpCircle,
-  FolderCog,
-} from 'lucide-react';
+import { X, Folder, Upload, Loader2, AlertCircle, Check, HelpCircle } from 'lucide-react';
 import { useStorageStore } from '../stores/storageStore';
 import type { StorageItem, FolderNode } from '../api/storage';
 import { Modal } from './ui/Modal/Modal';
+import { ConfirmModal } from './ui/Modal/ConfirmModal';
 import {
-  generateDownloadUrl,
-  downloadFolder,
-  getDirectorySize,
-  type DownloadProgress,
-} from '../api/storage';
+  StorageContentContextMenu,
+  StorageFolderContextMenu,
+} from './storage/StorageContextMenu';
+import { StorageItemRow } from './storage/StorageItemRow';
+import { StorageBreadcrumb } from './storage/StorageBreadcrumb';
+import { StorageToolbar } from './storage/StorageToolbar';
+import { getDirectorySize } from '../api/storage';
 import { Tooltip } from './ui/Tooltip/Tooltip';
 import { FolderTree } from './FolderTree';
-import { getFileIcon } from '../utils/fileIcons';
-import { downloadWithAsyncUrl } from '../utils/download';
+import {
+  collectDropEntries,
+  readDroppedEntries,
+  resolveDirectoryCreation,
+} from '../utils/fileSystemEntry';
+import { useStorageSelection } from '../hooks/useStorageSelection';
+import { useFolderDownload } from '../hooks/useFolderDownload';
+import { useStorageHashSync } from '../hooks/useStorageHashSync';
 import { DownloadProgressModal } from './ui/DownloadProgressModal';
 import { logger } from '../utils/logger';
 
 interface StorageManagementModalProps {
   isOpen: boolean;
   onClose: () => void;
-}
-
-/**
- * File/directory item display component
- */
-interface StorageItemComponentProps {
-  item: StorageItem;
-  onDelete: (item: StorageItem) => void;
-  onNavigate: (path: string) => void;
-  onDownload: (item: StorageItem) => void;
-  onContextMenu: (e: React.MouseEvent, item: StorageItem) => void;
-  onSetWorkingDirectory?: (path: string) => void;
-}
-
-function StorageItemComponent({
-  item,
-  onDelete,
-  onNavigate,
-  onDownload,
-  onContextMenu,
-  onSetWorkingDirectory,
-}: StorageItemComponentProps) {
-  const { t } = useTranslation();
-
-  const handleDelete = (e: React.MouseEvent) => {
-    e.stopPropagation(); // Stop card click event
-
-    const confirmMessage =
-      item.type === 'directory'
-        ? t('storage.deleteDirectoryConfirm', { name: item.name })
-        : t('storage.deleteFileConfirm', { name: item.name });
-
-    if (window.confirm(confirmMessage)) {
-      onDelete(item);
-    }
-  };
-
-  const handleDownloadClick = (e: React.MouseEvent) => {
-    e.stopPropagation(); // Stop card click event
-    onDownload(item);
-  };
-
-  const handleCardClick = () => {
-    if (item.type === 'directory') {
-      onNavigate(item.path);
-    } else {
-      // Download if file
-      onDownload(item);
-    }
-  };
-
-  const formatSize = (bytes?: number) => {
-    if (!bytes) return '—';
-    if (bytes < 1024) return `${bytes} B`;
-    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-  };
-
-  const formatDate = (dateString?: string) => {
-    if (!dateString) return '—';
-    return new Date(dateString).toLocaleDateString('ja-JP', {
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit',
-      hour: '2-digit',
-      minute: '2-digit',
-    });
-  };
-
-  const handleContextMenuClick = (e: React.MouseEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    onContextMenu(e, item);
-  };
-
-  // Get file icon
-  const fileIconConfig = item.type === 'file' ? getFileIcon(item.name) : null;
-  const FileIcon = fileIconConfig?.icon;
-
-  return (
-    <div
-      onClick={handleCardClick}
-      onContextMenu={handleContextMenuClick}
-      className="border border-border rounded-lg p-3 hover:bg-surface-secondary transition-colors cursor-pointer"
-      role="button"
-      tabIndex={0}
-      onKeyDown={(e) => {
-        if (e.key === 'Enter' || e.key === ' ') {
-          e.preventDefault();
-          handleCardClick();
-        }
-      }}
-    >
-      <div className="flex items-center gap-3">
-        {/* Icon */}
-        <div className="flex-shrink-0">
-          {item.type === 'directory' ? (
-            <Folder className="w-5 h-5 text-amber-500" />
-          ) : FileIcon ? (
-            <FileIcon className={`w-5 h-5 ${fileIconConfig.color}`} />
-          ) : (
-            <File className="w-5 h-5 text-action-primary" />
-          )}
-        </div>
-
-        {/* Information */}
-        <div className="flex-1 min-w-0">
-          <div className="text-sm font-medium text-fg-default truncate">{item.name}</div>
-          <div className="flex items-center gap-4 text-xs text-fg-muted mt-1">
-            {item.type === 'file' && <span>{formatSize(item.size)}</span>}
-            <span className="hidden sm:inline">{formatDate(item.lastModified)}</span>
-          </div>
-        </div>
-
-        {/* Actions */}
-        <div className="flex items-center gap-1 sm:gap-2">
-          {item.type === 'directory' && onSetWorkingDirectory && (
-            <Tooltip content={t('storage.setAsWorkingDirectory')}>
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onSetWorkingDirectory(item.path);
-                }}
-                className="p-2 text-fg-disabled hover:text-fg-secondary hover:bg-surface-secondary rounded-lg transition-colors"
-                title={t('storage.setAsWorkingDirectory')}
-              >
-                <FolderCog className="w-4 h-4" />
-              </button>
-            </Tooltip>
-          )}
-          <button
-            onClick={handleDownloadClick}
-            className="p-2 text-fg-disabled hover:text-action-primary hover:bg-feedback-info-bg rounded-lg transition-colors"
-            title={item.type === 'directory' ? t('storage.downloadFolder') : t('storage.download')}
-          >
-            <Download className="w-4 h-4" />
-          </button>
-          <button
-            onClick={handleDelete}
-            className="p-2 text-fg-disabled hover:text-feedback-error hover:bg-feedback-error-bg rounded-lg transition-colors"
-            title={t('common.delete')}
-          >
-            <Trash2 className="w-4 h-4" />
-          </button>
-        </div>
-      </div>
-    </div>
-  );
 }
 
 /**
@@ -214,11 +58,32 @@ export function StorageManagementModal({ isOpen, onClose }: StorageManagementMod
     uploadFiles,
     createDirectory,
     deleteItem,
+    deleteItems,
     clearError,
     loadFolderTree,
     toggleFolderExpand,
     setAgentWorkingDirectory,
   } = useStorageStore();
+
+  // Multi-select + marquee drag-selection (checkbox/range/select-all/rubber-band).
+  const listContainerRef = useRef<HTMLDivElement>(null);
+  const {
+    selectedPaths,
+    selectedItems,
+    allSelected,
+    someSelected,
+    marqueeRect,
+    toggle: handleToggleSelect,
+    toggleAll: handleToggleSelectAll,
+    clear: clearSelection,
+    deselect: deselectPaths,
+    onListMouseDown: handleListMouseDown,
+  } = useStorageSelection(items, listContainerRef, isOpen);
+
+  // Items pending deletion via the confirm modal. Drives both the bulk-bar
+  // delete and per-item delete (when the item belongs to a multi-selection).
+  const [pendingDeleteItems, setPendingDeleteItems] = useState<StorageItem[]>([]);
+  const [isBulkDeleteConfirmOpen, setIsBulkDeleteConfirmOpen] = useState(false);
 
   const [newDirectoryName, setNewDirectoryName] = useState('');
   const [showNewDirectoryInput, setShowNewDirectoryInput] = useState(false);
@@ -237,22 +102,19 @@ export function StorageManagementModal({ isOpen, onClose }: StorageManagementMod
   } | null>(null);
   const [copiedPath, setCopiedPath] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const contextMenuRef = useRef<HTMLDivElement>(null);
-  const folderContextMenuRef = useRef<HTMLDivElement>(null);
 
-  // Folder download related state
-  const [isDownloadModalOpen, setIsDownloadModalOpen] = useState(false);
-  const [downloadProgress, setDownloadProgress] = useState<DownloadProgress>({
-    current: 0,
-    total: 0,
-    percentage: 0,
-    currentFile: '',
+  // Download orchestration (single-file, folder/bulk ZIP, progress, cancel).
+  const { modalProps: downloadModalProps, downloadItem, downloadFolderAsZip, downloadSelection } =
+    useFolderDownload(t);
+
+  // URL-hash <-> current-path sync (deep links, Back/Forward, close-on-back).
+  const { setPathToHash } = useStorageHashSync({
+    isOpen,
+    onClose,
+    agentWorkingDirectory,
+    loadItems,
+    loadFolderTree,
   });
-  const [downloadStatus, setDownloadStatus] = useState<
-    'downloading' | 'success' | 'error' | 'cancelled'
-  >('downloading');
-  const [downloadError, setDownloadError] = useState<string>('');
-  const abortControllerRef = useRef<AbortController | null>(null);
 
   // Directory size warning state
   const SIZE_WARNING_THRESHOLD = 100 * 1024 * 1024; // 100MB
@@ -261,54 +123,6 @@ export function StorageManagementModal({ isOpen, onClose }: StorageManagementMod
     totalSize: number;
     fileCount: number;
   } | null>(null);
-
-  // Format size for display
-  const formatSizeForWarning = (bytes: number): string => {
-    if (bytes < 1024) return `${bytes} B`;
-    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-    if (bytes < 1024 * 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-    return `${(bytes / (1024 * 1024 * 1024)).toFixed(1)} GB`;
-  };
-
-  // Get path from URL hash
-  const getPathFromHash = (): string => {
-    const hash = window.location.hash;
-    const match = hash.match(/#storage=(.+)/);
-    return match ? decodeURIComponent(match[1]) : '/';
-  };
-
-  // Set path to URL hash
-  const setPathToHash = (path: string) => {
-    const newHash = `#storage=${encodeURIComponent(path)}`;
-    window.history.pushState(null, '', newHash);
-  };
-
-  // Clear URL hash
-  const clearHash = () => {
-    if (window.location.hash.startsWith('#storage=')) {
-      window.history.pushState(null, '', window.location.pathname + window.location.search);
-    }
-  };
-
-  // Load data when modal opens
-  useEffect(() => {
-    if (isOpen) {
-      // Use URL hash if explicitly set,
-      // otherwise use currently selected path (currentPath)
-      const hasExplicitHash = window.location.hash.startsWith('#storage=');
-      const initialPath = hasExplicitHash ? getPathFromHash() : agentWorkingDirectory || '/';
-
-      // Set URL hash on initial display (add to history)
-      setPathToHash(initialPath);
-      loadItems(initialPath);
-      // Also load folder tree
-      loadFolderTree();
-    } else {
-      // Clear URL hash when closing modal
-      clearHash();
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isOpen]);
 
   // Check directory size when path changes
   useEffect(() => {
@@ -336,64 +150,18 @@ export function StorageManagementModal({ isOpen, onClose }: StorageManagementMod
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen, currentPath]);
 
-  // Detect browser back/forward
-  useEffect(() => {
-    if (!isOpen) return;
-
-    const handleHashChange = () => {
-      if (window.location.hash.startsWith('#storage=')) {
-        const pathFromHash = getPathFromHash();
-        // Call store method directly
-        useStorageStore.getState().loadItems(pathFromHash);
-      } else {
-        // Close modal if no hash
-        onClose();
-      }
-    };
-
-    window.addEventListener('popstate', handleHashChange);
-    window.addEventListener('hashchange', handleHashChange);
-    return () => {
-      window.removeEventListener('popstate', handleHashChange);
-      window.removeEventListener('hashchange', handleHashChange);
-    };
-  }, [isOpen, onClose]);
-
-  // Detect outside click of context menu
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (contextMenuRef.current && !contextMenuRef.current.contains(event.target as Node)) {
-        setContextMenu(null);
-      }
-      if (
-        folderContextMenuRef.current &&
-        !folderContextMenuRef.current.contains(event.target as Node)
-      ) {
-        setFolderContextMenu(null);
-      }
-    };
-
-    if (contextMenu || folderContextMenu) {
-      document.addEventListener('mousedown', handleClickOutside);
-      return () => {
-        document.removeEventListener('mousedown', handleClickOutside);
-      };
-    }
-  }, [contextMenu, folderContextMenu]);
-
-  // Path navigation
+  // Path navigation (clears selection — the new directory has its own items)
   const handleNavigate = (path: string) => {
+    clearSelection();
     setPathToHash(path);
     loadItems(path);
   };
 
   const handleNavigateToRoot = () => {
+    clearSelection();
     setPathToHash('/');
     loadItems('/');
   };
-
-  // Create breadcrumb list
-  const pathSegments = currentPath.split('/').filter(Boolean);
 
   // File upload (batch processing)
   const handleFileSelect = async (files: FileList | null) => {
@@ -408,54 +176,6 @@ export function StorageManagementModal({ isOpen, onClose }: StorageManagementMod
     }
 
     await uploadFiles(fileArray);
-  };
-
-  // Recursively get files and directories from directory entry
-  const readDirectoryEntry = async (
-    directoryEntry: FileSystemDirectoryEntry,
-    path: string = ''
-  ): Promise<{
-    files: Array<{ file: File; relativePath: string }>;
-    directories: string[];
-  }> => {
-    const files: Array<{ file: File; relativePath: string }> = [];
-    const directories: string[] = [];
-    const reader = directoryEntry.createReader();
-
-    const readEntries = (): Promise<FileSystemEntry[]> => {
-      return new Promise((resolve, reject) => {
-        reader.readEntries(resolve, reject);
-      });
-    };
-
-    const entries = await readEntries();
-
-    // Empty directory if no entry
-    if (entries.length === 0) {
-      directories.push(path);
-      return { files, directories };
-    }
-
-    for (const entry of entries) {
-      if (entry.isFile) {
-        const fileEntry = entry as FileSystemFileEntry;
-        const file = await new Promise<File>((resolve, reject) => {
-          fileEntry.file(resolve, reject);
-        });
-        files.push({
-          file,
-          relativePath: path ? `${path}/${entry.name}` : entry.name,
-        });
-      } else if (entry.isDirectory) {
-        const dirEntry = entry as FileSystemDirectoryEntry;
-        const subPath = path ? `${path}/${entry.name}` : entry.name;
-        const result = await readDirectoryEntry(dirEntry, subPath);
-        files.push(...result.files);
-        directories.push(...result.directories);
-      }
-    }
-
-    return { files, directories };
   };
 
   const handleFileInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -490,59 +210,20 @@ export function StorageManagementModal({ isOpen, onClose }: StorageManagementMod
       return;
     }
 
-    // Process folder using DataTransferItem
-    const allFiles: Array<{ file: File; relativePath: string }> = [];
-    const allDirectories: string[] = [];
+    // [IMPORTANT] DataTransferItemList is only valid synchronously, so collect
+    // the top-level entries before any await, then walk them asynchronously.
+    const entries = collectDropEntries(items);
+    const { files, directories } = await readDroppedEntries(entries);
 
-    // [IMPORTANT] DataTransferItemList can only be accessed synchronously,
-    // so get all entries synchronously first
-    const entries: FileSystemEntry[] = [];
-    for (let i = 0; i < items.length; i++) {
-      const item = items[i];
-      if (item.kind === 'file') {
-        const entry = item.webkitGetAsEntry();
-        if (entry) {
-          entries.push(entry);
-        }
-      }
-    }
-
-    // Execute async processing after getting entries
-    for (const entry of entries) {
-      if (entry.isFile) {
-        // If file
-        const fileEntry = entry as FileSystemFileEntry;
-        const file = await new Promise<File>((resolve, reject) => {
-          fileEntry.file(resolve, reject);
-        });
-        allFiles.push({ file, relativePath: file.name });
-      } else if (entry.isDirectory) {
-        // If directory, read recursively
-        const dirEntry = entry as FileSystemDirectoryEntry;
-        const result = await readDirectoryEntry(dirEntry, entry.name);
-        allFiles.push(...result.files);
-        allDirectories.push(...result.directories);
-      }
-    }
-
-    // Create empty directory first
-    for (const dirPath of allDirectories) {
-      // Calculate parent path using last segment of dirPath as directory name
-      const pathParts = dirPath.split('/');
-      const dirName = pathParts[pathParts.length - 1];
-      const parentPath =
-        pathParts.length > 1
-          ? currentPath === '/'
-            ? `/${pathParts.slice(0, -1).join('/')}`
-            : `${currentPath}/${pathParts.slice(0, -1).join('/')}`
-          : currentPath;
-
+    // Create empty directories first (files carry their own nested paths).
+    for (const dirPath of directories) {
+      const { dirName, parentPath } = resolveDirectoryCreation(dirPath, currentPath);
       await createDirectory(dirName, parentPath);
     }
 
     // Batch upload all files
-    if (allFiles.length > 0) {
-      await uploadFiles(allFiles);
+    if (files.length > 0) {
+      await uploadFiles(files);
     }
   };
 
@@ -561,22 +242,6 @@ export function StorageManagementModal({ isOpen, onClose }: StorageManagementMod
     setShowNewDirectoryInput(false);
   };
 
-  // Download
-  const handleDownload = async (item: StorageItem) => {
-    if (item.type === 'directory') {
-      // ZIP download for folders
-      await handleFolderDownload(item.path, item.name);
-    } else {
-      // Open window synchronously within user gesture context (before await)
-      // This preserves transient activation on mobile browsers
-      await downloadWithAsyncUrl(
-        () => generateDownloadUrl(item.path),
-        (error) => {
-          logger.error('Download error:', error);
-        }
-      );
-    }
-  };
 
   // Show context menu of content panel
   const handleContextMenu = (e: React.MouseEvent, item: StorageItem) => {
@@ -622,28 +287,19 @@ export function StorageManagementModal({ isOpen, onClose }: StorageManagementMod
     if (!contextMenu) return;
     const item = items.find((i) => i.path === contextMenu.path);
     if (item && item.type === 'file') {
-      await handleDownload(item);
+      await downloadItem(item);
     }
     setContextMenu(null);
   };
 
-  // Delete from content panel context menu
-  const handleContextDelete = async () => {
+  // Delete from content panel context menu. Like the card button, this deletes
+  // the whole selection when the right-clicked item is part of a multi-selection.
+  const handleContextDelete = () => {
     if (!contextMenu) return;
     const item = items.find((i) => i.path === contextMenu.path);
-    if (item) {
-      const confirmMessage =
-        item.type === 'directory'
-          ? t('storage.deleteDirectoryConfirm', { name: item.name })
-          : t('storage.deleteFileConfirm', { name: item.name });
-
-      if (window.confirm(confirmMessage)) {
-        setContextMenu(null);
-        await deleteItem(item);
-      } else {
-        setContextMenu(null);
-      }
-    }
+    setContextMenu(null);
+    if (!item) return;
+    handleItemDelete(item);
   };
 
   // Delete from folder tree context menu
@@ -665,58 +321,34 @@ export function StorageManagementModal({ isOpen, onClose }: StorageManagementMod
     }
   };
 
-  // Folder download
-  const handleFolderDownload = async (folderPath: string, folderName: string) => {
-    // Open modal and start showing progress
-    setDownloadStatus('downloading');
-    setDownloadError('');
-    setDownloadProgress({ current: 0, total: 0, percentage: 0, currentFile: '' });
-    setIsDownloadModalOpen(true);
+  // Bulk download selected items as a single ZIP (clears selection on success).
+  const handleBulkDownload = () => downloadSelection(selectedItems, clearSelection);
 
-    // Create AbortController
-    abortControllerRef.current = new AbortController();
-
-    try {
-      await downloadFolder(
-        folderPath,
-        folderName,
-        (progress) => {
-          setDownloadProgress(progress);
-        },
-        abortControllerRef.current.signal
-      );
-
-      // Success
-      setDownloadStatus('success');
-    } catch (error) {
-      if (error instanceof Error) {
-        if (error.message === 'Download cancelled') {
-          setDownloadStatus('cancelled');
-        } else {
-          setDownloadStatus('error');
-          setDownloadError(error.message);
-        }
-      } else {
-        setDownloadStatus('error');
-        setDownloadError('Unknown error occurred');
-      }
-    } finally {
-      abortControllerRef.current = null;
-    }
+  // Open the confirm modal for the bulk-bar "delete selected" action.
+  const handleBulkDeleteRequest = () => {
+    if (selectedItems.length === 0) return;
+    setPendingDeleteItems(selectedItems);
+    setIsBulkDeleteConfirmOpen(true);
   };
 
-  // Cancel download
-  const handleCancelDownload = () => {
-    if (abortControllerRef.current) {
-      abortControllerRef.current.abort();
+  // Per-item delete (card button). When the item is part of a multi-selection,
+  // delete the whole selection at once; otherwise delete just that item.
+  const handleItemDelete = (item: StorageItem) => {
+    if (selectedPaths.has(item.path) && selectedItems.length > 1) {
+      setPendingDeleteItems(selectedItems);
+    } else {
+      setPendingDeleteItems([item]);
     }
+    setIsBulkDeleteConfirmOpen(true);
   };
 
-  // Close download modal
-  const handleCloseDownloadModal = () => {
-    setIsDownloadModalOpen(false);
-    setDownloadProgress({ current: 0, total: 0, percentage: 0, currentFile: '' });
-    setDownloadError('');
+  // Confirmed deletion of whatever is pending (single or bulk).
+  const handleDeleteConfirmed = async () => {
+    const targets = [...pendingDeleteItems];
+    // Drop deleted items from the current selection.
+    deselectPaths(targets.map((i) => i.path));
+    setPendingDeleteItems([]);
+    await deleteItems(targets);
   };
 
   // Folder download from context menu
@@ -725,7 +357,7 @@ export function StorageManagementModal({ isOpen, onClose }: StorageManagementMod
     const item = items.find((i) => i.path === contextMenu.path);
     if (item && item.type === 'directory') {
       setContextMenu(null);
-      await handleFolderDownload(item.path, item.name);
+      await downloadFolderAsZip(item.path, item.name);
     }
   };
 
@@ -733,7 +365,7 @@ export function StorageManagementModal({ isOpen, onClose }: StorageManagementMod
   const handleTreeFolderDownload = async () => {
     if (!folderContextMenu) return;
     setFolderContextMenu(null);
-    await handleFolderDownload(folderContextMenu.path, folderContextMenu.name);
+    await downloadFolderAsZip(folderContextMenu.path, folderContextMenu.name);
   };
 
   return (
@@ -775,67 +407,26 @@ export function StorageManagementModal({ isOpen, onClose }: StorageManagementMod
         </div>
       </div>
 
-      {/* Toolbar */}
-      <div className="px-4 md:px-6 py-2.5 border-b border-border bg-surface-secondary">
-        <div className="flex flex-wrap items-center gap-1.5">
-          <button
-            onClick={() => fileInputRef.current?.click()}
-            disabled={isUploading}
-            className="flex items-center gap-1.5 px-2 py-1.5 text-xs text-fg-secondary hover:text-fg-default hover:bg-surface-secondary rounded disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-          >
-            <Upload className="w-3.5 h-3.5" />
-            <span>{t('storage.upload')}</span>
-          </button>
-
-          <button
-            onClick={() => setShowNewDirectoryInput(true)}
-            className="flex items-center gap-1.5 px-2 py-1.5 text-xs text-fg-secondary hover:text-fg-default hover:bg-surface-secondary rounded transition-colors"
-          >
-            <FolderPlus className="w-3.5 h-3.5" />
-            <span>{t('storage.newFolder')}</span>
-          </button>
-
-          <button
-            onClick={() => setAgentWorkingDirectory(currentPath)}
-            disabled={agentWorkingDirectory === currentPath}
-            className="flex items-center gap-1.5 px-2 py-1.5 text-xs text-fg-secondary hover:text-fg-default hover:bg-surface-secondary rounded disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-          >
-            <FolderCog className="w-3.5 h-3.5" />
-            <span>{t('storage.setAsWorkingDirectory')}</span>
-          </button>
-
-          <input
-            ref={fileInputRef}
-            type="file"
-            multiple
-            onChange={handleFileInputChange}
-            className="hidden"
-          />
-        </div>
-
-        {/* Upload progress */}
-        {isUploading && (
-          <div className="mt-3">
-            <div className="flex items-center justify-between text-xs sm:text-sm text-fg-secondary mb-1">
-              <span className="truncate">
-                {uploadTotal > 0
-                  ? t('storage.uploadingProgress', {
-                      completed: uploadCompleted,
-                      total: uploadTotal,
-                    })
-                  : t('storage.uploading')}
-              </span>
-              <span className="ml-2">{uploadProgress}%</span>
-            </div>
-            <div className="w-full bg-border rounded-full h-2">
-              <div
-                className="bg-action-primary h-2 rounded-full transition-all duration-300"
-                style={{ width: `${uploadProgress}%` }}
-              />
-            </div>
-          </div>
-        )}
-      </div>
+      {/* Toolbar (default actions or bulk action bar) */}
+      <StorageToolbar
+        selectedCount={selectedPaths.size}
+        onBulkDownload={handleBulkDownload}
+        onBulkDelete={handleBulkDeleteRequest}
+        onClearSelection={clearSelection}
+        canSetWorkingDirectory={agentWorkingDirectory !== currentPath}
+        onUploadClick={() => fileInputRef.current?.click()}
+        onNewFolder={() => setShowNewDirectoryInput(true)}
+        onSetWorkingDirectory={() => setAgentWorkingDirectory(currentPath)}
+        upload={{ isUploading, uploadProgress, uploadTotal, uploadCompleted }}
+      />
+      {/* Hidden file input (owned by the modal; triggered from the toolbar) */}
+      <input
+        ref={fileInputRef}
+        type="file"
+        multiple
+        onChange={handleFileInputChange}
+        className="hidden"
+      />
 
       {/* Content area: responsive layout */}
       <div className="flex divide-x divide-gray-200 flex-1 min-h-0">
@@ -861,68 +452,36 @@ export function StorageManagementModal({ isOpen, onClose }: StorageManagementMod
         {/* Right column: file list */}
         <div className="flex-1 flex flex-col min-w-0">
           {/* Breadcrumb navigation */}
-          <div className="px-4 md:px-6 py-3 border-b border-border bg-surface-primary">
-            <div className="flex items-center gap-2">
-              {/* Breadcrumb section (scrollable) */}
-              <div className="flex items-center gap-1 text-sm overflow-x-auto flex-1 min-w-0">
-                <button
-                  onClick={handleNavigateToRoot}
-                  className="flex items-center gap-1 px-2 py-1 text-fg-secondary hover:text-fg-default hover:bg-surface-secondary rounded transition-colors whitespace-nowrap"
-                >
-                  <Home className="w-4 h-4 flex-shrink-0" />
-                  <span>{t('storage.root')}</span>
-                </button>
-
-                {pathSegments.map((segment, index) => {
-                  const segmentPath = '/' + pathSegments.slice(0, index + 1).join('/');
-                  return (
-                    <div key={segmentPath} className="flex items-center gap-1">
-                      <ChevronRight className="w-4 h-4 text-fg-disabled flex-shrink-0" />
-                      <button
-                        onClick={() => handleNavigate(segmentPath)}
-                        className="px-2 py-1 text-fg-secondary hover:text-fg-default hover:bg-surface-secondary rounded transition-colors truncate max-w-[120px] sm:max-w-none"
-                      >
-                        {segment}
-                      </button>
-                    </div>
-                  );
-                })}
-              </div>
-
-              {/* Directory size warning icon (outside overflow container) */}
-              {sizeWarning?.show && (
-                <Tooltip
-                  content={
-                    <div className="text-xs leading-relaxed">
-                      <p className="font-medium">{t('storage.largeSizeWarningTitle')}</p>
-                      <p className="mt-1">
-                        {t('storage.largeSizeWarningMessage', {
-                          size: formatSizeForWarning(sizeWarning.totalSize),
-                          count: sizeWarning.fileCount,
-                        })}
-                      </p>
-                    </div>
-                  }
-                  position="left"
-                  width="320px"
-                >
-                  <div className="flex-shrink-0 p-1 cursor-help">
-                    <AlertTriangle className="w-4 h-4 text-amber-500" />
-                  </div>
-                </Tooltip>
-              )}
-            </div>
-          </div>
+          <StorageBreadcrumb
+            currentPath={currentPath}
+            onNavigate={handleNavigate}
+            onNavigateToRoot={handleNavigateToRoot}
+            sizeWarning={sizeWarning}
+          />
 
           {/* File list */}
           <div
-            className={`flex-1 overflow-y-auto px-4 md:px-6 py-4 relative ${
+            ref={listContainerRef}
+            className={`flex-1 overflow-y-auto px-4 md:px-6 py-4 relative select-none ${
               isDragOver ? 'bg-feedback-info-bg' : ''
-            }`}
+            } ${marqueeRect ? 'cursor-crosshair' : ''}`}
             onDragOver={handleDragOver}
             onDragLeave={handleDragLeave}
             onDrop={handleDrop}
+            onMouseDown={handleListMouseDown}
           >
+            {/* Marquee selection rectangle */}
+            {marqueeRect && (
+              <div
+                className="absolute z-10 border border-action-primary bg-action-primary/10 pointer-events-none rounded-sm"
+                style={{
+                  left: `${marqueeRect.left}px`,
+                  top: `${marqueeRect.top}px`,
+                  width: `${marqueeRect.width}px`,
+                  height: `${marqueeRect.height}px`,
+                }}
+              />
+            )}
             {/* Error display */}
             {error && (
               <div className="mb-4 p-3 bg-feedback-error-bg border border-feedback-error-border rounded-lg flex items-start gap-2">
@@ -958,15 +517,34 @@ export function StorageManagementModal({ isOpen, onClose }: StorageManagementMod
                   </div>
                 ) : (
                   <div className="space-y-2">
+                    {/* Select-all header */}
+                    {items.length > 0 && (
+                      <div className="flex items-center gap-3 px-3 pb-1">
+                        <input
+                          type="checkbox"
+                          checked={allSelected}
+                          ref={(el) => {
+                            if (el) el.indeterminate = someSelected;
+                          }}
+                          onChange={handleToggleSelectAll}
+                          aria-label={t('storage.selectAll')}
+                          className="block w-4 h-4 rounded border-border-strong text-action-primary focus:ring-border-focus cursor-pointer"
+                        />
+                        <span className="text-xs text-fg-muted">{t('storage.selectAll')}</span>
+                      </div>
+                    )}
                     {items.map((item) => (
-                      <StorageItemComponent
+                      <StorageItemRow
                         key={item.path}
                         item={item}
-                        onDelete={deleteItem}
+                        onDelete={handleItemDelete}
                         onNavigate={handleNavigate}
-                        onDownload={handleDownload}
+                        onDownload={downloadItem}
                         onContextMenu={handleContextMenu}
                         onSetWorkingDirectory={setAgentWorkingDirectory}
+                        selected={selectedPaths.has(item.path)}
+                        selectionActive={selectedPaths.size > 0}
+                        onToggleSelect={handleToggleSelect}
                       />
                     ))}
 
@@ -1032,124 +610,29 @@ export function StorageManagementModal({ isOpen, onClose }: StorageManagementMod
 
         {/* Content panel context menu */}
         {contextMenu && (
-          <div
-            ref={contextMenuRef}
-            className="fixed bg-surface-primary rounded-lg shadow-lg border border-border py-1 z-50 min-w-[160px]"
-            style={{
-              left: `${Math.min(contextMenu.x, window.innerWidth - 180)}px`,
-              top: `${Math.min(contextMenu.y, window.innerHeight - 200)}px`,
-            }}
-          >
-            {contextMenu.type === 'file' ? (
-              <button
-                onClick={handleContextDownload}
-                className="w-full px-4 py-2 text-sm text-left hover:bg-surface-secondary flex items-center gap-2 transition-colors"
-              >
-                <Download className="w-4 h-4 text-fg-secondary" />
-                <span className="text-fg-default">{t('storage.download')}</span>
-              </button>
-            ) : (
-              <>
-                <button
-                  onClick={() => {
-                    setAgentWorkingDirectory(contextMenu.path);
-                    setContextMenu(null);
-                  }}
-                  className="w-full px-4 py-2 text-sm text-left hover:bg-surface-secondary flex items-center gap-2 transition-colors"
-                >
-                  <FolderCog className="w-4 h-4 text-fg-secondary" />
-                  <span className="text-fg-default">{t('storage.setAsWorkingDirectory')}</span>
-                </button>
-                <button
-                  onClick={handleContextFolderDownload}
-                  className="w-full px-4 py-2 text-sm text-left hover:bg-surface-secondary flex items-center gap-2 transition-colors"
-                >
-                  <Download className="w-4 h-4 text-fg-secondary" />
-                  <span className="text-fg-default">{t('storage.downloadFolder')}</span>
-                </button>
-              </>
-            )}
-            <button
-              onClick={handleContextDelete}
-              className="w-full px-4 py-2 text-sm text-left hover:bg-surface-secondary flex items-center gap-2 transition-colors"
-            >
-              <Trash2 className="w-4 h-4 text-fg-secondary" />
-              <span className="text-fg-default">{t('common.delete')}</span>
-            </button>
-            <div className="border-t border-border my-1" />
-            <button
-              onClick={() => handleCopyPath(contextMenu.path, () => setContextMenu(null))}
-              className="w-full px-4 py-2 text-sm text-left hover:bg-surface-secondary flex items-center gap-2 transition-colors"
-            >
-              {copiedPath === contextMenu.path ? (
-                <>
-                  <Check className="w-4 h-4 text-green-600" />
-                  <span className="text-green-600">{t('storage.copied')}</span>
-                </>
-              ) : (
-                <>
-                  <Copy className="w-4 h-4 text-fg-secondary" />
-                  <span className="text-fg-default">{t('storage.copyPath')}</span>
-                </>
-              )}
-            </button>
-          </div>
+          <StorageContentContextMenu
+            menu={contextMenu}
+            copiedPath={copiedPath}
+            onClose={() => setContextMenu(null)}
+            onDownloadFile={handleContextDownload}
+            onDownloadFolder={handleContextFolderDownload}
+            onSetWorkingDirectory={setAgentWorkingDirectory}
+            onDelete={handleContextDelete}
+            onCopyPath={handleCopyPath}
+          />
         )}
 
         {/* Folder tree context menu */}
         {folderContextMenu && (
-          <div
-            ref={folderContextMenuRef}
-            className="fixed bg-surface-primary rounded-lg shadow-lg border border-border py-1 z-50 min-w-[160px]"
-            style={{
-              left: `${Math.min(folderContextMenu.x, window.innerWidth - 180)}px`,
-              top: `${Math.min(folderContextMenu.y, window.innerHeight - 200)}px`,
-            }}
-          >
-            <button
-              onClick={() => {
-                setAgentWorkingDirectory(folderContextMenu.path);
-                setFolderContextMenu(null);
-              }}
-              className="w-full px-4 py-2 text-sm text-left hover:bg-surface-secondary flex items-center gap-2 transition-colors"
-            >
-              <FolderCog className="w-4 h-4 text-fg-secondary" />
-              <span className="text-fg-default">{t('storage.setAsWorkingDirectory')}</span>
-            </button>
-            <button
-              onClick={handleTreeFolderDownload}
-              className="w-full px-4 py-2 text-sm text-left hover:bg-surface-secondary flex items-center gap-2 transition-colors"
-            >
-              <Download className="w-4 h-4 text-fg-secondary" />
-              <span className="text-fg-default">{t('storage.downloadFolder')}</span>
-            </button>
-            <button
-              onClick={handleFolderDelete}
-              className="w-full px-4 py-2 text-sm text-left hover:bg-surface-secondary flex items-center gap-2 transition-colors"
-            >
-              <Trash2 className="w-4 h-4 text-fg-secondary" />
-              <span className="text-fg-default">{t('common.delete')}</span>
-            </button>
-            <div className="border-t border-border my-1" />
-            <button
-              onClick={() =>
-                handleCopyPath(folderContextMenu.path, () => setFolderContextMenu(null))
-              }
-              className="w-full px-4 py-2 text-sm text-left hover:bg-surface-secondary flex items-center gap-2 transition-colors"
-            >
-              {copiedPath === folderContextMenu.path ? (
-                <>
-                  <Check className="w-4 h-4 text-green-600" />
-                  <span className="text-green-600">{t('storage.copied')}</span>
-                </>
-              ) : (
-                <>
-                  <Copy className="w-4 h-4 text-fg-secondary" />
-                  <span className="text-fg-default">{t('storage.copyPath')}</span>
-                </>
-              )}
-            </button>
-          </div>
+          <StorageFolderContextMenu
+            menu={folderContextMenu}
+            copiedPath={copiedPath}
+            onClose={() => setFolderContextMenu(null)}
+            onDownloadFolder={handleTreeFolderDownload}
+            onSetWorkingDirectory={setAgentWorkingDirectory}
+            onDelete={handleFolderDelete}
+            onCopyPath={handleCopyPath}
+          />
         )}
       </div>
 
@@ -1167,13 +650,31 @@ export function StorageManagementModal({ isOpen, onClose }: StorageManagementMod
       </div>
 
       {/* Download progress modal */}
-      <DownloadProgressModal
-        isOpen={isDownloadModalOpen}
-        onClose={handleCloseDownloadModal}
-        progress={downloadProgress}
-        status={downloadStatus}
-        errorMessage={downloadError}
-        onCancel={downloadStatus === 'downloading' ? handleCancelDownload : undefined}
+      <DownloadProgressModal {...downloadModalProps} />
+
+      {/* Delete confirmation modal (single or bulk) */}
+      <ConfirmModal
+        isOpen={isBulkDeleteConfirmOpen}
+        onClose={() => {
+          setIsBulkDeleteConfirmOpen(false);
+          setPendingDeleteItems([]);
+        }}
+        onConfirm={handleDeleteConfirmed}
+        title={t('storage.bulkDeleteConfirmTitle')}
+        message={
+          pendingDeleteItems.length === 1
+            ? pendingDeleteItems[0].type === 'directory'
+              ? t('storage.deleteDirectoryConfirm', { name: pendingDeleteItems[0].name })
+              : t('storage.deleteFileConfirm', { name: pendingDeleteItems[0].name })
+            : t('storage.bulkDeleteConfirm', {
+                count: pendingDeleteItems.length,
+                folders: pendingDeleteItems.filter((i) => i.type === 'directory').length,
+                files: pendingDeleteItems.filter((i) => i.type === 'file').length,
+              })
+        }
+        confirmText={t('common.delete')}
+        cancelText={t('common.cancel')}
+        variant="danger"
       />
     </Modal>
   );
