@@ -80,6 +80,17 @@ export interface DownloadProgress {
   currentFile: string;
 }
 
+/**
+ * Result of a ZIP download: how many files were requested vs. actually
+ * included. `failed > 0` means the ZIP is incomplete (some files could not be
+ * fetched, e.g. expired presigned URLs) and the caller should warn the user.
+ */
+export interface DownloadResult {
+  total: number;
+  succeeded: number;
+  failed: number;
+}
+
 export interface DirectorySizeResponse {
   totalSize: number;
   fileCount: number;
@@ -207,40 +218,42 @@ export async function getFolderDownloadInfo(path: string): Promise<FolderDownloa
 }
 
 /**
- * Download folder as ZIP
- * Note: Uses fflate (MIT license) for ZIP creation and Web standard API for download.
+ * Download a set of files into a single ZIP, reporting progress.
+ * Each entry maps a ZIP-internal path to a presigned S3 download URL.
+ *
+ * Files that fail to download (network error or non-OK response) are skipped
+ * and counted as failures; only successfully fetched files are added to the
+ * ZIP. Throws if NO file could be downloaded (so the caller never presents an
+ * empty ZIP as success). Returns per-file stats so the caller can warn when
+ * the ZIP is incomplete.
  */
-export async function downloadFolder(
-  folderPath: string,
-  folderName: string,
+async function fetchFilesIntoZip(
+  entries: DownloadFileInfo[],
+  zipName: string,
   onProgress?: (progress: DownloadProgress) => void,
   signal?: AbortSignal
-): Promise<void> {
+): Promise<DownloadResult> {
   const { zipSync } = await import('fflate');
 
-  // Get file info for the folder
-  const downloadInfo = await getFolderDownloadInfo(folderPath);
-
-  if (downloadInfo.fileCount === 0) {
-    throw new Error('Folder is empty');
-  }
-
   const fileMap: Record<string, Uint8Array> = {};
-  let downloadedCount = 0;
+  const total = entries.length;
+  // Files actually added to the ZIP. Kept separate from `processed` so the
+  // progress bar advances per-file while `succeeded` reflects real content.
+  let succeeded = 0;
+  let processed = 0;
 
-  // Download each file and add to ZIP
-  for (const file of downloadInfo.files) {
+  for (const file of entries) {
     // Check for cancellation
     if (signal?.aborted) {
       throw new Error('Download cancelled');
     }
 
-    // Notify progress
+    // Notify progress (processed = attempted so far, success or fail)
     if (onProgress) {
       onProgress({
-        current: downloadedCount,
-        total: downloadInfo.fileCount,
-        percentage: Math.round((downloadedCount / downloadInfo.fileCount) * 100),
+        current: processed,
+        total,
+        percentage: total > 0 ? Math.round((processed / total) * 100) : 0,
         currentFile: file.relativePath,
       });
     }
@@ -257,22 +270,28 @@ export async function downloadFolder(
       const arrayBuffer = await response.arrayBuffer();
       fileMap[file.relativePath] = new Uint8Array(arrayBuffer);
 
-      downloadedCount++;
+      succeeded++;
     } catch (error) {
       if (signal?.aborted) {
         throw new Error('Download cancelled', { cause: error });
       }
       logger.error('Error downloading file %s:', file.relativePath, error);
-      // Skip and continue on error
-      downloadedCount++;
+      // Skip and continue on error (counted as a failure, not added to ZIP)
+    } finally {
+      processed++;
     }
+  }
+
+  // If nothing could be downloaded, do not present an empty ZIP as success.
+  if (succeeded === 0) {
+    throw new Error('Failed to download any files');
   }
 
   // Notify final progress
   if (onProgress) {
     onProgress({
-      current: downloadedCount,
-      total: downloadInfo.fileCount,
+      current: total,
+      total,
       percentage: 100,
       currentFile: 'Creating ZIP file...',
     });
@@ -286,7 +305,75 @@ export async function downloadFolder(
   const url = URL.createObjectURL(zipBlob);
   const anchor = document.createElement('a');
   anchor.href = url;
-  anchor.download = `${folderName}.zip`;
+  anchor.download = `${zipName}.zip`;
   anchor.click();
   URL.revokeObjectURL(url);
+
+  return { total, succeeded, failed: total - succeeded };
+}
+
+/**
+ * Download folder as ZIP
+ * Note: Uses fflate (MIT license) for ZIP creation and Web standard API for download.
+ */
+export async function downloadFolder(
+  folderPath: string,
+  folderName: string,
+  onProgress?: (progress: DownloadProgress) => void,
+  signal?: AbortSignal
+): Promise<DownloadResult> {
+  // Get file info for the folder
+  const downloadInfo = await getFolderDownloadInfo(folderPath);
+
+  if (downloadInfo.fileCount === 0) {
+    throw new Error('Folder is empty');
+  }
+
+  return fetchFilesIntoZip(downloadInfo.files, folderName, onProgress, signal);
+}
+
+/**
+ * Download multiple selected items (files and/or folders) as a single ZIP.
+ * Folder contents are nested under the folder name to preserve structure.
+ * @param items Selected items to bundle
+ * @param zipName Base name for the resulting ZIP file (without extension)
+ */
+export async function downloadItems(
+  items: StorageItem[],
+  zipName: string,
+  onProgress?: (progress: DownloadProgress) => void,
+  signal?: AbortSignal
+): Promise<DownloadResult> {
+  if (items.length === 0) {
+    throw new Error('No items selected');
+  }
+
+  // Collect ZIP entries from all selected items
+  const entries: DownloadFileInfo[] = [];
+
+  for (const item of items) {
+    if (signal?.aborted) {
+      throw new Error('Download cancelled');
+    }
+
+    if (item.type === 'file') {
+      const downloadUrl = await generateDownloadUrl(item.path);
+      entries.push({ relativePath: item.name, downloadUrl, size: item.size ?? 0 });
+    } else {
+      // Folder: fetch its file list and nest under the folder name
+      const downloadInfo = await getFolderDownloadInfo(item.path);
+      for (const file of downloadInfo.files) {
+        entries.push({
+          ...file,
+          relativePath: `${item.name}/${file.relativePath}`,
+        });
+      }
+    }
+  }
+
+  if (entries.length === 0) {
+    throw new Error('Folder is empty');
+  }
+
+  return fetchFilesIntoZip(entries, zipName, onProgress, signal);
 }

@@ -459,6 +459,17 @@ storage:
   currentWorkingDirectory: Current working directory
   workingDirectory: Working directory
 
+  # Multi-select / bulk operations
+  selectedCount: '{{count}} selected'
+  selectAll: Select all
+  selectItem: 'Select {{name}}'
+  clearSelection: Clear selection
+  bulkDownload: Download
+  bulkDelete: Delete
+  bulkDeleteConfirmTitle: Delete selected items
+  bulkDeleteConfirm: 'Delete {{count}} selected item(s) ({{folders}} folder(s), {{files}} file(s))? All files and subfolders within the folders will also be deleted.'
+  bulkDownloadName: selected-items
+
   # Large directory size warning
   largeSizeWarningTitle: Large Storage Directory
   largeSizeWarningMessage: 'This directory contains {{size}} of data ({{count}} files). Sync may take some time when starting a session.'
@@ -473,6 +484,7 @@ storage:
     currentFile: Current file
     successMessage: Folder download completed. The ZIP file has been saved.
     cancelledMessage: Download was cancelled.
+    partialWarning: '{{failed}} of {{total}} files could not be retrieved. The ZIP contains only the files that were downloaded successfully.'
 
 # Memory
 memory:

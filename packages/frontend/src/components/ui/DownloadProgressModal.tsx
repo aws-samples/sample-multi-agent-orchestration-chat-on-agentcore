@@ -21,6 +21,8 @@ interface DownloadProgressModalProps {
   };
   status: 'downloading' | 'success' | 'error' | 'cancelled';
   errorMessage?: string;
+  /** Optional warning shown on success (e.g. some files could not be included). */
+  warningMessage?: string;
   onCancel?: () => void;
 }
 
@@ -30,6 +32,7 @@ export const DownloadProgressModal: React.FC<DownloadProgressModalProps> = ({
   progress,
   status,
   errorMessage,
+  warningMessage,
   onCancel,
 }) => {
   const { t } = useTranslation();
@@ -106,6 +109,11 @@ export const DownloadProgressModal: React.FC<DownloadProgressModalProps> = ({
             <div className="text-sm text-fg-secondary">
               <p>{t('storage.downloadProgress.successMessage')}</p>
             </div>
+          )}
+
+          {/* Partial-success warning (some files could not be included) */}
+          {status === 'success' && warningMessage && (
+            <Alert variant="warning">{warningMessage}</Alert>
           )}
 
           {/* Error Message */}

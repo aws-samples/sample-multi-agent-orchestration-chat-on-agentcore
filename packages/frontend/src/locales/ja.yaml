@@ -458,6 +458,17 @@ storage:
   currentWorkingDirectory: 現在の作業ディレクトリ
   workingDirectory: 作業ディレクトリ
 
+  # 複数選択・一括操作
+  selectedCount: '{{count}} 件選択中'
+  selectAll: すべて選択
+  selectItem: '{{name}} を選択'
+  clearSelection: 選択を解除
+  bulkDownload: 一括ダウンロード
+  bulkDelete: 一括削除
+  bulkDeleteConfirmTitle: 選択したアイテムを削除
+  bulkDeleteConfirm: '選択した {{count}} 件（フォルダ {{folders}} 件・ファイル {{files}} 件）を削除しますか？フォルダ内のすべてのファイルとサブフォルダも削除されます。'
+  bulkDownloadName: 選択アイテム
+
   # 大容量ディレクトリの警告
   largeSizeWarningTitle: 大容量のストレージディレクトリ
   largeSizeWarningMessage: 'このディレクトリには {{size}} のデータ（{{count}} ファイル）が含まれています。セッション開始時の同期に時間がかかる場合があります。'
@@ -472,6 +483,7 @@ storage:
     currentFile: 現在のファイル
     successMessage: フォルダのダウンロードが完了しました。ZIPファイルが保存されています。
     cancelledMessage: ダウンロードがキャンセルされました。
+    partialWarning: '{{total}} 件中 {{failed}} 件のファイルを取得できませんでした。ZIPには取得できたファイルのみ含まれています。'
 
 # メモリ
 memory:
