@@ -15,9 +15,10 @@
  * ping while it is genuinely busy, and the platform keeps the session Active.
  *
  * This module is the single source of truth for "is a turn currently running":
- * `handleInvocation` brackets each turn with {@link beginInvocation} /
- * {@link endInvocation}, and {@link handlePing} reports `HealthyBusy` whenever
- * {@link isBusy} is true.
+ * `trackInFlightMiddleware` brackets each `/invocations` request with
+ * {@link beginInvocation} / {@link endInvocation} (released on the response's
+ * `finish`/`close` events), and {@link handlePing} reports `HealthyBusy`
+ * whenever {@link isBusy} is true.
  *
  * A process-global counter is the right scope here: AgentCore pins one session
  * to one microVM (one process), and `/ping` is process-wide. A simple module
@@ -29,8 +30,9 @@
 let inFlight = 0;
 
 /**
- * Mark the start of an invocation. Call once at the top of each turn; pair with
- * exactly one {@link endInvocation} in a `finally` block.
+ * Mark the start of an invocation. Called once per `/invocations` request by
+ * {@link trackInFlightMiddleware}; pair with exactly one {@link endInvocation}
+ * on the response's `finish`/`close` event.
  */
 export function beginInvocation(): void {
   inFlight += 1;
