@@ -8,17 +8,21 @@
 import { jest, describe, it, expect, beforeEach, afterEach } from '@jest/globals';
 
 // Mock config so importing the module doesn't pull in real env parsing.
+// `AGENTCORE_RUNTIME_URL` is intentionally left as a mutable property on the
+// mocked object so the fallback-resolution test can assign it at runtime
+// (mirroring how `parseEnv()` would have populated it from process.env).
+const mockConfig: { AWS_REGION: string; AGENTCORE_RUNTIME_URL?: string } = {
+  AWS_REGION: 'ap-northeast-1',
+};
 jest.unstable_mockModule('../../config/index.js', () => ({
-  config: { AWS_REGION: 'ap-northeast-1' },
+  config: mockConfig,
 }));
 
 // Mock the AWS SDK client; `sendMock` is asserted/overridden per test.
 const sendMock = jest.fn<(...args: unknown[]) => Promise<unknown>>();
 jest.unstable_mockModule('@aws-sdk/client-bedrock-agentcore', () => ({
   BedrockAgentCoreClient: jest.fn().mockImplementation(() => ({ send: sendMock })),
-  StopRuntimeSessionCommand: jest
-    .fn()
-    .mockImplementation((input: unknown) => ({ __input: input })),
+  StopRuntimeSessionCommand: jest.fn().mockImplementation((input: unknown) => ({ __input: input })),
 }));
 
 const { resolveOwnRuntimeArn, stopOwnSession } = await import('../session-terminator.js');
@@ -44,14 +48,13 @@ describe('resolveOwnRuntimeArn', () => {
     ).toBeUndefined();
   });
 
-  it('falls back to process.env.AGENTCORE_RUNTIME_URL when no argument is passed', () => {
-    const prev = process.env.AGENTCORE_RUNTIME_URL;
-    process.env.AGENTCORE_RUNTIME_URL = RUNTIME_URL;
+  it('falls back to config.AGENTCORE_RUNTIME_URL when no argument is passed', () => {
+    const prev = mockConfig.AGENTCORE_RUNTIME_URL;
+    mockConfig.AGENTCORE_RUNTIME_URL = RUNTIME_URL;
     try {
       expect(resolveOwnRuntimeArn()).toBe(ARN);
     } finally {
-      if (prev === undefined) delete process.env.AGENTCORE_RUNTIME_URL;
-      else process.env.AGENTCORE_RUNTIME_URL = prev;
+      mockConfig.AGENTCORE_RUNTIME_URL = prev;
     }
   });
 });
@@ -60,11 +63,11 @@ describe('stopOwnSession', () => {
   beforeEach(() => {
     sendMock.mockReset();
     (StopRuntimeSessionCommand as unknown as jest.Mock).mockClear();
-    process.env.AGENTCORE_RUNTIME_URL = RUNTIME_URL;
+    mockConfig.AGENTCORE_RUNTIME_URL = RUNTIME_URL;
   });
 
   afterEach(() => {
-    delete process.env.AGENTCORE_RUNTIME_URL;
+    mockConfig.AGENTCORE_RUNTIME_URL = undefined;
   });
 
   it('calls StopRuntimeSession with the resolved ARN and given session id', async () => {
@@ -80,7 +83,7 @@ describe('stopOwnSession', () => {
   });
 
   it('does not call the SDK when the ARN cannot be resolved', async () => {
-    delete process.env.AGENTCORE_RUNTIME_URL;
+    mockConfig.AGENTCORE_RUNTIME_URL = undefined;
 
     await stopOwnSession('session-abc');
 

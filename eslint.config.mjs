@@ -176,6 +176,62 @@ export default tseslint.config(
     },
   },
 
+  // ─── `process.env` Centralization Rule ──────────────────────────────────────
+  //
+  // Direct reads of `process.env.X` (and `process.env[key]`) are forbidden
+  // outside the `config/` layer in agent and backend. Environment variables
+  // must be declared in `src/config/index.ts` (Zod schema) and consumed via
+  // the parsed `config.X` import. This keeps:
+  //   - required/optional definitions in one Zod source of truth,
+  //   - type coercion (e.g. `PORT: string → number`) in one place,
+  //   - test mocking concentrated on a single import boundary.
+  //
+  // Selector explanation:
+  //   `process.env.FOO` parses as
+  //     MemberExpression(
+  //       object: MemberExpression(object: 'process', property: 'env'),
+  //       property: 'FOO'
+  //     )
+  //   We match the OUTER MemberExpression so both dot (`process.env.FOO`) and
+  //   computed (`process.env[key]`) accesses are caught. The bare-reference
+  //   form `...process.env` (SpreadElement argument) is intentionally NOT
+  //   matched — child-process spawn (`execute-command`, `mcp/client-factory`)
+  //   legitimately needs to forward the entire env block, and rewriting that
+  //   through config would just re-export the full env unchanged.
+  //
+  // Exemptions (via `ignores`):
+  //   - `**/config/**`        : reading env is the layer's responsibility.
+  //   - `**/libs/logger/**`   : pino bootstrap reads NODE_ENV / LOG_LEVEL
+  //                              before config is importable; routing it
+  //                              through config would create a logger ↔ config
+  //                              cycle (config itself logs validation errors).
+  //   - tests                  : integration-test setup mutates process.env to
+  //                              point SDKs at DynamoDB Local etc.
+  {
+    files: ['packages/agent/src/**/*.ts', 'packages/backend/src/**/*.ts'],
+    ignores: [
+      'packages/agent/src/config/**',
+      'packages/backend/src/config/**',
+      'packages/agent/src/libs/logger/**',
+      'packages/backend/src/libs/logger/**',
+      '**/__tests__/**',
+      '**/tests/**',
+      '**/*.test.ts',
+      '**/*.spec.ts',
+    ],
+    rules: {
+      'no-restricted-syntax': [
+        'error',
+        {
+          selector:
+            "MemberExpression[object.type='MemberExpression'][object.object.name='process'][object.property.name='env']",
+          message:
+            'Do not read process.env directly outside the config layer. Declare the variable in src/config/index.ts (Zod schema) and import `config.X` instead. See packages/{agent,backend}/AGENTS.md.',
+        },
+      ],
+    },
+  },
+
   // ─── Layer Boundary Rules ───────────────────────────────────────────────────
   //
   // Replaces tests/architecture/layer-dependency.test.ts.

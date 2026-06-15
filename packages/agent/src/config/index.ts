@@ -45,6 +45,12 @@ const envSchema = z.object({
   // AppSync / real-time communication
   APPSYNC_HTTP_ENDPOINT: z.string().optional(),
 
+  // AgentCore Runtime self-identification.
+  // Injected by the AgentCore Runtime platform into each container; absent in
+  // local development. Used by `services/session-terminator` to extract this
+  // container's own Runtime ARN (between `/runtimes/` and `/invocations`).
+  AGENTCORE_RUNTIME_URL: z.string().optional(),
+
   // Backend API
   // Required in all environments. Run `npm run setup-env` to populate from CloudFormation outputs.
   BACKEND_API_URL: z.url(),

@@ -145,6 +145,15 @@ const envSchema = z.object({
 
   // Logging
   LOG_LEVEL: z.enum(['debug', 'info', 'warn', 'error', 'silent']).default('info'),
+
+  /**
+   * Lambda runtime trace context. Populated by the Lambda runtime itself with
+   * the X-Ray header value (`Root=…;Parent=…;Sampled=…`) and consumed by
+   * `middleware/request-logger` as a fallback when the inbound request lacks
+   * the `x-amzn-trace-id` header. Optional — absent in local dev and outside
+   * Lambda. Underscore-prefixed because the Lambda runtime defines it that way.
+   */
+  _X_AMZN_TRACE_ID: z.string().optional(),
 });
 
 /**
