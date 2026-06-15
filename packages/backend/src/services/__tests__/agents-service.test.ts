@@ -14,6 +14,18 @@ jest.mock('uuid', () => ({
   v7: jest.fn(() => 'test-uuid-1234'),
 }));
 
+// Stub config so importing the service (and its repository factory) does not
+// run the real env validation in config/index.ts, which calls process.exit(1)
+// when the CI environment has no .env. The service injects its repo, so these
+// values only satisfy the module-load-time imports.
+jest.mock('../../config/index', () => ({
+  config: {
+    AWS_REGION: 'us-east-1',
+    SSM_PARAMETER_PREFIX: '/test/mcp-env',
+    AGENTS_TABLE_NAME: 'test-agents',
+  },
+}));
+
 import { AgentsService } from '../agents-service.js';
 import { AgentNotFoundError, type Agent } from '../../types/index.js';
 import type { AgentsRepository, UpdateAgentPatch, SharedAgentsPage } from '../../repositories/agents/index.js';
