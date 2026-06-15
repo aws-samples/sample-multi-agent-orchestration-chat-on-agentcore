@@ -14,7 +14,6 @@ import {
   hasSsmSentinel,
 } from './mcp-env-helpers.js';
 import type {
-  MCPConfig,
   Agent,
   CreateAgentInput,
   UpdateAgentInput,
@@ -129,40 +128,35 @@ export class AgentsService {
   async updateAgent(userId: UserId, input: UpdateAgentInput): Promise<Agent> {
     const { agentId, scenarios, mcpConfig, ...rest } = input;
 
-    // Translate the route-facing input into a storage-ready patch: resolve SSM
-    // env out of mcpConfig and stamp ids onto scenarios. Persistence (the
-    // dynamic UpdateExpression, the not-found guard) is the repository's job.
+    // Translate the route-facing input into a storage-ready patch: stamp ids
+    // onto scenarios and split mcpConfig env (pure — no SSM I/O yet). The
+    // dynamic UpdateExpression and the not-found guard are the repository's job.
     const patch: UpdateAgentPatch = { ...rest };
 
     if (scenarios !== undefined) {
       patch.scenarios = scenarios.map((scenario) => ({ ...scenario, id: uuidv7() }));
     }
 
+    // Pre-compute the SSM mutation but DO NOT apply it yet: the row update must
+    // run first so a missing/other-user agent rejects (AgentNotFoundError)
+    // before we touch SSM — otherwise a no-op update could orphan, or wrongly
+    // delete, an SSM parameter.
+    let commitEnv: (() => Promise<void>) | undefined;
     if (mcpConfig !== undefined) {
-      patch.mcpConfig = await this.persistMcpEnv(userId, agentId, mcpConfig);
+      const { sanitizedConfig, envMap } = extractEnvFromMcpConfig(mcpConfig);
+      if (envMap) {
+        patch.mcpConfig = sanitizedConfig;
+        commitEnv = () => this.ssmEnvStore.save(userId, agentId, envMap);
+      } else {
+        patch.mcpConfig = mcpConfig;
+        // No env values — clear any stale SSM parameter (best-effort).
+        commitEnv = () => this.ssmEnvStore.delete(userId, agentId).catch(() => {});
+      }
     }
 
-    return this.repo.update(userId, agentId, patch);
-  }
-
-  /**
-   * Extract any env values out of an mcpConfig into SSM and return the
-   * sentinel-bearing config to store; when the config carries no env, clear any
-   * stale SSM parameter and store it as-is.
-   */
-  private async persistMcpEnv(
-    userId: UserId,
-    agentId: AgentId,
-    mcpConfig: MCPConfig
-  ): Promise<MCPConfig> {
-    const { sanitizedConfig, envMap } = extractEnvFromMcpConfig(mcpConfig);
-    if (envMap) {
-      await this.ssmEnvStore.save(userId, agentId, envMap);
-      return sanitizedConfig;
-    }
-    // No env values — clean up any existing SSM parameter.
-    await this.ssmEnvStore.delete(userId, agentId).catch(() => {});
-    return mcpConfig;
+    const updated = await this.repo.update(userId, agentId, patch);
+    await commitEnv?.();
+    return updated;
   }
 
   /**

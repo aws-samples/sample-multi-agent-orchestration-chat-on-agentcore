@@ -160,6 +160,42 @@ describe('AgentsService', () => {
         service.updateAgent(USER_ID, { agentId: AGENT_ID, name: 'x' })
       ).rejects.toBeInstanceOf(AgentNotFoundError);
     });
+
+    it('does NOT write or delete SSM when the agent does not exist (no orphaned params)', async () => {
+      // The existence gate (repo.update's ConditionExpression) must run before
+      // any SSM mutation: a mcpConfig update to a missing/other-user agent must
+      // not leave an orphaned — or delete an unrelated — SSM parameter.
+      repo.update.mockRejectedValueOnce(new AgentNotFoundError());
+
+      await expect(
+        service.updateAgent(USER_ID, {
+          agentId: AGENT_ID,
+          mcpConfig: { mcpServers: { s: { command: 'x', env: { KEY: 'plain-secret' } } } },
+        })
+      ).rejects.toBeInstanceOf(AgentNotFoundError);
+
+      expect(ssm.save).not.toHaveBeenCalled();
+      expect(ssm.delete).not.toHaveBeenCalled();
+    });
+
+    it('writes SSM env only after the row update succeeds', async () => {
+      // Ordering guard: ssm.save must happen after repo.update resolves.
+      const order: string[] = [];
+      ssm.save.mockImplementationOnce(async () => {
+        order.push('ssm.save');
+      });
+      repo.update.mockImplementationOnce(async () => {
+        order.push('repo.update');
+        return makeAgent();
+      });
+
+      await service.updateAgent(USER_ID, {
+        agentId: AGENT_ID,
+        mcpConfig: { mcpServers: { s: { command: 'x', env: { KEY: 'plain-secret' } } } },
+      });
+
+      expect(order).toEqual(['repo.update', 'ssm.save']);
+    });
   });
 
   describe('deleteAgent', () => {
@@ -277,6 +313,28 @@ describe('AgentsService', () => {
       await expect(
         service.cloneAgent('target-user' as UserId, USER_ID, AGENT_ID)
       ).rejects.toBeInstanceOf(AgentNotFoundError);
+    });
+  });
+
+  describe('getSharedAgent', () => {
+    it('returns null for an agent that is not shared (no leaking private agents)', async () => {
+      repo.get.mockResolvedValueOnce(makeAgent({ isShared: false }));
+      expect(await service.getSharedAgent(USER_ID, AGENT_ID)).toBeNull();
+    });
+
+    it('strips mcpConfig env from a shared agent (non-owners must not see secrets)', async () => {
+      repo.get.mockResolvedValueOnce(
+        makeAgent({
+          isShared: true,
+          mcpConfig: { mcpServers: { s: { command: 'x', env: { SECRET: 'value' } } } },
+        })
+      );
+
+      const shared = await service.getSharedAgent(USER_ID, AGENT_ID);
+
+      expect(shared).not.toBeNull();
+      // env must be gone entirely — the strip removes the key, not just the value.
+      expect(shared!.mcpConfig?.mcpServers.s.env).toBeUndefined();
     });
   });
 });

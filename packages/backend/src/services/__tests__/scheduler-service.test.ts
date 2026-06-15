@@ -229,6 +229,10 @@ describe('SchedulerService - createSchedule', () => {
       resources: [],
       detail: BASE_CONFIG.payload,
     });
+    // `time` is stamped at send time, so assert its shape (ISO 8601) rather than
+    // a fixed value — toMatchObject above does not cover it.
+    expect(typeof envelope.time).toBe('string');
+    expect(envelope.time).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/);
     expect(call.Target.RetryPolicy.MaximumRetryAttempts).toBe(0);
   });
 
@@ -286,6 +290,8 @@ describe('SchedulerService - updateSchedule', () => {
       resources: [],
       detail: BASE_CONFIG.payload,
     });
+    expect(typeof envelope.time).toBe('string');
+    expect(envelope.time).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/);
     expect(call.Target.Arn).toBe(BASE_CONFIG.targetArn);
     expect(call.Target.RoleArn).toBe(BASE_CONFIG.roleArn);
   });
