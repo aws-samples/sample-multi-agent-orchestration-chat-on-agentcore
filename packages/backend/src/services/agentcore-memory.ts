@@ -769,6 +769,10 @@ export class AgentCoreMemoryService {
 export async function createAgentCoreMemoryServiceForRequest(
   req: AuthenticatedRequest
 ): Promise<AgentCoreMemoryService> {
-  const client = await createAgentCoreClient(req);
+  const idToken = req.get('X-Amzn-Bedrock-AgentCore-Runtime-Custom-Id-Token');
+  if (!idToken) {
+    throw new Error('X-Amzn-Bedrock-AgentCore-Runtime-Custom-Id-Token header is required');
+  }
+  const client = await createAgentCoreClient(idToken);
   return new AgentCoreMemoryService(config.AGENTCORE_MEMORY_ID, client);
 }
