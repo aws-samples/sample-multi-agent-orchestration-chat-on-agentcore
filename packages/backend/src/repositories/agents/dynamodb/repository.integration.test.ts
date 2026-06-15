@@ -59,6 +59,23 @@ function makeAgent(userId: UserId, overrides: Partial<Agent> = {}): Agent {
   };
 }
 
+/**
+ * Drain every page of listShared into a flat id list. The table is shared
+ * across tests (only the repo is recreated in beforeEach), so shared agents
+ * accumulate; assertions must use containment, and "is it absent?" checks must
+ * see ALL pages — not just the first.
+ */
+async function listAllSharedIds(r: DynamoDBAgentsRepository): Promise<AgentId[]> {
+  const ids: AgentId[] = [];
+  let startKey: Record<string, unknown> | undefined;
+  do {
+    const page = await r.listShared(100, startKey);
+    ids.push(...page.agents.map((a) => a.agentId));
+    startKey = page.lastEvaluatedKey;
+  } while (startKey);
+  return ids;
+}
+
 describe('DynamoDBAgentsRepository', () => {
   it('round-trips an agent through put/get with isShared as a boolean', async () => {
     const agent = makeAgent(USER_A, { isShared: true, defaultStoragePath: '/work' });
@@ -72,6 +89,27 @@ describe('DynamoDBAgentsRepository', () => {
 
   it('returns null for a missing agent', async () => {
     expect(await repo.get(USER_A, 'nope' as AgentId)).toBeNull();
+  });
+
+  it('get is scoped by userId — another user cannot read your agent', async () => {
+    // The primary key is composite (userId HASH + agentId RANGE). A get with a
+    // foreign userId but a real agentId must miss, not leak across tenants.
+    const agent = makeAgent(USER_A);
+    await repo.put(agent);
+
+    expect(await repo.get(USER_A, agent.agentId)).not.toBeNull();
+    expect(await repo.get(USER_B, agent.agentId)).toBeNull();
+  });
+
+  it('delete is scoped by userId — it cannot remove another user’s agent', async () => {
+    // A delete keyed on the wrong userId must be a no-op against the owner's row,
+    // not a cross-tenant deletion.
+    const agent = makeAgent(USER_A);
+    await repo.put(agent);
+
+    await repo.delete(USER_B, agent.agentId);
+
+    expect(await repo.get(USER_A, agent.agentId)).not.toBeNull();
   });
 
   it('lists only the requesting user’s agents', async () => {
@@ -97,6 +135,28 @@ describe('DynamoDBAgentsRepository', () => {
     expect(agents.map((a) => a.agentId)).toContain(agent.agentId);
   });
 
+  it('toggleShare from shared→unshared removes the agent from listShared', async () => {
+    // The reverse of the flip-on case: toggling off must re-key the GSI entry to
+    // 'false' so the agent disappears from the shared listing.
+    const agent = makeAgent(USER_A, { isShared: true });
+    await repo.put(agent);
+    expect(await listAllSharedIds(repo)).toContain(agent.agentId);
+
+    const toggled = await repo.toggleShare(USER_A, agent.agentId);
+    expect(toggled.isShared).toBe(false);
+
+    expect(await listAllSharedIds(repo)).not.toContain(agent.agentId);
+  });
+
+  it('listShared excludes non-shared agents', async () => {
+    // isShared is stored as the GSI hash key 'true'/'false'. A private agent
+    // must never surface in the shared query, regardless of pagination.
+    const privateAgent = makeAgent(USER_A, { isShared: false });
+    await repo.put(privateAgent);
+
+    expect(await listAllSharedIds(repo)).not.toContain(privateAgent.agentId);
+  });
+
   it('toggleShare throws AgentNotFoundError for a missing agent', async () => {
     await expect(repo.toggleShare(USER_A, 'ghost' as AgentId)).rejects.toBeInstanceOf(
       AgentNotFoundError
@@ -110,6 +170,41 @@ describe('DynamoDBAgentsRepository', () => {
     const updated = await repo.update(USER_A, agent.agentId, { name: 'after' });
     expect(updated.name).toBe('after');
     expect(updated.updatedAt).not.toBe(agent.updatedAt);
+  });
+
+  it('update leaves unpatched fields intact (no full-item overwrite)', async () => {
+    // A partial update must SET only the named fields. If the expression ever
+    // regressed into a full PutItem-style overwrite, the untouched fields below
+    // would be dropped — this guards that.
+    const agent = makeAgent(USER_A, {
+      name: 'before',
+      description: 'keep-me',
+      systemPrompt: 'keep-prompt',
+      enabledTools: ['t1', 't2'],
+      defaultStoragePath: '/work',
+    });
+    await repo.put(agent);
+
+    const updated = await repo.update(USER_A, agent.agentId, { name: 'after' });
+
+    expect(updated.name).toBe('after');
+    expect(updated.description).toBe('keep-me');
+    expect(updated.systemPrompt).toBe('keep-prompt');
+    expect(updated.enabledTools).toEqual(['t1', 't2']);
+    expect(updated.defaultStoragePath).toBe('/work');
+    expect(updated.createdAt).toBe(agent.createdAt); // never rewritten
+  });
+
+  it('update on a shared agent keeps it shared and still in listShared', async () => {
+    // updatedAt is SET on every update; isShared must NOT be collaterally
+    // touched, or the agent would silently drop out of the shared GSI.
+    const agent = makeAgent(USER_A, { isShared: true, name: 'before' });
+    await repo.put(agent);
+
+    const updated = await repo.update(USER_A, agent.agentId, { name: 'after' });
+    expect(updated.isShared).toBe(true);
+
+    expect(await listAllSharedIds(repo)).toContain(agent.agentId);
   });
 
   it('update with defaultStoragePath="" REMOVEs the attribute', async () => {
