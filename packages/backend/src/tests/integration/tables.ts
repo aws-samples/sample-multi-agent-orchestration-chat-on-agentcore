@@ -4,6 +4,7 @@
  * The key schemas here MUST mirror the CDK construct definitions so that the
  * integration tests exercise the same partition/sort/GSI layout as production:
  *   - Triggers table → packages/cdk/lib/constructs/storage/triggers-table.ts
+ *   - Agents table   → packages/cdk/lib/constructs/storage/agents-table.ts
  *
  * Every test run provisions a freshly named table (see `uniqueTableName`) so
  * suites are isolated from each other and from any prior local state.
@@ -102,6 +103,47 @@ export async function createSessionsTable(
           KeySchema: [
             { AttributeName: 'userId', KeyType: 'HASH' },
             { AttributeName: 'updatedAt', KeyType: 'RANGE' },
+          ],
+          Projection: { ProjectionType: 'ALL' },
+        },
+      ],
+    })
+  );
+
+  await waitUntilTableExists({ client, maxWaitTime: 30 }, { TableName: tableName });
+}
+
+/**
+ * Create the Agents table with the CDK-matching schema:
+ *   userId (HASH) / agentId (RANGE), plus the 'isShared-createdAt-index' GSI
+ *   (isShared HASH / createdAt RANGE, ALL projection). `isShared` is stored as
+ *   a string ('true'/'false') because DynamoDB cannot key on a boolean.
+ * Mirrors packages/cdk/lib/constructs/storage/agents-table.ts.
+ */
+export async function createAgentsTable(
+  client: DynamoDBClient,
+  tableName: string
+): Promise<void> {
+  await client.send(
+    new CreateTableCommand({
+      TableName: tableName,
+      BillingMode: 'PAY_PER_REQUEST',
+      AttributeDefinitions: [
+        { AttributeName: 'userId', AttributeType: 'S' },
+        { AttributeName: 'agentId', AttributeType: 'S' },
+        { AttributeName: 'isShared', AttributeType: 'S' },
+        { AttributeName: 'createdAt', AttributeType: 'S' },
+      ],
+      KeySchema: [
+        { AttributeName: 'userId', KeyType: 'HASH' },
+        { AttributeName: 'agentId', KeyType: 'RANGE' },
+      ],
+      GlobalSecondaryIndexes: [
+        {
+          IndexName: 'isShared-createdAt-index',
+          KeySchema: [
+            { AttributeName: 'isShared', KeyType: 'HASH' },
+            { AttributeName: 'createdAt', KeyType: 'RANGE' },
           ],
           Projection: { ProjectionType: 'ALL' },
         },

@@ -14,6 +14,8 @@ export type {
   UpdateAgentInput,
   PaginatedResult,
 } from './agent-types.js';
+// Agent domain errors (value export — used with `throw` / `instanceof`)
+export { AgentNotFoundError } from './agent-types.js';
 
 // Authentication types
 export type {

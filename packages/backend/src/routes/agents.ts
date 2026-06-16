@@ -20,6 +20,7 @@ import { asyncHandler } from '../middleware/async-handler.js';
 import { validate } from '../middleware/validate.js';
 import { parseUserId, parseAgentId } from '@moca/core';
 import { createAgentsService, UpdateAgentInput } from '../services/agents-service.js';
+import { AgentNotFoundError } from '../types/index.js';
 import { DEFAULT_AGENTS } from '../config/data/default-agents.js';
 import {
   AppError,
@@ -148,7 +149,7 @@ router.put(
     try {
       agent = await agentsService.updateAgent(userId, updateInput);
     } catch (e) {
-      if (e instanceof Error && e.message === 'Agent not found') {
+      if (e instanceof AgentNotFoundError) {
         throw new AppError(ErrorCode.NOT_FOUND, 'Agent not found');
       }
       throw e;
@@ -194,7 +195,7 @@ router.put(
     try {
       agent = await agentsService.toggleShare(userId, agentId);
     } catch (e) {
-      if (e instanceof Error && e.message === 'Agent not found') {
+      if (e instanceof AgentNotFoundError) {
         throw new AppError(ErrorCode.NOT_FOUND, 'Agent not found');
       }
       throw e;
@@ -334,7 +335,7 @@ router.post(
         auth.username
       );
     } catch (e) {
-      if (e instanceof Error && e.message === 'Shared agent not found') {
+      if (e instanceof AgentNotFoundError) {
         throw new AppError(ErrorCode.NOT_FOUND, 'Shared Agent not found');
       }
       throw e;

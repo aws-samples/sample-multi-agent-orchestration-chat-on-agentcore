@@ -5,6 +5,20 @@
 
 import type { UserId, AgentId } from '@moca/core';
 
+/**
+ * Thrown by AgentsService when an agent (or shared agent) the caller asked to
+ * act on does not exist. Routes map this to HTTP 404 via an `instanceof` check,
+ * so the 404 contract no longer depends on matching an error message string.
+ * Mirrors `TriggerLimitExceededError` in the triggers domain.
+ */
+export class AgentNotFoundError extends Error {
+  readonly code = 'AGENT_NOT_FOUND';
+  constructor(message: string = 'Agent not found') {
+    super(message);
+    this.name = 'AgentNotFoundError';
+  }
+}
+
 export interface MCPServer {
   command?: string;
   args?: string[];

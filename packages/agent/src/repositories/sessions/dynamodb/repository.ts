@@ -1,5 +1,9 @@
 /**
- * Sessions Repository — pure DynamoDB data-access for session metadata.
+ * `DynamoDBSessionsRepository` — DynamoDB data-access for session metadata.
+ *
+ * IMPLEMENTATION DETAIL. Callers depend on the `SessionsRepository` interface
+ * (see `../sessions-repository.ts`) and obtain an instance from the composition
+ * layer (`services/sessions-service.ts`); they never import this class directly.
  *
  * Intentionally free of `config`, Cognito, and request-context: the
  * `DynamoDBClient`, table name, and the already-resolved partition key are all
@@ -24,7 +28,14 @@ import {
   type AttributeValue,
 } from '@aws-sdk/client-dynamodb';
 import { marshall, unmarshall } from '@aws-sdk/util-dynamodb';
-import { createLogger } from '../libs/logger/index.js';
+import type { IdentityId, AgentId } from '@moca/core';
+import { createLogger } from '../../../libs/logger/index.js';
+import type {
+  SessionsRepository,
+  CreateSessionOptions,
+  SessionListResult,
+} from '../sessions-repository.js';
+import type { SessionData, SessionSummary } from '../types.js';
 
 const logger = createLogger('SessionsRepository');
 
@@ -66,80 +77,14 @@ function decodePageToken(token: string | undefined): Record<string, AttributeVal
 }
 
 /**
- * Session type
+ * DynamoDB-backed {@link SessionsRepository}. Bound to a single partition key
+ * (one user) for its lifetime; the composition layer creates one per operation.
  */
-export type SessionType = 'user' | 'event' | 'subagent';
-
-/**
- * Session data stored in DynamoDB
- */
-export interface SessionData {
-  userId: string;
-  sessionId: string;
-  title: string;
-  agentId?: string;
-  storagePath?: string;
-  sessionType?: SessionType;
-  /**
-   * Cognito User Pool sub (UUID, no colons). Stored alongside the identityId
-   * partition key so downstream consumers (e.g. session-stream-handler) can
-   * construct AppSync channel paths without reverse-looking-up the User Pool
-   * sub from the identityId (AppSync rejects channel paths containing colons,
-   * so the identityId "REGION:UUID" cannot be used directly).
-   */
-  channelUserId?: string;
-  createdAt: string;
-  updatedAt: string;
-}
-
-/**
- * Options for creating a new session. The partition key is NOT part of this —
- * it is fixed on the repository instance.
- */
-export interface CreateSessionOptions {
-  sessionId: string;
-  title: string;
-  agentId?: string;
-  storagePath?: string;
-  sessionType?: SessionType;
-  /** Cognito User Pool sub — used for AppSync channel paths (no colons). */
-  channelUserId?: string;
-}
-
-/**
- * A single session as surfaced to a session listing. A read-only projection of
- * {@link SessionData} that omits the partition key (`userId`) and internal
- * routing field (`channelUserId`) so the listing only exposes display data.
- */
-export interface SessionSummary {
-  sessionId: string;
-  title: string;
-  agentId?: string;
-  storagePath?: string;
-  sessionType?: SessionType;
-  createdAt: string;
-  updatedAt: string;
-}
-
-/**
- * Result of {@link SessionsRepository.listSessions}: a page of summaries plus an
- * opaque `nextToken` (absent when the last page has been reached).
- */
-export interface SessionListResult {
-  sessions: SessionSummary[];
-  nextToken?: string;
-  hasMore: boolean;
-}
-
-/**
- * Sessions Repository. Bound to a single partition key (one user) for its
- * lifetime; the composition layer creates one per operation.
- */
-export class SessionsRepository {
+export class DynamoDBSessionsRepository implements SessionsRepository {
   constructor(
     private readonly client: DynamoDBClient,
     private readonly tableName: string,
-    private readonly partitionKey: string
+    private readonly partitionKey: IdentityId
   ) {}
 
   /**
@@ -346,7 +291,7 @@ export class SessionsRepository {
    */
   async updateSessionAgentAndStorage(
     sessionId: string,
-    agentId?: string,
+    agentId?: AgentId,
     storagePath?: string
   ): Promise<void> {
     const now = new Date().toISOString();

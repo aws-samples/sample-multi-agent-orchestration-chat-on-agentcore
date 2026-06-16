@@ -220,7 +220,10 @@ export class BackendApi extends Construct {
         CORS_ALLOWED_ORIGINS: corsAllowedOrigins.join(','),
 
         // AWS / AgentCore configuration
-        // AWS_REGION removed as Lambda runtime provides it automatically
+        // AWS_REGION removed as Lambda runtime provides it automatically.
+        // AWS_ACCOUNT_ID is NOT auto-injected by Lambda, so pass it explicitly:
+        // SchedulerService assembles the persisted EventBridge Schedule ARN from it.
+        AWS_ACCOUNT_ID: cdk.Stack.of(this).account,
         AGENTCORE_GATEWAY_ENDPOINT: props.agentcoreGatewayEndpoint,
         AGENTCORE_MEMORY_ID: props.agentcoreMemoryId || '',
         AGENTCORE_SEMANTIC_STRATEGY_ID: props.agentcoreSemanticStrategyId || '',

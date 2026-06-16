@@ -20,7 +20,6 @@ import {
   DeleteItemCommand,
   QueryCommand,
 } from '@aws-sdk/client-dynamodb';
-import { marshall, unmarshall } from '@aws-sdk/util-dynamodb';
 import { v7 as uuidv7 } from 'uuid';
 import type { UserId, TriggerId } from '@moca/core';
 import { logger } from '../../../libs/logger/index.js';
@@ -33,7 +32,20 @@ import type {
   GetExecutionsResult,
 } from '../triggers-repository.js';
 import { MAX_TRIGGERS_PER_USER, TriggerLimitExceededError, type Trigger } from '../types.js';
-import { triggerKey, toItem, fromItem, fromExecutionItem, buildUpdateExpression } from './item.js';
+import {
+  buildUpdateExpression,
+  triggerKeyAttr,
+  userTriggersQueryValues,
+  listTriggersQueryValues,
+  executionsQueryValues,
+  eventSourceQueryValues,
+  toItemAttr,
+  toUpdateValuesAttr,
+  fromItemAttr,
+  fromExecutionItemAttr,
+  fromLastEvaluatedKey,
+  toExclusiveStartKey,
+} from './item.js';
 
 export class DynamoDBTriggersRepository implements TriggersRepository {
   private readonly client: DynamoDBClient;
@@ -53,10 +65,7 @@ export class DynamoDBTriggersRepository implements TriggersRepository {
       new QueryCommand({
         TableName: this.tableName,
         KeyConditionExpression: 'PK = :pk AND begins_with(SK, :sk)',
-        ExpressionAttributeValues: marshall({
-          ':pk': `TRIGGER#${userId}`,
-          ':sk': 'TRIGGER#',
-        }),
+        ExpressionAttributeValues: userTriggersQueryValues(userId),
         Select: 'COUNT',
       })
     );
@@ -105,7 +114,7 @@ export class DynamoDBTriggersRepository implements TriggersRepository {
     await this.client.send(
       new PutItemCommand({
         TableName: this.tableName,
-        Item: marshall(toItem(trigger), { removeUndefinedValues: true }),
+        Item: toItemAttr(trigger),
         // Never overwrite an existing item: the (PK, SK) pair must be new.
         // Guards against an astronomically unlikely UUIDv7 collision silently
         // clobbering another trigger.
@@ -121,7 +130,7 @@ export class DynamoDBTriggersRepository implements TriggersRepository {
     const result = await this.client.send(
       new GetItemCommand({
         TableName: this.tableName,
-        Key: marshall(triggerKey(userId, triggerId)),
+        Key: triggerKeyAttr(userId, triggerId),
       })
     );
 
@@ -129,7 +138,7 @@ export class DynamoDBTriggersRepository implements TriggersRepository {
       return null;
     }
 
-    return fromItem(unmarshall(result.Item));
+    return fromItemAttr(result.Item);
   }
 
   async listTriggers(
@@ -141,29 +150,21 @@ export class DynamoDBTriggersRepository implements TriggersRepository {
     // Optional `type` filter. FilterExpression is applied AFTER the Limit, so
     // a page may contain fewer than `limit` items even when more pages exist;
     // callers paginate on lastEvaluatedKey, not on item count.
-    const values: Record<string, unknown> = {
-      ':pk': `TRIGGER#${userId}`,
-      ':sk': 'TRIGGER#',
-    };
-    if (type) {
-      values[':type'] = type;
-    }
-
     const result = await this.client.send(
       new QueryCommand({
         TableName: this.tableName,
         KeyConditionExpression: 'PK = :pk AND begins_with(SK, :sk)',
         FilterExpression: type ? '#type = :type' : undefined,
         ExpressionAttributeNames: type ? { '#type': 'type' } : undefined,
-        ExpressionAttributeValues: marshall(values),
+        ExpressionAttributeValues: listTriggersQueryValues(userId, type),
         Limit: limit,
-        ExclusiveStartKey: exclusiveStartKey ? marshall(exclusiveStartKey) : undefined,
+        ExclusiveStartKey: toExclusiveStartKey(exclusiveStartKey),
       })
     );
 
     return {
-      triggers: result.Items ? result.Items.map((item) => fromItem(unmarshall(item))) : [],
-      lastEvaluatedKey: result.LastEvaluatedKey ? unmarshall(result.LastEvaluatedKey) : undefined,
+      triggers: result.Items ? result.Items.map(fromItemAttr) : [],
+      lastEvaluatedKey: fromLastEvaluatedKey(result.LastEvaluatedKey),
     };
   }
 
@@ -191,9 +192,9 @@ export class DynamoDBTriggersRepository implements TriggersRepository {
     const result = await this.client.send(
       new UpdateItemCommand({
         TableName: this.tableName,
-        Key: marshall(triggerKey(userId, triggerId)),
+        Key: triggerKeyAttr(userId, triggerId),
         UpdateExpression: updateExpression,
-        ExpressionAttributeValues: marshall(attributeValues, { removeUndefinedValues: true }),
+        ExpressionAttributeValues: toUpdateValuesAttr(attributeValues),
         ...(Object.keys(attributeNames).length > 0
           ? { ExpressionAttributeNames: attributeNames }
           : {}),
@@ -208,14 +209,14 @@ export class DynamoDBTriggersRepository implements TriggersRepository {
     if (!result.Attributes) {
       throw new Error('Failed to retrieve updated trigger');
     }
-    return fromItem(unmarshall(result.Attributes));
+    return fromItemAttr(result.Attributes);
   }
 
   async deleteTrigger(userId: UserId, triggerId: TriggerId): Promise<void> {
     await this.client.send(
       new DeleteItemCommand({
         TableName: this.tableName,
-        Key: marshall(triggerKey(userId, triggerId)),
+        Key: triggerKeyAttr(userId, triggerId),
       })
     );
 
@@ -228,9 +229,7 @@ export class DynamoDBTriggersRepository implements TriggersRepository {
         TableName: this.tableName,
         IndexName: 'GSI2',
         KeyConditionExpression: 'GSI2PK = :pk',
-        ExpressionAttributeValues: marshall({
-          ':pk': `EVENTSOURCE#${eventSourceId}`,
-        }),
+        ExpressionAttributeValues: eventSourceQueryValues(eventSourceId),
       })
     );
 
@@ -238,7 +237,7 @@ export class DynamoDBTriggersRepository implements TriggersRepository {
       return [];
     }
 
-    return result.Items.map((item) => fromItem(unmarshall(item)));
+    return result.Items.map(fromItemAttr);
   }
 
   async getExecutions(
@@ -250,19 +249,16 @@ export class DynamoDBTriggersRepository implements TriggersRepository {
       new QueryCommand({
         TableName: this.tableName,
         KeyConditionExpression: 'PK = :pk AND begins_with(SK, :sk)',
-        ExpressionAttributeValues: marshall({
-          ':pk': `TRIGGER#${triggerId}`,
-          ':sk': 'EXECUTION#',
-        }),
+        ExpressionAttributeValues: executionsQueryValues(triggerId),
         Limit: limit,
         ScanIndexForward: false, // Most recent first
-        ExclusiveStartKey: exclusiveStartKey ? marshall(exclusiveStartKey) : undefined,
+        ExclusiveStartKey: toExclusiveStartKey(exclusiveStartKey),
       })
     );
 
     return {
-      executions: result.Items ? result.Items.map((item) => fromExecutionItem(unmarshall(item))) : [],
-      lastEvaluatedKey: result.LastEvaluatedKey ? unmarshall(result.LastEvaluatedKey) : undefined,
+      executions: result.Items ? result.Items.map(fromExecutionItemAttr) : [],
+      lastEvaluatedKey: fromLastEvaluatedKey(result.LastEvaluatedKey),
     };
   }
 }

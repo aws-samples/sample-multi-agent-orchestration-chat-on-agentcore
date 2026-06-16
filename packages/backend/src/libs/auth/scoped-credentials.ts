@@ -36,7 +36,6 @@ import { BedrockAgentCoreClient } from '@aws-sdk/client-bedrock-agentcore';
 import type { IdentityId } from '@moca/core';
 
 import { config } from '../../config/index.js';
-import type { AuthenticatedRequest } from '../../middleware/auth.js';
 
 // ---------------------------------------------------------------------------
 // Shared helpers
@@ -92,19 +91,7 @@ interface IdentityPoolCacheEntry {
  */
 const identityPoolCache = new Map<string, IdentityPoolCacheEntry>();
 
-function getIdTokenFromRequest(req: AuthenticatedRequest): string {
-  const idToken = req.get('X-Amzn-Bedrock-AgentCore-Runtime-Custom-Id-Token');
-  if (!idToken) {
-    throw new Error('X-Amzn-Bedrock-AgentCore-Runtime-Custom-Id-Token header is required');
-  }
-  return idToken;
-}
-
-async function getIdentityPoolCredentials(
-  req: AuthenticatedRequest
-): Promise<IdentityPoolCacheEntry> {
-  const idToken = getIdTokenFromRequest(req);
-
+async function getIdentityPoolCredentials(idToken: string): Promise<IdentityPoolCacheEntry> {
   const cached = identityPoolCache.get(idToken);
   if (cached && isFresh(cached.expiresAt)) {
     return cached;
@@ -140,12 +127,13 @@ async function getIdentityPoolCredentials(
 }
 
 /**
- * Create a BedrockAgentCoreClient bound to the caller's Identity Pool credentials.
+ * Create a BedrockAgentCoreClient bound to the caller's Identity Pool
+ * credentials. Takes the raw Cognito ID token (the caller is responsible for
+ * pulling it off the request header) so this module stays independent of
+ * Express / the middleware request type.
  */
-export async function createAgentCoreClient(
-  req: AuthenticatedRequest
-): Promise<BedrockAgentCoreClient> {
-  const { credentials } = await getIdentityPoolCredentials(req);
+export async function createAgentCoreClient(idToken: string): Promise<BedrockAgentCoreClient> {
+  const { credentials } = await getIdentityPoolCredentials(idToken);
   return new BedrockAgentCoreClient({
     region: config.AWS_REGION,
     credentials: toAwsClientCredentials(credentials),

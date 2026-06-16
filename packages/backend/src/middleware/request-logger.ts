@@ -55,6 +55,7 @@
 import { pinoHttp, stdSerializers } from 'pino-http';
 import type { Request, Response, NextFunction } from 'express';
 import type { IncomingMessage } from 'http';
+import { config } from '../config/index.js';
 import { logger } from '../libs/logger/index.js';
 import type { AuthenticatedRequest } from '../types/index.js';
 
@@ -93,7 +94,7 @@ function extractApiGatewayRequestId(req: IncomingMessage): string | undefined {
  * (e.g. local dev without X-Ray), so `traceId` is simply omitted from the logs.
  */
 export function extractTraceId(req: IncomingMessage): string | undefined {
-  const raw = headerValue(req, 'x-amzn-trace-id') ?? process.env._X_AMZN_TRACE_ID;
+  const raw = headerValue(req, 'x-amzn-trace-id') ?? config._X_AMZN_TRACE_ID;
   if (!raw) return undefined;
   for (const part of raw.split(';')) {
     const trimmed = part.trim();

@@ -7,9 +7,11 @@
  * so the rest of the codebase can stay in terms of the domain {@link Trigger}.
  */
 
+import { marshall, unmarshall } from '@aws-sdk/util-dynamodb';
+import type { AttributeValue } from '@aws-sdk/client-dynamodb';
 import type { UserId, TriggerId } from '@moca/core';
 import { pick } from '../../../libs/object/index.js';
-import type { Trigger, TriggerExecution } from '../types.js';
+import type { Trigger, TriggerExecution, TriggerType } from '../types.js';
 import type { UpdateTriggerInput } from '../triggers-repository.js';
 
 /**
@@ -71,6 +73,85 @@ export function triggerKey(userId: UserId, triggerId: TriggerId): { PK: string; 
     PK: `TRIGGER#${userId}`,
     SK: `TRIGGER#${triggerId}`,
   };
+}
+
+// ---------------------------------------------------------------------------
+// Marshalling boundary
+//
+// The repository composes the helpers below and never calls marshall /
+// unmarshall or constructs a single-table key string itself: every `TRIGGER#`,
+// `EXECUTION#`, `EVENTSOURCE#`, and `GSI*` literal — and every SDK serialization
+// — lives in this module, mirroring sessions/dynamodb/item.ts. To change the
+// table layout, you edit this file alone.
+// ---------------------------------------------------------------------------
+
+/** A trigger's marshalled primary key, ready for a Get/Update/Delete `Key`. */
+export function triggerKeyAttr(
+  userId: UserId,
+  triggerId: TriggerId
+): Record<string, AttributeValue> {
+  return marshall(triggerKey(userId, triggerId));
+}
+
+/** Marshalled key condition values for "all triggers under a user". */
+export function userTriggersQueryValues(userId: UserId): Record<string, AttributeValue> {
+  return marshall({ ':pk': `TRIGGER#${userId}`, ':sk': 'TRIGGER#' });
+}
+
+/** Marshalled key condition values for a user's triggers, optionally type-filtered. */
+export function listTriggersQueryValues(
+  userId: UserId,
+  type?: TriggerType
+): Record<string, AttributeValue> {
+  const values: Record<string, unknown> = { ':pk': `TRIGGER#${userId}`, ':sk': 'TRIGGER#' };
+  if (type) values[':type'] = type;
+  return marshall(values);
+}
+
+/** Marshalled key condition values for the executions of one trigger. */
+export function executionsQueryValues(triggerId: TriggerId): Record<string, AttributeValue> {
+  return marshall({ ':pk': `TRIGGER#${triggerId}`, ':sk': 'EXECUTION#' });
+}
+
+/** Marshalled key condition values for the GSI2 "by event source" query. */
+export function eventSourceQueryValues(eventSourceId: string): Record<string, AttributeValue> {
+  return marshall({ ':pk': `EVENTSOURCE#${eventSourceId}` });
+}
+
+/** Marshal a domain trigger into its storage item (dropping undefined attributes). */
+export function toItemAttr(trigger: Trigger): Record<string, AttributeValue> {
+  return marshall(toItem(trigger), { removeUndefinedValues: true });
+}
+
+/** Marshal a partial-update's attribute-value map (dropping undefined attributes). */
+export function toUpdateValuesAttr(
+  attributeValues: Record<string, unknown>
+): Record<string, AttributeValue> {
+  return marshall(attributeValues, { removeUndefinedValues: true });
+}
+
+/** Unmarshal a stored row into a domain {@link Trigger} (storage keys dropped by the allowlist). */
+export function fromItemAttr(item: Record<string, AttributeValue>): Trigger {
+  return fromItem(unmarshall(item));
+}
+
+/** Unmarshal a stored row into a domain {@link TriggerExecution}. */
+export function fromExecutionItemAttr(item: Record<string, AttributeValue>): TriggerExecution {
+  return fromExecutionItem(unmarshall(item));
+}
+
+/** Unmarshal a paginator's LastEvaluatedKey, or pass through undefined. */
+export function fromLastEvaluatedKey(
+  key: Record<string, AttributeValue> | undefined
+): Record<string, unknown> | undefined {
+  return key ? unmarshall(key) : undefined;
+}
+
+/** Marshal a caller-supplied ExclusiveStartKey, or pass through undefined. */
+export function toExclusiveStartKey(
+  key: Record<string, unknown> | undefined
+): Record<string, AttributeValue> | undefined {
+  return key ? marshall(key) : undefined;
 }
 
 /** Project the GSI keys for a trigger from its (type, eventConfig). */

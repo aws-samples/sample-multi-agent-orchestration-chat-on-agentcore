@@ -23,6 +23,7 @@ jest.mock('../../config/index', () => ({
   config: {
     AWS_REGION: 'us-east-1',
     SCHEDULE_GROUP_NAME: 'default',
+    AWS_ACCOUNT_ID: '111122223333',
   },
 }));
 
@@ -38,8 +39,7 @@ import type { UserId, AgentId, TriggerId } from '@moca/core';
 
 const MockSchedulerClient = jest.mocked(SchedulerClient);
 const MockCreateScheduleCommand = jest.mocked(CreateScheduleCommand);
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-const _MockUpdateScheduleCommand = jest.mocked(UpdateScheduleCommand);
+const MockUpdateScheduleCommand = jest.mocked(UpdateScheduleCommand);
 const MockDeleteScheduleCommand = jest.mocked(DeleteScheduleCommand);
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 const _MockGetScheduleCommand = jest.mocked(GetScheduleCommand);
@@ -193,13 +193,47 @@ describe('SchedulerService - createSchedule', () => {
   });
 
   it('returns schedule ARN on success', async () => {
-    process.env.AWS_REGION = 'us-east-1';
-    process.env.AWS_ACCOUNT_ID = '123456789012';
-
     const arn = await service.createSchedule(BASE_CONFIG);
 
     expect(arn).toContain('trigger-550e8400-e29b-41d4-a716-446655440000');
     expect(arn).toContain('test-group');
+  });
+
+  it('builds the schedule ARN from config (account id), not process.env', async () => {
+    // The account id comes from the validated `config.AWS_ACCOUNT_ID`
+    // (mocked to 111122223333) rather than a direct `process.env` read, so a
+    // missing env var can no longer produce an `undefined` segment in the ARN.
+    delete process.env.AWS_ACCOUNT_ID;
+
+    const arn = await service.createSchedule(BASE_CONFIG);
+
+    expect(arn).toBe(
+      'arn:aws:scheduler:us-east-1:111122223333:schedule/test-group/trigger-550e8400-e29b-41d4-a716-446655440000'
+    );
+  });
+
+  it('builds the Scheduler target Input envelope with the payload as detail', async () => {
+    await service.createSchedule(BASE_CONFIG);
+
+    const call = MockCreateScheduleCommand.mock.calls[0][0] as {
+      Target: { Input: string; RetryPolicy: { MaximumRetryAttempts: number } };
+    };
+    const envelope = JSON.parse(call.Target.Input) as Record<string, unknown>;
+
+    expect(envelope).toMatchObject({
+      version: '0',
+      id: 'trigger-550e8400-e29b-41d4-a716-446655440000',
+      'detail-type': 'Scheduled Event',
+      source: 'agentcore.trigger',
+      region: 'us-east-1',
+      resources: [],
+      detail: BASE_CONFIG.payload,
+    });
+    // `time` is stamped at send time, so assert its shape (ISO 8601) rather than
+    // a fixed value — toMatchObject above does not cover it.
+    expect(typeof envelope.time).toBe('string');
+    expect(envelope.time).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/);
+    expect(call.Target.RetryPolicy.MaximumRetryAttempts).toBe(0);
   });
 
   it('throws error when client.send fails', async () => {
@@ -208,6 +242,80 @@ describe('SchedulerService - createSchedule', () => {
     await expect(service.createSchedule(BASE_CONFIG)).rejects.toThrow(
       'Failed to create EventBridge schedule: AWS error'
     );
+  });
+});
+
+describe('SchedulerService - updateSchedule', () => {
+  let service: SchedulerService;
+  let mockSend: ReturnType<typeof jest.fn>;
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    service = new SchedulerService('us-east-1', 'test-group');
+    const clientInstance = MockSchedulerClient.mock.results[0].value as {
+      send: ReturnType<typeof jest.fn>;
+    };
+    mockSend = clientInstance.send as ReturnType<typeof jest.fn>;
+    mockSend.mockImplementation(() => Promise.resolve({}));
+  });
+
+  it('rebuilds the target Input envelope from the new payload, identical in shape to createSchedule', async () => {
+    // GetSchedule returns the current schedule for the merge.
+    mockSend.mockImplementationOnce(() =>
+      Promise.resolve({
+        ScheduleExpression: 'cron(0 * * * ? *)',
+        ScheduleExpressionTimezone: 'UTC',
+        State: 'ENABLED',
+        Target: { Arn: 'old-arn', RoleArn: 'old-role' },
+      })
+    );
+
+    await service.updateSchedule(BASE_CONFIG.payload.triggerId, {
+      payload: BASE_CONFIG.payload,
+      targetArn: BASE_CONFIG.targetArn,
+      roleArn: BASE_CONFIG.roleArn,
+    });
+
+    const call = MockUpdateScheduleCommand.mock.calls[0][0] as {
+      Target: { Input: string; Arn: string; RoleArn: string };
+    };
+    const envelope = JSON.parse(call.Target.Input) as Record<string, unknown>;
+
+    expect(envelope).toMatchObject({
+      version: '0',
+      id: 'trigger-550e8400-e29b-41d4-a716-446655440000',
+      'detail-type': 'Scheduled Event',
+      source: 'agentcore.trigger',
+      region: 'us-east-1',
+      resources: [],
+      detail: BASE_CONFIG.payload,
+    });
+    expect(typeof envelope.time).toBe('string');
+    expect(envelope.time).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/);
+    expect(call.Target.Arn).toBe(BASE_CONFIG.targetArn);
+    expect(call.Target.RoleArn).toBe(BASE_CONFIG.roleArn);
+  });
+
+  it('preserves the existing target when no payload is supplied (pause/resume)', async () => {
+    mockSend.mockImplementationOnce(() =>
+      Promise.resolve({
+        ScheduleExpression: 'cron(0 * * * ? *)',
+        ScheduleExpressionTimezone: 'UTC',
+        State: 'ENABLED',
+        Target: { Arn: 'existing-arn', RoleArn: 'existing-role' },
+      })
+    );
+
+    await service.updateSchedule(BASE_CONFIG.payload.triggerId, { enabled: false });
+
+    const call = MockUpdateScheduleCommand.mock.calls[0][0] as {
+      Target: { Arn: string; RoleArn: string; RetryPolicy: { MaximumRetryAttempts: number } };
+      State: string;
+    };
+    expect(call.Target.Arn).toBe('existing-arn');
+    expect(call.Target.RoleArn).toBe('existing-role');
+    expect(call.Target.RetryPolicy.MaximumRetryAttempts).toBe(0);
+    expect(call.State).toBe('DISABLED');
   });
 });
 

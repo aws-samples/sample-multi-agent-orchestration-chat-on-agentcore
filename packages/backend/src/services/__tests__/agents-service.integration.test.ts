@@ -12,7 +12,10 @@
 
 import { describe, it, expect, beforeAll, afterAll } from '@jest/globals';
 import { config as loadEnv } from 'dotenv';
+import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
 import { AgentsService, type CreateAgentInput } from '../agents-service.js';
+import { SsmEnvStore } from '../ssm-env-store.js';
+import { DynamoDBAgentsRepository } from '../../repositories/agents/dynamodb/index.js';
 import type { UserId, AgentId } from '@moca/core';
 
 // Load environment variables
@@ -34,11 +37,12 @@ describeIntegration('AgentsService Integration Tests', () => {
   const createdAgentIds: Array<{ userId: UserId; agentId: AgentId }> = [];
 
   beforeAll(() => {
-    service = new AgentsService(
-      process.env.AGENTS_TABLE_NAME!,
-      process.env.SSM_PARAMETER_PREFIX!,
-      process.env.AWS_REGION || 'ap-northeast-1'
+    const region = process.env.AWS_REGION || 'ap-northeast-1';
+    const repo = new DynamoDBAgentsRepository(
+      new DynamoDBClient({ region }),
+      process.env.AGENTS_TABLE_NAME!
     );
+    service = new AgentsService(repo, new SsmEnvStore(process.env.SSM_PARAMETER_PREFIX!, region));
   });
 
   // Cleanup: delete all agents created during tests

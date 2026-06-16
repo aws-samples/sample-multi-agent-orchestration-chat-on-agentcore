@@ -20,17 +20,22 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from '@jest/globals';
 import { type DynamoDBClient, GetItemCommand, PutItemCommand } from '@aws-sdk/client-dynamodb';
 import { marshall, unmarshall } from '@aws-sdk/util-dynamodb';
-import { SessionsRepository } from './sessions-repository.js';
-import { makeLocalClient } from '../tests/integration/client.js';
-import { createSessionsTable, deleteTable, uniqueTableName } from '../tests/integration/tables.js';
+import type { IdentityId, UserId, AgentId } from '@moca/core';
+import { DynamoDBSessionsRepository } from './repository.js';
+import { makeLocalClient } from '../../../tests/integration/client.js';
+import {
+  createSessionsTable,
+  deleteTable,
+  uniqueTableName,
+} from '../../../tests/integration/tables.js';
 
 // The repository is constructed with an already-resolved partition key
 // (in production this is the Cognito Identity Pool identityId).
-const PK = 'us-east-1:00000000-aaaa-aaaa-aaaa-000000000001';
+const PK = 'us-east-1:00000000-aaaa-aaaa-aaaa-000000000001' as IdentityId;
 
 let client: DynamoDBClient;
 let tableName: string;
-let repo: SessionsRepository;
+let repo: DynamoDBSessionsRepository;
 
 beforeAll(async () => {
   client = makeLocalClient();
@@ -44,7 +49,7 @@ afterAll(async () => {
 });
 
 beforeEach(() => {
-  repo = new SessionsRepository(client, tableName, PK);
+  repo = new DynamoDBSessionsRepository(client, tableName, PK);
 });
 
 /** Read the raw stored item directly (bypassing the repository). */
@@ -63,9 +68,9 @@ describe('SessionsRepository (DynamoDB Local)', () => {
     const created = await repo.createSession({
       sessionId: 's-create',
       title: 'first',
-      agentId: 'agent-1',
+      agentId: 'agent-1' as AgentId,
       sessionType: 'user',
-      channelUserId: 'pool-sub-123',
+      channelUserId: 'pool-sub-123' as UserId,
     });
 
     expect(created.userId).toBe(PK);
@@ -129,14 +134,16 @@ describe('SessionsRepository (DynamoDB Local)', () => {
   it('update on a missing session is a no-op (existence condition), does not throw', async () => {
     await expect(repo.updateSessionTitle('ghost', 'x')).resolves.toBeUndefined();
     await expect(repo.updateSessionTimestamp('ghost')).resolves.toBeUndefined();
-    await expect(repo.updateSessionAgentAndStorage('ghost', 'a', 'p')).resolves.toBeUndefined();
+    await expect(
+      repo.updateSessionAgentAndStorage('ghost', 'a' as AgentId, 'p')
+    ).resolves.toBeUndefined();
     // Nothing was created by the failed updates.
     expect(await rawGet('ghost')).toBeUndefined();
   });
 
   it('updateSessionAgentAndStorage builds the dynamic expression: both fields', async () => {
     await repo.createSession({ sessionId: 's-both', title: 't' });
-    await repo.updateSessionAgentAndStorage('s-both', 'agent-X', 'path/X');
+    await repo.updateSessionAgentAndStorage('s-both', 'agent-X' as AgentId, 'path/X');
     const stored = await rawGet('s-both');
     expect(stored).toMatchObject({ agentId: 'agent-X', storagePath: 'path/X' });
   });
@@ -145,10 +152,10 @@ describe('SessionsRepository (DynamoDB Local)', () => {
     await repo.createSession({
       sessionId: 's-partial',
       title: 't',
-      agentId: 'orig',
+      agentId: 'orig' as AgentId,
       storagePath: 'orig/path',
     });
-    await repo.updateSessionAgentAndStorage('s-partial', 'changed', undefined);
+    await repo.updateSessionAgentAndStorage('s-partial', 'changed' as AgentId, undefined);
     const stored = await rawGet('s-partial');
     expect(stored?.agentId).toBe('changed');
     // storagePath was not in the update → must remain its original value.
@@ -159,11 +166,11 @@ describe('SessionsRepository (DynamoDB Local)', () => {
 describe('SessionsRepository.listSessions (DynamoDB Local)', () => {
   // A dedicated partition key so this suite's rows are isolated from the
   // create/update suite above (which shares the same table).
-  const LIST_PK = 'us-east-1:00000000-aaaa-aaaa-aaaa-000000000099';
-  let listRepo: SessionsRepository;
+  const LIST_PK = 'us-east-1:00000000-aaaa-aaaa-aaaa-000000000099' as IdentityId;
+  let listRepo: DynamoDBSessionsRepository;
 
   beforeAll(async () => {
-    listRepo = new SessionsRepository(client, tableName, LIST_PK);
+    listRepo = new DynamoDBSessionsRepository(client, tableName, LIST_PK);
     // Seed five sessions with strictly increasing updatedAt values. The
     // repository sets updatedAt = now on create, so we space them out by
     // writing sequentially with distinct timestamps via updateSessionTimestamp.
@@ -203,10 +210,10 @@ describe('SessionsRepository.listSessions (DynamoDB Local)', () => {
   });
 
   it('returns an empty page for a user with no sessions', async () => {
-    const emptyRepo = new SessionsRepository(
+    const emptyRepo = new DynamoDBSessionsRepository(
       client,
       tableName,
-      'us-east-1:00000000-aaaa-aaaa-aaaa-0000000000ee'
+      'us-east-1:00000000-aaaa-aaaa-aaaa-0000000000ee' as IdentityId
     );
     const result = await emptyRepo.listSessions(10);
     expect(result.sessions).toEqual([]);
@@ -226,15 +233,15 @@ describe('SessionsRepository.listSessions (DynamoDB Local)', () => {
 // gotcha, and a full pagination walk with a non-unique sort key.
 describe('SessionsRepository.listSessions — review hardening (DynamoDB Local)', () => {
   it('isolates sessions per user: never returns another user\'s rows', async () => {
-    const userA = new SessionsRepository(
+    const userA = new DynamoDBSessionsRepository(
       client,
       tableName,
-      'us-east-1:00000000-aaaa-aaaa-aaaa-0000000000a1'
+      'us-east-1:00000000-aaaa-aaaa-aaaa-0000000000a1' as IdentityId
     );
-    const userB = new SessionsRepository(
+    const userB = new DynamoDBSessionsRepository(
       client,
       tableName,
-      'us-east-1:00000000-aaaa-aaaa-aaaa-0000000000b2'
+      'us-east-1:00000000-aaaa-aaaa-aaaa-0000000000b2' as IdentityId
     );
     await userA.createSession({ sessionId: 'a-only', title: 'A session' });
     await userB.createSession({ sessionId: 'b-only', title: 'B session' });
@@ -250,10 +257,10 @@ describe('SessionsRepository.listSessions — review hardening (DynamoDB Local)'
   // tells the model "More sessions are available" and the model burns a call
   // fetching an empty page.
   it('does not report hasMore when the page size exactly equals the row count', async () => {
-    const repo = new SessionsRepository(
+    const repo = new DynamoDBSessionsRepository(
       client,
       tableName,
-      'us-east-1:00000000-aaaa-aaaa-aaaa-0000000000c3'
+      'us-east-1:00000000-aaaa-aaaa-aaaa-0000000000c3' as IdentityId
     );
     for (let i = 0; i < 3; i++) {
       await repo.createSession({ sessionId: `exact-${i}`, title: `t${i}` });
@@ -271,10 +278,10 @@ describe('SessionsRepository.listSessions — review hardening (DynamoDB Local)'
   // once, with no drops or duplicates — including the final (possibly empty)
   // page produced by the Limit==count gotcha above.
   it('walks every page to completion with no drops or duplicates', async () => {
-    const repo = new SessionsRepository(
+    const repo = new DynamoDBSessionsRepository(
       client,
       tableName,
-      'us-east-1:00000000-aaaa-aaaa-aaaa-0000000000d4'
+      'us-east-1:00000000-aaaa-aaaa-aaaa-0000000000d4' as IdentityId
     );
     const SEEDED = 7;
     for (let i = 0; i < SEEDED; i++) {
@@ -302,8 +309,8 @@ describe('SessionsRepository.listSessions — review hardening (DynamoDB Local)'
   // therefore carry the base-table key (sessionId) too, or a page boundary
   // landing between rows that share an updatedAt would drop or duplicate rows.
   it('paginates correctly when several sessions share the same updatedAt', async () => {
-    const TIE_PK = 'us-east-1:00000000-aaaa-aaaa-aaaa-0000000000e5';
-    const repo = new SessionsRepository(client, tableName, TIE_PK);
+    const TIE_PK = 'us-east-1:00000000-aaaa-aaaa-aaaa-0000000000e5' as IdentityId;
+    const repo = new DynamoDBSessionsRepository(client, tableName, TIE_PK);
     // Force a genuine collision: write rows directly with an identical
     // updatedAt (the public createSession stamps now() at ms resolution, which
     // would not reliably tie). The base table projects ALL to the GSI.

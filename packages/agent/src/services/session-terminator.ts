@@ -48,7 +48,7 @@ const log = createLogger('SessionTerminator');
  *          in local development where the platform var is not injected).
  */
 export function resolveOwnRuntimeArn(
-  runtimeUrl: string | undefined = process.env.AGENTCORE_RUNTIME_URL
+  runtimeUrl: string | undefined = config.AGENTCORE_RUNTIME_URL
 ): string | undefined {
   if (!runtimeUrl) {
     return undefined;

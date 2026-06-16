@@ -14,7 +14,7 @@ import { type AuthenticatedRequest } from '../middleware/auth.js';
 import { asyncHandler } from '../middleware/async-handler.js';
 import { validate } from '../middleware/validate.js';
 import { createAgentCoreMemoryServiceForRequest } from '../services/agentcore-memory.js';
-import { getSessionsRepository } from '../services/sessions-repository.factory.js';
+import { getSessionsRepository } from '../repositories/sessions/sessions-repository.factory.js';
 import { config } from '../config/index.js';
 import {
   AppError,

@@ -1,254 +1,282 @@
 /**
- * Unit tests for AgentsService
- * Tests toDynamoAgent and fromDynamoAgent conversion logic indirectly
- * through the public service methods by mocking DynamoDB.
+ * Unit tests for AgentsService.
+ *
+ * The service owns application policy only — SSM env extraction/restoration,
+ * scenario-id stamping, the shared-agent cursor + name filter, and share/clone
+ * rules. Persistence is an injected AgentsRepository, so these tests use an
+ * in-memory fake repo and assert on the orchestration, not on DynamoDB command
+ * shapes (those are covered by the repository's own item/integration tests).
  */
 
 import { jest, describe, it, expect, beforeEach } from '@jest/globals';
-
-jest.mock('@aws-sdk/client-dynamodb', () => ({
-  DynamoDBClient: jest.fn(),
-  PutItemCommand: jest.fn(),
-  GetItemCommand: jest.fn(),
-  QueryCommand: jest.fn(),
-  UpdateItemCommand: jest.fn(),
-  DeleteItemCommand: jest.fn(),
-}));
-
-jest.mock('@aws-sdk/util-dynamodb', () => ({
-  marshall: jest.fn((item: unknown) => item),
-  unmarshall: jest.fn((item: unknown) => item),
-}));
-
-jest.mock('../../config/index', () => ({
-  config: {
-    AGENTS_TABLE_NAME: 'test-agents-table',
-    AWS_REGION: 'us-east-1',
-  },
-}));
 
 jest.mock('uuid', () => ({
   v7: jest.fn(() => 'test-uuid-1234'),
 }));
 
-import {
-  DynamoDBClient,
-  PutItemCommand,
-  GetItemCommand,
-  UpdateItemCommand,
-} from '@aws-sdk/client-dynamodb';
+// Stub config so importing the service (and its repository factory) does not
+// run the real env validation in config/index.ts, which calls process.exit(1)
+// when the CI environment has no .env. The service injects its repo, so these
+// values only satisfy the module-load-time imports.
+jest.mock('../../config/index', () => ({
+  config: {
+    AWS_REGION: 'us-east-1',
+    SSM_PARAMETER_PREFIX: '/test/mcp-env',
+    AGENTS_TABLE_NAME: 'test-agents',
+  },
+}));
+
 import { AgentsService } from '../agents-service.js';
+import { AgentNotFoundError, type Agent } from '../../types/index.js';
+import type { AgentsRepository, UpdateAgentPatch, SharedAgentsPage } from '../../repositories/agents/index.js';
+import type { SsmEnvStore } from '../ssm-env-store.js';
 import type { UserId, AgentId } from '@moca/core';
 
-const TABLE_NAME = 'test-agents-table';
 const USER_ID = 'user-123' as UserId;
 const AGENT_ID = 'agent-456' as AgentId;
 
-const baseDynamoAgent = {
-  userId: USER_ID,
-  agentId: AGENT_ID,
-  name: 'Test Agent',
-  description: 'A test agent',
-  systemPrompt: 'You are helpful',
-  enabledTools: [],
-  scenarios: [],
-  createdAt: '2024-01-01T00:00:00.000Z',
-  updatedAt: '2024-01-01T00:00:00.000Z',
-  createdBy: 'testuser',
-};
+function makeAgent(overrides: Partial<Agent> = {}): Agent {
+  return {
+    userId: USER_ID,
+    agentId: AGENT_ID,
+    name: 'Test Agent',
+    description: 'A test agent',
+    systemPrompt: 'You are helpful',
+    enabledTools: [],
+    scenarios: [],
+    createdAt: '2024-01-01T00:00:00.000Z',
+    updatedAt: '2024-01-01T00:00:00.000Z',
+    isShared: false,
+    createdBy: 'testuser',
+    ...overrides,
+  };
+}
+
+/** In-memory AgentsRepository fake; each method is a jest.fn so calls can be asserted. */
+function makeFakeRepo(): jest.Mocked<AgentsRepository> {
+  return {
+    listByUser: jest.fn(async () => []),
+    get: jest.fn(async () => null),
+    put: jest.fn(async () => {}),
+    update: jest.fn(async () => makeAgent()),
+    toggleShare: jest.fn(async () => makeAgent({ isShared: true })),
+    delete: jest.fn(async () => {}),
+    listShared: jest.fn(async (): Promise<SharedAgentsPage> => ({ agents: [] })),
+  } as unknown as jest.Mocked<AgentsRepository>;
+}
+
+/** SsmEnvStore fake — no real SSM. */
+function makeFakeSsm(): jest.Mocked<SsmEnvStore> {
+  return {
+    save: jest.fn(async () => {}),
+    get: jest.fn(async () => null),
+    delete: jest.fn(async () => {}),
+  } as unknown as jest.Mocked<SsmEnvStore>;
+}
 
 describe('AgentsService', () => {
+  let repo: jest.Mocked<AgentsRepository>;
+  let ssm: jest.Mocked<SsmEnvStore>;
   let service: AgentsService;
-
-  let mockSend: any;
 
   beforeEach(() => {
     jest.clearAllMocks();
-    mockSend = jest.fn();
-    (DynamoDBClient as jest.Mock).mockImplementation(() => ({ send: mockSend }));
-    service = new AgentsService(TABLE_NAME, 'us-east-1');
+    repo = makeFakeRepo();
+    ssm = makeFakeSsm();
+    service = new AgentsService(repo, ssm);
   });
 
-  // ──────────────────────────────────────────────
-  // isShared conversion: bool ↔ string
-  // ──────────────────────────────────────────────
-
-  describe('isShared conversion (toDynamoAgent)', () => {
-    it('stores isShared as string "false" when creating an agent', async () => {
-      mockSend.mockResolvedValueOnce({});
-
-      await service.createAgent(USER_ID, {
+  describe('createAgent', () => {
+    it('persists a private agent and stamps ids onto scenarios', async () => {
+      const created = await service.createAgent(USER_ID, {
         name: 'New Agent',
         description: 'desc',
         systemPrompt: 'sys',
         enabledTools: [],
+        scenarios: [{ title: 't', prompt: 'p' }],
+      });
+
+      expect(repo.put).toHaveBeenCalledTimes(1);
+      const persisted = repo.put.mock.calls[0][0];
+      expect(persisted.isShared).toBe(false);
+      expect(persisted.scenarios[0].id).toBe('test-uuid-1234');
+      expect(created.isShared).toBe(false);
+    });
+
+    it('does not touch SSM when there is no mcpConfig', async () => {
+      await service.createAgent(USER_ID, {
+        name: 'n',
+        description: 'd',
+        systemPrompt: 's',
+        enabledTools: [],
         scenarios: [],
       });
+      expect(ssm.save).not.toHaveBeenCalled();
+    });
+  });
 
-      expect(PutItemCommand).toHaveBeenCalledWith(
-        expect.objectContaining({
-          Item: expect.objectContaining({ isShared: 'false' }),
+  describe('getAgent', () => {
+    it('returns null when the repo has no such agent', async () => {
+      repo.get.mockResolvedValueOnce(null);
+      expect(await service.getAgent(USER_ID, AGENT_ID)).toBeNull();
+    });
+
+    it('restores SSM env into mcpConfig when a sentinel is present', async () => {
+      repo.get.mockResolvedValueOnce(
+        makeAgent({
+          // The stored config carries the SSM sentinel ({ __ssm: true }) in place
+          // of real env; envMap is keyed by server name.
+          mcpConfig: {
+            mcpServers: { s: { command: 'x', env: { __ssm: true } as never } },
+          },
         })
       );
+      ssm.get.mockResolvedValueOnce({ s: { KEY: 'secret-value' } });
+
+      const agent = await service.getAgent(USER_ID, AGENT_ID);
+
+      expect(ssm.get).toHaveBeenCalledWith(USER_ID, AGENT_ID);
+      expect(agent?.mcpConfig?.mcpServers.s.env?.KEY).toBe('secret-value');
     });
   });
 
-  describe('isShared conversion (fromDynamoAgent)', () => {
-    it('converts isShared "true" string from DynamoDB to boolean true', async () => {
-      mockSend.mockResolvedValueOnce({
-        Items: [{ ...baseDynamoAgent, isShared: 'true' }],
+  describe('updateAgent', () => {
+    it('stamps scenario ids and forwards a storage-ready patch to the repo', async () => {
+      await service.updateAgent(USER_ID, {
+        agentId: AGENT_ID,
+        name: 'renamed',
+        scenarios: [{ title: 't', prompt: 'p' }],
       });
 
-      const agents = await service.listAgents(USER_ID);
-
-      expect(agents).toHaveLength(1);
-      expect(agents[0].isShared).toBe(true);
+      expect(repo.update).toHaveBeenCalledTimes(1);
+      const [, , patch] = repo.update.mock.calls[0] as [UserId, AgentId, UpdateAgentPatch];
+      expect(patch.name).toBe('renamed');
+      expect(patch.scenarios?.[0].id).toBe('test-uuid-1234');
     });
 
-    it('converts isShared "false" string from DynamoDB to boolean false', async () => {
-      mockSend.mockResolvedValueOnce({
-        Items: [{ ...baseDynamoAgent, isShared: 'false' }],
+    it('extracts mcpConfig env to SSM and patches the sanitized config', async () => {
+      await service.updateAgent(USER_ID, {
+        agentId: AGENT_ID,
+        mcpConfig: { mcpServers: { s: { command: 'x', env: { KEY: 'plain-secret' } } } },
       });
 
-      const agents = await service.listAgents(USER_ID);
+      expect(ssm.save).toHaveBeenCalledTimes(1);
+      const [, , patch] = repo.update.mock.calls[0] as [UserId, AgentId, UpdateAgentPatch];
+      // The persisted config must not carry the raw secret.
+      expect(patch.mcpConfig?.mcpServers.s.env?.KEY).not.toBe('plain-secret');
+    });
 
-      expect(agents).toHaveLength(1);
-      expect(agents[0].isShared).toBe(false);
+    it('propagates AgentNotFoundError from the repo', async () => {
+      repo.update.mockRejectedValueOnce(new AgentNotFoundError());
+      await expect(
+        service.updateAgent(USER_ID, { agentId: AGENT_ID, name: 'x' })
+      ).rejects.toBeInstanceOf(AgentNotFoundError);
+    });
+
+    it('does NOT write or delete SSM when the agent does not exist (no orphaned params)', async () => {
+      // The existence gate (repo.update's ConditionExpression) must run before
+      // any SSM mutation: a mcpConfig update to a missing/other-user agent must
+      // not leave an orphaned — or delete an unrelated — SSM parameter.
+      repo.update.mockRejectedValueOnce(new AgentNotFoundError());
+
+      await expect(
+        service.updateAgent(USER_ID, {
+          agentId: AGENT_ID,
+          mcpConfig: { mcpServers: { s: { command: 'x', env: { KEY: 'plain-secret' } } } },
+        })
+      ).rejects.toBeInstanceOf(AgentNotFoundError);
+
+      expect(ssm.save).not.toHaveBeenCalled();
+      expect(ssm.delete).not.toHaveBeenCalled();
+    });
+
+    it('writes SSM env only after the row update succeeds', async () => {
+      // Ordering guard: ssm.save must happen after repo.update resolves.
+      const order: string[] = [];
+      ssm.save.mockImplementationOnce(async () => {
+        order.push('ssm.save');
+      });
+      repo.update.mockImplementationOnce(async () => {
+        order.push('repo.update');
+        return makeAgent();
+      });
+
+      await service.updateAgent(USER_ID, {
+        agentId: AGENT_ID,
+        mcpConfig: { mcpServers: { s: { command: 'x', env: { KEY: 'plain-secret' } } } },
+      });
+
+      expect(order).toEqual(['repo.update', 'ssm.save']);
     });
   });
 
-  // ──────────────────────────────────────────────
-  // toggleShare
-  // ──────────────────────────────────────────────
+  describe('deleteAgent', () => {
+    it('removes the SSM parameter before deleting the row', async () => {
+      await service.deleteAgent(USER_ID, AGENT_ID);
+      expect(ssm.delete).toHaveBeenCalledWith(USER_ID, AGENT_ID);
+      expect(repo.delete).toHaveBeenCalledWith(USER_ID, AGENT_ID);
+    });
+  });
 
   describe('toggleShare', () => {
-    it('flips isShared from false to true and sends "true" to DynamoDB', async () => {
-      // First call: getAgent (GetItemCommand)
-      mockSend.mockResolvedValueOnce({
-        Item: { ...baseDynamoAgent, isShared: 'false' },
-      });
-      // Second call: UpdateItemCommand
-      mockSend.mockResolvedValueOnce({
-        Attributes: { ...baseDynamoAgent, isShared: 'true' },
-      });
-
+    it('delegates to the repo and returns the updated agent', async () => {
+      repo.toggleShare.mockResolvedValueOnce(makeAgent({ isShared: true }));
       const result = await service.toggleShare(USER_ID, AGENT_ID);
-
+      expect(repo.toggleShare).toHaveBeenCalledWith(USER_ID, AGENT_ID);
       expect(result.isShared).toBe(true);
-      expect(UpdateItemCommand).toHaveBeenCalledWith(
-        expect.objectContaining({
-          ExpressionAttributeValues: expect.objectContaining({
-            ':isShared': 'true',
-          }),
-        })
-      );
     });
 
-    it('flips isShared from true to false and sends "false" to DynamoDB', async () => {
-      mockSend.mockResolvedValueOnce({
-        Item: { ...baseDynamoAgent, isShared: 'true' },
-      });
-      mockSend.mockResolvedValueOnce({
-        Attributes: { ...baseDynamoAgent, isShared: 'false' },
-      });
-
-      const result = await service.toggleShare(USER_ID, AGENT_ID);
-
-      expect(result.isShared).toBe(false);
-      expect(UpdateItemCommand).toHaveBeenCalledWith(
-        expect.objectContaining({
-          ExpressionAttributeValues: expect.objectContaining({
-            ':isShared': 'false',
-          }),
-        })
+    it('propagates AgentNotFoundError from the repo', async () => {
+      repo.toggleShare.mockRejectedValueOnce(new AgentNotFoundError());
+      await expect(service.toggleShare(USER_ID, AGENT_ID)).rejects.toBeInstanceOf(
+        AgentNotFoundError
       );
-    });
-
-    it('throws if agent is not found', async () => {
-      mockSend.mockResolvedValueOnce({ Item: undefined });
-
-      await expect(service.toggleShare(USER_ID, AGENT_ID)).rejects.toThrow('Agent not found');
-    });
-
-    it('reads current state from DynamoDB before toggling', async () => {
-      mockSend.mockResolvedValueOnce({
-        Item: { ...baseDynamoAgent, isShared: 'false' },
-      });
-      mockSend.mockResolvedValueOnce({
-        Attributes: { ...baseDynamoAgent, isShared: 'true' },
-      });
-
-      await service.toggleShare(USER_ID, AGENT_ID);
-
-      // First call should be GetItemCommand
-      expect(GetItemCommand).toHaveBeenCalledWith(
-        expect.objectContaining({
-          Key: expect.objectContaining({ userId: USER_ID, agentId: AGENT_ID }),
-        })
-      );
-      // Second call should be UpdateItemCommand
-      expect(mockSend).toHaveBeenCalledTimes(2);
     });
   });
 
-  // ──────────────────────────────────────────────
-  // listSharedAgents cursor encoding/decoding
-  // ──────────────────────────────────────────────
+  describe('listSharedAgents — cursor + filter policy', () => {
+    it('decodes a base64 cursor and passes it to the repo as exclusiveStartKey', async () => {
+      const startKey = { userId: 'u1', agentId: 'a1', isShared: 'true' };
+      const cursor = Buffer.from(JSON.stringify(startKey)).toString('base64');
+      repo.listShared.mockResolvedValueOnce({ agents: [makeAgent({ isShared: true })] });
 
-  describe('listSharedAgents', () => {
-    it('decodes a valid base64 cursor and uses it as ExclusiveStartKey', async () => {
-      const cursorPayload = { userId: 'u1', agentId: 'a1', isShared: 'true' };
-      const cursor = Buffer.from(JSON.stringify(cursorPayload)).toString('base64');
+      await service.listSharedAgents(10, undefined, cursor);
 
-      mockSend.mockResolvedValueOnce({
-        Items: [{ ...baseDynamoAgent, isShared: 'true' }],
-      });
-
-      const result = await service.listSharedAgents(10, undefined, cursor);
-
-      expect(result.items).toHaveLength(1);
-      expect(result.items[0].isShared).toBe(true);
+      expect(repo.listShared).toHaveBeenCalledWith(10, startKey);
     });
 
-    it('throws "Invalid pagination cursor" for an invalid cursor', async () => {
-      const invalidCursor = 'not-valid-base64-json!!!';
-
-      await expect(service.listSharedAgents(10, undefined, invalidCursor)).rejects.toThrow(
+    it('throws "Invalid pagination cursor" for a malformed cursor', async () => {
+      await expect(service.listSharedAgents(10, undefined, 'not-valid!!!')).rejects.toThrow(
         'Invalid pagination cursor'
       );
     });
 
-    it('encodes LastEvaluatedKey as next cursor', async () => {
+    it('encodes the repo lastEvaluatedKey as the next cursor', async () => {
       const lastKey = { userId: 'u1', agentId: 'a1', isShared: 'true' };
-      mockSend.mockResolvedValueOnce({
-        Items: [{ ...baseDynamoAgent, isShared: 'true' }],
-        LastEvaluatedKey: lastKey,
+      repo.listShared.mockResolvedValueOnce({
+        agents: [makeAgent({ isShared: true })],
+        lastEvaluatedKey: lastKey,
       });
 
       const result = await service.listSharedAgents(10);
 
       expect(result.hasMore).toBe(true);
-      expect(result.nextCursor).toBeDefined();
       const decoded = JSON.parse(Buffer.from(result.nextCursor!, 'base64').toString('utf-8'));
       expect(decoded).toEqual(lastKey);
     });
 
-    it('returns hasMore: false when no LastEvaluatedKey', async () => {
-      mockSend.mockResolvedValueOnce({
-        Items: [{ ...baseDynamoAgent, isShared: 'true' }],
-      });
-
+    it('returns hasMore: false when the repo reports no lastEvaluatedKey', async () => {
+      repo.listShared.mockResolvedValueOnce({ agents: [makeAgent({ isShared: true })] });
       const result = await service.listSharedAgents(10);
-
       expect(result.hasMore).toBe(false);
       expect(result.nextCursor).toBeUndefined();
     });
 
     it('filters agents by searchQuery (case-insensitive)', async () => {
-      mockSend.mockResolvedValueOnce({
-        Items: [
-          { ...baseDynamoAgent, agentId: 'a1', name: 'Code Helper', isShared: 'true' },
-          { ...baseDynamoAgent, agentId: 'a2', name: 'Writing Assistant', isShared: 'true' },
+      repo.listShared.mockResolvedValueOnce({
+        agents: [
+          makeAgent({ agentId: 'a1' as AgentId, name: 'Code Helper', isShared: true }),
+          makeAgent({ agentId: 'a2' as AgentId, name: 'Writing Assistant', isShared: true }),
         ],
       });
 
@@ -259,25 +287,17 @@ describe('AgentsService', () => {
     });
   });
 
-  // ──────────────────────────────────────────────
-  // cloneAgent
-  // ──────────────────────────────────────────────
-
   describe('cloneAgent', () => {
-    it('clones a shared agent into the target user collection with a new ID', async () => {
-      const sourceAgent = {
-        ...baseDynamoAgent,
-        userId: 'source-user',
-        agentId: 'source-agent',
-        name: 'Shared Agent',
-        systemPrompt: 'Be helpful',
-        isShared: 'true',
-      };
-
-      // getSharedAgent → getAgent (GetItemCommand)
-      mockSend.mockResolvedValueOnce({ Item: sourceAgent });
-      // createAgent (PutItemCommand)
-      mockSend.mockResolvedValueOnce({});
+    it('clones a shared agent into the target user with a new id and isShared=false', async () => {
+      repo.get.mockResolvedValueOnce(
+        makeAgent({
+          userId: 'source-user' as UserId,
+          agentId: 'source-agent' as AgentId,
+          name: 'Shared Agent',
+          systemPrompt: 'Be helpful',
+          isShared: true,
+        })
+      );
 
       const cloned = await service.cloneAgent(
         'target-user' as UserId,
@@ -287,28 +307,46 @@ describe('AgentsService', () => {
       );
 
       expect(cloned.name).toBe('Shared Agent');
-      expect(cloned.systemPrompt).toBe('Be helpful');
       expect(cloned.userId).toBe('target-user');
       expect(cloned.agentId).not.toBe('source-agent');
       expect(cloned.isShared).toBe(false);
+      expect(repo.put).toHaveBeenCalledTimes(1);
     });
 
-    it('throws "Shared agent not found" when cloning a non-shared agent', async () => {
-      mockSend.mockResolvedValueOnce({
-        Item: { ...baseDynamoAgent, isShared: 'false' },
-      });
-
-      await expect(service.cloneAgent('target-user' as UserId, USER_ID, AGENT_ID)).rejects.toThrow(
-        'Shared agent not found'
-      );
+    it('throws AgentNotFoundError when cloning a non-shared agent', async () => {
+      repo.get.mockResolvedValueOnce(makeAgent({ isShared: false }));
+      await expect(
+        service.cloneAgent('target-user' as UserId, USER_ID, AGENT_ID)
+      ).rejects.toBeInstanceOf(AgentNotFoundError);
     });
 
-    it('throws "Shared agent not found" when source agent does not exist', async () => {
-      mockSend.mockResolvedValueOnce({ Item: undefined });
+    it('throws AgentNotFoundError when the source agent does not exist', async () => {
+      repo.get.mockResolvedValueOnce(null);
+      await expect(
+        service.cloneAgent('target-user' as UserId, USER_ID, AGENT_ID)
+      ).rejects.toBeInstanceOf(AgentNotFoundError);
+    });
+  });
 
-      await expect(service.cloneAgent('target-user' as UserId, USER_ID, AGENT_ID)).rejects.toThrow(
-        'Shared agent not found'
+  describe('getSharedAgent', () => {
+    it('returns null for an agent that is not shared (no leaking private agents)', async () => {
+      repo.get.mockResolvedValueOnce(makeAgent({ isShared: false }));
+      expect(await service.getSharedAgent(USER_ID, AGENT_ID)).toBeNull();
+    });
+
+    it('strips mcpConfig env from a shared agent (non-owners must not see secrets)', async () => {
+      repo.get.mockResolvedValueOnce(
+        makeAgent({
+          isShared: true,
+          mcpConfig: { mcpServers: { s: { command: 'x', env: { SECRET: 'value' } } } },
+        })
       );
+
+      const shared = await service.getSharedAgent(USER_ID, AGENT_ID);
+
+      expect(shared).not.toBeNull();
+      // env must be gone entirely — the strip removes the key, not just the value.
+      expect(shared!.mcpConfig?.mcpServers.s.env).toBeUndefined();
     });
   });
 });

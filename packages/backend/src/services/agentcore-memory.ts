@@ -16,19 +16,49 @@ import { config } from '../config/index.js';
 import { createAgentCoreClient } from '../libs/auth/scoped-credentials.js';
 import type { AuthenticatedRequest } from '../middleware/auth.js';
 import { createLogger } from '../libs/logger/index.js';
+import {
+  convertToMessageContents,
+  parseBlobPayload,
+  type MessageContent,
+} from './memory/content-codec.js';
+import {
+  mapMemoryRecord,
+  type MemoryRecord,
+  type MemoryRecordList,
+  type MemoryRecordSummary,
+} from './memory/record-mapper.js';
 
 const log = createLogger('AgentCoreMemoryService');
 
+// Re-export the decoding/mapping surface so existing importers
+// (`../agentcore-memory`) keep working after the split.
+export {
+  convertToMessageContents,
+  parseBlobPayload,
+  type MessageContent,
+} from './memory/content-codec.js';
+export type {
+  MemoryRecord,
+  MemoryRecordList,
+} from './memory/record-mapper.js';
+
 /**
- * Type definitions to supplement incomplete AWS SDK type definitions
+ * Run a long-term-memory read, mapping `ResourceNotFoundException` to an empty
+ * result. A missing strategy/actor is the expected shape for a brand-new user,
+ * not an error — concentrating the policy here keeps `listMemoryRecords` /
+ * `retrieveMemoryRecords` on their happy path.
  */
-interface MemoryRecordSummary {
-  memoryRecordId?: string;
-  content?: string | { text?: string };
-  createdAt?: Date;
-  namespaces?: string[];
-  memoryStrategyId?: string;
-  metadata?: Record<string, unknown>;
+async function withEmptyOnNotFound<T>(empty: T, label: string, fn: () => Promise<T>): Promise<T> {
+  try {
+    return await fn();
+  } catch (error) {
+    if (error instanceof Error && error.name === 'ResourceNotFoundException') {
+      log.info(`${label}: none found (ResourceNotFoundException)`);
+      return empty;
+    }
+    log.error({ err: error }, `${label}: error`);
+    throw error;
+  }
 }
 
 interface RetrieveMemoryRecordsParams {
@@ -62,36 +92,6 @@ export interface SessionListResult {
 }
 
 /**
- * ToolUse type definition
- */
-export interface ToolUse {
-  id: string;
-  name: string;
-  input: Record<string, unknown>;
-  status?: 'pending' | 'running' | 'completed' | 'error';
-  originalToolUseId?: string;
-}
-
-/**
- * ToolResult type definition
- */
-export interface ToolResult {
-  toolUseId: string;
-  content: string;
-  isError: boolean;
-}
-
-/**
- * MessageContent type definition (Union type)
- */
-export type MessageContent =
-  | { type: 'text'; text: string }
-  | { type: 'toolUse'; toolUse: ToolUse }
-  | { type: 'toolResult'; toolResult: ToolResult }
-  | { type: 'image'; image: { base64: string; mimeType: string; fileName?: string } }
-  | { type: 'reasoning'; reasoning: { text: string } };
-
-/**
  * Event information type definition (formatted for Frontend)
  */
 export interface ConversationMessage {
@@ -111,217 +111,6 @@ interface ConversationalPayload {
       text: string;
     };
   };
-}
-
-/**
- * Backend-local content block shape used to interpret AgentCore Memory blob
- * payloads written by the agent.
- *
- * The agent's wire format is intentionally NOT shared as a typed contract
- * between agent and backend: the backend deliberately keeps zero
- * dependency on `@strands-agents/sdk` to keep its image small. The shape
- * mirrors what `packages/agent/src/libs/codec/content-block-codec.ts`
- * emits — every block carries a `type` discriminator stamped by the
- * codec, never by the SDK's class `toJSON()`.
- */
-interface BackendContentBlock {
-  type: string;
-  text?: string;
-  name?: string;
-  toolUseId?: string;
-  input?: Record<string, unknown>;
-  content?: unknown;
-  status?: string;
-  // ImageBlock fields
-  format?: string;
-  base64?: string;
-  // ReasoningBlock fields. `signature` / `redactedContentBase64` are
-  // round-trip-only metadata the agent persists; they are intentionally NOT
-  // surfaced to the UI (only `text` is converted below).
-  signature?: string;
-  redactedContentBase64?: string;
-}
-
-/**
- * Blob data envelope written by the agent. `schemaVersion` is
- * `'v2-strands-sdk-1'` for current writes.
- */
-interface BlobData {
-  schemaVersion?: string;
-  messageType: 'content';
-  role: string;
-  content: BackendContentBlock[];
-}
-
-/**
- * Convert agent-side wire content blocks to UI-facing MessageContent.
- *
- * Blocks without a `type` discriminator are dropped: the producer always
- * goes through the agent's `contentBlockToWire`, so a typeless block can
- * only originate from a code path that bypassed the codec — there is no
- * such path in this repository.
- */
-export function convertToMessageContents(
-  contentBlocks: BackendContentBlock[]
-): MessageContent[] {
-  const messageContents: MessageContent[] = [];
-
-  for (const block of contentBlocks) {
-    if (!block || typeof block !== 'object' || typeof block.type !== 'string') {
-      // Don't log the block itself — it may carry tool execution results
-      // (shell output, MCP responses) that contain secrets. Log shape only.
-      log.warn(
-        { keys: block && typeof block === 'object' ? Object.keys(block) : [] },
-        'Skipping content block without a `type` discriminator'
-      );
-      continue;
-    }
-
-    switch (block.type) {
-      case 'textBlock':
-        if (typeof block.text === 'string') {
-          messageContents.push({ type: 'text', text: block.text });
-        }
-        break;
-
-      case 'toolUseBlock':
-        if (block.name && block.toolUseId && block.input !== undefined) {
-          messageContents.push({
-            type: 'toolUse',
-            toolUse: {
-              id: block.toolUseId,
-              name: block.name,
-              input: block.input || {},
-              status: 'completed', // Default status
-              originalToolUseId: block.toolUseId,
-            },
-          });
-        }
-        break;
-
-      case 'toolResultBlock':
-        if (block.toolUseId) {
-          messageContents.push({
-            type: 'toolResult',
-            toolResult: {
-              toolUseId: block.toolUseId,
-              content:
-                typeof block.content === 'string'
-                  ? block.content
-                  : JSON.stringify(block.content || {}),
-              isError: block.status === 'error' || false,
-            },
-          });
-        }
-        break;
-
-      case 'imageBlock':
-        // Handle serialised ImageBlock (base64 format from agent codec).
-        if (typeof block.base64 === 'string' && block.format) {
-          // Map format to mimeType
-          const formatToMimeType: Record<string, string> = {
-            png: 'image/png',
-            jpeg: 'image/jpeg',
-            jpg: 'image/jpeg',
-            gif: 'image/gif',
-            webp: 'image/webp',
-          };
-          const mimeType = formatToMimeType[block.format] || 'image/png';
-
-          messageContents.push({
-            type: 'image',
-            image: {
-              base64: block.base64,
-              mimeType,
-            },
-          });
-        }
-        break;
-
-      case 'reasoningBlock':
-        // Surface only the human-readable reasoning text. A reasoning block with
-        // empty/absent text (signature- or redactedContent-only) carries nothing
-        // displayable, so it is dropped. redactedContentBase64 is never exposed.
-        if (typeof block.text === 'string' && block.text.length > 0) {
-          messageContents.push({ type: 'reasoning', reasoning: { text: block.text } });
-        }
-        break;
-
-      default:
-        log.warn(`Unknown ContentBlock type: ${block.type}`);
-        break;
-    }
-  }
-
-  return messageContents;
-}
-
-/**
- * Parse blob payload
- * @param blob Uint8Array or Buffer or base64 string
- * @returns Parsed BlobData
- */
-function parseBlobPayload(blob: Uint8Array | Buffer | unknown): BlobData | null {
-  try {
-    let blobString: string;
-
-    // For Uint8Array
-    if (blob instanceof Uint8Array) {
-      const decoder = new TextDecoder();
-      blobString = decoder.decode(blob);
-    }
-    // For Buffer
-    else if (typeof Buffer !== 'undefined' && Buffer.isBuffer && Buffer.isBuffer(blob)) {
-      blobString = (blob as Buffer).toString('utf8');
-    }
-    // For string (base64 encoded string from AWS SDK)
-    else if (typeof blob === 'string') {
-      try {
-        // Try base64 decoding
-        const decodedBuffer = Buffer.from(blob, 'base64');
-        blobString = decodedBuffer.toString('utf8');
-      } catch {
-        // Use directly if not base64
-        blobString = blob;
-      }
-    }
-    // For other cases
-    else {
-      log.warn({ blobType: typeof blob }, 'Unknown blob type');
-      return null;
-    }
-
-    const blobData = JSON.parse(blobString) as BlobData;
-    return blobData.messageType === 'content' ? blobData : null;
-  } catch (error) {
-    log.error({ err: error }, 'Failed to parse blob payload:');
-    log.error(
-      {
-        sample: typeof blob === 'string' ? blob.substring(0, 100) + '...' : typeof blob,
-      },
-      'Raw blob sample'
-    );
-    return null;
-  }
-}
-
-/**
- * Long-term memory record type definition
- */
-export interface MemoryRecord {
-  recordId: string;
-  namespace: string;
-  content: string;
-  createdAt: string;
-  updatedAt: string;
-}
-
-/**
- * Long-term memory record list type definition
- */
-export interface MemoryRecordList {
-  records: MemoryRecord[];
-  nextToken?: string;
 }
 
 /**
@@ -570,90 +359,37 @@ export class AgentCoreMemoryService {
     nextToken?: string,
     limit: number = 50
   ): Promise<MemoryRecordList> {
-    try {
+    const namespace = `/strategies/${memoryStrategyId}/actors/${actorId}`;
+
+    return withEmptyOnNotFound({ records: [] }, 'List long-term memory records', async () => {
       log.info(
         `Retrieving long-term memory record list: actorId=${actorId}, memoryStrategyId=${memoryStrategyId}`
       );
 
-      // Fix namespace format to correct format
-      const namespace = `/strategies/${memoryStrategyId}/actors/${actorId}`;
+      const response = await this.client.send(
+        new ListMemoryRecordsCommand({
+          memoryId: this.memoryId,
+          namespace,
+          memoryStrategyId,
+          maxResults: limit,
+          nextToken,
+        })
+      );
 
-      const command = new ListMemoryRecordsCommand({
-        memoryId: this.memoryId,
-        namespace: namespace,
-        memoryStrategyId: memoryStrategyId,
-        maxResults: limit,
-        nextToken: nextToken,
-      });
-
-      const response = await this.client.send(command);
-
-      // Type assertion for cases where memoryRecordSummaries is not included in AWS SDK response type
-      const extendedResponse = response as typeof response & {
+      // memoryRecordSummaries is absent from the AWS SDK response type.
+      const summaries = (response as typeof response & {
         memoryRecordSummaries?: MemoryRecordSummary[];
-      };
+      }).memoryRecordSummaries;
 
-      if (!extendedResponse.memoryRecordSummaries) {
+      if (!summaries) {
         log.info(`Long-term memory records not found: memoryStrategyId=${memoryStrategyId}`);
         return { records: [] };
       }
 
-      const records: MemoryRecord[] = extendedResponse.memoryRecordSummaries.map(
-        (record, index: number) => {
-          // Debug log: Check structure of memoryRecordSummaries
-          if (index < 2) {
-            // Log only first 2 items
-            log.info(
-              {
-                recordId: record.memoryRecordId,
-                recordIdType: typeof record.memoryRecordId,
-                availableKeys: Object.keys(record),
-                fullRecord: record,
-              },
-              'Record %d structure:',
-              index
-            );
-          }
-
-          // Extract text property if content is an object
-          let content = '';
-          if (typeof record.content === 'object' && record.content?.text) {
-            content = record.content.text;
-          } else if (typeof record.content === 'string') {
-            content = record.content;
-          } else if (record.content) {
-            content = JSON.stringify(record.content);
-          }
-
-          // Warning log if recordId is empty
-          const recordId = record.memoryRecordId || '';
-          if (!recordId) {
-            log.warn(record, 'Empty recordId found in record %d:', index);
-          }
-
-          return {
-            recordId: recordId,
-            namespace: namespace,
-            content: content,
-            createdAt: record.createdAt?.toISOString() || new Date().toISOString(),
-            updatedAt: record.createdAt?.toISOString() || new Date().toISOString(), // AWS SDK doesn't provide updatedAt
-          };
-        }
-      );
-
+      const records = summaries.map((summary) => mapMemoryRecord(summary, namespace));
       log.info(`Retrieved ${records.length} long-term memory records`);
-      return {
-        records,
-        nextToken: response.nextToken,
-      };
-    } catch (error) {
-      if (error instanceof Error && error.name === 'ResourceNotFoundException') {
-        log.info(`Long-term memory records do not exist: memoryStrategyId=${memoryStrategyId}`);
-        return { records: [] };
-      }
-      log.error({ err: error }, 'Long-term memory record list retrieval error:');
-      throw error;
-    }
+      return { records, nextToken: response.nextToken };
+    });
   }
 
   /**
@@ -672,90 +408,34 @@ export class AgentCoreMemoryService {
     topK: number = 10,
     _relevanceScore: number = 0.2
   ): Promise<MemoryRecord[]> {
-    try {
-      log.info(`Executing semantic search: query=${query}, memoryStrategyId=${memoryStrategyId}`);
+    const namespace = `/strategies/${memoryStrategyId}/actors/${actorId}`;
 
-      // Fix namespace format to correct format
-      const namespace = `/strategies/${memoryStrategyId}/actors/${actorId}`;
+    return withEmptyOnNotFound<MemoryRecord[]>([], 'Semantic memory search', async () => {
+      log.info(`Executing semantic search: query=${query}, memoryStrategyId=${memoryStrategyId}`);
 
       const retrieveParams: RetrieveMemoryRecordsParams = {
         memoryId: this.memoryId,
-        namespace: namespace,
-        searchCriteria: {
-          searchQuery: query,
-          memoryStrategyId: memoryStrategyId,
-          topK: topK,
-        },
+        namespace,
+        searchCriteria: { searchQuery: query, memoryStrategyId, topK },
         maxResults: 50,
       };
 
-      const command = new RetrieveMemoryRecordsCommand(retrieveParams);
+      const response = await this.client.send(new RetrieveMemoryRecordsCommand(retrieveParams));
 
-      const response = await this.client.send(command);
-
-      // Type assertion for cases where memoryRecordSummaries is not included in AWS SDK response type
-      const extendedResponse = response as typeof response & {
+      // memoryRecordSummaries is absent from the AWS SDK response type.
+      const summaries = (response as typeof response & {
         memoryRecordSummaries?: MemoryRecordSummary[];
-      };
+      }).memoryRecordSummaries;
 
-      if (!extendedResponse.memoryRecordSummaries) {
+      if (!summaries) {
         log.info(`Semantic search results not found: query=${query}`);
         return [];
       }
 
-      const records: MemoryRecord[] = extendedResponse.memoryRecordSummaries.map(
-        (record: MemoryRecordSummary, index: number) => {
-          // Debug log: Check structure of memoryRecordSummaries
-          if (index < 2) {
-            // Log only first 2 items
-            log.info(
-              {
-                recordId: record.memoryRecordId,
-                recordIdType: typeof record.memoryRecordId,
-                availableKeys: Object.keys(record),
-                fullRecord: record,
-              },
-              'Retrieve record %d structure:',
-              index
-            );
-          }
-
-          // Extract text property if content is an object
-          let content = '';
-          if (typeof record.content === 'object' && record.content?.text) {
-            content = record.content.text;
-          } else if (typeof record.content === 'string') {
-            content = record.content;
-          } else if (record.content) {
-            content = JSON.stringify(record.content);
-          }
-
-          // Warning log if recordId is empty
-          const recordId = record.memoryRecordId || '';
-          if (!recordId) {
-            log.warn(record, 'Empty recordId found in retrieve record %d:', index);
-          }
-
-          return {
-            recordId: recordId,
-            namespace: namespace,
-            content: content,
-            createdAt: record.createdAt?.toISOString() || new Date().toISOString(),
-            updatedAt: record.createdAt?.toISOString() || new Date().toISOString(), // AWS SDK doesn't provide updatedAt
-          };
-        }
-      );
-
+      const records = summaries.map((summary) => mapMemoryRecord(summary, namespace));
       log.info(`Retrieved ${records.length} semantic search results`);
       return records;
-    } catch (error) {
-      if (error instanceof Error && error.name === 'ResourceNotFoundException') {
-        log.info(`Semantic search target does not exist: memoryStrategyId=${memoryStrategyId}`);
-        return [];
-      }
-      log.error({ err: error }, 'Semantic search error:');
-      throw error;
-    }
+    });
   }
 }
 
@@ -769,6 +449,10 @@ export class AgentCoreMemoryService {
 export async function createAgentCoreMemoryServiceForRequest(
   req: AuthenticatedRequest
 ): Promise<AgentCoreMemoryService> {
-  const client = await createAgentCoreClient(req);
+  const idToken = req.get('X-Amzn-Bedrock-AgentCore-Runtime-Custom-Id-Token');
+  if (!idToken) {
+    throw new Error('X-Amzn-Bedrock-AgentCore-Runtime-Custom-Id-Token header is required');
+  }
+  const client = await createAgentCoreClient(idToken);
   return new AgentCoreMemoryService(config.AGENTCORE_MEMORY_ID, client);
 }

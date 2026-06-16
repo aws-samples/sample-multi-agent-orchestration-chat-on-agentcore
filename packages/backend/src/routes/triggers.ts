@@ -15,7 +15,7 @@ import { type AuthenticatedRequest, requireUserId } from '../middleware/auth.js'
 import { asyncHandler } from '../middleware/async-handler.js';
 import { validate } from '../middleware/validate.js';
 import { createTriggerBody, updateTriggerBody } from './trigger-schemas.js';
-import { getTriggersRepository } from '../services/triggers-repository.factory.js';
+import { getTriggersRepository } from '../repositories/triggers/triggers-repository.factory.js';
 import {
   MAX_TRIGGERS_PER_USER,
   TriggerLimitExceededError,

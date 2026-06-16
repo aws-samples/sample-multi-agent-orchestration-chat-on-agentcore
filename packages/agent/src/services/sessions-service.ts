@@ -1,9 +1,10 @@
 /**
  * Sessions Service — per-user composition layer over {@link SessionsRepository}.
  *
- * The data-access logic lives in repositories/sessions-repository.ts (pure, no
- * config/Cognito). This layer owns the agent-specific concerns the repository
- * deliberately doesn't know about:
+ * The data-access logic lives behind the `SessionsRepository` interface
+ * (repositories/sessions/, with a pure, config/Cognito-free DynamoDB
+ * implementation under repositories/sessions/dynamodb/). This layer owns the
+ * agent-specific concerns the repository deliberately doesn't know about:
  *
  *   1. Resolving per-user, Identity-Pool-scoped DynamoDB credentials
  *      (createUserScopedDynamoDBClient) — this is what enforces per-user
@@ -18,17 +19,19 @@
  * so existing callers (session-persistence-hook, etc.) are unchanged.
  */
 
+import type { AgentId, UserId } from '@moca/core';
 import { config } from '../config/index.js';
 import { createLogger } from '../libs/logger/index.js';
 import { createUserScopedDynamoDBClient, getIdentityId } from '../libs/utils/scoped-credentials.js';
-import { SessionsRepository } from '../repositories/sessions-repository.js';
+import type { SessionsRepository } from '../repositories/sessions/index.js';
+import { DynamoDBSessionsRepository } from '../repositories/sessions/dynamodb/index.js';
 
 export type {
   SessionType,
   SessionData,
   SessionSummary,
   SessionListResult,
-} from '../repositories/sessions-repository.js';
+} from '../repositories/sessions/index.js';
 
 const logger = createLogger('SessionsService');
 
@@ -77,7 +80,7 @@ export class SessionsService {
       createUserScopedDynamoDBClient(userId),
       getIdentityId(userId),
     ]);
-    return new SessionsRepository(client, this.tableName, partitionKey);
+    return new DynamoDBSessionsRepository(client, this.tableName, partitionKey);
   }
 
   async sessionExists(userId: string, sessionId: string): Promise<boolean> {
@@ -93,13 +96,18 @@ export class SessionsService {
       throw new Error('SessionsService not configured: SESSIONS_TABLE_NAME is missing');
     }
     const repo = await this.repositoryForUser(options.userId);
+    // The service's public contract is intentionally string-typed (userId-first,
+    // loosely-typed external surface); the repository's domain model is branded.
+    // This is the composition boundary, so brand the ids on the way in — same
+    // pattern as request-context (`sub as UserId`). channelUserId originates as
+    // a UserId (getCurrentContext().userId) and agentId as a plain id string.
     return repo.createSession({
       sessionId: options.sessionId,
       title: options.title,
-      agentId: options.agentId,
+      agentId: options.agentId as AgentId | undefined,
       storagePath: options.storagePath,
       sessionType: options.sessionType,
-      channelUserId: options.channelUserId,
+      channelUserId: options.channelUserId as UserId | undefined,
     });
   }
 
@@ -144,7 +152,8 @@ export class SessionsService {
       return;
     }
     const repo = await this.repositoryForUser(userId);
-    return repo.updateSessionAgentAndStorage(sessionId, agentId, storagePath);
+    // Brand at the composition boundary (see createSession above).
+    return repo.updateSessionAgentAndStorage(sessionId, agentId as AgentId | undefined, storagePath);
   }
 
   async updateSessionTitle(userId: string, sessionId: string, title: string): Promise<void> {

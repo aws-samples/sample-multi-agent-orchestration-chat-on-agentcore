@@ -82,6 +82,14 @@ const envSchema = z.object({
     error: 'AGENTCORE_SEMANTIC_STRATEGY_ID is required for memory features',
   }),
   AWS_REGION: z.string().default('us-east-1'),
+  /**
+   * AWS account id, injected by CDK (Lambda does NOT provide it automatically,
+   * unlike AWS_REGION). Consumed only to assemble the EventBridge Schedule ARN
+   * persisted by `SchedulerService.createSchedule`. Optional so local/test
+   * boots without it; when unset the ARN's account segment is empty rather than
+   * the literal string "undefined" the previous `process.env` read produced.
+   */
+  AWS_ACCOUNT_ID: z.string().optional(),
 
   // AgentCore Gateway configuration (required)
   AGENTCORE_GATEWAY_ENDPOINT: z.string({
@@ -137,6 +145,23 @@ const envSchema = z.object({
 
   // Logging
   LOG_LEVEL: z.enum(['debug', 'info', 'warn', 'error', 'silent']).default('info'),
+
+  /**
+   * Lambda runtime trace context. Populated by the Lambda runtime itself with
+   * the X-Ray header value (`Root=…;Parent=…;Sampled=…`) and consumed by
+   * `middleware/request-logger` as a fallback when the inbound request lacks
+   * the `x-amzn-trace-id` header. Optional — absent in local dev and outside
+   * Lambda. Underscore-prefixed because the Lambda runtime defines it that way.
+   *
+   * NOTE: config is parsed once at cold start, so this captures the env value
+   * fixed at process startup. That is correct under the current Lambda Web
+   * Adapter setup — Express runs as a long-lived child process and the live
+   * per-invocation trace context arrives via the request header (the primary
+   * source); this env is only a startup fallback. If we ever move to an
+   * in-process adapter (e.g. serverless-http), this fallback would go stale
+   * across invocations and should be read from process.env per request.
+   */
+  _X_AMZN_TRACE_ID: z.string().optional(),
 });
 
 /**

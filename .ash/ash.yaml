@@ -39,6 +39,8 @@ global_settings:
       reason: 'Test files with deterministic UUID/ID test fixtures - not actual secrets'
     - path: 'packages/backend/src/services/__tests__/*'
       reason: 'Integration test files with fake test credentials (API_KEY, SECRET_TOKEN, SECRET_KEY) - not actual secrets'
+    - path: 'packages/backend/src/libs/auth/__tests__/*'
+      reason: 'Unit test for scoped-credentials with fake STS credential fixtures (SecretKey: "secret", SessionToken: "token") - not actual secrets'
     - path: 'packages/github-token-broker/src/index.test.ts'
       reason: 'Unit test with mocked Secrets Manager - contains dummy token fixtures (ghp_example), Secrets Manager reference names, and negative-test input strings, not actual secrets'
     - path: 'packages/lambda-tools/tools/tavily-tools/src/tools/__tests__/tavily-common.test.ts'

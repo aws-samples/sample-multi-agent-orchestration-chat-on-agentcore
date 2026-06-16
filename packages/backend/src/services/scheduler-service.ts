@@ -224,6 +224,32 @@ function assertMinimumInterval(expression: string): void {
 }
 
 /**
+ * Number of retries EventBridge Scheduler performs on a failed target
+ * invocation. Triggers are idempotent-at-most-once by design (a missed fire is
+ * preferable to a duplicate agent run), so retries are disabled everywhere.
+ */
+const NO_RETRY: { MaximumRetryAttempts: number } = { MaximumRetryAttempts: 0 };
+
+/**
+ * Build the EventBridge event envelope handed to the target as `Target.Input`.
+ * The Trigger Lambda receives this verbatim and reads `detail` as the
+ * {@link SchedulePayload}. Create and update share this single builder so the
+ * two code paths can never drift in envelope shape.
+ */
+function buildTargetInput(triggerId: TriggerId, payload: SchedulePayload): string {
+  return JSON.stringify({
+    version: '0',
+    id: `trigger-${triggerId}`,
+    'detail-type': 'Scheduled Event',
+    source: 'agentcore.trigger',
+    time: new Date().toISOString(),
+    region: appConfig.AWS_REGION,
+    resources: [],
+    detail: payload,
+  });
+}
+
+/**
  * EventBridge Scheduler Service
  */
 export class SchedulerService {
@@ -272,25 +298,14 @@ export class SchedulerService {
         Target: {
           Arn: config.targetArn,
           RoleArn: config.roleArn,
-          RetryPolicy: {
-            MaximumRetryAttempts: 0,
-          },
-          Input: JSON.stringify({
-            version: '0',
-            id: `trigger-${config.payload.triggerId}`,
-            'detail-type': 'Scheduled Event',
-            source: 'agentcore.trigger',
-            time: new Date().toISOString(),
-            region: appConfig.AWS_REGION,
-            resources: [],
-            detail: config.payload,
-          }),
+          RetryPolicy: NO_RETRY,
+          Input: buildTargetInput(config.payload.triggerId, config.payload),
         },
       });
 
       await this.client.send(command);
 
-      const scheduleArn = `arn:aws:scheduler:${appConfig.AWS_REGION}:${process.env.AWS_ACCOUNT_ID}:schedule/${this.scheduleGroupName}/${scheduleName}`;
+      const scheduleArn = `arn:aws:scheduler:${appConfig.AWS_REGION}:${appConfig.AWS_ACCOUNT_ID}:schedule/${this.scheduleGroupName}/${scheduleName}`;
 
       logger.info(
         {
@@ -357,31 +372,22 @@ export class SchedulerService {
         FlexibleTimeWindow: {
           Mode: 'OFF',
         },
+        // With a new payload, rebuild the target through the shared builder so
+        // it matches createSchedule exactly. Without one (a pure pause/resume
+        // or expression edit), preserve the existing target and only re-pin the
+        // retry policy.
         Target: config.payload
           ? {
               Arn: config.targetArn || currentSchedule.Target!.Arn,
               RoleArn: config.roleArn || currentSchedule.Target!.RoleArn,
-              RetryPolicy: {
-                MaximumRetryAttempts: 0,
-              },
-              Input: JSON.stringify({
-                version: '0',
-                id: `trigger-${triggerId}`,
-                'detail-type': 'Scheduled Event',
-                source: 'agentcore.trigger',
-                time: new Date().toISOString(),
-                region: appConfig.AWS_REGION,
-                resources: [],
-                detail: config.payload,
-              }),
+              RetryPolicy: NO_RETRY,
+              Input: buildTargetInput(triggerId, config.payload),
             }
           : {
               Arn: currentSchedule.Target!.Arn!,
               RoleArn: currentSchedule.Target!.RoleArn!,
               ...currentSchedule.Target,
-              RetryPolicy: {
-                MaximumRetryAttempts: 0,
-              },
+              RetryPolicy: NO_RETRY,
             },
       });
 
