@@ -232,6 +232,96 @@ export default tseslint.config(
     },
   },
 
+  // ─── DynamoDB Access Confinement Rule ───────────────────────────────────────
+  //
+  // The DynamoDB SDK packages may only be imported from the `repositories/`
+  // layer. Data-access is the repository's responsibility: every persistence
+  // concern — clients, key marshalling, UpdateExpressions, GSI knowledge — lives
+  // behind the `XRepository` interface, and the rest of the app (services,
+  // routes, middleware) depends only on that interface. This keeps storage
+  // swappable from a single layer and prevents ad-hoc DynamoDB calls leaking
+  // into business logic.
+  //
+  // The composition roots (`repositories/<x>/<x>-repository.factory.ts`) build
+  // the `DynamoDBClient` from `config` and memoise one instance for the routes.
+  // They live INSIDE repositories/ precisely so the SDK never has to be imported
+  // anywhere else.
+  //
+  // Scope: backend only. The `agent` package has a different layout (e.g.
+  // `libs/utils/scoped-credentials.ts` legitimately constructs a client for a
+  // non-repository concern), so it is intentionally not covered here.
+  //
+  // Exemptions (via `ignores`):
+  //   - `repositories/**` : the layer that owns DynamoDB access.
+  //   - tests             : integration tests build their own client to point
+  //                          at DynamoDB Local.
+  {
+    files: ['packages/backend/src/**/*.ts'],
+    ignores: [
+      'packages/backend/src/repositories/**',
+      '**/__tests__/**',
+      '**/tests/**',
+      '**/*.test.ts',
+      '**/*.spec.ts',
+    ],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            {
+              group: ['@aws-sdk/client-dynamodb', '@aws-sdk/lib-dynamodb', '@aws-sdk/util-dynamodb'],
+              message:
+                'DynamoDB access is confined to the repositories/ layer. Depend on the XRepository interface and obtain an instance from repositories/<x>/<x>-repository.factory.ts; do not import the DynamoDB SDK here.',
+            },
+          ],
+        },
+      ],
+    },
+  },
+
+  // ─── Repository `config`-free Rule ──────────────────────────────────────────
+  //
+  // The data-access modules in repositories/ (interface, DynamoDB
+  // repository/item/mapper) MUST NOT import `config`. They take their client +
+  // table name by constructor injection so they stay integration-testable
+  // against DynamoDB Local without `config`'s env validation / `process.exit`
+  // leaking into the test path.
+  //
+  // The SOLE exception is the composition root `*-repository.factory.ts`: it is
+  // the one place allowed to read `config` (table name + region) and wire up a
+  // concrete repository. It lives in repositories/ so DynamoDB SDK access stays
+  // confined (see the rule above), which is exactly why this `config`-free rule
+  // has to carve it back out — otherwise the two rules would be unsatisfiable
+  // together (the factory needs both the SDK and config).
+  //
+  // Pattern note: the `ignores` glob matches any `*-repository.factory.ts` at a
+  // repository root (e.g. `repositories/agents/agents-repository.factory.ts`).
+  {
+    files: ['packages/backend/src/repositories/**/*.ts'],
+    ignores: [
+      'packages/backend/src/repositories/**/*-repository.factory.ts',
+      '**/__tests__/**',
+      '**/tests/**',
+      '**/*.test.ts',
+      '**/*.spec.ts',
+    ],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            {
+              group: ['**/config', '**/config/*', '**/config/index.js'],
+              message:
+                'Repository data-access modules must stay config-free for DynamoDB-Local testability. Read config only in the *-repository.factory.ts composition root and inject the client + table name.',
+            },
+          ],
+        },
+      ],
+    },
+  },
+
   // ─── Layer Boundary Rules ───────────────────────────────────────────────────
   //
   // Replaces tests/architecture/layer-dependency.test.ts.

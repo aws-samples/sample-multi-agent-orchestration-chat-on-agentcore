@@ -21,7 +21,7 @@ import type {
 } from '../types/index.js';
 import { AgentNotFoundError } from '../types/index.js';
 import type { AgentsRepository, UpdateAgentPatch } from '../repositories/agents/index.js';
-import { getAgentsRepository } from './agents-repository.factory.js';
+import { getAgentsRepository } from '../repositories/agents/agents-repository.factory.js';
 import { logger } from '../libs/logger/index.js';
 
 // Re-export types for backward compatibility

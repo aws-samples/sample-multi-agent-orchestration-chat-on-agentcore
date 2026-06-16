@@ -8,7 +8,7 @@
  *
  * The DynamoDB implementation lives under `./dynamodb/` and is NOT re-exported
  * here: application code depends on the interface, and only the composition
- * root (`services/sessions-repository.factory.ts`) reaches into `./dynamodb/`
+ * root (`./sessions-repository.factory.ts`) reaches into `./dynamodb/`
  * to construct a concrete instance.
  */
 

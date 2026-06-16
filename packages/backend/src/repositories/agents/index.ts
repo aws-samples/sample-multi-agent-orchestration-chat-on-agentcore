@@ -3,7 +3,7 @@
  *
  * Application code imports the `AgentsRepository` contract and its method
  * input/output types from here, and obtains an instance from
- * `services/agents-repository.factory.ts`. The `./dynamodb/` implementation is
+ * `./agents-repository.factory.ts`. The `./dynamodb/` implementation is
  * private to the composition root.
  */
 
