@@ -242,23 +242,31 @@ export default tseslint.config(
   // swappable from a single layer and prevents ad-hoc DynamoDB calls leaking
   // into business logic.
   //
-  // The composition roots (`repositories/<x>/<x>-repository.factory.ts`) build
-  // the `DynamoDBClient` from `config` and memoise one instance for the routes.
-  // They live INSIDE repositories/ precisely so the SDK never has to be imported
-  // anywhere else.
+  // The backend composition roots (`repositories/<x>/<x>-repository.factory.ts`)
+  // build the `DynamoDBClient` from `config` and memoise one instance for the
+  // routes. They live INSIDE repositories/ precisely so the SDK never has to be
+  // imported anywhere else. The agent package constructs its repository per
+  // request in the service layer, so it has no factory — but the same rule holds
+  // for it: the SDK belongs in `repositories/`.
   //
-  // Scope: backend only. The `agent` package has a different layout (e.g.
-  // `libs/utils/scoped-credentials.ts` legitimately constructs a client for a
-  // non-repository concern), so it is intentionally not covered here.
+  // Scope: backend AND agent — both own a `repositories/` data-access layer that
+  // this rule confines the SDK to.
   //
   // Exemptions (via `ignores`):
   //   - `repositories/**` : the layer that owns DynamoDB access.
+  //   - `agent/.../libs/utils/scoped-credentials.ts` : the agent's one legitimate
+  //     non-repository SDK user — it builds per-user Identity-Pool-scoped
+  //     DynamoDB / S3 / BedrockAgentCore clients (a cross-cutting credential
+  //     concern, not data access). An explicit per-file carve-out, NOT a reason
+  //     to leave the whole package uncovered.
   //   - tests             : integration tests build their own client to point
   //                          at DynamoDB Local.
   {
-    files: ['packages/backend/src/**/*.ts'],
+    files: ['packages/backend/src/**/*.ts', 'packages/agent/src/**/*.ts'],
     ignores: [
       'packages/backend/src/repositories/**',
+      'packages/agent/src/repositories/**',
+      'packages/agent/src/libs/utils/scoped-credentials.ts',
       '**/__tests__/**',
       '**/tests/**',
       '**/*.test.ts',
@@ -272,7 +280,7 @@ export default tseslint.config(
             {
               group: ['@aws-sdk/client-dynamodb', '@aws-sdk/lib-dynamodb', '@aws-sdk/util-dynamodb'],
               message:
-                'DynamoDB access is confined to the repositories/ layer. Depend on the XRepository interface and obtain an instance from repositories/<x>/<x>-repository.factory.ts; do not import the DynamoDB SDK here.',
+                'DynamoDB access is confined to the repositories/ layer. Depend on the XRepository interface and obtain an instance from the repository factory / service; do not import the DynamoDB SDK here.',
             },
           ],
         },
@@ -288,19 +296,26 @@ export default tseslint.config(
   // against DynamoDB Local without `config`'s env validation / `process.exit`
   // leaking into the test path.
   //
-  // The SOLE exception is the composition root `*-repository.factory.ts`: it is
-  // the one place allowed to read `config` (table name + region) and wire up a
-  // concrete repository. It lives in repositories/ so DynamoDB SDK access stays
-  // confined (see the rule above), which is exactly why this `config`-free rule
-  // has to carve it back out — otherwise the two rules would be unsatisfiable
-  // together (the factory needs both the SDK and config).
+  // The SOLE exception is the backend composition root `*-repository.factory.ts`:
+  // it is the one place allowed to read `config` (table name + region) and wire
+  // up a concrete repository. It lives in repositories/ so DynamoDB SDK access
+  // stays confined (see the rule above), which is exactly why this `config`-free
+  // rule has to carve it back out — otherwise the two rules would be
+  // unsatisfiable together (the factory needs both the SDK and config). The
+  // agent package has no factory (it injects config from the service layer), so
+  // its repositories/ is config-free with no exception needed.
+  //
+  // Scope: backend AND agent repositories/ layers.
   //
   // Pattern note: the `ignores` glob matches any `*-repository.factory.ts` at a
   // repository root (e.g. `repositories/agents/agents-repository.factory.ts`).
   {
-    files: ['packages/backend/src/repositories/**/*.ts'],
+    files: [
+      'packages/backend/src/repositories/**/*.ts',
+      'packages/agent/src/repositories/**/*.ts',
+    ],
     ignores: [
-      'packages/backend/src/repositories/**/*-repository.factory.ts',
+      '**/*-repository.factory.ts',
       '**/__tests__/**',
       '**/tests/**',
       '**/*.test.ts',
