@@ -308,6 +308,10 @@
     @apply animate-fade-in;
   }
 
+  .reasoning-block {
+    @apply animate-fade-in;
+  }
+
   /* ============================================
    * Legacy classes - To be removed after migration
    * ============================================ */
@@ -357,7 +361,8 @@
   /* Mobile responsive utilities */
   @media (max-width: 768px) {
     .tool-use-block,
-    .tool-result-block {
+    .tool-result-block,
+    .reasoning-block {
       @apply mx-1;
     }
   }
