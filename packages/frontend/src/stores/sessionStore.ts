@@ -19,7 +19,7 @@ import { useStorageStore } from './storageStore';
 import { logger } from '../utils/logger';
 import { extractErrorMessage } from '../utils/store-helpers';
 import { generateSessionId } from '../utils/sessionId';
-import { isSessionId } from '@moca/core';
+import { isSessionId, isAgentId } from '@moca/core';
 
 /**
  * Default page size for session list
@@ -66,9 +66,15 @@ interface SessionActions {
   refreshSessions: () => Promise<void>;
   createNewSession: () => string;
   finalizeNewSession: () => void;
-  addOptimisticSession: (sessionId: string, title?: string, sessionType?: SessionType) => void;
+  addOptimisticSession: (
+    sessionId: string,
+    title?: string,
+    sessionType?: SessionType,
+    agentId?: string
+  ) => void;
   updateSessionTitle: (sessionId: string, title: string) => void;
   updateSessionType: (sessionId: string, sessionType: SessionType) => void;
+  updateSessionAgentId: (sessionId: string, agentId: string) => void;
 }
 
 /**
@@ -435,7 +441,12 @@ export const useSessionStore = create<SessionStore>()(
         logger.log('New session creation completed');
       },
 
-      addOptimisticSession: (sessionId: string, title?: string, sessionType?: SessionType) => {
+      addOptimisticSession: (
+        sessionId: string,
+        title?: string,
+        sessionType?: SessionType,
+        agentId?: string
+      ) => {
         const { sessions } = get();
 
         // Validate at the boundary: callers pass raw strings (AppSync events,
@@ -461,6 +472,9 @@ export const useSessionStore = create<SessionStore>()(
           sessionId,
           title: title || 'New conversation...',
           sessionType,
+          // Narrow to branded `AgentId` at the boundary; drop malformed values
+          // rather than forcing the branded type onto an unvalidated string.
+          agentId: agentId && isAgentId(agentId) ? agentId : undefined,
           createdAt: new Date().toISOString(),
           updatedAt: new Date().toISOString(),
         };
@@ -503,6 +517,31 @@ export const useSessionStore = create<SessionStore>()(
 
         set({ sessions: updatedSessions });
         logger.log(`Updated session type: ${sessionId} - "${sessionType}"`);
+      },
+
+      updateSessionAgentId: (sessionId: string, agentId: string) => {
+        const { sessions } = get();
+
+        // Narrow to branded `AgentId` at the boundary; ignore malformed values.
+        if (!isAgentId(agentId)) {
+          logger.warn(`Invalid agentId format, skipping agentId patch: "${agentId}"`);
+          return;
+        }
+
+        // Skip update if already set to the same value to avoid unnecessary
+        // re-renders and log noise (INSERT + MODIFY stream events often
+        // deliver the same agentId in quick succession).
+        const target = sessions.find((s) => s.sessionId === sessionId);
+        if (!target || target.agentId === agentId) {
+          return;
+        }
+
+        const updatedSessions = sessions.map((session) =>
+          session.sessionId === sessionId ? { ...session, agentId } : session
+        );
+
+        set({ sessions: updatedSessions });
+        logger.log(`Updated session agentId: ${sessionId} - "${agentId}"`);
       },
     }),
     {

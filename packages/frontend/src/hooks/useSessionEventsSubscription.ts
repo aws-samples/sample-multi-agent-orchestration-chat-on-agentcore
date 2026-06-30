@@ -89,13 +89,24 @@ export function useSessionEventsSubscription() {
           // Check if session already exists (might be added optimistically)
           const exists = store.sessions.some((s) => s.sessionId === event.sessionId);
           if (!exists) {
-            store.addOptimisticSession(event.sessionId, event.title, event.sessionType);
-          } else if (event.sessionType) {
+            store.addOptimisticSession(
+              event.sessionId,
+              event.title,
+              event.sessionType,
+              event.agentId
+            );
+          } else {
             // WHY: The session may have been added optimistically before the
             // stream event arrived (e.g., HTTP POST /sessions response) without
-            // a sessionType. Patch it here so the sidebar badge (`[Sub]` /
-            // `[Event]`) renders without requiring a page reload.
-            store.updateSessionType(event.sessionId, event.sessionType);
+            // a sessionType / agentId. Patch them here so the sidebar badge
+            // (`[Sub]` / `[Event]`) renders and clicking the session switches
+            // the selected agent without requiring a page reload.
+            if (event.sessionType) {
+              store.updateSessionType(event.sessionId, event.sessionType);
+            }
+            if (event.agentId) {
+              store.updateSessionAgentId(event.sessionId, event.agentId);
+            }
           }
           break;
         }
@@ -109,6 +120,13 @@ export function useSessionEventsSubscription() {
           // defensively in case an INSERT event was missed.
           if (event.sessionType) {
             store.updateSessionType(event.sessionId, event.sessionType);
+          }
+          // Backfill agentId in case the optimistic add ran before the
+          // agentId-bearing event arrived. Required so clicking a `[Sub]`
+          // session while the agent is still running switches the selected
+          // agent in the header.
+          if (event.agentId) {
+            store.updateSessionAgentId(event.sessionId, event.agentId);
           }
           break;
         }
