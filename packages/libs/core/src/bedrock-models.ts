@@ -160,6 +160,20 @@ export const BEDROCK_MODEL_DEFINITIONS = [
     reasoningCapable: true, // max OK (Opus-tier)
   },
   {
+    // GA on Bedrock 2026-06-25. 1M context window, 128k max output (2× Sonnet 4.6).
+    // Standard bedrock-runtime Converse/ConverseStream path — no special account
+    // prerequisites (unlike Fable 5). Standard service tier only.
+    // Source: AWS Bedrock model card, 2026-06-30.
+    id: 'global.anthropic.claude-sonnet-5',
+    name: 'Claude Sonnet 5',
+    provider: 'Anthropic',
+    maxOutputTokens: 128000, // 128k (AWS Bedrock model card, 2026-06-25)
+    reasoningCapable: true,
+    // Bedrock rejects output_config.effort: 'max' on Sonnet (Opus-tier only),
+    // so cap the selectable/sent depth at 'high' — same as Sonnet 4.6.
+    reasoningMaxEffort: 'high',
+  },
+  {
     id: 'global.anthropic.claude-sonnet-4-6',
     name: 'Claude Sonnet 4.6',
     provider: 'Anthropic',

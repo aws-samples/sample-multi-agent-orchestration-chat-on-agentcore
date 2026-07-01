@@ -105,6 +105,14 @@ describe('BEDROCK_MODEL_DEFINITIONS invariants', () => {
     expect(getMaxReasoningDepth('global.anthropic.claude-sonnet-4-6')).toBe('high');
   });
 
+  it('caps Sonnet 5 reasoning at high (Bedrock rejects effort:max on non-Opus)', () => {
+    expect(getMaxReasoningDepth('global.anthropic.claude-sonnet-5')).toBe('high');
+  });
+
+  it('registers Sonnet 5 with 128k output tokens', () => {
+    expect(getMaxOutputTokens('global.anthropic.claude-sonnet-5')).toBe(128000);
+  });
+
   it('allows max reasoning on Opus-tier models', () => {
     expect(getMaxReasoningDepth('global.anthropic.claude-opus-4-8')).toBe('max');
   });
@@ -164,6 +172,18 @@ describe('getReasoningConfig', () => {
     });
     // Below the cap is untouched.
     expect(getReasoningConfig('global.anthropic.claude-sonnet-4-6', 'low')).toEqual({
+      thinking: { type: 'adaptive', display: 'summarized' },
+      output_config: { effort: 'low' },
+    });
+  });
+
+  it('clamps effort to the model cap (Sonnet 5 max → high)', () => {
+    expect(getReasoningConfig('global.anthropic.claude-sonnet-5', 'max')).toEqual({
+      thinking: { type: 'adaptive', display: 'summarized' },
+      output_config: { effort: 'high' },
+    });
+    // Below the cap is untouched.
+    expect(getReasoningConfig('global.anthropic.claude-sonnet-5', 'low')).toEqual({
       thinking: { type: 'adaptive', display: 'summarized' },
       output_config: { effort: 'low' },
     });
