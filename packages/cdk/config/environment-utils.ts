@@ -118,6 +118,11 @@ const DEFAULT_CONFIG = {
       provider: 'Anthropic',
     },
     {
+      id: 'global.anthropic.claude-sonnet-5',
+      name: 'Claude Sonnet 5',
+      provider: 'Anthropic',
+    },
+    {
       id: 'global.anthropic.claude-sonnet-4-6',
       name: 'Claude Sonnet 4.6',
       provider: 'Anthropic',
