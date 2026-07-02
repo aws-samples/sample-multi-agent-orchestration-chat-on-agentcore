@@ -1,52 +1,42 @@
 version: "1.0"
 
-exclude_paths:
-  - "*.test.*"
-  - "package-lock.json"
-  - "ash_output/"
-
+# NOTE on ASH (v3) config semantics — verified against automated-security-helper v3.1.5:
+#   * A top-level `exclude_paths:` key is NOT a valid ASH field; AshConfig uses
+#     `extra="ignore"`, so it is silently dropped and has no effect. Use
+#     `global_settings.ignore_paths` below instead.
+#   * ignore_paths are matched by `path_matches_pattern()` using Python `fnmatch`,
+#     where `*` ALSO spans `/`. So `**/__tests__/*` and `**/*.test.*` reliably
+#     cover nested test files across every package (no per-directory entries needed).
 global_settings:
   ignore_paths:
+    # --- Test files (mock credentials/tokens/fixtures, never real secrets) ---
+    - path: '**/__tests__/*'
+      reason: 'Unit/integration test files - mock credentials, tokens and deterministic ID/image fixtures, not actual secrets'
+    - path: '**/*.test.*'
+      reason: 'Jest test files - mock credential/token fixtures, not actual secrets'
+    - path: '**/*.spec.*'
+      reason: 'Vitest spec files - mock fixtures, not actual secrets'
+    - path: '*tests/integration/client.ts'
+      reason: 'DynamoDB Local test harness - placeholder credential literal "local" for the local container (DynamoDB Local ignores credentials), not a real secret'
+
+    # --- Non-test source (documented false positives) ---
     - path: 'packages/frontend/src/locales/*.yaml'
       reason: 'Translation/localization files - UI labels containing "password", "token" etc. are not actual secrets'
     - path: 'packages/cdk/config/environments.ts'
       reason: 'CDK config - Secrets Manager reference names (tavilyApiKeySecretName, githubTokenSecretName), not actual secret values'
-    - path: 'packages/agent/src/validation/__tests__/*'
-      reason: 'Test files with valid test image data - Base64 encoded images for validation testing, not secrets'
-    - path: 'packages/agent/src/handlers/__tests__/*'
-      reason: 'Test files with deterministic UUID/ID fixtures (e.g. 32-char hex without dashes used as negative validation input) - not actual secrets'
+    - path: 'packages/cdk/config/environment-utils.ts'
+      reason: 'Default config with Secrets Manager reference names, not actual secret values'
     - path: 'packages/agent/src/services/session/file-session-storage.ts'
       reason: 'IDs sanitized by sanitizeId() - false positive'
     - path: 'packages/agent/src/runtime/tools/code-interpreter/client.ts'
       reason: 'destinationDir validated, filename from path.basename - false positive'
     - path: 'packages/cdk/lib/constructs/agentcore/agentcore-lambda-target.ts'
       reason: 'CDK build-time configuration paths, not user input - false positive'
-    - path: 'packages/agent/src/runtime/tools/code-interpreter/__tests__/*'
-      reason: 'Test files'
-    - path: 'docs/guides/deployment-options.md'
-      reason: 'Documentation examples with Secrets Manager reference names, not actual secrets'
-    - path: 'packages/cdk/config/environment-utils.ts'
-      reason: 'Default config with Secrets Manager reference names, not actual secret values'
     - path: 'packages/libs/s3-workspace-sync/src/*'
       reason: 'fs.readdirSync results and server config, not user input - false positive'
-    - path: 'packages/agent/src/runtime/tools/browser/__tests__/*'
-      reason: 'Test files - no security risk'
+    - path: 'docs/guides/deployment-options.md'
+      reason: 'Documentation examples with Secrets Manager reference names, not actual secrets'
     - path: 'docker/backend.Dockerfile'
       reason: 'AWS Lambda container - HEALTHCHECK added for compliance but Lambda Web Adapter handles health via AWS_LWA_READINESS_CHECK_PATH'
     - path: 'packages/cdk/schemas/microsoft-graph-onedrive.json'
       reason: 'AgentCore Gateway OpenAPI target - security/securitySchemes are intentionally omitted because CDK L2 Construct explicitly prohibits them in OpenAPI schemas. Authentication is managed via Gateway outbound authorization configuration (credentialProviderConfigurations in CDK).'
-    - path: 'packages/libs/core/src/__tests__/*'
-      reason: 'Test files with deterministic UUID/ID test fixtures - not actual secrets'
-    - path: 'packages/backend/src/services/__tests__/*'
-      reason: 'Integration test files with fake test credentials (API_KEY, SECRET_TOKEN, SECRET_KEY) - not actual secrets'
-    - path: 'packages/backend/src/libs/auth/__tests__/*'
-      reason: 'Unit test for scoped-credentials with fake STS credential fixtures (SecretKey: "secret", SessionToken: "token") - not actual secrets'
-    - path: 'packages/github-token-broker/src/index.test.ts'
-      reason: 'Unit test with mocked Secrets Manager - contains dummy token fixtures (ghp_example), Secrets Manager reference names, and negative-test input strings, not actual secrets'
-    - path: 'packages/lambda-tools/tools/tavily-tools/src/tools/__tests__/tavily-common.test.ts'
-      reason: 'Unit test with mocked Secrets Manager - contains dummy-api-key fixture and test env var value, not actual secrets'
-    # Both the backend and agent DDB-Local harnesses have an identical
-    # client.ts. A single fnmatch glob (where `*` also spans `/`) covers both
-    # regardless of the path prefix ASH hands the matcher.
-    - path: '*tests/integration/client.ts'
-      reason: 'DynamoDB Local test harness - the placeholder credential literal "local" for the local container (DynamoDB Local ignores credentials) is not a real secret'

@@ -16,18 +16,26 @@ export const callAgentSchema = z.object({
   modelId: z
     .string()
     .regex(
-      /^(global\.|us\.|eu\.|apac\.)?(anthropic\.|amazon\.|meta\.|mistral\.|cohere\.)[a-zA-Z0-9._:/-]+$/,
-      'modelId must be a valid Bedrock model ID (e.g., "global.anthropic.claude-sonnet-4-6", "global.amazon.nova-2-lite-v1:0")'
+      // A namespaced Bedrock model id: one or more `vendor.` segments followed by
+      // a model name. Accepts cross-region inference-profile ids
+      // (e.g. `global.anthropic.claude-sonnet-4-6`) and bare In-Region ids
+      // (e.g. `qwen.qwen3-coder-next`, `openai.gpt-5.5`, `openai.gpt-oss-120b-1:0`).
+      // Intentionally NOT a vendor allowlist — new providers (OpenAI, Qwen, …)
+      // must not require editing this regex. An id that passes the shape check but
+      // is not a real/enabled model is rejected downstream by createBedrockModel /
+      // Bedrock itself. Mirrors CDK's NAMESPACED_MODEL_ID.
+      /^([a-z0-9-]+\.)+[a-z0-9][a-zA-Z0-9._:/-]*$/,
+      'modelId must be a namespaced Bedrock model ID (e.g., "global.anthropic.claude-sonnet-4-6", "openai.gpt-5.5", "qwen.qwen3-coder-next")'
     )
     .optional()
     .describe(
       'Model ID to use (optional, defaults to agent config). ' +
-        'Must be a valid Bedrock model ID. Examples: ' +
+        'Must be a namespaced Bedrock model ID. Examples: ' +
         '"global.anthropic.claude-sonnet-4-6", ' +
-        '"global.anthropic.claude-fable-5", ' +
         '"global.anthropic.claude-opus-4-8", ' +
-        '"global.anthropic.claude-opus-4-6-v1", ' +
-        '"global.amazon.nova-2-lite-v1:0"'
+        '"global.amazon.nova-2-lite-v1:0", ' +
+        '"openai.gpt-5.5", ' +
+        '"openai.gpt-oss-120b-1:0"'
     ),
   storagePath: z
     .string()

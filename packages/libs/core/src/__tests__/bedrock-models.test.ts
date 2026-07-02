@@ -8,6 +8,7 @@ import {
   getMaxReasoningDepth,
   isReasoningCapable,
   isReasoningDepth,
+  getBedrockEndpoint,
   type ReasoningDepth,
 } from '../bedrock-models.js';
 
@@ -44,6 +45,50 @@ describe('getModelRegion', () => {
 
   it('returns undefined for an unknown model id', () => {
     expect(getModelRegion('does.not.exist-v1:0')).toBeUndefined();
+  });
+
+  it('does not region-pin the gpt-oss models — available in the deploy region', () => {
+    // GPT-OSS is available in ap-northeast-1 (default deploy region) and
+    // us-east-1/2 + us-west-2, so it is invoked in BEDROCK_REGION with no pin.
+    expect(getModelRegion('openai.gpt-oss-120b-1:0')).toBeUndefined();
+    expect(getModelRegion('openai.gpt-oss-20b-1:0')).toBeUndefined();
+  });
+
+  it('pins the gpt-5.x (Mantle) models to us-east-1', () => {
+    // gpt-5.5 exists ONLY in us-east-1 (404 elsewhere); gpt-5.4 is pinned there
+    // too so a single Mantle region serves both. The pin must match the CDK
+    // DEFAULT_CONFIG entry, or the Mantle invocation targets the wrong region.
+    expect(getModelRegion('openai.gpt-5.5')).toBe('us-east-1');
+    expect(getModelRegion('openai.gpt-5.4')).toBe('us-east-1');
+  });
+});
+
+describe('getBedrockEndpoint', () => {
+  it('maps gpt-oss to the bedrock-openai (Chat Completions) endpoint', () => {
+    expect(getBedrockEndpoint('openai.gpt-oss-120b-1:0')).toBe('bedrock-openai');
+    expect(getBedrockEndpoint('openai.gpt-oss-20b-1:0')).toBe('bedrock-openai');
+  });
+
+  it('maps gpt-5.x to the mantle (Responses API) endpoint', () => {
+    expect(getBedrockEndpoint('openai.gpt-5.5')).toBe('mantle');
+    expect(getBedrockEndpoint('openai.gpt-5.4')).toBe('mantle');
+  });
+
+  it('returns undefined for Converse-API and unknown models', () => {
+    expect(getBedrockEndpoint('global.anthropic.claude-opus-4-8')).toBeUndefined();
+    expect(getBedrockEndpoint('qwen.qwen3-coder-next')).toBeUndefined();
+    expect(getBedrockEndpoint('does.not.exist-v1:0')).toBeUndefined();
+  });
+
+  it('never marks a non-Converse-endpoint model as reasoning-capable (distinct thinking path)', () => {
+    // These models don't use the Anthropic-native adaptive-thinking field, so
+    // they must not surface the Bedrock reasoning config. Guards against a
+    // future edit accidentally setting reasoningCapable on one.
+    for (const m of BEDROCK_MODEL_DEFINITIONS) {
+      if (m.endpoint) {
+        expect(m.reasoningCapable).not.toBe(true);
+      }
+    }
   });
 });
 

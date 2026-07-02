@@ -20,4 +20,9 @@ export type {
 export { BASE_PREFIX, environments } from './environments';
 
 // Export utilities
-export { getEnvironmentConfig, deriveBedrockIamResources } from './environment-utils';
+export {
+  getEnvironmentConfig,
+  deriveBedrockIamResources,
+  hasBedrockOpenAiModel,
+  hasMantleModel,
+} from './environment-utils';

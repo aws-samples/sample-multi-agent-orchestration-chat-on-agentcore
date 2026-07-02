@@ -55,6 +55,7 @@ export { SYSTEM_USER_ID } from './system-ids.js';
 // Bedrock model definitions — Single Source of Truth
 export type {
   BedrockModelDefinition,
+  BedrockEndpoint,
   ReasoningDepth,
   ReasoningRequestConfig,
 } from './bedrock-models.js';
@@ -68,4 +69,5 @@ export {
   getMaxReasoningDepth,
   isReasoningCapable,
   isReasoningDepth,
+  getBedrockEndpoint,
 } from './bedrock-models.js';

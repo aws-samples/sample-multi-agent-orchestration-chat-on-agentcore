@@ -1,8 +1,14 @@
-import { BedrockModel, type JSONValue } from '@strands-agents/sdk';
-import { getMaxOutputTokens, getModelRegion, getReasoningConfig } from '@moca/core';
+import { BedrockModel, type JSONValue, type Model } from '@strands-agents/sdk';
+import {
+  getMaxOutputTokens,
+  getModelRegion,
+  getReasoningConfig,
+  getBedrockEndpoint,
+} from '@moca/core';
 import type { ReasoningDepth } from '@moca/core';
 import { config } from './index.js';
 import { logger } from '../libs/logger/index.js';
+import { createBedrockOpenAiModel } from './bedrock-openai-model.js';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -42,8 +48,13 @@ export interface BedrockModelOptions {
  * Note: the SDK's auto strategy does NOT inject a cachePoint into the
  * `system[]` array — only into `tools[]` and `messages[]`. Long system
  * prompts therefore do not benefit from prompt caching with this approach.
+ *
+ * Models with a non-Converse endpoint (gpt-oss via bedrock-openai / gpt-5.x via
+ * mantle) route to a Strands `OpenAIModel` instead — see
+ * {@link createBedrockOpenAiModel}. Both share the `Model` base class, so the
+ * returned value is passed to `new Agent({ model })` unchanged.
  */
-export function createBedrockModel(options?: BedrockModelOptions): BedrockModel {
+export function createBedrockModel(options?: BedrockModelOptions): Model {
   const modelId = options?.modelId || config.BEDROCK_MODEL_ID;
   // Region resolution order:
   //   1. explicit options.region (caller override)
@@ -51,6 +62,20 @@ export function createBedrockModel(options?: BedrockModelOptions): BedrockModel 
   //      not yet rolled out to the deployment region, e.g. qwen.qwen3-coder-next)
   //   3. the deployment's BEDROCK_REGION (default for almost every model)
   const region = options?.region || getModelRegion(modelId) || config.BEDROCK_REGION;
+
+  // Some models are invoked over an OpenAI-compatible Bedrock endpoint, not
+  // Converse. Route them to the OpenAIModel factory before any Converse-only
+  // setup (prompt caching, Anthropic-native thinking) — neither applies. The
+  // endpoint (gpt-oss bedrock-openai vs gpt-5.x mantle) comes from the registry.
+  const endpoint = getBedrockEndpoint(modelId);
+  if (endpoint) {
+    return createBedrockOpenAiModel({
+      modelId,
+      region,
+      endpoint,
+      maxTokens: options?.maxTokens,
+    });
+  }
 
   // Resolve the reasoning depth into a Bedrock `thinking` request field. Returns
   // undefined for off / non-capable models, in which case no thinking field is

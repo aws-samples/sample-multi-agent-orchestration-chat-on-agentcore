@@ -10,13 +10,14 @@ import { BEDROCK_MODEL_DEFINITIONS } from '@moca/core';
 export interface BedrockModel {
   id: string;
   name: string;
-  provider: 'Anthropic' | 'Amazon' | 'Qwen';
+  provider: 'Anthropic' | 'Amazon' | 'Qwen' | 'OpenAI';
 }
 
 const VALID_PROVIDERS: ReadonlySet<BedrockModel['provider']> = new Set([
   'Anthropic',
   'Amazon',
   'Qwen',
+  'OpenAI',
 ]);
 
 /**

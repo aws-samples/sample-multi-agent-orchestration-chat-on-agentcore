@@ -12,7 +12,12 @@ import { ContainerImageBuild } from '@cdklabs/deploy-time-build';
 import { Construct } from 'constructs';
 import { CognitoAuth } from '../auth';
 import { AgentCoreGateway } from './agentcore-gateway';
-import { BedrockModelConfig, deriveBedrockIamResources } from '../../../config';
+import {
+  BedrockModelConfig,
+  deriveBedrockIamResources,
+  hasBedrockOpenAiModel,
+  hasMantleModel,
+} from '../../../config';
 import * as path from 'path';
 
 /**
@@ -408,6 +413,55 @@ export class AgentCoreRuntime extends Construct {
         resources: deriveBedrockIamResources(props.bedrockModels, region, account),
       })
     );
+
+    // gpt-oss (bedrock-runtime /openai/v1, Chat Completions) bearer-token auth.
+    // These are invoked with a locally-minted bearer token; the API-key auth
+    // path is gated by bedrock:CallWithBearerToken — a Read-level action with NO
+    // resource type, so it must be Resource:'*'. Foundation-model invoke itself
+    // is already covered by BedrockModelInvocation above. Granted only when a
+    // gpt-oss model is enabled (least-privilege).
+    if (hasBedrockOpenAiModel(props.bedrockModels)) {
+      this.runtime.addToRolePolicy(
+        new iam.PolicyStatement({
+          sid: 'BedrockBearerTokenAuth',
+          effect: iam.Effect.ALLOW,
+          actions: ['bedrock:CallWithBearerToken'],
+          resources: ['*'],
+        })
+      );
+    }
+
+    // gpt-5.x (Bedrock Mantle /openai/v1, Responses API) uses a SEPARATE AWS
+    // service — bedrock-mantle: — NOT bedrock:. The inference call is
+    // bedrock-mantle:CreateInference on the Mantle project resource
+    // (arn:aws:bedrock-mantle:{region}:{account}:project/*), plus Get*/List* and
+    // its own CallWithBearerToken (Resource:'*'). Mirrors the AWS-managed
+    // AmazonBedrockMantleInferenceAccess policy. Without CreateInference the
+    // runtime gets a 401 "not authorized to perform bedrock-mantle:CreateInference".
+    // Granted only when a gpt-5.x (Mantle) model is enabled (least-privilege).
+    if (hasMantleModel(props.bedrockModels)) {
+      this.runtime.addToRolePolicy(
+        new iam.PolicyStatement({
+          sid: 'BedrockMantleInference',
+          effect: iam.Effect.ALLOW,
+          actions: [
+            'bedrock-mantle:CreateInference',
+            'bedrock-mantle:Get*',
+            'bedrock-mantle:List*',
+          ],
+          // Mantle projects are region+account scoped; wildcard the project name.
+          resources: [`arn:aws:bedrock-mantle:*:${account}:project/*`],
+        })
+      );
+      this.runtime.addToRolePolicy(
+        new iam.PolicyStatement({
+          sid: 'BedrockMantleCallWithBearerToken',
+          effect: iam.Effect.ALLOW,
+          actions: ['bedrock-mantle:CallWithBearerToken'],
+          resources: ['*'],
+        })
+      );
+    }
 
     // CodeInterpreter operation permissions
     // Only the four actions actually used at runtime are granted.

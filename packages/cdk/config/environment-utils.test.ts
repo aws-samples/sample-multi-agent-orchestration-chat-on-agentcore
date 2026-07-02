@@ -1,4 +1,9 @@
-import { deriveBedrockIamResources, validateBedrockModelsForTest } from './environment-utils';
+import {
+  deriveBedrockIamResources,
+  hasBedrockOpenAiModel,
+  hasMantleModel,
+  validateBedrockModelsForTest,
+} from './environment-utils';
 
 const REGION = 'us-east-1';
 const ACCOUNT = '123456789012';
@@ -296,6 +301,46 @@ describe('deriveBedrockIamResources', () => {
     expect(result).toContain('arn:aws:bedrock:*::foundation-model/anthropic.claude-fable-5*');
   });
 
+  // ── OpenAI (gpt-oss) models ───────────────────────────────────────────────────
+  //
+  // OpenAI ids (openai.gpt-oss-120b-1:0) carry no cross-region inference-profile
+  // prefix, so — like Qwen — only a foundation-model ARN is produced. IAM auth
+  // for these models rides on the region-wildcarded foundation-model ARN plus
+  // bedrock:CallWithBearerToken (the OpenAI Chat Completions endpoint region is
+  // applied at the agent layer, not via an inference-profile ARN).
+
+  it('emits only a foundation-model ARN for an OpenAI (gpt-oss) model id', () => {
+    const models = [
+      {
+        id: 'openai.gpt-oss-120b-1:0',
+        name: 'GPT-OSS 120B',
+        provider: 'OpenAI' as const,
+      },
+    ];
+    const result = deriveBedrockIamResources(models, 'ap-northeast-1', ACCOUNT);
+
+    expect(result).toEqual(['arn:aws:bedrock:*::foundation-model/openai.gpt-oss-120b-1:0*']);
+    expect(result.some((r) => r.includes('inference-profile'))).toBe(false);
+  });
+
+  it('emits only a foundation-model ARN for a gpt-5.x (Mantle) model id, region pin notwithstanding', () => {
+    const models = [
+      {
+        id: 'openai.gpt-5.5',
+        name: 'GPT-5.5',
+        provider: 'OpenAI' as const,
+        region: 'us-east-1',
+      },
+    ];
+    const result = deriveBedrockIamResources(models, 'ap-northeast-1', ACCOUNT);
+
+    // No inference-profile prefix on bare openai.* ids, so the region pin does
+    // not scope any ARN here; the wildcard foundation-model ARN + bearer-token
+    // action carry auth.
+    expect(result).toEqual(['arn:aws:bedrock:*::foundation-model/openai.gpt-5.5*']);
+    expect(result.some((r) => r.includes('inference-profile'))).toBe(false);
+  });
+
   it('uses each model’s own region pin when models pin different regions', () => {
     const models = [
       {
@@ -349,5 +394,73 @@ describe('validateBedrockModels — region pin format', () => {
       },
     ];
     expect(() => validateBedrockModelsForTest(models)).not.toThrow();
+  });
+
+  it('accepts the OpenAI provider', () => {
+    const models = [
+      {
+        id: 'openai.gpt-oss-120b-1:0',
+        name: 'GPT-OSS 120B',
+        provider: 'OpenAI' as const,
+      },
+    ];
+    expect(() => validateBedrockModelsForTest(models)).not.toThrow();
+  });
+});
+
+// The two non-Converse endpoints gate DIFFERENT IAM: bedrock-openai (gpt-oss) →
+// bedrock:CallWithBearerToken; mantle (gpt-5.x) → the separate bedrock-mantle:
+// service statements. Each helper must match only its endpoint.
+describe('hasBedrockOpenAiModel', () => {
+  it('is true only when a bedrock-openai (gpt-oss) model is configured', () => {
+    expect(
+      hasBedrockOpenAiModel([
+        { id: 'openai.gpt-oss-20b-1:0', name: 'GPT-OSS 20B', provider: 'OpenAI', endpoint: 'bedrock-openai' },
+      ])
+    ).toBe(true);
+  });
+
+  it('is false when only a mantle (gpt-5.x) model is configured', () => {
+    expect(
+      hasBedrockOpenAiModel([
+        { id: 'openai.gpt-5.5', name: 'GPT-5.5', provider: 'OpenAI', region: 'us-east-1', endpoint: 'mantle' },
+      ])
+    ).toBe(false);
+  });
+
+  it('is false for Converse models and empty lists', () => {
+    expect(
+      hasBedrockOpenAiModel([
+        { id: 'qwen.qwen3-coder-next', name: 'Qwen3', provider: 'Qwen' },
+      ])
+    ).toBe(false);
+    expect(hasBedrockOpenAiModel([])).toBe(false);
+  });
+});
+
+describe('hasMantleModel', () => {
+  it('is true only when a mantle (gpt-5.x) model is configured', () => {
+    expect(
+      hasMantleModel([
+        { id: 'openai.gpt-5.4', name: 'GPT-5.4', provider: 'OpenAI', region: 'us-east-1', endpoint: 'mantle' },
+      ])
+    ).toBe(true);
+  });
+
+  it('is false when only a bedrock-openai (gpt-oss) model is configured', () => {
+    expect(
+      hasMantleModel([
+        { id: 'openai.gpt-oss-20b-1:0', name: 'GPT-OSS 20B', provider: 'OpenAI', endpoint: 'bedrock-openai' },
+      ])
+    ).toBe(false);
+  });
+
+  it('is false for Converse models and empty lists', () => {
+    expect(
+      hasMantleModel([
+        { id: 'global.anthropic.claude-opus-4-8', name: 'Opus', provider: 'Anthropic' },
+      ])
+    ).toBe(false);
+    expect(hasMantleModel([])).toBe(false);
   });
 });

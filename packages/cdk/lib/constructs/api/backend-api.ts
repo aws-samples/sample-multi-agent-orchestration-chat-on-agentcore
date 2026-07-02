@@ -8,7 +8,12 @@ import { Platform } from 'aws-cdk-lib/aws-ecr-assets';
 import { ContainerImageBuild } from '@cdklabs/deploy-time-build';
 import { Construct } from 'constructs';
 import { CognitoAuth } from '../auth';
-import { BedrockModelConfig, deriveBedrockIamResources } from '../../../config';
+import {
+  BedrockModelConfig,
+  deriveBedrockIamResources,
+  hasBedrockOpenAiModel,
+  hasMantleModel,
+} from '../../../config';
 import * as path from 'path';
 
 /**
@@ -155,6 +160,45 @@ export class BackendApi extends Construct {
         ),
       })
     );
+
+    // gpt-oss (bedrock-runtime /openai/v1, Chat Completions) bearer-token auth.
+    // Mirrors the runtime role: these authenticate InvokeModel with a
+    // locally-minted bearer token, gated by bedrock:CallWithBearerToken
+    // (Read-level, no resource type → Resource:'*'). gpt-oss only.
+    if (hasBedrockOpenAiModel(props.bedrockModels)) {
+      lambdaExecutionRole.addToPolicy(
+        new iam.PolicyStatement({
+          effect: iam.Effect.ALLOW,
+          actions: ['bedrock:CallWithBearerToken'],
+          resources: ['*'],
+        })
+      );
+    }
+
+    // gpt-5.x (Bedrock Mantle /openai/v1, Responses API) — SEPARATE bedrock-mantle:
+    // service (NOT bedrock:). Mirrors the runtime role and the AWS-managed
+    // AmazonBedrockMantleInferenceAccess policy: CreateInference / Get* / List* on
+    // the Mantle project resource + its own CallWithBearerToken. gpt-5.x only.
+    if (hasMantleModel(props.bedrockModels)) {
+      lambdaExecutionRole.addToPolicy(
+        new iam.PolicyStatement({
+          effect: iam.Effect.ALLOW,
+          actions: [
+            'bedrock-mantle:CreateInference',
+            'bedrock-mantle:Get*',
+            'bedrock-mantle:List*',
+          ],
+          resources: [`arn:aws:bedrock-mantle:*:${cdk.Stack.of(this).account}:project/*`],
+        })
+      );
+      lambdaExecutionRole.addToPolicy(
+        new iam.PolicyStatement({
+          effect: iam.Effect.ALLOW,
+          actions: ['bedrock-mantle:CallWithBearerToken'],
+          resources: ['*'],
+        })
+      );
+    }
 
     // NOTE: Intentionally no AgentCore Memory permissions on this execution
     // role. The Backend forwards each user's Cognito ID Token to

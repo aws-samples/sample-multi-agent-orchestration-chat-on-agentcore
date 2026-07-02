@@ -22,7 +22,7 @@ export interface BedrockModelConfig {
   /** Display name (e.g., 'Claude Sonnet 4.6') */
   name: string;
   /** Provider name */
-  provider: 'Anthropic' | 'Amazon' | 'Qwen';
+  provider: 'Anthropic' | 'Amazon' | 'Qwen' | 'OpenAI';
   /**
    * Optional invocation-region pin.
    *
@@ -40,6 +40,24 @@ export interface BedrockModelConfig {
    * does not import @moca/core, so the two lists are synced by hand.
    */
   region?: string;
+  /**
+   * Non-Converse Bedrock endpoint (transport) this model is invoked through, if
+   * any. Drives the task-role IAM: the two endpoints use DIFFERENT AWS services.
+   *
+   *   - `'bedrock-openai'` — standard runtime host
+   *     (`bedrock-runtime.{region}.amazonaws.com/openai/v1`, Chat Completions).
+   *     Authorized by the standard `bedrock:InvokeModel*` foundation-model ARN +
+   *     `bedrock:CallWithBearerToken`. Today: gpt-oss.
+   *   - `'mantle'` — Bedrock Mantle host
+   *     (`bedrock-mantle.{region}.api.aws/openai/v1`, Responses API). Authorized
+   *     by the **`bedrock-mantle:`** service actions (`CreateInference` / `Get*`
+   *     / `List*` on `project/*` + `CallWithBearerToken`), NOT `bedrock:`. Today:
+   *     gpt-5.x (Mantle also hosts non-OpenAI vendors — vendor-neutral name).
+   *
+   * MUST mirror `endpoint` on the matching BEDROCK_MODEL_DEFINITIONS entry.
+   * Omit for Converse-API models.
+   */
+  endpoint?: 'bedrock-openai' | 'mantle';
 }
 
 /**
