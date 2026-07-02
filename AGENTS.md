@@ -56,6 +56,7 @@ Monorepo using npm workspaces. 8 packages.
 - **agent runs on AgentCore Runtime, NOT Lambda**: It is a Docker container, not a Lambda function. However, it is implemented as an Express server and runs locally with `npm run dev` as-is.
 - **Environment config changes**: Edit `packages/cdk/config/environments.ts`. Types are in `environment-types.ts`, utilities in `environment-utils.ts`.
 - **Secrets**: Stored in Secrets Manager. Naming convention: `agentcore/{env}/{secret-name}`.
+- **Secret scanning (ASH)**: CI runs `detect-secrets` via ASH. Test files are already excluded by broad globs in `.ash/ash.yaml` (`**/__tests__/*`, `**/*.test.*`, `**/*.spec.*`). For a false positive in **non-test** source, add a `global_settings.ignore_paths` entry with a `reason`, or annotate the specific line with `// pragma: allowlist secret`. ASH ignores unknown top-level keys, so a top-level `exclude_paths:` does nothing — do not use it.
 - **Real-time communication**: AppSync Events (WebSocket). session-stream-handler relays from DynamoDB Streams to AppSync.
 - **Event-driven automation**: EventBridge Scheduler + Rules → trigger package.
 
