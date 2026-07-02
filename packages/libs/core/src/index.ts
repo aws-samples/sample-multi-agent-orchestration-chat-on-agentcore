@@ -56,11 +56,13 @@ export { SYSTEM_USER_ID } from './system-ids.js';
 export type {
   BedrockModelDefinition,
   BedrockEndpoint,
+  Provider,
   ReasoningDepth,
   ReasoningRequestConfig,
 } from './bedrock-models.js';
 export {
   BEDROCK_MODEL_DEFINITIONS,
+  PROVIDERS,
   REASONING_DEPTHS,
   EFFORT_ORDER,
   getMaxOutputTokens,

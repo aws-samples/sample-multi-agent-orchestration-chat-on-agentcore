@@ -11,8 +11,7 @@ import { CognitoAuth } from '../auth';
 import {
   BedrockModelConfig,
   deriveBedrockIamResources,
-  hasBedrockOpenAiModel,
-  hasMantleModel,
+  hasEndpointModel,
 } from '../../../config';
 import * as path from 'path';
 
@@ -165,7 +164,7 @@ export class BackendApi extends Construct {
     // Mirrors the runtime role: these authenticate InvokeModel with a
     // locally-minted bearer token, gated by bedrock:CallWithBearerToken
     // (Read-level, no resource type → Resource:'*'). gpt-oss only.
-    if (hasBedrockOpenAiModel(props.bedrockModels)) {
+    if (hasEndpointModel(props.bedrockModels, 'bedrock-openai')) {
       lambdaExecutionRole.addToPolicy(
         new iam.PolicyStatement({
           effect: iam.Effect.ALLOW,
@@ -179,7 +178,7 @@ export class BackendApi extends Construct {
     // service (NOT bedrock:). Mirrors the runtime role and the AWS-managed
     // AmazonBedrockMantleInferenceAccess policy: CreateInference / Get* / List* on
     // the Mantle project resource + its own CallWithBearerToken. gpt-5.x only.
-    if (hasMantleModel(props.bedrockModels)) {
+    if (hasEndpointModel(props.bedrockModels, 'mantle')) {
       lambdaExecutionRole.addToPolicy(
         new iam.PolicyStatement({
           effect: iam.Effect.ALLOW,

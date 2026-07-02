@@ -10,6 +10,21 @@ import * as cdk from 'aws-cdk-lib';
 export type Environment = 'default' | 'dev' | 'stg' | 'prd' | string; // Allow dynamic PR environments
 
 /**
+ * Model provider + non-Converse endpoint unions.
+ *
+ * These MIRROR @moca/core's `Provider` / `BedrockEndpoint`, re-declared here
+ * rather than imported because @moca/core is ESM and this file is compiled as
+ * CommonJS by CDK's ts-node/ts-jest (a type-only import of an ESM module from
+ * CJS under Node16 requires a `resolution-mode` attribute and jest cannot
+ * resolve the package at all). Drift is guarded at RUNTIME instead: the actual
+ * provider allowlist and default model list flow from core via
+ * buildModelCatalog() and are passed into getEnvironmentConfig(), so a mismatch
+ * surfaces at synth time, not from these compile-time aliases.
+ */
+export type Provider = 'Anthropic' | 'Amazon' | 'Qwen' | 'OpenAI';
+export type BedrockEndpoint = 'bedrock-openai' | 'mantle';
+
+/**
  * Bedrock model configuration for frontend model selector
  */
 export interface BedrockModelConfig {
@@ -21,8 +36,8 @@ export interface BedrockModelConfig {
   id: string;
   /** Display name (e.g., 'Claude Sonnet 4.6') */
   name: string;
-  /** Provider name */
-  provider: 'Anthropic' | 'Amazon' | 'Qwen' | 'OpenAI';
+  /** Provider name (from @moca/core's Provider union — the single source). */
+  provider: Provider;
   /**
    * Optional invocation-region pin.
    *
@@ -35,9 +50,11 @@ export interface BedrockModelConfig {
    * is authorized. Omit for models invoked in the deployment region (the common
    * case).
    *
-   * MUST be kept in sync with the `region` field of the matching entry in
-   * BEDROCK_MODEL_DEFINITIONS (packages/libs/core/src/bedrock-models.ts) — CDK
-   * does not import @moca/core, so the two lists are synced by hand.
+   * For the default model list this is DERIVED from the matching
+   * BEDROCK_MODEL_DEFINITIONS entry (packages/libs/core/src/bedrock-models.ts)
+   * via buildModelCatalog(), so it cannot drift. This field only needs setting
+   * on a hand-authored per-environment `bedrockModels` override in
+   * environments.ts, where it must match that model's core region pin.
    */
   region?: string;
   /**
@@ -54,10 +71,12 @@ export interface BedrockModelConfig {
    *     / `List*` on `project/*` + `CallWithBearerToken`), NOT `bedrock:`. Today:
    *     gpt-5.x (Mantle also hosts non-OpenAI vendors — vendor-neutral name).
    *
-   * MUST mirror `endpoint` on the matching BEDROCK_MODEL_DEFINITIONS entry.
+   * Type is @moca/core's BedrockEndpoint (the single source). When the default
+   * model list is derived from BEDROCK_MODEL_DEFINITIONS this cannot drift; a
+   * hand-authored per-env override still gets compile-time checking.
    * Omit for Converse-API models.
    */
-  endpoint?: 'bedrock-openai' | 'mantle';
+  endpoint?: BedrockEndpoint;
 }
 
 /**
@@ -216,10 +235,11 @@ export interface EnvironmentConfig {
    * Available Bedrock models for frontend model selector (optional)
    * Each model ID should include the cross-region inference profile prefix
    * (e.g., 'global.', 'jp.', 'us.', 'eu.', 'apac.')
-   * @default The bedrockModels list in DEFAULT_CONFIG
-   *   (packages/cdk/config/environment-utils.ts); Claude Opus 4.8 is the
-   *   default-selected model. See that list for the authoritative set, which
-   *   grows as new models are added.
+   * @default The catalog derived from @moca/core's BEDROCK_MODEL_DEFINITIONS
+   *   (packages/libs/core/src/bedrock-models.ts), loaded via buildModelCatalog()
+   *   in bin/app.ts; Claude Opus 4.8 is the default-selected model. That file is
+   *   the authoritative set and grows as new models are added — set this field
+   *   only to override the catalog for a single environment.
    */
   bedrockModels?: BedrockModelConfig[];
 

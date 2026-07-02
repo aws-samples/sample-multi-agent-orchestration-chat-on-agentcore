@@ -6,11 +6,71 @@
 import * as cdk from 'aws-cdk-lib';
 import type {
   BedrockModelConfig,
+  BedrockEndpoint,
+  Provider,
   Environment,
   EnvironmentConfig,
   EnvironmentConfigInput,
 } from './environment-types';
 import { BASE_PREFIX, environments } from './environments';
+
+/**
+ * The Bedrock model catalog, loaded from @moca/core by the composition root
+ * (bin/app.ts) and passed explicitly into {@link getEnvironmentConfig}.
+ *
+ * WHY passed as an argument rather than imported: @moca/core is an ESM package
+ * (`type: module`); CDK compiles as CommonJS (ts-node / ts-jest, `module:
+ * Node16`/`commonjs`), so a static `import { BEDROCK_MODEL_DEFINITIONS }` emits
+ * a `require()` of an ESM module (TS1479) and jest cannot resolve the package
+ * at all. bin/app.ts is the one place that can `await import('@moca/core')`, so
+ * it loads the catalog once and threads it through the config functions. Passing
+ * it (rather than stashing it in module state) makes "load core before resolving
+ * config" a compile-time signature requirement instead of a runtime precondition.
+ */
+export interface ModelCatalog {
+  /** Providers allowlist (core PROVIDERS). */
+  readonly providers: readonly Provider[];
+  /**
+   * Default enabled models, projected from core's BEDROCK_MODEL_DEFINITIONS to
+   * the CDK-relevant fields (id/name/provider/region/endpoint).
+   */
+  readonly defaultModels: readonly BedrockModelConfig[];
+}
+
+/**
+ * The subset of a @moca/core BedrockModelDefinition that CDK config needs.
+ * Kept structural (not an import of the core type) so this stays a plain
+ * projection contract; bin/app.ts passes core's definitions straight in.
+ */
+interface CoreModelDefinition {
+  readonly id: string;
+  readonly name: string;
+  readonly provider: Provider;
+  readonly region?: string;
+  readonly endpoint?: BedrockModelConfig['endpoint'];
+}
+
+/**
+ * Build a {@link ModelCatalog} from @moca/core's PROVIDERS + BEDROCK_MODEL_DEFINITIONS.
+ * Called by bin/app.ts after dynamic-importing core. Projects each model to the
+ * CDK-relevant fields (id/name/provider/region/endpoint); maxOutputTokens and
+ * reasoning metadata are intentionally dropped — CDK does not use them.
+ */
+export function buildModelCatalog(
+  providers: readonly Provider[],
+  definitions: readonly CoreModelDefinition[]
+): ModelCatalog {
+  return {
+    providers,
+    defaultModels: definitions.map((m) => ({
+      id: m.id,
+      name: m.name,
+      provider: m.provider,
+      ...(m.region !== undefined ? { region: m.region } : {}),
+      ...(m.endpoint !== undefined ? { endpoint: m.endpoint } : {}),
+    })),
+  };
+}
 
 const INFERENCE_PROFILE_STRIP = /^(global|us|eu|apac|jp)\./;
 
@@ -76,132 +136,28 @@ const DEFAULT_CONFIG = {
   // Default geo restriction: Japan and United States
   // Override per-environment in environments.ts if needed
   cloudFrontGeoRestriction: ['JP', 'US'] as string[],
-  /**
-   * CDK intentionally does not depend on @moca/core to keep infrastructure free
-   * of runtime library dependencies. Keep this list in sync with
-   * BEDROCK_MODEL_DEFINITIONS in packages/libs/core/src/bedrock-models.ts —
-   * including the optional `region` pin: if a model sets `region` there it must
-   * set the SAME `region` here, because deriveBedrockIamResources() uses it to
-   * scope the inference-profile IAM ARN. An out-of-sync region pin grants the
-   * wrong-region ARN and the agent's invocation fails with AccessDenied.
-   * (validateBedrockModels() enforces id/name/provider/region shape at synth time.)
-   */
-  bedrockModels: [
-    {
-      // Default model. No account-level prerequisite, so it works out of the box.
-      id: 'global.anthropic.claude-opus-4-8',
-      name: 'Claude Opus 4.8',
-      provider: 'Anthropic',
-    },
-    {
-      // Requires Bedrock Data Retention mode `provider_data_share` in the
-      // deployment region — see the registry note in
-      // packages/libs/core/src/bedrock-models.ts and the README. No region pin
-      // in this OSS default: Fable 5 is invoked in the deploy region, so
-      // deriveBedrockIamResources() scopes its inference-profile IAM ARN to the
-      // deploy region. If your deploy region cannot enable provider_data_share,
-      // pin Fable 5 to a region that has it by overriding bedrockModels (with a
-      // `region`) for your environment in environments.ts — and mirror that
-      // region in BEDROCK_MODEL_DEFINITIONS so the agent invokes there too.
-      id: 'global.anthropic.claude-fable-5',
-      name: 'Claude Fable 5',
-      provider: 'Anthropic',
-    },
-    {
-      id: 'global.anthropic.claude-opus-4-7',
-      name: 'Claude Opus 4.7',
-      provider: 'Anthropic',
-    },
-    {
-      id: 'global.anthropic.claude-opus-4-6-v1',
-      name: 'Claude Opus 4.6',
-      provider: 'Anthropic',
-    },
-    {
-      id: 'global.anthropic.claude-sonnet-5',
-      name: 'Claude Sonnet 5',
-      provider: 'Anthropic',
-    },
-    {
-      id: 'global.anthropic.claude-sonnet-4-6',
-      name: 'Claude Sonnet 4.6',
-      provider: 'Anthropic',
-    },
-    {
-      id: 'global.amazon.nova-2-lite-v1:0',
-      name: 'Nova Lite 2',
-      provider: 'Amazon',
-    },
-    {
-      // In-Region only, bare id (no -v1:0 suffix). maxOutputTokens lives in
-      // BEDROCK_MODEL_DEFINITIONS (@moca/core) — CDK config carries id/name/provider only.
-      id: 'qwen.qwen3-coder-next',
-      name: 'Qwen3 Coder Next',
-      provider: 'Qwen',
-    },
-    {
-      // OpenAI GPT-5.5 via Bedrock Mantle (OpenAI-compatible Responses API).
-      // Region pin us-east-1: only region hosting gpt-5.5 (404 elsewhere). MUST
-      // match BEDROCK_MODEL_DEFINITIONS so the Mantle base URL and this grant
-      // target the same region. Bare id → foundation-model ARN only. Requires
-      // bedrock:CallWithBearerToken (see BedrockBearerTokenAuth statement).
-      id: 'openai.gpt-5.5',
-      name: 'GPT-5.5',
-      provider: 'OpenAI',
-      region: 'us-east-1',
-      endpoint: 'mantle',
-    },
-    {
-      // OpenAI GPT-5.4 via Bedrock Mantle. Pinned to us-east-1 to match GPT-5.5
-      // (also available in us-west-2).
-      id: 'openai.gpt-5.4',
-      name: 'GPT-5.4',
-      provider: 'OpenAI',
-      region: 'us-east-1',
-      endpoint: 'mantle',
-    },
-    {
-      // OpenAI GPT-OSS (open-weight) via Bedrock's OpenAI-compatible Chat
-      // Completions endpoint. Bare id → foundation-model ARN only (same IAM
-      // shape as qwen.*). No region pin: available in ap-northeast-1 and
-      // us-east-1/us-east-2/us-west-2, so it is invoked in the deploy region.
-      // These invocations additionally require bedrock:CallWithBearerToken — see
-      // the BedrockBearerTokenAuth statement added when an OpenAI model is enabled.
-      id: 'openai.gpt-oss-120b-1:0',
-      name: 'GPT-OSS 120B',
-      provider: 'OpenAI',
-      endpoint: 'bedrock-openai',
-    },
-    {
-      id: 'openai.gpt-oss-20b-1:0',
-      name: 'GPT-OSS 20B',
-      provider: 'OpenAI',
-      endpoint: 'bedrock-openai',
-    },
-  ] satisfies BedrockModelConfig[],
+  // NOTE: the default Bedrock model list is NOT hardcoded here anymore. It is
+  // derived from @moca/core's BEDROCK_MODEL_DEFINITIONS (the single source of
+  // truth) via buildModelCatalog() and passed into getEnvironmentConfig();
+  // resolveConfig() reads it from that catalog. This removes the hand-synced
+  // duplicate that previously drifted from core (a wrong region/endpoint here
+  // silently mis-scoped IAM → AccessDenied).
 };
 
-const VALID_PROVIDERS: readonly string[] = ['Anthropic', 'Amazon', 'Qwen', 'OpenAI'];
-
 /**
- * Whether any configured model uses the `bedrock-openai` endpoint (gpt-oss, via
- * bedrock-runtime `/openai/v1`). These are authorized by the standard
- * `bedrock:InvokeModel*` grant plus `bedrock:CallWithBearerToken` (the
- * bearer-token auth path). Used to gate that CallWithBearerToken statement.
+ * Whether any configured model uses the given non-Converse Bedrock endpoint.
+ * Used by the task-role IAM to gate the endpoint-specific statements, which
+ * differ by AWS service:
+ *   - `'bedrock-openai'` (gpt-oss, bedrock-runtime `/openai/v1`) →
+ *     `bedrock:InvokeModel*` + `bedrock:CallWithBearerToken`.
+ *   - `'mantle'` (gpt-5.x, Bedrock Mantle host) → the SEPARATE `bedrock-mantle:`
+ *     service (CreateInference / Get* / List* on `project/*` + CallWithBearerToken).
  */
-export function hasBedrockOpenAiModel(models: BedrockModelConfig[]): boolean {
-  return models.some((m) => m.endpoint === 'bedrock-openai');
-}
-
-/**
- * Whether any configured model uses the `mantle` endpoint (gpt-5.x today, via
- * the Bedrock Mantle host). These are authorized by the SEPARATE
- * **`bedrock-mantle:`** service — NOT `bedrock:` — so they need their own IAM
- * statement (CreateInference / Get* / List* on `project/*` +
- * bedrock-mantle:CallWithBearerToken). Used to gate that Mantle statement.
- */
-export function hasMantleModel(models: BedrockModelConfig[]): boolean {
-  return models.some((m) => m.endpoint === 'mantle');
+export function hasEndpointModel(
+  models: BedrockModelConfig[],
+  endpoint: BedrockEndpoint
+): boolean {
+  return models.some((m) => m.endpoint === endpoint);
 }
 
 /**
@@ -261,7 +217,11 @@ function validateCognitoDomainPrefix(prefix: string | undefined, env: Environmen
  * Validate bedrockModels configuration
  * Called during resolveConfig so errors surface at cdk synth / deploy time.
  */
-function validateBedrockModels(models: BedrockModelConfig[], env: Environment): void {
+function validateBedrockModels(
+  models: BedrockModelConfig[],
+  env: Environment,
+  validProviders: readonly string[]
+): void {
   if (models.length === 0) {
     throw new Error(`[${env}] bedrockModels must contain at least one model`);
   }
@@ -279,9 +239,9 @@ function validateBedrockModels(models: BedrockModelConfig[], env: Environment): 
     if (!model.name || typeof model.name !== 'string') {
       throw new Error(`[${env}] bedrockModels: missing name for model "${model.id}"`);
     }
-    if (!VALID_PROVIDERS.includes(model.provider)) {
+    if (!validProviders.includes(model.provider)) {
       throw new Error(
-        `[${env}] bedrockModels: invalid provider "${model.provider}" for model "${model.id}". Must be one of: ${VALID_PROVIDERS.join(', ')}`
+        `[${env}] bedrockModels: invalid provider "${model.provider}" for model "${model.id}". Must be one of: ${validProviders.join(', ')}`
       );
     }
     if (model.region !== undefined && !AWS_REGION_TOKEN.test(model.region)) {
@@ -297,9 +257,16 @@ function validateBedrockModels(models: BedrockModelConfig[], env: Environment): 
  * Test-only wrapper around the private validateBedrockModels(). Lets unit tests
  * assert validation behavior (e.g. region-pin format) without going through the
  * full getEnvironmentConfig() path. Not used by production code.
+ *
+ * @param validProviders required provider allowlist. Callers pass it explicitly
+ *   (rather than a hardcoded default here) so this file holds NO second copy of
+ *   the provider list — the test decides which allowlist it is asserting against.
  */
-export function validateBedrockModelsForTest(models: BedrockModelConfig[]): void {
-  validateBedrockModels(models, 'default');
+export function validateBedrockModelsForTest(
+  models: BedrockModelConfig[],
+  validProviders: readonly string[]
+): void {
+  validateBedrockModels(models, 'default', validProviders);
 }
 
 /**
@@ -321,9 +288,15 @@ function getDefaultResourcePrefix(env: Environment): string {
  * @param input Partial environment configuration input
  * @returns Full configuration with all defaults applied
  */
-function resolveConfig(env: Environment, input: EnvironmentConfigInput): EnvironmentConfig {
-  const bedrockModels = input.bedrockModels ?? DEFAULT_CONFIG.bedrockModels;
-  validateBedrockModels(bedrockModels, env);
+function resolveConfig(
+  env: Environment,
+  input: EnvironmentConfigInput,
+  catalog: ModelCatalog
+): EnvironmentConfig {
+  // Per-env override wins; otherwise use the default model list derived from
+  // @moca/core (the single source), not a hand-maintained copy.
+  const bedrockModels = input.bedrockModels ?? [...catalog.defaultModels];
+  validateBedrockModels(bedrockModels, env, catalog.providers);
   validateCognitoDomainPrefix(input.cognitoDomainPrefix, env);
 
   return {
@@ -392,14 +365,19 @@ function getPrEnvironmentConfig(env: string): EnvironmentConfigInput {
 }
 
 /**
- * Get environment configuration with defaults applied
+ * Get environment configuration with defaults applied.
+ *
  * @param env Environment name (default, dev, stg, prd, or pr-{number})
+ * @param catalog Model catalog loaded from @moca/core (see {@link buildModelCatalog}).
+ *   Passing it explicitly makes "load core before resolving config" a
+ *   compile-time requirement — the composition root (bin/app.ts) awaits the
+ *   dynamic import of core and hands the catalog in.
  * @returns Full environment configuration with all defaults applied
  */
-export function getEnvironmentConfig(env: Environment): EnvironmentConfig {
+export function getEnvironmentConfig(env: Environment, catalog: ModelCatalog): EnvironmentConfig {
   // Check if it's a PR environment (e.g., pr-123)
   if (env.startsWith('pr-')) {
-    return resolveConfig(env, getPrEnvironmentConfig(env));
+    return resolveConfig(env, getPrEnvironmentConfig(env), catalog);
   }
 
   const config = environments[env];
@@ -408,5 +386,5 @@ export function getEnvironmentConfig(env: Environment): EnvironmentConfig {
       `Unknown environment: ${env}. Valid values are: default, dev, stg, prd, or pr-{number}`
     );
   }
-  return resolveConfig(env, config);
+  return resolveConfig(env, config, catalog);
 }
