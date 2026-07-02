@@ -5,20 +5,17 @@
  * Falls back to BEDROCK_MODEL_DEFINITIONS from @moca/core (Single Source of Truth).
  */
 
-import { BEDROCK_MODEL_DEFINITIONS } from '@moca/core';
+import { BEDROCK_MODEL_DEFINITIONS, PROVIDERS, type Provider } from '@moca/core';
 
 export interface BedrockModel {
   id: string;
   name: string;
-  provider: 'Anthropic' | 'Amazon' | 'Qwen' | 'OpenAI';
+  provider: Provider;
 }
 
-const VALID_PROVIDERS: ReadonlySet<BedrockModel['provider']> = new Set([
-  'Anthropic',
-  'Amazon',
-  'Qwen',
-  'OpenAI',
-]);
+// Provider allowlist for runtime validation of the CDK-injected model list,
+// derived from @moca/core's PROVIDERS so it can never drift from the union.
+const VALID_PROVIDERS: ReadonlySet<Provider> = new Set(PROVIDERS);
 
 /**
  * Fallback model list derived from the canonical BEDROCK_MODEL_DEFINITIONS.

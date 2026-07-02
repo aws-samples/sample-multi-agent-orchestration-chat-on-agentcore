@@ -2,14 +2,21 @@
  * Canonical Bedrock model definitions — Single Source of Truth.
  *
  * This file is the ONLY place to add, remove, or modify Bedrock model metadata.
- * It is imported by:
- *   - packages/frontend  (FALLBACK_MODELS)
- *   - packages/agent     (resolveMaxTokens)
+ * Every consumer derives its list from here — adding a standard (Converse-API)
+ * model to the deployment's default catalog is a single edit to this file:
+ *   - packages/frontend  — FALLBACK_MODELS projects id/name/provider.
+ *   - packages/agent     — getMaxOutputTokens / getModelRegion / getReasoningConfig
+ *                          / getBedrockEndpoint read the entry at model creation.
+ *   - packages/cdk       — bin/app.ts dynamic-imports @moca/core and threads the
+ *                          catalog (id/name/provider/region/endpoint) through
+ *                          buildModelCatalog() into the env config + IAM. No
+ *                          hand-synced copy lives in CDK anymore.
  *
- * NOTE: packages/cdk intentionally does NOT import from @moca/core to keep
- * CDK infrastructure free of runtime library dependencies. When adding a model
- * here, also update DEFAULT_CONFIG.bedrockModels in
- * packages/cdk/config/environment-utils.ts.
+ * The only cases that need edits BEYOND this file: (a) a per-environment
+ * override that hardcodes `bedrockModels` in packages/cdk/config/environments.ts
+ * (that copy is manual by design), and (b) a model on a NEW non-Converse
+ * endpoint — see {@link BedrockModelDefinition.endpoint}. See the
+ * add-bedrock-model skill for the full decision tree.
  */
 
 /**
@@ -37,13 +44,23 @@ export const REASONING_DEPTHS = ['off', 'low', 'high', 'max'] as const;
  */
 export const EFFORT_ORDER: readonly Exclude<ReasoningDepth, 'off'>[] = ['low', 'high', 'max'];
 
+/**
+ * Model providers. Single source of truth for the provider union — consumed by
+ * the frontend model selector and CDK's config validation instead of each
+ * re-declaring the literal. Adding a provider is a one-line change here.
+ */
+export const PROVIDERS = ['Anthropic', 'Amazon', 'Qwen', 'OpenAI'] as const;
+
+/** A model provider name. See {@link PROVIDERS}. */
+export type Provider = (typeof PROVIDERS)[number];
+
 export interface BedrockModelDefinition {
   /** Full model ID including cross-region inference profile prefix */
   readonly id: string;
   /** Display name shown in the UI model selector */
   readonly name: string;
   /** Provider */
-  readonly provider: 'Anthropic' | 'Amazon' | 'Qwen' | 'OpenAI';
+  readonly provider: Provider;
   /**
    * Maximum output tokens supported by this model.
    * Sources: Anthropic docs 2026-04, AWS docs.
@@ -78,10 +95,11 @@ export interface BedrockModelDefinition {
    * (global.*, us.*, …) ALSO needs an inference-profile ARN, which is
    * region-scoped. CDK's deriveBedrockIamResources() therefore scopes that ARN to
    * THIS region (not the deployment region) so the pinned-region invocation is
-   * authorized. For that to work the matching CDK config entry
-   * (DEFAULT_CONFIG.bedrockModels in packages/cdk/config/environment-utils.ts)
-   * MUST carry the same `region` value — the two lists are synced by hand because
-   * CDK does not import @moca/core.
+   * authorized. This `region` value flows into CDK automatically: bin/app.ts
+   * dynamic-imports this list and buildModelCatalog() projects `region` into the
+   * CDK config, so the IAM ARN is derived from the same value the agent invokes
+   * with — no hand-sync. (Only a per-environment `bedrockModels` override in
+   * environments.ts must carry `region` itself, since it replaces this list.)
    *
    * Omit for models available in the deployment region (the common case).
    */
@@ -128,11 +146,13 @@ export type BedrockEndpoint = 'bedrock-openai' | 'mantle';
  *
  * Ordering: preferred/newest models first (affects default selection in UI).
  *
- * When adding a model, also update:
- *   - packages/cdk/config/environment-utils.ts  DEFAULT_CONFIG.bedrockModels
- *     (mirror id/name/provider AND `region` if the model pins one — the region
- *     pin drives CDK's inference-profile IAM ARN, so an out-of-sync CDK entry
- *     causes AccessDenied at invocation time).
+ * CDK reads this list at synth time (bin/app.ts dynamic-imports it into
+ * buildModelCatalog), so id/name/provider/region/endpoint flow into the env
+ * config and IAM automatically — no hand-synced copy to update. A model's
+ * `region` pin drives CDK's inference-profile IAM ARN straight from this entry,
+ * so keep it accurate here (a wrong region → AccessDenied at invocation time).
+ * The one exception is a per-environment `bedrockModels` override hardcoded in
+ * environments.ts, which is manual by design.
  */
 export const BEDROCK_MODEL_DEFINITIONS = [
   {

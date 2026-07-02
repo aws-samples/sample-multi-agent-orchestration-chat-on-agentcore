@@ -23,6 +23,7 @@ export { BASE_PREFIX, environments } from './environments';
 export {
   getEnvironmentConfig,
   deriveBedrockIamResources,
-  hasBedrockOpenAiModel,
-  hasMantleModel,
+  hasEndpointModel,
+  buildModelCatalog,
+  type ModelCatalog,
 } from './environment-utils';

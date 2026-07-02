@@ -1,12 +1,18 @@
 import {
   deriveBedrockIamResources,
-  hasBedrockOpenAiModel,
-  hasMantleModel,
+  hasEndpointModel,
   validateBedrockModelsForTest,
+  buildModelCatalog,
 } from './environment-utils';
 
 const REGION = 'us-east-1';
 const ACCOUNT = '123456789012';
+
+// Provider allowlist these tests validate against. Passed explicitly to
+// validateBedrockModelsForTest (which has no built-in default) so the allowlist
+// under test is visible here rather than hidden in the helper. Mirrors
+// @moca/core's PROVIDERS; core can't be imported in CDK's CommonJS jest.
+const TEST_PROVIDERS = ['Anthropic', 'Amazon', 'Qwen', 'OpenAI'] as const;
 
 describe('deriveBedrockIamResources', () => {
   // ── ARN format helpers ──────────────────────────────────────────────────────
@@ -381,7 +387,7 @@ describe('validateBedrockModels — region pin format', () => {
     ];
     expect(() => deriveBedrockIamResources(models, REGION, ACCOUNT)).not.toThrow();
     // Validation lives on the config path; assert there via the exported guard.
-    expect(() => validateBedrockModelsForTest(models)).toThrow(/region/i);
+    expect(() => validateBedrockModelsForTest(models, TEST_PROVIDERS)).toThrow(/region/i);
   });
 
   it('accepts a model with a well-formed region pin', () => {
@@ -393,7 +399,7 @@ describe('validateBedrockModels — region pin format', () => {
         region: 'ap-northeast-1',
       },
     ];
-    expect(() => validateBedrockModelsForTest(models)).not.toThrow();
+    expect(() => validateBedrockModelsForTest(models, TEST_PROVIDERS)).not.toThrow();
   });
 
   it('accepts the OpenAI provider', () => {
@@ -404,63 +410,75 @@ describe('validateBedrockModels — region pin format', () => {
         provider: 'OpenAI' as const,
       },
     ];
-    expect(() => validateBedrockModelsForTest(models)).not.toThrow();
+    expect(() => validateBedrockModelsForTest(models, TEST_PROVIDERS)).not.toThrow();
   });
 });
 
 // The two non-Converse endpoints gate DIFFERENT IAM: bedrock-openai (gpt-oss) →
 // bedrock:CallWithBearerToken; mantle (gpt-5.x) → the separate bedrock-mantle:
-// service statements. Each helper must match only its endpoint.
-describe('hasBedrockOpenAiModel', () => {
-  it('is true only when a bedrock-openai (gpt-oss) model is configured', () => {
-    expect(
-      hasBedrockOpenAiModel([
-        { id: 'openai.gpt-oss-20b-1:0', name: 'GPT-OSS 20B', provider: 'OpenAI', endpoint: 'bedrock-openai' },
-      ])
-    ).toBe(true);
-  });
+// service statements. hasEndpointModel must match ONLY the requested endpoint.
+describe('hasEndpointModel', () => {
+  const OSS = {
+    id: 'openai.gpt-oss-20b-1:0',
+    name: 'GPT-OSS 20B',
+    provider: 'OpenAI' as const,
+    endpoint: 'bedrock-openai' as const,
+  };
+  const MANTLE = {
+    id: 'openai.gpt-5.5',
+    name: 'GPT-5.5',
+    provider: 'OpenAI' as const,
+    region: 'us-east-1',
+    endpoint: 'mantle' as const,
+  };
+  const CONVERSE = { id: 'qwen.qwen3-coder-next', name: 'Qwen3', provider: 'Qwen' as const };
 
-  it('is false when only a mantle (gpt-5.x) model is configured', () => {
-    expect(
-      hasBedrockOpenAiModel([
-        { id: 'openai.gpt-5.5', name: 'GPT-5.5', provider: 'OpenAI', region: 'us-east-1', endpoint: 'mantle' },
-      ])
-    ).toBe(false);
+  it('matches only the requested endpoint, not the sibling one', () => {
+    expect(hasEndpointModel([OSS], 'bedrock-openai')).toBe(true);
+    expect(hasEndpointModel([OSS], 'mantle')).toBe(false);
+    expect(hasEndpointModel([MANTLE], 'mantle')).toBe(true);
+    expect(hasEndpointModel([MANTLE], 'bedrock-openai')).toBe(false);
   });
 
   it('is false for Converse models and empty lists', () => {
-    expect(
-      hasBedrockOpenAiModel([
-        { id: 'qwen.qwen3-coder-next', name: 'Qwen3', provider: 'Qwen' },
-      ])
-    ).toBe(false);
-    expect(hasBedrockOpenAiModel([])).toBe(false);
+    expect(hasEndpointModel([CONVERSE], 'bedrock-openai')).toBe(false);
+    expect(hasEndpointModel([CONVERSE], 'mantle')).toBe(false);
+    expect(hasEndpointModel([], 'mantle')).toBe(false);
+  });
+
+  it('detects the endpoint among a mixed model list', () => {
+    expect(hasEndpointModel([CONVERSE, OSS, MANTLE], 'mantle')).toBe(true);
+    expect(hasEndpointModel([CONVERSE, OSS, MANTLE], 'bedrock-openai')).toBe(true);
   });
 });
 
-describe('hasMantleModel', () => {
-  it('is true only when a mantle (gpt-5.x) model is configured', () => {
-    expect(
-      hasMantleModel([
-        { id: 'openai.gpt-5.4', name: 'GPT-5.4', provider: 'OpenAI', region: 'us-east-1', endpoint: 'mantle' },
-      ])
-    ).toBe(true);
+// buildModelCatalog projects @moca/core's model definitions to the CDK-relevant
+// fields. This is the seam that replaced the hand-maintained DEFAULT_CONFIG list,
+// so it must copy id/name/provider/region/endpoint and drop everything else
+// (maxOutputTokens, reasoning*) that CDK does not use.
+describe('buildModelCatalog', () => {
+  const CORE_DEFS = [
+    { id: 'global.anthropic.claude-opus-4-8', name: 'Opus', provider: 'Anthropic' as const, maxOutputTokens: 128000, reasoningCapable: true },
+    { id: 'openai.gpt-5.5', name: 'GPT-5.5', provider: 'OpenAI' as const, maxOutputTokens: 128000, region: 'us-east-1', endpoint: 'mantle' as const },
+    { id: 'openai.gpt-oss-120b-1:0', name: 'GPT-OSS 120B', provider: 'OpenAI' as const, maxOutputTokens: 131072, endpoint: 'bedrock-openai' as const },
+  ];
+
+  it('carries providers through verbatim', () => {
+    const cat = buildModelCatalog(['Anthropic', 'OpenAI'], CORE_DEFS);
+    expect(cat.providers).toEqual(['Anthropic', 'OpenAI']);
   });
 
-  it('is false when only a bedrock-openai (gpt-oss) model is configured', () => {
-    expect(
-      hasMantleModel([
-        { id: 'openai.gpt-oss-20b-1:0', name: 'GPT-OSS 20B', provider: 'OpenAI', endpoint: 'bedrock-openai' },
-      ])
-    ).toBe(false);
+  it('projects only id/name/provider/region/endpoint (drops maxOutputTokens/reasoning)', () => {
+    const cat = buildModelCatalog(['Anthropic', 'OpenAI'], CORE_DEFS);
+    expect(cat.defaultModels).toEqual([
+      { id: 'global.anthropic.claude-opus-4-8', name: 'Opus', provider: 'Anthropic' },
+      { id: 'openai.gpt-5.5', name: 'GPT-5.5', provider: 'OpenAI', region: 'us-east-1', endpoint: 'mantle' },
+      { id: 'openai.gpt-oss-120b-1:0', name: 'GPT-OSS 120B', provider: 'OpenAI', endpoint: 'bedrock-openai' },
+    ]);
   });
 
-  it('is false for Converse models and empty lists', () => {
-    expect(
-      hasMantleModel([
-        { id: 'global.anthropic.claude-opus-4-8', name: 'Opus', provider: 'Anthropic' },
-      ])
-    ).toBe(false);
-    expect(hasMantleModel([])).toBe(false);
+  it('omits region/endpoint keys entirely when the model has none (Converse models)', () => {
+    const cat = buildModelCatalog(['Anthropic'], CORE_DEFS.slice(0, 1));
+    expect(Object.keys(cat.defaultModels[0])).toEqual(['id', 'name', 'provider']);
   });
 });
