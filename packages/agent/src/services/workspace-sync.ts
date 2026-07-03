@@ -10,13 +10,18 @@
 
 import path from 'path';
 import { S3WorkspaceSync } from '@moca/s3-workspace-sync';
-import type { SyncResult } from '@moca/s3-workspace-sync';
+import type { SyncResult, SyncProgress } from '@moca/s3-workspace-sync';
 import { config, WORKSPACE_DIRECTORY } from '../config/index.js';
 import { createLogger } from '../libs/logger/index.js';
 import { createUserScopedS3Client, getIdentityId } from '../libs/utils/scoped-credentials.js';
+import type {
+  WorkspaceSyncStatus,
+  WorkspaceSyncStatusListener,
+} from '../types/workspace-sync-types.js';
 
 const logger = createLogger('WorkspaceSync');
 export type { SyncResult };
+export type { WorkspaceSyncStatus, WorkspaceSyncStatusListener };
 
 /**
  * Agent-specific workspace sync wrapper.
@@ -35,6 +40,16 @@ export class WorkspaceSync {
   private readonly normalizedStoragePath: string;
 
   private initPromise: Promise<void>;
+
+  // Last known status of the initial pull. Retained (rather than only pushed
+  // through listeners) because subscribers commonly attach *after*
+  // startInitialSync() has already fired — the pull is kicked off fire-and-forget
+  // in initializeWorkspaceSync, while a subscriber (the stream handler) only
+  // attaches once the agent is built. Replaying currentStatus on subscribe means
+  // a fast pull that finished early still reports its terminal state instead of
+  // looking like it never ran.
+  private currentStatus: WorkspaceSyncStatus = { phase: 'idle' };
+  private readonly statusListeners = new Set<WorkspaceSyncStatusListener>();
 
   constructor(userId: string, storagePath: string) {
     this.bucketName = config.USER_STORAGE_BUCKET_NAME ?? '';
@@ -96,6 +111,63 @@ export class WorkspaceSync {
       s3Client,
       logger: logger,
     });
+
+    // Forward the generic sync engine's lifecycle events into our status model.
+    // Only the download phase is surfaced: the initial pull is what blocks the
+    // user (tools await waitForInitialSync), whereas push() runs fire-and-forget
+    // in a hook and must never present as user-facing "loading".
+    this.inner.on('progress', (progress: SyncProgress) => {
+      if (progress.phase === 'download') {
+        this.setStatus({ phase: 'syncing', progress });
+      }
+    });
+    this.inner.on('complete', () => {
+      this.setStatus({ phase: 'complete' });
+    });
+    this.inner.on('syncError', (err: unknown) => {
+      this.setStatus({
+        phase: 'error',
+        message: err instanceof Error ? err.message : String(err),
+      });
+    });
+  }
+
+  /**
+   * Update the retained status and notify all current listeners.
+   * Listener exceptions are swallowed so one bad subscriber can't break sync.
+   */
+  private setStatus(status: WorkspaceSyncStatus): void {
+    this.currentStatus = status;
+    for (const listener of this.statusListeners) {
+      try {
+        listener(status);
+      } catch (err) {
+        logger.warn(`Workspace sync status listener threw: ${String(err)}`);
+      }
+    }
+  }
+
+  /**
+   * Subscribe to initial-pull status changes.
+   *
+   * The current status is replayed synchronously on subscribe so late
+   * subscribers (the common case — see {@link currentStatus}) observe a pull
+   * that is already running or finished. Returns an unsubscribe function.
+   */
+  onStatusChange(listener: WorkspaceSyncStatusListener): () => void {
+    this.statusListeners.add(listener);
+    // Replay current state immediately.
+    listener(this.currentStatus);
+    return () => {
+      this.statusListeners.delete(listener);
+    };
+  }
+
+  /**
+   * The last observed status of the initial pull.
+   */
+  getStatus(): WorkspaceSyncStatus {
+    return this.currentStatus;
   }
 
   /**
@@ -104,6 +176,15 @@ export class WorkspaceSync {
    */
   startInitialSync(): void {
     this.initPromise.then(() => {
+      // Optimistically mark syncing at kickoff. The inner engine only emits its
+      // first `progress` event after >100 files complete, so a medium-sized but
+      // slow pull would otherwise show nothing until `complete`. A total of 0
+      // signals "counting" to consumers; real counts follow via `progress`.
+      // Fast pulls are prevented from flashing this by the stream-side debounce.
+      this.setStatus({
+        phase: 'syncing',
+        progress: { phase: 'download', current: 0, total: 0, percentage: 0 },
+      });
       this.inner.startBackgroundPull();
     });
   }

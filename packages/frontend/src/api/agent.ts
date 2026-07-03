@@ -9,6 +9,7 @@ import type {
   BeforeToolsEvent,
   ToolUse,
   ToolResult,
+  WorkspaceSyncEvent,
 } from '../types/index';
 import { agentClient } from './client/agent-client';
 import { logger } from '../utils/logger';
@@ -24,6 +25,7 @@ interface StreamingCallbacks {
   onToolUse?: (toolUse: ToolUse) => void;
   onToolInputUpdate?: (toolUseId: string, input: Record<string, unknown>) => void;
   onToolResult?: (toolResult: ToolResult) => void;
+  onWorkspaceSync?: (event: WorkspaceSyncEvent) => void;
   onComplete?: (metadata: Record<string, unknown>) => void;
   onError?: (error: Error) => void;
 }
@@ -289,6 +291,14 @@ const handleStreamEvent = (event: AgentStreamEvent, callbacks: StreamingCallback
             }
           });
         }
+      }
+      break;
+    }
+
+    case 'workspaceSyncEvent': {
+      const syncEvent = event as WorkspaceSyncEvent;
+      if (callbacks.onWorkspaceSync) {
+        callbacks.onWorkspaceSync(syncEvent);
       }
       break;
     }

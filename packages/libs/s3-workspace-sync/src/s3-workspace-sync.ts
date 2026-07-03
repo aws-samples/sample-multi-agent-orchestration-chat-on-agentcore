@@ -410,15 +410,25 @@ export class S3WorkspaceSync extends EventEmitter {
     this.logger.debug('Starting background pull...');
 
     this.pullPromise = this.pull()
-      .then(() => {
+      .then((result) => {
         this.pullComplete = true;
         // No log here: `Pull complete: N downloaded ...` is emitted by
         // the pull() call above, which is the single source of truth for
         // completion. A separate "Background pull completed" was redundant.
+        //
+        // Emit a terminal `'complete'` event so subscribers (e.g. the agent's
+        // WorkspaceSync adapter surfacing sync status to the UI) get a reliable
+        // completion signal with the SyncResult. `waitForPull()` cannot carry
+        // this because it deliberately resolves (never rejects) even on failure.
+        this.emit('complete', result);
       })
       .catch((err) => {
         this.logger.error('Background pull failed:', err);
         this.pullComplete = true; // Mark complete even on failure so waiters unblock
+        // Named `'syncError'` rather than `'error'`: Node's EventEmitter throws
+        // synchronously when an `'error'` event is emitted with no listener, which
+        // would turn a best-effort background sync into an unhandled crash.
+        this.emit('syncError', err);
       });
   }
 

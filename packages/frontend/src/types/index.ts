@@ -77,12 +77,27 @@ export interface Message {
   isError?: boolean; // Flag to indicate this message contains an error
 }
 
+// Transient workspace-sync status for a session, surfaced as an ephemeral
+// system line in the chat while the agent's initial S3→local pull runs. Not
+// persisted — it only exists for the duration of an in-flight turn.
+export interface WorkspaceSyncState {
+  status: 'syncing' | 'complete' | 'error';
+  current?: number;
+  total?: number;
+  percentage?: number;
+  currentFile?: string;
+  message?: string; // populated on error
+}
+
 // Session-specific chat state
 export interface SessionChatState {
   messages: Message[];
   isLoading: boolean;
   error: string | null;
   lastUpdated: Date;
+  /** Present only while (or briefly after) a workspace initial sync is
+   * reported for this session. Undefined otherwise. */
+  workspaceSync?: WorkspaceSyncState;
 }
 
 // Chat types
@@ -211,6 +226,20 @@ export interface ServerErrorEvent extends AgentStreamEvent {
     requestId: string;
     savedToHistory?: boolean; // Indicates if error was saved to session history
   };
+}
+
+// Workspace initial-pull progress, interleaved on the model stream. Only emitted
+// when the pull is slow enough to be worth surfacing (see the agent's
+// stream-handler debounce). `syncing` may repeat with updated counts; `complete`
+// and `error` are terminal.
+export interface WorkspaceSyncEvent extends AgentStreamEvent {
+  type: 'workspaceSyncEvent';
+  status: 'syncing' | 'complete' | 'error';
+  current?: number;
+  total?: number;
+  percentage?: number;
+  currentFile?: string;
+  message?: string;
 }
 
 // Config types

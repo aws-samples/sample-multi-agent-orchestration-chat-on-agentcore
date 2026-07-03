@@ -232,6 +232,13 @@ chat:
   bulkDeleteConfirm: '選択した{{count}}件のセッションを削除してもよろしいですか？この操作は取り消せません。'
   sessionsDeleted: '{{count}}件のセッションを削除しました'
 
+# ワークスペース同期（初回のS3プル中に表示される一時的なステータス行）
+workspaceSync:
+  preparing: ワークスペースを準備しています…
+  syncingProgress: 'ワークスペースを同期しています… {{current}}/{{total}} ファイル ({{percentage}}%)'
+  complete: ワークスペースの準備が完了しました
+  error: 'ワークスペースの同期に失敗しました: {{message}}'
+
 # エージェント
 agent:
   systemPromptLabel2: System Prompt

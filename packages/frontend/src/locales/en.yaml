@@ -233,6 +233,13 @@ chat:
   bulkDeleteConfirm: 'Are you sure you want to delete {{count}} selected sessions? This action cannot be undone.'
   sessionsDeleted: '{{count}} sessions deleted'
 
+# Workspace sync (ephemeral status line shown while the agent's initial S3 pull runs)
+workspaceSync:
+  preparing: Preparing workspace…
+  syncingProgress: 'Syncing workspace… {{current}}/{{total}} files ({{percentage}}%)'
+  complete: Workspace ready
+  error: 'Workspace sync failed: {{message}}'
+
 # Agent
 agent:
   systemPromptLabel2: System Prompt

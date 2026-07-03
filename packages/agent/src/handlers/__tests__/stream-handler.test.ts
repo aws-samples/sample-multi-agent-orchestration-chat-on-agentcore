@@ -331,6 +331,114 @@ describe('streamAgentResponse', () => {
     });
   });
 
+  describe('workspace sync status', () => {
+    /**
+     * Build a fake IWorkspaceSync whose onStatusChange replays `initialStatus`
+     * synchronously (mirroring the real adapter) and exposes `push()` so a test
+     * can drive later transitions. Attach it to the mocked request context.
+     */
+    function attachWorkspaceSync(initialStatus: any) {
+      let listener: ((s: any) => void) | null = null;
+      let current = initialStatus;
+      const workspaceSync = {
+        getStatus: () => current,
+        onStatusChange: (l: (s: any) => void) => {
+          listener = l;
+          l(current); // synchronous replay, like the real implementation
+          return () => {
+            listener = null;
+          };
+        },
+        // test helper to emit a later transition
+        push: (s: any) => {
+          current = s;
+          listener?.(s);
+        },
+      };
+      mockGetCurrentContext.mockReturnValue({
+        requestId: 'test-request-id',
+        userId: 'test-user',
+        sessionId: 'test-session' as SessionId,
+        workspaceSync,
+      });
+      return workspaceSync;
+    }
+
+    const syncWrites = () =>
+      res.write.mock.calls
+        .map((c: any[]) => {
+          try {
+            return JSON.parse(c[0]);
+          } catch {
+            return null;
+          }
+        })
+        .filter((e: any) => e?.type === 'workspaceSyncEvent');
+
+    it('emits nothing when the request has no workspace sync', async () => {
+      // default context (set in beforeEach) has no workspaceSync
+      const agent = createMockAgent([{ type: 'text', data: 'Hi' }]);
+      await streamAgentResponse(agent, 'Hello', undefined, res, defaultOptions);
+      expect(syncWrites()).toHaveLength(0);
+    });
+
+    it('stays silent when the pull completes before the debounce elapses', async () => {
+      jest.useFakeTimers();
+      try {
+        attachWorkspaceSync({ phase: 'idle' });
+        const agent = createMockAgent([{ type: 'text', data: 'Hi' }]);
+        // Stream resolves immediately; complete arrives well before 400ms.
+        await streamAgentResponse(agent, 'Hello', undefined, res, defaultOptions);
+        jest.advanceTimersByTime(1000);
+        expect(syncWrites()).toHaveLength(0);
+      } finally {
+        jest.useRealTimers();
+      }
+    });
+
+    it('surfaces a sync error immediately regardless of debounce timing', async () => {
+      attachWorkspaceSync({ phase: 'error', message: 'S3 down' });
+      const agent = createMockAgent([{ type: 'text', data: 'Hi' }]);
+      await streamAgentResponse(agent, 'Hello', undefined, res, defaultOptions);
+
+      const events = syncWrites();
+      expect(events).toHaveLength(1);
+      expect(events[0].status).toBe('error');
+      expect(events[0].message).toBe('S3 down');
+    });
+
+    it('announces syncing after the debounce and then completion', async () => {
+      jest.useFakeTimers();
+      try {
+        const ws = attachWorkspaceSync({
+          phase: 'syncing',
+          progress: { phase: 'download', current: 10, total: 100, percentage: 10 },
+        });
+        // Hold the stream open until we manually advance timers + resolve.
+        const agent = createMockAgent([{ type: 'text', data: 'Hi' }]);
+        const promise = streamAgentResponse(agent, 'Hello', undefined, res, defaultOptions);
+
+        // Debounce fires → the initial syncing line is emitted.
+        jest.advanceTimersByTime(400);
+        // A later progress update streams live, then completion.
+        ws.push({
+          phase: 'syncing',
+          progress: { phase: 'download', current: 60, total: 100, percentage: 60 },
+        });
+        ws.push({ phase: 'complete' });
+
+        await promise;
+
+        const events = syncWrites();
+        expect(events[0]).toMatchObject({ status: 'syncing', percentage: 10 });
+        expect(events.some((e: any) => e.status === 'syncing' && e.percentage === 60)).toBe(true);
+        expect(events[events.length - 1].status).toBe('complete');
+      } finally {
+        jest.useRealTimers();
+      }
+    });
+  });
+
   describe('large event streaming', () => {
     it('should correctly stream all events when there are many', async () => {
       const eventCount = 200;

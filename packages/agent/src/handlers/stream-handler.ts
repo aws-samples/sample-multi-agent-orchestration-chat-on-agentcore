@@ -15,6 +15,7 @@ import {
   buildInputContent,
 } from '../libs/utils/index.js';
 import { getCurrentContext, getContextMetadata } from '../libs/context/request-context.js';
+import type { WorkspaceSyncStatus } from '../types/workspace-sync-types.js';
 import type { SessionStorage, SessionConfig } from '../services/session/types.js';
 import type { AgentMetadata } from '../runtime/agent/types.js';
 import type { StreamTerminationRetryStrategy } from '../runtime/agent/stream-termination-retry-strategy.js';
@@ -47,6 +48,103 @@ function setStreamingHeaders(res: Response): void {
   res.setHeader('Cache-Control', 'no-cache');
   res.setHeader('Connection', 'keep-alive');
   res.setHeader('X-Accel-Buffering', 'no'); // Disable nginx buffering
+}
+
+/**
+ * How long the initial workspace pull must still be running before we tell the
+ * user about it. Fast pulls (small workspaces, or already cached) finish inside
+ * this window and stay silent, so the chat never flashes a "syncing" line that
+ * vanishes a frame later.
+ */
+const WORKSPACE_SYNC_NOTIFY_DELAY_MS = 400;
+
+/**
+ * Surface the request's workspace initial-pull progress as `workspaceSyncEvent`
+ * NDJSON lines, interleaved with the model stream on the same response.
+ *
+ * WHY on the model stream (not AppSync): the pull is kicked off per-invocation
+ * and blocks the first file-touching tool within *this* turn, so its lifetime is
+ * bounded by the stream the frontend is already reading. Reusing that channel
+ * avoids standing up a second delivery path for a turn-scoped signal.
+ *
+ * Emission rules:
+ * - Nothing is written until the pull has run for {@link WORKSPACE_SYNC_NOTIFY_DELAY_MS}
+ *   (debounce against flashing on fast syncs).
+ * - Once the "syncing" line is emitted, subsequent progress updates stream live
+ *   and a terminal "complete" is sent.
+ * - A pull that finishes (or was already finished) before the debounce elapses
+ *   stays completely silent.
+ * - Errors always surface regardless of timing — a silent failed sync is worse
+ *   than a brief flash, because the agent may then operate on a stale workspace.
+ *
+ * @returns a cleanup function that unsubscribes and clears the debounce timer.
+ */
+function streamWorkspaceSyncStatus(res: Response): () => void {
+  const workspaceSync = getCurrentContext()?.workspaceSync;
+  if (!workspaceSync) return () => {};
+
+  let hasEmitted = false;
+  let debounceTimer: ReturnType<typeof setTimeout> | null = null;
+  let lastStatus: WorkspaceSyncStatus = workspaceSync.getStatus();
+
+  const write = (payload: Record<string, unknown>): void => {
+    res.write(`${JSON.stringify({ type: 'workspaceSyncEvent', ...payload })}\n`);
+  };
+
+  const emitFor = (status: WorkspaceSyncStatus): void => {
+    if (status.phase === 'syncing') {
+      hasEmitted = true;
+      write({
+        status: 'syncing',
+        current: status.progress.current,
+        total: status.progress.total,
+        percentage: status.progress.percentage,
+        currentFile: status.progress.currentFile,
+      });
+    } else if (status.phase === 'complete') {
+      // Only announce completion if we announced the start; otherwise this was a
+      // fast sync the user never saw begin.
+      if (hasEmitted) write({ status: 'complete' });
+    } else if (status.phase === 'error') {
+      write({ status: 'error', message: status.message });
+    }
+  };
+
+  const unsubscribe = workspaceSync.onStatusChange((status) => {
+    lastStatus = status;
+
+    if (status.phase === 'idle') return;
+
+    if (status.phase === 'complete' || status.phase === 'error') {
+      if (debounceTimer) {
+        clearTimeout(debounceTimer);
+        debounceTimer = null;
+      }
+      emitFor(status);
+      return;
+    }
+
+    // phase === 'syncing'
+    if (hasEmitted) {
+      emitFor(status); // live progress after the initial announcement
+      return;
+    }
+    // Arm the debounce exactly once; when it fires, announce only if still syncing.
+    if (!debounceTimer) {
+      debounceTimer = setTimeout(() => {
+        debounceTimer = null;
+        if (lastStatus.phase === 'syncing') emitFor(lastStatus);
+      }, WORKSPACE_SYNC_NOTIFY_DELAY_MS);
+    }
+  });
+
+  return () => {
+    if (debounceTimer) {
+      clearTimeout(debounceTimer);
+      debounceTimer = null;
+    }
+    unsubscribe();
+  };
 }
 
 /**
@@ -160,6 +258,11 @@ export async function streamAgentResponse(
   const requestId = getCurrentContext()?.requestId;
   setStreamingHeaders(res);
 
+  // Interleave workspace initial-pull progress onto this stream. Started before
+  // the model loop so a slow pull that blocks the first tool is reported while
+  // the user waits. No-op when the request has no workspace sync.
+  const stopWorkspaceSyncStatus = streamWorkspaceSyncStatus(res);
+
   try {
     logger.info({ requestId }, 'Agent streaming started:');
 
@@ -213,5 +316,9 @@ export async function streamAgentResponse(
     res.end();
   } catch (streamError) {
     await handleStreamError(streamError, res, options);
+  } finally {
+    // Detach the workspace-sync listener and clear any pending debounce timer.
+    // Runs after res.end() in both paths — cleanup only, never writes.
+    stopWorkspaceSyncStatus();
   }
 }
