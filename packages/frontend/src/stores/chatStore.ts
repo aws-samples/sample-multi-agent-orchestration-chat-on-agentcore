@@ -241,6 +241,8 @@ export const useChatStore = create<ChatStore>()(
               ...sessionState,
               isLoading: true,
               error: null,
+              // Clear any stale sync line from a prior turn before this one starts.
+              workspaceSync: undefined,
             },
           },
         });
@@ -444,6 +446,55 @@ export const useChatStore = create<ChatStore>()(
                   });
                 }
               },
+              onWorkspaceSync: (event) => {
+                // Ephemeral: surface the initial-pull status as a system line for
+                // this session. Ignore if the user has switched away. The line is
+                // cleared shortly after `complete` and on turn completion/error so
+                // it never lingers into the next turn.
+                const { activeSessionId, sessions } = get();
+                if (activeSessionId !== sessionId) return;
+                const sessionState = sessions[sessionId];
+                if (!sessionState) return;
+
+                const workspaceSync =
+                  event.status === 'syncing'
+                    ? {
+                        status: 'syncing' as const,
+                        current: event.current,
+                        total: event.total,
+                        percentage: event.percentage,
+                        currentFile: event.currentFile,
+                      }
+                    : event.status === 'error'
+                      ? { status: 'error' as const, message: event.message }
+                      : { status: 'complete' as const };
+
+                set({
+                  sessions: {
+                    ...sessions,
+                    [sessionId]: { ...sessionState, workspaceSync },
+                  },
+                });
+
+                // Auto-dismiss the "complete" line after a short beat so the user
+                // sees sync finished without it sticking around.
+                if (event.status === 'complete') {
+                  setTimeout(() => {
+                    const { sessions } = get();
+                    const current = sessions[sessionId];
+                    // Only clear if still showing the same "complete" line — a new
+                    // turn may have replaced it in the meantime.
+                    if (current?.workspaceSync?.status === 'complete') {
+                      set({
+                        sessions: {
+                          ...sessions,
+                          [sessionId]: { ...current, workspaceSync: undefined },
+                        },
+                      });
+                    }
+                  }, 1500);
+                }
+              },
               onToolResult: (toolResult: ToolResult) => {
                 const { activeSessionId, sessions } = get();
                 if (activeSessionId !== sessionId) return;
@@ -491,6 +542,8 @@ export const useChatStore = create<ChatStore>()(
                     [sessionId]: {
                       ...currentState,
                       isLoading: false,
+                      // Drop any lingering sync line — the turn is over.
+                      workspaceSync: undefined,
                     },
                   },
                   // WHY: Record completion time for the grace-period dedup guard.

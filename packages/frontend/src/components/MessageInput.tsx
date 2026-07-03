@@ -9,6 +9,7 @@ import { useUIStore } from '../stores/uiStore';
 import { useStorageStore } from '../stores/storageStore';
 import * as storageApi from '../api/storage';
 import { StoragePathDisplay } from './StoragePathDisplay';
+import { WorkspaceSyncIndicator } from './WorkspaceSyncIndicator';
 import { StorageManagementModal } from './StorageManagementModal';
 import { ModelReasoningSelector } from './ui/ModelReasoningSelector';
 import { ImagePreview } from './ImagePreview';
@@ -34,6 +35,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({
     sessionId ? (state.sessions[sessionId] ?? null) : null
   );
   const isLoading = sessionState?.isLoading || false;
+  const workspaceSync = sessionState?.workspaceSync || null;
   const isAgentStoreLoading = useAgentStore((state) => state.isLoading);
   const isWideView = useUIStore((state) => state.isWideView);
   const agentWorkingDirectory = useStorageStore((state) => state.agentWorkingDirectory);
@@ -449,11 +451,12 @@ export const MessageInput: React.FC<MessageInputProps> = ({
       className="sticky bottom-0 left-0 right-0 z-30 bg-surface-primary p-4"
       style={{ paddingBottom: 'max(1rem, env(safe-area-inset-bottom))' }}
     >
-      {/* Storage path display */}
+      {/* Storage path display + workspace sync status (to the right of the folder) */}
       <div
-        className={`${isWideView ? 'max-w-full px-4' : 'max-w-4xl'} mx-auto mb-2 transition-[max-width,padding] duration-300 ease-in-out`}
+        className={`${isWideView ? 'max-w-full px-4' : 'max-w-4xl'} mx-auto mb-2 flex items-center gap-2 transition-[max-width,padding] duration-300 ease-in-out`}
       >
         <StoragePathDisplay onClick={() => setIsStorageModalOpen(true)} />
+        {workspaceSync && <WorkspaceSyncIndicator state={workspaceSync} />}
       </div>
 
       <form

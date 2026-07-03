@@ -389,6 +389,57 @@ describe('S3WorkspaceSync', () => {
       // Calling waitForPull after a completed pull should resolve immediately
       await sync.waitForPull();
     });
+
+    it("emits a 'complete' event with the SyncResult when the pull succeeds", async () => {
+      const mockClient = createMockS3Client([{ Key: 'prefix/file.txt', Body: 'content' }]);
+
+      const sync = new S3WorkspaceSync({
+        bucket: 'my-bucket',
+        prefix: 'prefix/',
+        workspaceDir: tmpDir,
+        s3Client: mockClient as unknown as import('@aws-sdk/client-s3').S3Client,
+        logger: createSilentLogger(),
+      });
+
+      const completeSpy = vi.fn();
+      sync.on('complete', completeSpy);
+
+      sync.startBackgroundPull();
+      await sync.waitForPull();
+
+      expect(completeSpy).toHaveBeenCalledTimes(1);
+      expect(completeSpy.mock.calls[0][0]).toMatchObject({ success: true, downloadedFiles: 1 });
+    });
+
+    it("emits 'syncError' (not 'error') when the background pull fails", async () => {
+      // A send() that always throws makes the ListObjectsV2 call reject, so
+      // pull() throws and startBackgroundPull's catch path runs.
+      const failingClient = {
+        send: vi.fn(async () => {
+          throw new Error('S3 unavailable');
+        }),
+      };
+
+      const sync = new S3WorkspaceSync({
+        bucket: 'my-bucket',
+        prefix: 'prefix/',
+        workspaceDir: tmpDir,
+        s3Client: failingClient as unknown as import('@aws-sdk/client-s3').S3Client,
+        logger: createSilentLogger(),
+      });
+
+      const errorSpy = vi.fn();
+      sync.on('syncError', errorSpy);
+
+      // Must not throw synchronously and must not crash on a missing 'error'
+      // listener (Node's EventEmitter would otherwise rethrow).
+      sync.startBackgroundPull();
+      await sync.waitForPull();
+
+      expect(sync.isPullComplete()).toBe(true);
+      expect(errorSpy).toHaveBeenCalledTimes(1);
+      expect(errorSpy.mock.calls[0][0]).toBeInstanceOf(Error);
+    });
   });
 
   describe('progress events', () => {
