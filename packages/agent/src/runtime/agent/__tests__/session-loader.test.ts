@@ -23,7 +23,9 @@ jest.unstable_mockModule('../../../config/index.js', () => ({
   config: {},
 }));
 
-const { loadSessionHistory, applyWindowTruncation } = await import('../session-loader.js');
+const { loadSessionHistory, applyWindowTruncation, sanitizeOrphanedToolBlocks } = await import(
+  '../session-loader.js'
+);
 
 /** Create a minimal mock message object for testing (avoids importing ESM SDK) */
 function createMockMessage(role: string, text: string) {
@@ -41,6 +43,17 @@ function createToolResultMessage(toolUseId: string) {
   return {
     role: 'user',
     content: [{ type: 'toolResultBlock', toolUseId, status: 'success', content: [] }],
+  };
+}
+
+/** Assistant message mixing a text block with a toolUse block (single message). */
+function createTextThenToolUseMessage(text: string, toolUseId: string) {
+  return {
+    role: 'assistant',
+    content: [
+      { type: 'textBlock', text },
+      { type: 'toolUseBlock', toolUseId, name: 'test', input: {} },
+    ],
   };
 }
 
@@ -375,5 +388,178 @@ describe('applyWindowTruncation', () => {
 
     // Falls back to full history
     expect(result).toBe(messages);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// sanitizeOrphanedToolBlocks
+//
+// Reproduces the crash reported when resuming a session that was interrupted
+// AFTER a toolUse was persisted but BEFORE its toolResult: on resume the
+// restored history ends with an orphaned toolUse, and appending the next user
+// message ("続けてください") yields a tool_use with no following tool_result —
+// Bedrock rejects it with
+//   "tool_use ids were found without tool_result blocks immediately after".
+// ---------------------------------------------------------------------------
+
+describe('sanitizeOrphanedToolBlocks', () => {
+  type Block = { type: string; toolUseId?: string; text?: string };
+  type Msg = { role: string; content: Block[] };
+  const cast = (m: ReturnType<typeof createMockMessage>[]) =>
+    m as unknown as Parameters<typeof sanitizeOrphanedToolBlocks>[0];
+  const blocks = (msg: unknown): Block[] => (msg as Msg).content;
+
+  it('returns the array unchanged (same reference) when there are no tool blocks', () => {
+    const messages = cast([
+      createMockMessage('user', 'Hello'),
+      createMockMessage('assistant', 'Hi!'),
+    ]);
+    const result = sanitizeOrphanedToolBlocks(messages);
+    expect(result).toBe(messages);
+  });
+
+  it('leaves a matched toolUse/toolResult pair intact', () => {
+    const id = 'tu-1';
+    const messages = cast([
+      createMockMessage('user', 'Use the tool'),
+      createToolUseMessage(id) as unknown as ReturnType<typeof createMockMessage>,
+      createToolResultMessage(id) as unknown as ReturnType<typeof createMockMessage>,
+      createMockMessage('assistant', 'Done'),
+    ]);
+    const result = sanitizeOrphanedToolBlocks(messages);
+    expect(result).toBe(messages); // nothing to strip
+    expect(result).toHaveLength(4);
+  });
+
+  it('strips a trailing orphaned toolUse (interrupted-after-toolUse case) but keeps the message slot', () => {
+    const orphan = 'tu-orphan';
+    const messages = cast([
+      createMockMessage('user', 'Run it'),
+      createToolUseMessage(orphan) as unknown as ReturnType<typeof createMockMessage>,
+    ]);
+
+    const result = sanitizeOrphanedToolBlocks(messages);
+
+    // Message COUNT is preserved (do not drop the assistant message — dropping it
+    // would leave user → user adjacency once the resume message is appended).
+    expect(result).toHaveLength(2);
+
+    // The orphaned toolUse block must be gone.
+    const lastBlocks = blocks(result[1]);
+    expect(lastBlocks.some((b) => b.type === 'toolUseBlock')).toBe(false);
+
+    // The emptied message keeps a non-empty placeholder block so Bedrock does
+    // not reject an empty content array.
+    expect(lastBlocks.length).toBeGreaterThan(0);
+    expect(lastBlocks.some((b) => b.type === 'textBlock')).toBe(true);
+  });
+
+  it('preserves a sibling text block when stripping an orphaned toolUse from the same message', () => {
+    const orphan = 'tu-orphan';
+    const messages = cast([
+      createMockMessage('user', 'Run it'),
+      createTextThenToolUseMessage(
+        'Let me run that',
+        orphan
+      ) as unknown as ReturnType<typeof createMockMessage>,
+    ]);
+
+    const result = sanitizeOrphanedToolBlocks(messages);
+
+    const lastBlocks = blocks(result[1]);
+    // toolUse stripped, original text retained (no placeholder needed).
+    expect(lastBlocks.some((b) => b.type === 'toolUseBlock')).toBe(false);
+    expect(lastBlocks).toHaveLength(1);
+    expect(lastBlocks[0].type).toBe('textBlock');
+    expect(lastBlocks[0].text).toBe('Let me run that');
+  });
+
+  it('strips a toolResult that has no preceding toolUse', () => {
+    const messages = cast([
+      createMockMessage('user', 'Hello'),
+      createToolResultMessage('tu-missing') as unknown as ReturnType<typeof createMockMessage>,
+    ]);
+
+    const result = sanitizeOrphanedToolBlocks(messages);
+
+    const lastBlocks = blocks(result[1]);
+    expect(lastBlocks.some((b) => b.type === 'toolResultBlock')).toBe(false);
+    expect(lastBlocks.some((b) => b.type === 'textBlock')).toBe(true);
+  });
+
+  it('does not mutate the original messages array', () => {
+    const orphan = 'tu-orphan';
+    const original = cast([
+      createMockMessage('user', 'Run it'),
+      createToolUseMessage(orphan) as unknown as ReturnType<typeof createMockMessage>,
+    ]);
+    const before = blocks(original[1]).length;
+
+    sanitizeOrphanedToolBlocks(original);
+
+    // Original assistant message still carries its toolUse block.
+    expect(blocks(original[1]).length).toBe(before);
+    expect(blocks(original[1]).some((b) => b.type === 'toolUseBlock')).toBe(true);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// loadSessionHistory: orphan sanitisation runs on ALL paths
+// (early-return-within-window AND post-truncation), because the original bug
+// slipped through both the `messages.length <= windowSize` early return and the
+// "no valid trim point" fallback in applyWindowTruncation.
+// ---------------------------------------------------------------------------
+
+describe('loadSessionHistory orphaned-toolUse sanitisation', () => {
+  const mockSessionConfig: SessionConfig = {
+    sessionId: 'test-session-id' as SessionId,
+    actorId: 'test-actor-id' as IdentityId,
+  };
+
+  function buildStorage(messages: unknown[]): jest.Mocked<SessionStorage> {
+    return {
+      loadMessages: jest.fn<() => Promise<unknown[]>>().mockResolvedValue(messages),
+      saveMessages: jest.fn<() => Promise<void>>().mockResolvedValue(undefined),
+      appendMessage: jest.fn<() => Promise<void>>().mockResolvedValue(undefined),
+      clearSession: jest.fn<() => Promise<void>>().mockResolvedValue(undefined),
+    } as unknown as jest.Mocked<SessionStorage>;
+  }
+
+  it('removes a trailing orphaned toolUse even when history is within windowSize', async () => {
+    // 2 messages, windowSize=40 → hits the early `length <= windowSize` return.
+    const storage = buildStorage([
+      createMockMessage('user', 'Run it'),
+      createToolUseMessage('tu-orphan'),
+    ]);
+
+    const result = (await loadSessionHistory(storage, mockSessionConfig, 40)) as unknown as {
+      role: string;
+      content: { type: string }[];
+    }[];
+
+    expect(result).toHaveLength(2);
+    const last = result[1].content;
+    expect(last.some((b) => b.type === 'toolUseBlock')).toBe(false);
+  });
+
+  it('removes a trailing orphaned toolUse even when no valid trim point exists (fallback path)', async () => {
+    // windowSize=1 over a tool chain forces the "no valid trim point" fallback,
+    // which previously returned the full (unsanitised) history.
+    const storage = buildStorage([
+      createToolUseMessage('tu-1'),
+      createToolResultMessage('tu-1'),
+      createToolUseMessage('tu-orphan'),
+    ]);
+
+    const result = (await loadSessionHistory(storage, mockSessionConfig, 1)) as unknown as {
+      role: string;
+      content: { type: string; toolUseId?: string }[];
+    }[];
+
+    // The orphaned trailing toolUse must not survive on any path.
+    const hasOrphan = result.some((m) =>
+      m.content.some((b) => b.type === 'toolUseBlock' && b.toolUseId === 'tu-orphan')
+    );
+    expect(hasOrphan).toBe(false);
   });
 });
