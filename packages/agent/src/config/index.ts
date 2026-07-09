@@ -139,5 +139,11 @@ export const config = parseEnv();
  */
 export const WORKSPACE_DIRECTORY = '/tmp/ws';
 
+/**
+ * Subdirectory of the active workspace holding skill definitions
+ * (`{workspaceDir}/.skills/<skill-name>/SKILL.md`).
+ */
+export const SKILLS_DIR_NAME = '.skills';
+
 // Re-export Bedrock model utilities
 export { createBedrockModel, type BedrockModelOptions } from './bedrock.js';

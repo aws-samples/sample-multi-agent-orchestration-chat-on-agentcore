@@ -8,10 +8,11 @@
  * filesystem paths align with S3 display paths after stripping WORKSPACE_DIRECTORY.
  */
 
+import fs from 'fs';
 import path from 'path';
 import { S3WorkspaceSync } from '@moca/s3-workspace-sync';
 import type { SyncResult } from '@moca/s3-workspace-sync';
-import { config, WORKSPACE_DIRECTORY } from '../config/index.js';
+import { config, WORKSPACE_DIRECTORY, SKILLS_DIR_NAME } from '../config/index.js';
 import { createLogger } from '../libs/logger/index.js';
 import { createUserScopedS3Client, getIdentityId } from '../libs/utils/scoped-credentials.js';
 
@@ -94,6 +95,11 @@ export class WorkspaceSync {
       workspaceDir: this.activeWorkingDirectory,
       region: config.AWS_REGION,
       s3Client,
+      // Download the skills subtree first so waitForSkillsSync() can unblock
+      // agent construction as soon as `.skills/` is on disk, without waiting for
+      // the (potentially large) full pull. The full pull still owns `.skills/`
+      // for both download and upload — a single sync, no second instance.
+      priorityPrefix: `${SKILLS_DIR_NAME}/`,
       logger: logger,
     });
   }
@@ -114,6 +120,31 @@ export class WorkspaceSync {
   async waitForInitialSync(): Promise<void> {
     await this.initPromise;
     await this.inner.waitForPull();
+  }
+
+  /**
+   * Wait until the `.skills/` subtree has finished syncing (its priority phase
+   * of the single full pull) and return the local skills directory path, or
+   * null when no skills exist locally.
+   *
+   * `startInitialSync()` must have been called first — the priority phase runs
+   * inside that background pull. This resolves as soon as `.skills/` is on disk,
+   * without waiting for the rest of the workspace, so callers can hand the path
+   * to the AgentSkills plugin (which scans the filesystem synchronously in its
+   * constructor).
+   */
+  async waitForSkillsSync(): Promise<string | null> {
+    await this.initPromise;
+    await this.inner.waitForPriorityPull();
+
+    const skillsDir = path.join(this.activeWorkingDirectory, SKILLS_DIR_NAME);
+
+    // Report absence (empty dir or none) so the caller skips the AgentSkills
+    // plugin entirely rather than loading an empty set.
+    if (!fs.existsSync(skillsDir) || fs.readdirSync(skillsDir).length === 0) {
+      return null;
+    }
+    return skillsDir;
   }
 
   /**

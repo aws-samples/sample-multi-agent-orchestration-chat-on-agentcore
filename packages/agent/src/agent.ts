@@ -32,6 +32,7 @@ import { buildUserMCPClients } from './runtime/agent/mcp-clients-builder.js';
 import { buildToolSet } from './runtime/agent/tools-builder.js';
 import { extractMemoryParams, fetchLongTermMemories } from './runtime/agent/memory-fetcher.js';
 import { loadSessionHistory } from './runtime/agent/session-loader.js';
+import { buildSkillsPlugin } from './runtime/agent/skills-plugin-builder.js';
 import { StreamTerminationRetryStrategy } from './runtime/agent/stream-termination-retry-strategy.js';
 import { EmptyTextBlockHook } from './services/session/empty-text-block-hook.js';
 import { EmptyReasoningBlockHook } from './services/session/empty-reasoning-block-hook.js';
@@ -65,6 +66,10 @@ export async function createAgent(options?: CreateAgentOptions): Promise<CreateA
     buildToolSet(options?.enabledTools, userMCPClients),
     fetchLongTermMemories(memoryParams),
   ]);
+
+  // Build the skills plugin from the pre-synced path (the caller owns the
+  // pull, so this is a synchronous, I/O-free assembly step).
+  const skillsPlugin = buildSkillsPlugin(options?.skillsPath);
 
   // 3. Create Bedrock model. Prompt cache points are managed by the SDK's
   // auto strategy (see createBedrockModel), so saved history is forwarded
@@ -125,9 +130,12 @@ export async function createAgent(options?: CreateAgentOptions): Promise<CreateA
     //   - EmptyReasoningBlockHook strips the empty-text reasoning block Fable 5
     //     (Mythos-class, adaptive thinking) emits, which the SDK formatter would
     //     otherwise reject on the next turn (see empty-reasoning-block-hook.ts).
+    // The skills plugin (when present) injects `<available_skills>` into the
+    // system prompt; it sits after the sanitizers and before caller plugins.
     plugins: [
       new EmptyTextBlockHook(),
       new EmptyReasoningBlockHook(),
+      ...(skillsPlugin ? [skillsPlugin] : []),
       ...(options?.plugins ?? []),
     ],
     conversationManager,

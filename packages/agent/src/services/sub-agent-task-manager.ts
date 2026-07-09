@@ -288,6 +288,9 @@ class SubAgentTaskManager {
         modelId: task.modelId || agentDef.modelId,
         sessionStorage,
         sessionConfig,
+        // Wait for the `.skills/` subtree (priority phase of the full pull) so
+        // the plugin sees a populated directory before construction.
+        skillsPath: workspaceSync ? await workspaceSync.waitForSkillsSync() : null,
       };
       const { agent } = await createAgent(agentOptions);
 

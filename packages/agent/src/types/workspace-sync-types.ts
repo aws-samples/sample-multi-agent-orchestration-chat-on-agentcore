@@ -17,4 +17,9 @@ export interface IWorkspaceSync {
   syncToS3(): Promise<SyncResult>;
   getWorkspacePath(): string;
   getActiveWorkingDirectory(): string;
+  /**
+   * Wait until the `.skills/` subtree has synced and return its local path, or
+   * null when no skills exist. See WorkspaceSync.waitForSkillsSync for details.
+   */
+  waitForSkillsSync(): Promise<string | null>;
 }

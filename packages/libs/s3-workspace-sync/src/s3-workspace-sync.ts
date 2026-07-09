@@ -74,10 +74,18 @@ export class S3WorkspaceSync extends EventEmitter {
   private readonly logger: SyncLogger;
   private readonly ignoreFilter: SyncIgnoreFilter;
   private readonly contentTypeResolver: (filename: string) => string;
+  private readonly priorityPrefix?: string;
 
   private fileSnapshot: Map<string, FileInfo> = new Map();
   private pullPromise: Promise<void> | null = null;
   private pullComplete = false;
+
+  // Resolves once the priorityPrefix subtree has finished downloading (or
+  // immediately when no priorityPrefix is configured / on pull failure).
+  // Exposed via waitForPriorityPull() so callers can act on the prioritized
+  // files without awaiting the full pull.
+  private priorityPullResolve: (() => void) | null = null;
+  private priorityPullPromise: Promise<void>;
 
   constructor(options: S3WorkspaceSyncOptions) {
     super();
@@ -102,9 +110,34 @@ export class S3WorkspaceSync extends EventEmitter {
 
     this.ignoreFilter = new SyncIgnoreFilter(this.logger, options.ignorePatterns);
 
+    // Normalize priorityPrefix to always end with '/' so it matches directory
+    // boundaries (e.g. '.skills' → '.skills/'), consistent with S3 prefixes.
+    this.priorityPrefix = options.priorityPrefix
+      ? options.priorityPrefix.endsWith('/')
+        ? options.priorityPrefix
+        : `${options.priorityPrefix}/`
+      : undefined;
+
+    // Pre-resolve the priority promise so waitForPriorityPull() never hangs
+    // when pull() is not run or no priorityPrefix is configured.
+    this.priorityPullPromise = new Promise((resolve) => {
+      this.priorityPullResolve = resolve;
+    });
+    if (!this.priorityPrefix) {
+      this.resolvePriorityPull();
+    }
+
     this.logger.debug(
       `Initialized: bucket=${this.bucket}, prefix=${this.prefix}, dir=${this.workspaceDir}`
     );
+  }
+
+  /** Resolve the priority-pull promise exactly once (idempotent). */
+  private resolvePriorityPull(): void {
+    if (this.priorityPullResolve) {
+      this.priorityPullResolve();
+      this.priorityPullResolve = null;
+    }
   }
 
   // ---------------------------------------------------------------------------
@@ -174,12 +207,18 @@ export class S3WorkspaceSync extends EventEmitter {
         `Found ${downloadTasks.length} files to download (concurrency: ${this.downloadConcurrency})`
       );
 
-      // Phase 2: Parallel download
+      // Phase 2: Parallel download.
+      // When a priorityPrefix is configured, its files download first as a
+      // distinct batch; once that batch settles, waitForPriorityPull() unblocks
+      // (via resolvePriorityPull) so callers can act on the prioritized subtree
+      // without waiting for the remaining files. Without a priorityPrefix, all
+      // files are one batch and the priority promise was already resolved in the
+      // constructor.
       const limit = pLimit(this.downloadConcurrency);
       let completedCount = 0;
       const progressInterval = Math.max(1, Math.floor(downloadTasks.length / 20));
 
-      const downloadPromises = downloadTasks.map((task) =>
+      const runDownload = (task: DownloadTask) =>
         limit(async () => {
           try {
             await this.downloadFile(task.s3Key, task.localPath);
@@ -216,10 +255,28 @@ export class S3WorkspaceSync extends EventEmitter {
             completedCount++;
             return { success: false, relativePath: task.relativePath, error: errorMsg };
           }
-        })
-      );
+        });
 
-      await Promise.all(downloadPromises);
+      if (this.priorityPrefix) {
+        const priorityTasks = downloadTasks.filter((t) =>
+          t.relativePath.startsWith(this.priorityPrefix!)
+        );
+        const remainingTasks = downloadTasks.filter(
+          (t) => !t.relativePath.startsWith(this.priorityPrefix!)
+        );
+
+        // Phase 2a: prioritized subtree first, then signal readiness.
+        await Promise.all(priorityTasks.map(runDownload));
+        this.logger.debug(
+          `Priority pull complete: ${priorityTasks.length} file(s) under ${this.priorityPrefix}`
+        );
+        this.resolvePriorityPull();
+
+        // Phase 2b: everything else.
+        await Promise.all(remainingTasks.map(runDownload));
+      } else {
+        await Promise.all(downloadTasks.map(runDownload));
+      }
 
       // Phase 3: Delete local-only files
       const deletedFiles = this.cleanupLocalOnlyFiles(s3FilePaths);
@@ -247,6 +304,11 @@ export class S3WorkspaceSync extends EventEmitter {
       const msg = error instanceof Error ? error.message : String(error);
       this.logger.error(`Pull failed: ${msg}`);
       throw new S3OperationError(`Pull failed: ${msg}`, error);
+    } finally {
+      // Unblock any priority waiters even if pull failed before Phase 2a — a
+      // failed pull must not leave waitForPriorityPull() hanging forever. This
+      // is a no-op when the promise was already resolved.
+      this.resolvePriorityPull();
     }
   }
 
@@ -432,6 +494,19 @@ export class S3WorkspaceSync extends EventEmitter {
       this.logger.debug('Waiting for background pull to complete...');
       await this.pullPromise;
     }
+  }
+
+  /**
+   * Wait until the {@link S3WorkspaceSyncOptions.priorityPrefix} subtree has
+   * finished downloading during pull().
+   *
+   * Resolves immediately when no priorityPrefix is configured. Resolves as soon
+   * as the prioritized batch settles — before the rest of the pull completes —
+   * so callers can act on that subtree early. Also resolves if the pull fails,
+   * so waiters never hang.
+   */
+  async waitForPriorityPull(): Promise<void> {
+    await this.priorityPullPromise;
   }
 
   /**

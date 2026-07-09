@@ -467,6 +467,106 @@ describe('S3WorkspaceSync', () => {
     });
   });
 
+  describe('priorityPrefix', () => {
+    it('waitForPriorityPull resolves immediately when no priorityPrefix is set', async () => {
+      const mockClient = createMockS3Client();
+      const sync = new S3WorkspaceSync({
+        bucket: 'my-bucket',
+        prefix: 'prefix/',
+        workspaceDir: tmpDir,
+        s3Client: mockClient as unknown as import('@aws-sdk/client-s3').S3Client,
+        logger: createSilentLogger(),
+      });
+
+      // Should resolve without ever calling pull().
+      await sync.waitForPriorityPull();
+    });
+
+    it('downloads priority subtree first and unblocks waitForPriorityPull before the rest', async () => {
+      const mockClient = createMockS3Client([
+        { Key: 'prefix/.skills/pirate/SKILL.md', Body: 'skill' },
+        { Key: 'prefix/big/data.bin', Body: 'huge payload' },
+      ]);
+
+      // Delay only the non-priority file's download so we can observe that the
+      // priority promise resolves while `big/` is still in flight.
+      const originalSend = mockClient.send.getMockImplementation()!;
+      let releaseBig: () => void = () => {};
+      const bigGate = new Promise<void>((resolve) => {
+        releaseBig = resolve;
+      });
+      mockClient.send.mockImplementation(async (command: any) => {
+        if (
+          command.constructor.name === 'GetObjectCommand' &&
+          (command.input?.Key as string)?.includes('/big/')
+        ) {
+          await bigGate;
+        }
+        return originalSend(command);
+      });
+
+      const sync = new S3WorkspaceSync({
+        bucket: 'my-bucket',
+        prefix: 'prefix/',
+        workspaceDir: tmpDir,
+        s3Client: mockClient as unknown as import('@aws-sdk/client-s3').S3Client,
+        logger: createSilentLogger(),
+        priorityPrefix: '.skills/',
+      });
+
+      sync.startBackgroundPull();
+
+      // Priority pull resolves even though the big file is still gated.
+      await sync.waitForPriorityPull();
+      expect(fs.readFileSync(path.join(tmpDir, '.skills/pirate/SKILL.md'), 'utf-8')).toBe('skill');
+      expect(fs.existsSync(path.join(tmpDir, 'big/data.bin'))).toBe(false);
+
+      // Release the rest and let the full pull finish.
+      releaseBig();
+      await sync.waitForPull();
+      expect(fs.existsSync(path.join(tmpDir, 'big/data.bin'))).toBe(true);
+    });
+
+    it('normalizes priorityPrefix without trailing slash', async () => {
+      const mockClient = createMockS3Client([
+        { Key: 'prefix/.skills/a/SKILL.md', Body: 'a' },
+      ]);
+
+      const sync = new S3WorkspaceSync({
+        bucket: 'my-bucket',
+        prefix: 'prefix/',
+        workspaceDir: tmpDir,
+        s3Client: mockClient as unknown as import('@aws-sdk/client-s3').S3Client,
+        logger: createSilentLogger(),
+        priorityPrefix: '.skills', // no trailing slash
+      });
+
+      await sync.pull();
+      await sync.waitForPriorityPull();
+      expect(fs.existsSync(path.join(tmpDir, '.skills/a/SKILL.md'))).toBe(true);
+    });
+
+    it('waitForPriorityPull resolves even when pull fails', async () => {
+      const mockClient = createMockS3Client();
+      mockClient.send.mockImplementation(async () => {
+        throw new Error('boom');
+      });
+
+      const sync = new S3WorkspaceSync({
+        bucket: 'my-bucket',
+        prefix: 'prefix/',
+        workspaceDir: tmpDir,
+        s3Client: mockClient as unknown as import('@aws-sdk/client-s3').S3Client,
+        logger: createSilentLogger(),
+        priorityPrefix: '.skills/',
+      });
+
+      await expect(sync.pull()).rejects.toThrow();
+      // Must not hang: the finally block resolves the priority promise.
+      await sync.waitForPriorityPull();
+    });
+  });
+
   describe('getWorkspacePath', () => {
     it('returns the configured workspace directory', () => {
       const mockClient = createMockS3Client();

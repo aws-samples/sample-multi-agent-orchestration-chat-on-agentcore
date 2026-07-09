@@ -1,6 +1,6 @@
 import path from 'path';
 import { generateDefaultContext } from './default-context.js';
-import { WORKSPACE_DIRECTORY } from '../index.js';
+import { WORKSPACE_DIRECTORY, SKILLS_DIR_NAME } from '../index.js';
 import { RUNTIME_TOOL_NAMES } from '@moca/tool-definitions';
 
 export interface SystemPromptOptions {
@@ -59,6 +59,9 @@ When you create or edit files:
 4. When using execute_command, you don't need to specify workingDirectory
 
 The workspace sync handles most file operations automatically, making your workflow seamless.
+
+### Skills Directory
+- The "${SKILLS_DIR_NAME}/" folder holds skill definitions loaded into your capabilities. Do NOT edit or delete files under "${SKILLS_DIR_NAME}/" unless the user explicitly asks you to manage skills.
 
 ### Displaying Files in Chat
 When referencing files in chat, strip "${WORKSPACE_DIRECTORY}" from the local path to get the display path:
