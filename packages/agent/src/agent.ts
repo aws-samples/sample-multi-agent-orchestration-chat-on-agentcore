@@ -67,9 +67,9 @@ export async function createAgent(options?: CreateAgentOptions): Promise<CreateA
     fetchLongTermMemories(memoryParams),
   ]);
 
-  // Build the skills plugin from the pre-synced path (the caller owns the
+  // Build the skills plugin from the pre-synced paths (the caller owns the
   // pull, so this is a synchronous, I/O-free assembly step).
-  const skillsPlugin = buildSkillsPlugin(options?.skillsPath);
+  const skillsPlugin = buildSkillsPlugin(options?.skillsPaths);
 
   // 3. Create Bedrock model. Prompt cache points are managed by the SDK's
   // auto strategy (see createBedrockModel), so saved history is forwarded

@@ -1,15 +1,15 @@
 /**
  * Skills plugin builder
  *
- * Constructs the Strands SDK's vended `AgentSkills` plugin from a directory of
- * skills that the caller has already synced to local disk.
+ * Constructs the Strands SDK's vended `AgentSkills` plugin from one or more
+ * directories of skills that the caller has already synced to local disk.
  *
  * Isolated in a single builder (mirroring mcp-clients-builder / tools-builder)
- * so that swapping the skill source is a localized change. The builder takes a
- * plain filesystem path — not a workspace-sync object — so it stays a pure
+ * so that swapping the skill source is a localized change. The builder takes
+ * plain filesystem paths — not a workspace-sync object — so it stays a pure
  * assembler with no I/O ownership. Readiness (the S3→local pull) is the
  * caller's responsibility: the `AgentSkills` constructor scans the filesystem
- * synchronously and does not re-scan later, so the path must be fully populated
+ * synchronously and does not re-scan later, so the paths must be fully populated
  * before this is called.
  */
 
@@ -17,15 +17,17 @@ import { AgentSkills } from '@strands-agents/sdk/vended-plugins/skills';
 import { logger } from '../../libs/logger/index.js';
 
 /**
- * Build the AgentSkills plugin for a pre-synced skills directory, or return
- * `null` when no skills path was provided.
+ * Build the AgentSkills plugin from pre-synced skills directories, or return
+ * `null` when no paths were provided.
  *
- * @param skillsPath Absolute path to a populated skills directory
- *   (`.../.skills/`), or undefined/null when skills are unavailable.
+ * @param skillsPaths Absolute paths to populated skills directories
+ *   (`.../.skills/`). Order matters: `AgentSkills` lets later sources override
+ *   same-named skills from earlier ones, so pass `[shared, workspace]` to let a
+ *   workspace-specific skill win over a shared one. Empty/undefined → no plugin.
  */
-export function buildSkillsPlugin(skillsPath?: string | null): AgentSkills | null {
-  if (!skillsPath) return null;
+export function buildSkillsPlugin(skillsPaths?: string[]): AgentSkills | null {
+  if (!skillsPaths || skillsPaths.length === 0) return null;
 
-  logger.info({ skillsPath }, '[SKILLS] Loading skills from workspace');
-  return new AgentSkills({ skills: [skillsPath], strict: false });
+  logger.info({ skillsPaths }, '[SKILLS] Loading skills from workspace');
+  return new AgentSkills({ skills: skillsPaths, strict: false });
 }

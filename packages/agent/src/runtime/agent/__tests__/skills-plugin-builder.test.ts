@@ -26,20 +26,20 @@ const { buildSkillsPlugin } = await import('../skills-plugin-builder.js');
 
 // ── Helpers ────────────────────────────────────────────────────────────
 
-const SKILL_MD = `---
-name: greeting
-description: Greet the user warmly.
+const skillMd = (name: string) => `---
+name: ${name}
+description: A test skill named ${name}.
 ---
-# Greeting
-Say hello.
+# ${name}
+Do the ${name} thing.
 `;
 
-/** Create a temp `.skills/` directory populated with one skill. */
-function makeSkillsDir(): string {
+/** Create a temp `.skills/` directory populated with one named skill. */
+function makeSkillsDir(name = 'greeting'): string {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'skills-test-'));
-  const skillDir = path.join(root, '.skills', 'greeting');
+  const skillDir = path.join(root, '.skills', name);
   fs.mkdirSync(skillDir, { recursive: true });
-  fs.writeFileSync(path.join(skillDir, 'SKILL.md'), SKILL_MD);
+  fs.writeFileSync(path.join(skillDir, 'SKILL.md'), skillMd(name));
   return path.join(root, '.skills');
 }
 
@@ -51,22 +51,35 @@ describe('buildSkillsPlugin', () => {
     tmpRoots.length = 0;
   });
 
-  it('returns null when skillsPath is undefined', () => {
+  it('returns null when skillsPaths is undefined', () => {
     expect(buildSkillsPlugin(undefined)).toBeNull();
   });
 
-  it('returns null when skillsPath is null', () => {
-    expect(buildSkillsPlugin(null)).toBeNull();
+  it('returns null when skillsPaths is empty', () => {
+    expect(buildSkillsPlugin([])).toBeNull();
   });
 
   it('loads skills from the provided directory', async () => {
     const skillsDir = makeSkillsDir();
     tmpRoots.push(path.dirname(skillsDir));
 
-    const plugin = buildSkillsPlugin(skillsDir);
+    const plugin = buildSkillsPlugin([skillsDir]);
 
     expect(plugin).not.toBeNull();
     const skills = await plugin!.getAvailableSkills();
     expect(skills.map((s) => s.name)).toContain('greeting');
+  });
+
+  it('loads skills from multiple directories', async () => {
+    const sharedDir = makeSkillsDir('sailor');
+    const wsDir = makeSkillsDir('greeting');
+    tmpRoots.push(path.dirname(sharedDir), path.dirname(wsDir));
+
+    const plugin = buildSkillsPlugin([sharedDir, wsDir]);
+
+    expect(plugin).not.toBeNull();
+    const names = (await plugin!.getAvailableSkills()).map((s) => s.name);
+    expect(names).toContain('sailor');
+    expect(names).toContain('greeting');
   });
 });

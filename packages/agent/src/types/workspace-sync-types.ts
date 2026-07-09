@@ -18,8 +18,14 @@ export interface IWorkspaceSync {
   getWorkspacePath(): string;
   getActiveWorkingDirectory(): string;
   /**
-   * Wait until the `.skills/` subtree has synced and return its local path, or
-   * null when no skills exist. See WorkspaceSync.waitForSkillsSync for details.
+   * Wait until the workspace `.skills/` subtree has synced and return its local
+   * path, or null when no skills exist. See WorkspaceSync.waitForSkillsSync.
    */
   waitForSkillsSync(): Promise<string | null>;
+  /**
+   * Pull the user's root (shared) `.skills/` and return its local path, or null
+   * when there are none (or the storage path is the root). See
+   * WorkspaceSync.waitForSharedSkillsSync.
+   */
+  waitForSharedSkillsSync(): Promise<string | null>;
 }

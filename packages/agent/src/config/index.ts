@@ -145,5 +145,13 @@ export const WORKSPACE_DIRECTORY = '/tmp/ws';
  */
 export const SKILLS_DIR_NAME = '.skills';
 
+/**
+ * Local directory (outside the active workspace) into which the user's ROOT
+ * `.skills/` — shared across all storage paths — is pulled read-only. Kept
+ * outside WORKSPACE_DIRECTORY (`/tmp/ws`) so it is never pushed back or touched
+ * by the main workspace sync's cleanup.
+ */
+export const SHARED_SKILLS_DIRECTORY = '/tmp/.skills';
+
 // Re-export Bedrock model utilities
 export { createBedrockModel, type BedrockModelOptions } from './bedrock.js';

@@ -8,6 +8,7 @@ jest.unstable_mockModule('../../config/index.js', () => ({
   logger: { info: jest.fn(), warn: jest.fn(), error: jest.fn(), debug: jest.fn() },
   config: {},
   WORKSPACE_DIRECTORY: '/tmp/ws',
+  SHARED_SKILLS_DIRECTORY: '/tmp/.skills',
   SKILLS_DIR_NAME: '.skills',
 }));
 

@@ -38,12 +38,15 @@ export interface CreateAgentOptions {
   memoryTopK?: number;
   mcpConfig?: Record<string, unknown>;
   /**
-   * Absolute path to a pre-synced skills directory (`.../.skills/`). When set,
-   * the skills are exposed via the Strands `AgentSkills` plugin. The caller is
-   * responsible for syncing the directory (e.g. `WorkspaceSync.waitForSkillsSync()`)
-   * before calling createAgent — the plugin scans it synchronously.
+   * Absolute paths to pre-synced skills directories (each a `.../.skills/`).
+   * Passed to the Strands `AgentSkills` plugin as skill sources; later entries
+   * win on name collision. Typically `[sharedSkills, workspaceSkills]` so a
+   * workspace-specific skill overrides a same-named shared one. The caller syncs
+   * the directories (e.g. `WorkspaceSync.waitForSkillsSync()` /
+   * `waitForSharedSkillsSync()`) before calling createAgent — the plugin scans
+   * them synchronously.
    */
-  skillsPath?: string | null;
+  skillsPaths?: string[];
   /**
    * Logical agent identifier (from the request body's `agentId`). Forwarded
    * to the Strands SDK as the Agent `id`, which surfaces as

@@ -12,7 +12,12 @@ import fs from 'fs';
 import path from 'path';
 import { S3WorkspaceSync } from '@moca/s3-workspace-sync';
 import type { SyncResult } from '@moca/s3-workspace-sync';
-import { config, WORKSPACE_DIRECTORY, SKILLS_DIR_NAME } from '../config/index.js';
+import {
+  config,
+  WORKSPACE_DIRECTORY,
+  SHARED_SKILLS_DIRECTORY,
+  SKILLS_DIR_NAME,
+} from '../config/index.js';
 import { createLogger } from '../libs/logger/index.js';
 import { createUserScopedS3Client, getIdentityId } from '../libs/utils/scoped-credentials.js';
 
@@ -34,6 +39,12 @@ export class WorkspaceSync {
   private readonly activeWorkingDirectory: string;
   private readonly bucketName: string;
   private readonly normalizedStoragePath: string;
+
+  // Captured during initSync so waitForSharedSkillsSync() can build a second,
+  // root-scoped read-only sync that reuses the already-resolved scoped client
+  // and identity key instead of resolving Identity Pool credentials again.
+  private resolvedS3Client?: import('@aws-sdk/client-s3').S3Client;
+  private resolvedStorageKey!: string;
 
   private initPromise: Promise<void>;
 
@@ -83,6 +94,11 @@ export class WorkspaceSync {
           `ensure IAM policy restricts access to the users/${userId}/ prefix.`
       );
     }
+
+    // Capture resolved client + storage key so waitForSharedSkillsSync() can
+    // reuse them for the root-scoped skills pull.
+    this.resolvedS3Client = s3Client;
+    this.resolvedStorageKey = storageKey;
 
     // Build S3 prefix using identityId (or userId fallback for local dev)
     const prefix = this.normalizedStoragePath
@@ -145,6 +161,42 @@ export class WorkspaceSync {
       return null;
     }
     return skillsDir;
+  }
+
+  /**
+   * Pull the user's ROOT `.skills/` (`users/{id}/.skills/`, shared across all
+   * storage paths) into a directory OUTSIDE the main workspace, and return its
+   * local path — or null when there are no shared skills.
+   *
+   * A separate, pull-only sync (not wired to the push hook) so shared skills are
+   * read-only and never round-trip to S3 or collide with the main sync's
+   * cleanup. Reuses the scoped client/identity resolved by initSync.
+   *
+   * Returns null when the storage path is the root itself: in that case the main
+   * sync's prefix already IS `users/{id}/`, so its `.skills/` is the root
+   * `.skills/` — pulling it again here would be a duplicate.
+   */
+  async waitForSharedSkillsSync(): Promise<string | null> {
+    await this.initPromise;
+
+    // Root storagePath: main sync already covers users/{id}/.skills/.
+    if (!this.normalizedStoragePath) return null;
+
+    const rootSync = new S3WorkspaceSync({
+      bucket: this.bucketName,
+      prefix: `users/${this.resolvedStorageKey}/${SKILLS_DIR_NAME}/`,
+      workspaceDir: SHARED_SKILLS_DIRECTORY,
+      region: config.AWS_REGION,
+      s3Client: this.resolvedS3Client,
+      logger,
+    });
+
+    const result = await rootSync.pull();
+
+    if (!fs.existsSync(SHARED_SKILLS_DIRECTORY) || result.downloadedFiles === 0) {
+      return null;
+    }
+    return SHARED_SKILLS_DIRECTORY;
   }
 
   /**

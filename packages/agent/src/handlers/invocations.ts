@@ -74,15 +74,22 @@ export async function handleInvocation(req: Request, res: Response): Promise<voi
     ? initializeWorkspaceSync(userId, body.storagePath, context)
     : null;
 
-  // 1b. Wait for the `.skills/` subtree to finish syncing before createAgent
-  //     builds the AgentSkills plugin (which scans the filesystem synchronously
-  //     in its constructor). initializeWorkspaceSync started a single full pull
-  //     that downloads `.skills/` first (priorityPrefix), so this unblocks as
-  //     soon as skills are on disk — the rest of the workspace keeps pulling in
-  //     the background.
-  const skillsPath = workspaceSyncResult
-    ? await workspaceSyncResult.workspaceSync.waitForSkillsSync()
-    : null;
+  // 1b. Wait for skills to finish syncing before createAgent builds the
+  //     AgentSkills plugin (which scans the filesystem synchronously in its
+  //     constructor). Two sources, pulled in parallel:
+  //       - workspace `.skills/` — the priority phase of the main full pull
+  //         (unblocks as soon as it's on disk; the rest keeps pulling in bg).
+  //       - shared root `.skills/` — a separate read-only pull.
+  //     Order `[shared, workspace]` lets a workspace skill override a same-named
+  //     shared one (AgentSkills: later sources win).
+  const skillsPaths = workspaceSyncResult
+    ? (
+        await Promise.all([
+          workspaceSyncResult.workspaceSync.waitForSharedSkillsSync(),
+          workspaceSyncResult.workspaceSync.waitForSkillsSync(),
+        ])
+      ).filter((p): p is string => p !== null)
+    : [];
 
   // 2. Setup session only when the request carries a sessionId.
   //    Sessionless invocations skip AgentCore Memory / DynamoDB entirely —
@@ -121,7 +128,7 @@ export async function handleInvocation(req: Request, res: Response): Promise<voi
     mcpConfig: body.mcpConfig,
     sessionStorage: sessionResult?.storage,
     sessionConfig: sessionResult?.config,
-    skillsPath,
+    skillsPaths,
     agentId: body.agentId,
   });
 
