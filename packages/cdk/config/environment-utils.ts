@@ -71,6 +71,7 @@ const DEFAULT_CONFIG = {
   cognitoDeletionProtection: false,
   logRetentionDays: 7,
   tavilyApiKeySecretName: 'agentcore/default/tavily-api-key',
+  openAiApiKeySecretName: 'agentcore/default/openai-api-key',
   githubTokenSecretName: 'agentcore/default/github-token',
   githubWebhookSecretName: 'agentcore/default/github-webhook-secret',
   // Default geo restriction: Japan and United States
@@ -345,6 +346,7 @@ function resolveConfig(env: Environment, input: EnvironmentConfigInput): Environ
     cognitoDomainPrefix: input.cognitoDomainPrefix!,
     logRetentionDays: input.logRetentionDays ?? DEFAULT_CONFIG.logRetentionDays,
     tavilyApiKeySecretName: input.tavilyApiKeySecretName ?? DEFAULT_CONFIG.tavilyApiKeySecretName,
+    openAiApiKeySecretName: input.openAiApiKeySecretName ?? DEFAULT_CONFIG.openAiApiKeySecretName,
     githubTokenSecretName: input.githubTokenSecretName ?? DEFAULT_CONFIG.githubTokenSecretName,
     githubWebhookSecretName:
       input.githubWebhookSecretName ?? DEFAULT_CONFIG.githubWebhookSecretName,
@@ -386,6 +388,7 @@ function getPrEnvironmentConfig(env: string): EnvironmentConfigInput {
     memoryExpirationDays: 7, // Short retention for PR environments
     logRetentionDays: 3, // Short retention for PR environments
     tavilyApiKeySecretName: 'agentcore/dev/tavily-api-key', // Use dev secrets
+    openAiApiKeySecretName: 'agentcore/dev/openai-api-key', // Use dev secrets
     githubTokenSecretName: 'agentcore/dev/github-token', // Use dev secrets
     allowedSignUpEmailDomains: ['amazon.com', 'amazon.co.jp'],
   };

@@ -55,6 +55,12 @@ export const GATEWAY_TOOL_NAMES = {
   /** nova-reel-tools__nova_reel */
   NOVA_REEL: 'nova-reel-tools___nova_reel',
 
+  // ── GPT Image Tools (opt-in: requires openAiApiKeySecretName in environments.ts) ──
+  /** gpt-image-tools___gpt_image */
+  GPT_IMAGE: 'gpt-image-tools___gpt_image',
+  /** gpt-image-tools___gpt_image_edit */
+  GPT_IMAGE_EDIT: 'gpt-image-tools___gpt_image_edit',
+
   // ── Tavily Tools (opt-in: requires tavilyApiKeySecretName in environments.ts) ──
   /** tavily-tools___tavily_search */
   TAVILY_SEARCH: 'tavily-tools___tavily_search',

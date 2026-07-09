@@ -366,19 +366,27 @@ export class AgentCoreMCPClient {
         headers.Authorization = authHeader;
       }
 
-      const response = await fetchWithRetry(this.endpointUrl, {
-        method: 'POST',
-        headers,
-        body: JSON.stringify({
-          jsonrpc: '2.0',
-          id: Date.now(),
-          method: 'tools/call',
-          params: {
-            name: toolName,
-            arguments: arguments_,
-          },
-        }),
-      });
+      const response = await fetchWithRetry(
+        this.endpointUrl,
+        {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({
+            jsonrpc: '2.0',
+            id: Date.now(),
+            method: 'tools/call',
+            params: {
+              name: toolName,
+              arguments: arguments_,
+            },
+          }),
+        },
+        // Tool calls can be long-running (image/video generation). Use the
+        // configured tool-call timeout instead of the short default that suits
+        // `tools/list`. Without this, slow tools abort with "This operation was
+        // aborted" long before their Lambda (up to 180s) finishes.
+        { timeout: config.MCP_TOOL_CALL_TIMEOUT_MS }
+      );
 
       if (!response.ok) {
         throw new Error(`HTTP ${response.status}: ${response.statusText}`);

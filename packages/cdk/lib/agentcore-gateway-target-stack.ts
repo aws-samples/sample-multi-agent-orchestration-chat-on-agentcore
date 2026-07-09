@@ -86,6 +86,12 @@ export class AgentCoreGatewayTargetStack extends cdk.Stack {
   public readonly tavilyToolsTarget: AgentCoreLambdaTarget | undefined;
 
   /**
+   * GPT Image Tools Lambda Target.
+   * Undefined when envConfig.openAiApiKeySecretName is not configured.
+   */
+  public readonly gptImageToolsTarget: AgentCoreLambdaTarget | undefined;
+
+  /**
    * Nova Canvas Tools Lambda Target
    */
   public readonly novaCanvasToolsTarget: AgentCoreLambdaTarget;
@@ -451,6 +457,63 @@ export class AgentCoreGatewayTargetStack extends cdk.Stack {
       description: 'Nova Canvas Tools Lambda Function Name',
     });
 
+    // ── GPT Image Tools Target (opt-in: requires openAiApiKeySecretName in environment config) ──
+    // Like Tavily, this Lambda is only deployed when openAiApiKeySecretName is configured,
+    // isolating `secretsmanager:GetSecretValue` for the OpenAI API key in a dedicated role.
+    // Unlike Nova Canvas it needs no Bedrock permission — it calls the OpenAI REST API directly.
+    if (envConfig.openAiApiKeySecretName) {
+      this.gptImageToolsTarget = new AgentCoreLambdaTarget(this, 'GptImageToolsTarget', {
+        resourcePrefix,
+        targetName: 'gpt-image-tools',
+        description: 'Lambda function providing OpenAI gpt-image image generation tools',
+        lambdaCodePath: 'packages/lambda-tools/tools/gpt-image-tools',
+        toolSchemaPath: 'packages/lambda-tools/tools/gpt-image-tools/tool-schema.json',
+        // timeout: high-quality gpt-image generations can take well over a minute.
+        timeout: 180,
+        memorySize: 512,
+        environment: {
+          LOG_LEVEL: 'INFO',
+          OPENAI_API_KEY_SECRET_NAME: envConfig.openAiApiKeySecretName,
+          USER_STORAGE_BUCKET_NAME: userStorageBucketName,
+        },
+        // Forward the Cognito ID Token so the interceptor can resolve identityId (per-user S3).
+        allowedRequestHeaders: ['X-Amzn-Bedrock-AgentCore-Runtime-Custom-Id-Token'],
+      });
+      this.gptImageToolsTarget.addToImportedGateway(importedGateway, 'GptImageToolsGatewayTarget');
+
+      // Secrets Manager access scoped to the configured OpenAI API key secret only.
+      // The `-*` suffix matches the Secrets Manager 6-char random suffix pattern.
+      this.gptImageToolsTarget.lambdaFunction.addToRolePolicy(
+        new iam.PolicyStatement({
+          sid: 'OpenAiSecretsManagerRead',
+          actions: ['secretsmanager:GetSecretValue'],
+          resources: [
+            `arn:aws:secretsmanager:${this.region}:${this.account}:secret:${envConfig.openAiApiKeySecretName}-*`,
+          ],
+        })
+      );
+
+      // S3 write (generated/edited output) + read (source images for gpt_image_edit)
+      // for user storage. GetObject lets the edit tool pull a previously generated
+      // image back in, enabling stateless multi-turn editing.
+      this.gptImageToolsTarget.lambdaFunction.addToRolePolicy(
+        new iam.PolicyStatement({
+          actions: ['s3:PutObject', 's3:GetObject'],
+          resources: [`arn:aws:s3:::${userStorageBucketName}/*`],
+        })
+      );
+
+      new cdk.CfnOutput(this, 'GptImageToolsLambdaArn', {
+        value: this.gptImageToolsTarget.lambdaFunction.functionArn,
+        description: 'GPT Image Tools Lambda Function ARN',
+      });
+
+      new cdk.CfnOutput(this, 'GptImageToolsLambdaName', {
+        value: this.gptImageToolsTarget.lambdaFunction.functionName,
+        description: 'GPT Image Tools Lambda Function Name',
+      });
+    }
+
     // ── Nova Reel Tools Target ──
 
     this.novaReelToolsTarget = new AgentCoreLambdaTarget(this, 'NovaReelToolsTarget', {
@@ -654,6 +717,21 @@ export class AgentCoreGatewayTargetStack extends cdk.Stack {
             id: 'AwsSolutions-IAM5',
             reason:
               'Secrets Manager appends an auto-generated 6-character random suffix to every secret ARN, so scoping secretsmanager:GetSecretValue to the exact configured Tavily API key secret requires a "-*" suffix wildcard on the ARN. The resource is already narrowed to the single configured secret name prefix, not wildcarded across all secrets.',
+          },
+        ]
+      );
+    }
+
+    // GPT Image Tools: Secrets Manager `-*` suffix wildcard + user storage bucket /* for S3 writes.
+    if (envConfig.openAiApiKeySecretName) {
+      NagSuppressions.addResourceSuppressionsByPath(
+        this,
+        [`/${id}/GptImageToolsTarget/Function/ServiceRole/DefaultPolicy/Resource`],
+        [
+          {
+            id: 'AwsSolutions-IAM5',
+            reason:
+              'Secrets Manager appends an auto-generated 6-character random suffix to every secret ARN, so scoping secretsmanager:GetSecretValue to the exact configured OpenAI API key secret requires a "-*" suffix wildcard on the ARN — narrowed to the single configured secret name prefix, not wildcarded across all secrets. User storage bucket /* is required for S3 object-level writes.',
           },
         ]
       );

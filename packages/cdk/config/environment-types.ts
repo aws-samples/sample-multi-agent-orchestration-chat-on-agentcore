@@ -153,6 +153,15 @@ export interface EnvironmentConfig {
   tavilyApiKeySecretName?: string;
 
   /**
+   * OpenAI API Key Secret Name (Secrets Manager)
+   * When set, the gpt-image Gateway Lambda target is deployed and granted
+   * scoped read access to this secret. Leave unset to skip deploying the tool.
+   * NOTE: This is a secret NAME/ID reference, not the actual secret value
+   * pragma: allowlist secret
+   */
+  openAiApiKeySecretName?: string;
+
+  /**
    * GitHub Token Secret Name (Secrets Manager)
    * Set for environments to retrieve GitHub token from Secrets Manager
    * Used for gh CLI authentication

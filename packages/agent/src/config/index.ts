@@ -18,6 +18,12 @@ const envSchema = z.object({
   // AgentCore Gateway Configuration
   AGENTCORE_GATEWAY_ENDPOINT: z.url(),
 
+  // Timeout (ms) for a single Gateway MCP `tools/call` request. Must exceed the
+  // slowest tool's Lambda timeout (image generation runs 16–120s; the gpt-image
+  // Lambda is capped at 180s), so the default is set above that with headroom.
+  // `tools/list` keeps a shorter fixed timeout — only tool calls are long.
+  MCP_TOOL_CALL_TIMEOUT_MS: z.coerce.number().int().positive().default(300000),
+
   // Bedrock Configuration
   BEDROCK_MODEL_ID: z.string().default('global.anthropic.claude-sonnet-4-6'),
   BEDROCK_REGION: z.string().default('us-east-1'),

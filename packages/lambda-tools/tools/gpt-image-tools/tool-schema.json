@@ -1,0 +1,94 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "properties": {
+    "tools": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "name": { "type": "string" },
+          "description": { "type": "string" },
+          "inputSchema": { "type": "object" }
+        }
+      }
+    }
+  },
+  "tools": [
+    {
+      "name": "gpt_image",
+      "description": "Generate images using OpenAI gpt-image. Convert a text prompt into high-quality images and automatically save them to user S3 storage. Returns S3 paths that can be referenced in Markdown image links.\n\nPROMPTING BEST PRACTICES (from OpenAI's gpt-image prompting guide):\n- Order elements consistently: scene/background -> subject -> key details -> constraints. For complex requests use short labeled segments or line breaks, not one long paragraph.\n- Be concrete about materials, shapes, textures, and the visual medium (photo, watercolor, 3D render). For photorealism, include the word 'photorealistic' (or 'real photograph', 'professional photography') and ask for real texture (pores, fabric wear, imperfections).\n- Specify composition explicitly: framing/viewpoint (close-up, wide, top-down), angle (eye-level, low-angle), and lighting/mood (soft diffuse, golden hour, high-contrast). If layout matters, call out placement (e.g. 'logo top-right', 'subject centered with negative space on left').\n- For literal text in the image, put the words in quotes or ALL CAPS and specify font style/size/color/placement; use quality 'medium' or 'high' for small or dense text.\n- Add targeted quality cues only when needed (e.g. film grain, textured brushstrokes, macro detail) rather than generic 'high quality' wording.\n\nLANGUAGE: Write the prompt in the SAME language the user used. If the user instructs in Japanese, write the prompt in Japanese unless they explicitly ask for English. gpt-image handles Japanese prompts well. (Text to be rendered INSIDE the image should be in whatever language the user wants shown.)",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "prompt": {
+            "type": "string",
+            "description": "Detailed description of the image to generate (required). Structure it as scene -> subject -> details -> constraints. Write it in the user's language (Japanese if the user wrote in Japanese, unless English is explicitly requested)."
+          },
+          "size": {
+            "type": "string",
+            "enum": ["1024x1024", "1536x1024", "1024x1536", "auto"],
+            "description": "Image dimensions. '1024x1024' (square), '1536x1024' (landscape), '1024x1536' (portrait), or 'auto' to let the model choose (default: auto)"
+          },
+          "quality": {
+            "type": "string",
+            "enum": ["low", "medium", "high", "auto"],
+            "description": "Rendering quality. Higher quality costs more and is slower (default: auto)"
+          },
+          "numberOfImages": {
+            "type": "integer",
+            "description": "Number of images to generate (1-4, default: 1)"
+          },
+          "outputPath": {
+            "type": "string",
+            "description": "Custom output filename (default: auto-generated with timestamp)"
+          }
+        },
+        "required": ["prompt"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "gpt_image_edit",
+      "description": "Edit, refine, or compose images using OpenAI gpt-image. Provide one or more existing images by their s3:// path plus a prompt describing the change; optionally a mask (s3:// path to an alpha-channel PNG) for inpainting. Returns new s3:// paths. For multi-turn / iterative editing, call this again with a previous result's s3:// path in imagePaths.\n\nEDITING BEST PRACTICES (from OpenAI's gpt-image prompting guide):\n- Use the 'change only X' + 'keep everything else the same' pattern. State exclusions/invariants explicitly (e.g. 'preserve identity/geometry/layout/brand elements', 'no watermark', 'do not alter saturation, contrast, camera angle, or surrounding objects').\n- Iterate with small, single-change follow-ups ('make the lighting warmer', 'remove the extra tree'). REPEAT the preserve list on every iteration to reduce drift; re-specify critical details if they start to drift.\n- With multiple input images, reference each by index and describe how they interact: 'Image 1: product photo... Image 2: style reference... apply Image 2's style to Image 1' or 'put the subject from Image 1 onto the background in Image 2'. imagePaths order is Image 1, Image 2, ... in that order.\n- For masks: transparent areas are where edits apply; masking is prompt-guided, not pixel-precise, so still describe the change in the prompt.\n- Use quality 'medium'/'high' for identity-sensitive edits, small text, or dense detail.\n\nLANGUAGE: Write the prompt in the SAME language the user used. If the user instructs in Japanese, write the prompt in Japanese unless they explicitly ask for English.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "prompt": {
+            "type": "string",
+            "description": "Description of the edit or composition to perform (required). Prefer 'change only X, keep everything else the same' and restate what must be preserved. Write it in the user's language (Japanese if the user wrote in Japanese, unless English is explicitly requested)."
+          },
+          "imagePaths": {
+            "type": "array",
+            "items": { "type": "string" },
+            "description": "One to four s3:// URIs of the source image(s) to edit or use as references, in order (Image 1, Image 2, ...). Use paths returned by gpt_image / gpt_image_edit, or from the user's storage (required)"
+          },
+          "maskPath": {
+            "type": "string",
+            "description": "Optional s3:// URI of an alpha-channel PNG mask, same size as the first image. Transparent areas are where edits apply (prompt-guided, not pixel-precise)"
+          },
+          "size": {
+            "type": "string",
+            "enum": ["1024x1024", "1536x1024", "1024x1536", "auto"],
+            "description": "Output dimensions (default: auto)"
+          },
+          "quality": {
+            "type": "string",
+            "enum": ["low", "medium", "high", "auto"],
+            "description": "Rendering quality (default: auto)"
+          },
+          "numberOfImages": {
+            "type": "integer",
+            "description": "Number of edited variations to generate (1-4, default: 1)"
+          },
+          "outputPath": {
+            "type": "string",
+            "description": "Custom output filename (default: auto-generated with timestamp)"
+          }
+        },
+        "required": ["prompt", "imagePaths"],
+        "additionalProperties": false
+      }
+    }
+  ]
+}
