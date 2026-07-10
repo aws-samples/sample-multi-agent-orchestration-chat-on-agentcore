@@ -10,7 +10,8 @@ import type {
   ToolResult,
   ImageAttachment,
 } from '../types/index';
-import { streamAgentResponse } from '../api/agent';
+import { streamAgentResponse, stopAgentTurn } from '../api/agent';
+import i18n from '../i18n';
 import type { ConversationMessage } from '../api/sessions';
 import { useAgentStore } from './agentStore';
 import { useStorageStore } from './storageStore';
@@ -18,6 +19,15 @@ import { useSessionStore } from './sessionStore';
 import { useMemoryStore } from './memoryStore';
 import { useSettingsStore } from './settingsStore';
 import { logger } from '../utils/logger';
+
+// Per-session AbortController for the in-flight turn, keyed by sessionId.
+//
+// WHY module-level (not Zustand state): AbortController is a live, non-
+// serializable object — putting it in the store would break devtools
+// serialization and persistence, and it has no bearing on rendered UI (the UI
+// keys off `isLoading`). The Stop button only needs to reach the controller by
+// sessionId, which this map provides.
+const abortControllers = new Map<string, AbortController>();
 
 // Helper function: Convert image to Base64
 const convertImageToBase64 = (file: File): Promise<string> => {
@@ -121,6 +131,8 @@ interface ChatActions {
   addMessage: (sessionId: string, message: Omit<Message, 'id' | 'timestamp'>) => string;
   updateMessage: (sessionId: string, messageId: string, updates: Partial<Message>) => void;
   sendPrompt: (prompt: string, sessionId: string, images?: ImageAttachment[]) => Promise<void>;
+  /** Abort the in-flight turn for a session (Stop button). No-op if none running. */
+  stopPrompt: (sessionId: string) => void;
   clearSession: (sessionId: string) => void;
   setLoading: (sessionId: string, loading: boolean) => void;
   setError: (sessionId: string, error: string | null) => void;
@@ -229,6 +241,11 @@ export const useChatStore = create<ChatStore>()(
 
         // Set activeSessionId (for streaming callbacks to work correctly)
         set({ activeSessionId: sessionId });
+
+        // Fresh AbortController for this turn so the Stop button (stopPrompt)
+        // can tear down the fetch. Replaces any stale controller for the session.
+        const abortController = new AbortController();
+        abortControllers.set(sessionId, abortController);
 
         // Get/create session state
         const sessionState = getOrCreateSessionState(sessions, sessionId);
@@ -510,6 +527,46 @@ export const useChatStore = create<ChatStore>()(
                   useSessionStore.getState().refreshSessions();
                 }
               },
+              onCancel: () => {
+                // The turn was stopped by the user. Settle the streaming message
+                // and clear loading WITHOUT setting an error — whatever partial
+                // content already streamed is kept as the assistant's reply, and
+                // we append a visible notice so the user can see it was stopped
+                // (not silently finished).
+                const currentMessage = get().sessions[sessionId]?.messages.find(
+                  (msg) => msg.id === assistantMessageId
+                );
+                const noticeContent = {
+                  type: 'text' as const,
+                  text: `_${i18n.t('chat.generationStopped')}_`,
+                };
+                updateMessage(sessionId, assistantMessageId, {
+                  contents: [...(currentMessage?.contents ?? []), noticeContent],
+                  isStreaming: false,
+                });
+
+                // Re-read AFTER updateMessage so we don't clobber the appended
+                // notice with a stale snapshot.
+                const { sessions, lastStreamCompletedAt } = get();
+                const currentState = sessions[sessionId] || createDefaultSessionState();
+
+                set({
+                  sessions: {
+                    ...sessions,
+                    [sessionId]: {
+                      ...currentState,
+                      isLoading: false,
+                      error: null,
+                    },
+                  },
+                  lastStreamCompletedAt: {
+                    ...lastStreamCompletedAt,
+                    [sessionId]: Date.now(),
+                  },
+                });
+
+                logger.log(`Message send cancelled (session: ${sessionId})`);
+              },
               onError: (error: Error) => {
                 // Add error message as assistant response (with isError flag)
                 const { sessions } = get();
@@ -547,7 +604,8 @@ export const useChatStore = create<ChatStore>()(
                 });
               },
             },
-            agentConfig
+            agentConfig,
+            abortController.signal
           );
         } catch (error) {
           const errorMessage = error instanceof Error ? error.message : 'Failed to send message';
@@ -565,7 +623,34 @@ export const useChatStore = create<ChatStore>()(
               },
             },
           });
+        } finally {
+          // Drop the controller once the turn settles (complete/cancel/error) so
+          // a later Stop click can't abort an already-finished — or the next —
+          // turn. Only clear if it's still the one we installed.
+          if (abortControllers.get(sessionId) === abortController) {
+            abortControllers.delete(sessionId);
+          }
         }
+      },
+
+      stopPrompt: (sessionId: string) => {
+        // Two independent effects, both needed:
+        //   1. Server-side stop — the ONLY thing that actually halts the agent.
+        //      AgentCore ignores the client disconnect, so we send an explicit
+        //      out-of-band stop command (fire-and-forget; it acks quickly).
+        //   2. Client-side abort — tears down the local fetch so the UI settles
+        //      immediately instead of waiting for the server's cancel to land.
+        //      The reader loop's AbortError routes to onCancel.
+        stopAgentTurn(sessionId).catch(() => {
+          // stopAgentTurn already swallows errors; this is just belt-and-suspenders.
+        });
+
+        const controller = abortControllers.get(sessionId);
+        if (controller) {
+          controller.abort();
+          abortControllers.delete(sessionId);
+        }
+        logger.log(`Stop requested (session: ${sessionId})`);
       },
 
       clearSession: (sessionId: string) => {

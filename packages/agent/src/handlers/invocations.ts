@@ -43,6 +43,7 @@ import { createSessionPersistenceDeps } from '../services/session-persistence-de
 import { logger } from '../libs/logger/index.js';
 import { streamAgentResponse } from './stream-handler.js';
 import { stopOwnSession } from '../services/session-terminator.js';
+import { subAgentTaskManager } from '../services/sub-agent-task-manager.js';
 
 /**
  * Agent invocation endpoint (with streaming support).
@@ -130,12 +131,23 @@ export async function handleInvocation(req: Request, res: Response): Promise<voi
     'Agent creation completed:'
   );
 
-  await streamAgentResponse(agent, body.prompt, body.images, res, {
+  const streamResult = await streamAgentResponse(agent, body.prompt, body.images, res, {
     metadata,
     retryStrategy,
     sessionStorage: sessionResult?.storage,
     sessionConfig: sessionResult?.config,
   });
+
+  // When the main turn was cancelled (client disconnect / stop), also stop any
+  // sub-agent tasks it spawned. They run detached via agent.invoke and are keyed
+  // by parentSessionId (this turn's sessionId), so they'd otherwise keep the
+  // microVM busy after the user stopped the parent.
+  if (streamResult.cancelled && sessionId) {
+    const cancelledCount = subAgentTaskManager.cancelTasksByParentSession(sessionId);
+    if (cancelledCount > 0) {
+      logger.info({ requestId, sessionId, cancelledCount }, 'Cancelled sub-agent tasks:');
+    }
+  }
 
   // Event-driven (trigger) invocations are fire-and-forget: nothing on the
   // client side will tell the Runtime the session is done, so the microVM

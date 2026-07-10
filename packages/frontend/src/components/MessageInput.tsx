@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Send, Loader2, Paperclip, CheckCircle2 } from 'lucide-react';
+import { Send, Loader2, Paperclip, CheckCircle2, Square } from 'lucide-react';
 import { randomId } from '../utils/randomId';
 import { useChatStore } from '../stores/chatStore';
 import { useAgentStore } from '../stores/agentStore';
@@ -28,7 +28,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({
   getScenarioPrompt,
 }) => {
   const { t } = useTranslation();
-  const { sendPrompt } = useChatStore();
+  const { sendPrompt, stopPrompt } = useChatStore();
   const { sendBehavior } = useSettingsStore();
   const sessionState = useChatStore((state) =>
     sessionId ? (state.sessions[sessionId] ?? null) : null
@@ -537,24 +537,35 @@ export const MessageInput: React.FC<MessageInputProps> = ({
                 </button>
               </div>
 
-              {/* Send button - fixed width, pinned to the right, never overlapped. */}
-              <button
-                type="submit"
-                disabled={
-                  (!input.trim() && attachedImages.length === 0) || isLoading || isAgentStoreLoading
-                }
-                className={`ml-auto shrink-0 w-8 h-8 rounded-md flex items-center justify-center transition-all duration-200 ${
-                  (!input.trim() && attachedImages.length === 0) || isLoading || isAgentStoreLoading
-                    ? 'text-fg-disabled cursor-not-allowed'
-                    : 'text-black hover:bg-surface-secondary'
-                }`}
-              >
-                {isLoading ? (
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                ) : (
+              {/* Send / Stop button — fixed width, pinned to the right, never
+                  overlapped. While a turn is streaming this becomes an active
+                  Stop button (interrupts the agent) instead of a disabled
+                  spinner, so the user can always cancel a running turn. */}
+              {isLoading ? (
+                <button
+                  type="button"
+                  onClick={() => sessionId && stopPrompt(sessionId)}
+                  aria-label={t('chat.stopGenerating')}
+                  title={t('chat.stopGenerating')}
+                  className="ml-auto shrink-0 w-8 h-8 rounded-md flex items-center justify-center transition-all duration-200 text-black hover:bg-surface-secondary"
+                >
+                  <Square className="w-3.5 h-3.5 fill-current" />
+                </button>
+              ) : (
+                <button
+                  type="submit"
+                  disabled={
+                    (!input.trim() && attachedImages.length === 0) || isAgentStoreLoading
+                  }
+                  className={`ml-auto shrink-0 w-8 h-8 rounded-md flex items-center justify-center transition-all duration-200 ${
+                    (!input.trim() && attachedImages.length === 0) || isAgentStoreLoading
+                      ? 'text-fg-disabled cursor-not-allowed'
+                      : 'text-black hover:bg-surface-secondary'
+                  }`}
+                >
                   <Send className="w-4 h-4" />
-                )}
-              </button>
+                </button>
+              )}
             </div>
           </div>
         </div>
