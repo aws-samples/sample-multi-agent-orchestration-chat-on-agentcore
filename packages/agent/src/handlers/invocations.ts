@@ -38,7 +38,7 @@ import {
 } from '../libs/context/request-context.js';
 import { setupSession } from '../services/session/session-helper.js';
 
-import { initializeWorkspaceSync } from '../services/workspace-sync-helper.js';
+import { initializeWorkspaceSync, resolveSkillsPaths } from '../services/workspace-sync-helper.js';
 import { createSessionPersistenceDeps } from '../services/session-persistence-deps-factory.js';
 import { logger } from '../libs/logger/index.js';
 import { streamAgentResponse } from './stream-handler.js';
@@ -73,6 +73,11 @@ export async function handleInvocation(req: Request, res: Response): Promise<voi
   const workspaceSyncResult = body.storagePath
     ? initializeWorkspaceSync(userId, body.storagePath, context)
     : null;
+
+  // 1b. Wait for skills to finish syncing before createAgent builds the
+  //     AgentSkills plugin (which scans the filesystem synchronously in its
+  //     constructor). See resolveSkillsPaths for the source order and rationale.
+  const skillsPaths = await resolveSkillsPaths(workspaceSyncResult?.workspaceSync);
 
   // 2. Setup session only when the request carries a sessionId.
   //    Sessionless invocations skip AgentCore Memory / DynamoDB entirely —
@@ -111,6 +116,7 @@ export async function handleInvocation(req: Request, res: Response): Promise<voi
     mcpConfig: body.mcpConfig,
     sessionStorage: sessionResult?.storage,
     sessionConfig: sessionResult?.config,
+    skillsPaths,
     agentId: body.agentId,
   });
 

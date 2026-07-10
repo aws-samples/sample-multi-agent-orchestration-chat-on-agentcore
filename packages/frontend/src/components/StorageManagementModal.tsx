@@ -237,9 +237,15 @@ export function StorageManagementModal({ isOpen, onClose }: StorageManagementMod
       return;
     }
 
-    await createDirectory(newDirectoryName);
+    // Close the form immediately. The store applies an optimistic item update
+    // and rolls back (surfacing `error`) on failure, so closing the input must
+    // not wait on createDirectory's awaited item/tree sync — otherwise a slow
+    // folder-tree fetch leaves the input stuck open even though the folder was
+    // already created.
+    const name = newDirectoryName;
     setNewDirectoryName('');
     setShowNewDirectoryInput(false);
+    await createDirectory(name);
   };
 
 

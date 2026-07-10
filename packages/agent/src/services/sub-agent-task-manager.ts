@@ -9,6 +9,7 @@ import { createAgent } from '../agent.js';
 import { getAgentDefinition } from './agent-registry.js';
 import { getCurrentContext, runWithContext } from '../libs/context/request-context.js';
 import { WorkspaceSync } from './workspace-sync.js';
+import { resolveSkillsPaths } from './workspace-sync-helper.js';
 import { WorkspaceSyncHook } from './session/workspace-sync-hook.js';
 import { AgentCoreMemoryStorage } from './session/agentcore-memory-storage.js';
 import { SessionPersistenceHook } from './session/session-persistence-hook.js';
@@ -288,6 +289,9 @@ class SubAgentTaskManager {
         modelId: task.modelId || agentDef.modelId,
         sessionStorage,
         sessionConfig,
+        // Wait for synced skill sources before construction (the plugin scans
+        // them synchronously); see resolveSkillsPaths for order and rationale.
+        skillsPaths: await resolveSkillsPaths(workspaceSync),
       };
       const { agent } = await createAgent(agentOptions);
 

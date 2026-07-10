@@ -8,9 +8,21 @@ jest.unstable_mockModule('../../config/index.js', () => ({
   logger: { info: jest.fn(), warn: jest.fn(), error: jest.fn(), debug: jest.fn() },
   config: {},
   WORKSPACE_DIRECTORY: '/tmp/ws',
+  SHARED_SKILLS_DIRECTORY: '/tmp/ws/.agents/skills',
+  SKILLS_DIR_NAME: '.agents/skills',
+  BUNDLED_SKILLS_DIRECTORY: '/app/skills',
 }));
 
-const { validateStoragePath } = await import('../workspace-sync-helper.js');
+const { validateStoragePath, resolveSkillsPaths } = await import('../workspace-sync-helper.js');
+
+// Minimal WorkspaceSync stand-in exposing only the two skill-sync methods
+// resolveSkillsPaths awaits.
+function fakeWorkspaceSync(shared: string | null, workspace: string | null) {
+  return {
+    waitForSharedSkillsSync: jest.fn<() => Promise<string | null>>().mockResolvedValue(shared),
+    waitForSkillsSync: jest.fn<() => Promise<string | null>>().mockResolvedValue(workspace),
+  } as unknown as Parameters<typeof resolveSkillsPaths>[0];
+}
 
 describe('validateStoragePath', () => {
   describe('valid paths', () => {
@@ -194,5 +206,34 @@ describe('validateStoragePath', () => {
         'exceeds maximum length of 1024 bytes'
       ); // 1026 bytes
     });
+  });
+});
+
+describe('resolveSkillsPaths', () => {
+  const BUNDLED = '/app/skills';
+
+  it('returns only the bundled path when no workspace sync is active', async () => {
+    expect(await resolveSkillsPaths(null)).toEqual([BUNDLED]);
+    expect(await resolveSkillsPaths(undefined)).toEqual([BUNDLED]);
+  });
+
+  it('orders sources bundled → shared → workspace (override order)', async () => {
+    const ws = fakeWorkspaceSync('/tmp/ws/.agents/skills', '/tmp/ws/proj/.agents/skills');
+    expect(await resolveSkillsPaths(ws)).toEqual([
+      BUNDLED,
+      '/tmp/ws/.agents/skills',
+      '/tmp/ws/proj/.agents/skills',
+    ]);
+  });
+
+  it('drops synced sources that are absent (null)', async () => {
+    expect(await resolveSkillsPaths(fakeWorkspaceSync(null, '/tmp/ws/proj/.agents/skills'))).toEqual(
+      [BUNDLED, '/tmp/ws/proj/.agents/skills']
+    );
+    expect(await resolveSkillsPaths(fakeWorkspaceSync('/tmp/ws/.agents/skills', null))).toEqual([
+      BUNDLED,
+      '/tmp/ws/.agents/skills',
+    ]);
+    expect(await resolveSkillsPaths(fakeWorkspaceSync(null, null))).toEqual([BUNDLED]);
   });
 });

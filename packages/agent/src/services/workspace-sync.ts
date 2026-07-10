@@ -8,10 +8,17 @@
  * filesystem paths align with S3 display paths after stripping WORKSPACE_DIRECTORY.
  */
 
+import fs from 'fs';
 import path from 'path';
+import type { S3Client } from '@aws-sdk/client-s3';
 import { S3WorkspaceSync } from '@moca/s3-workspace-sync';
 import type { SyncResult } from '@moca/s3-workspace-sync';
-import { config, WORKSPACE_DIRECTORY } from '../config/index.js';
+import {
+  config,
+  WORKSPACE_DIRECTORY,
+  SHARED_SKILLS_DIRECTORY,
+  SKILLS_DIR_NAME,
+} from '../config/index.js';
 import { createLogger } from '../libs/logger/index.js';
 import { createUserScopedS3Client, getIdentityId } from '../libs/utils/scoped-credentials.js';
 
@@ -33,6 +40,12 @@ export class WorkspaceSync {
   private readonly activeWorkingDirectory: string;
   private readonly bucketName: string;
   private readonly normalizedStoragePath: string;
+
+  // Captured during initSync so waitForSharedSkillsSync() can build a second,
+  // root-scoped read-only sync that reuses the already-resolved scoped client
+  // and identity key instead of resolving Identity Pool credentials again.
+  private resolvedS3Client?: S3Client;
+  private resolvedStorageKey!: string;
 
   private initPromise: Promise<void>;
 
@@ -83,6 +96,11 @@ export class WorkspaceSync {
       );
     }
 
+    // Capture resolved client + storage key so waitForSharedSkillsSync() can
+    // reuse them for the root-scoped skills pull.
+    this.resolvedS3Client = s3Client;
+    this.resolvedStorageKey = storageKey;
+
     // Build S3 prefix using identityId (or userId fallback for local dev)
     const prefix = this.normalizedStoragePath
       ? `users/${storageKey}/${this.normalizedStoragePath}/`
@@ -94,6 +112,11 @@ export class WorkspaceSync {
       workspaceDir: this.activeWorkingDirectory,
       region: config.AWS_REGION,
       s3Client,
+      // Download the skills subtree first so waitForSkillsSync() can unblock
+      // agent construction as soon as `.agents/skills/` is on disk, without waiting for
+      // the (potentially large) full pull. The full pull still owns `.agents/skills/`
+      // for both download and upload — a single sync, no second instance.
+      priorityPrefix: `${SKILLS_DIR_NAME}/`,
       logger: logger,
     });
   }
@@ -114,6 +137,67 @@ export class WorkspaceSync {
   async waitForInitialSync(): Promise<void> {
     await this.initPromise;
     await this.inner.waitForPull();
+  }
+
+  /**
+   * Wait until the `.agents/skills/` subtree has finished syncing (its priority phase
+   * of the single full pull) and return the local skills directory path, or
+   * null when no skills exist locally.
+   *
+   * `startInitialSync()` must have been called first — the priority phase runs
+   * inside that background pull. This resolves as soon as `.agents/skills/` is on disk,
+   * without waiting for the rest of the workspace, so callers can hand the path
+   * to the AgentSkills plugin (which scans the filesystem synchronously in its
+   * constructor).
+   */
+  async waitForSkillsSync(): Promise<string | null> {
+    await this.initPromise;
+    await this.inner.waitForPriorityPull();
+
+    const skillsDir = path.join(this.activeWorkingDirectory, SKILLS_DIR_NAME);
+
+    // Report absence (empty dir or none) so the caller skips the AgentSkills
+    // plugin entirely rather than loading an empty set.
+    if (!fs.existsSync(skillsDir) || fs.readdirSync(skillsDir).length === 0) {
+      return null;
+    }
+    return skillsDir;
+  }
+
+  /**
+   * Pull the user's ROOT `.agents/skills/` (`users/{id}/.agents/skills/`, shared across all
+   * storage paths) into a directory OUTSIDE the main workspace, and return its
+   * local path — or null when there are no shared skills.
+   *
+   * A separate, pull-only sync (not wired to the push hook) so shared skills are
+   * read-only and never round-trip to S3 or collide with the main sync's
+   * cleanup. Reuses the scoped client/identity resolved by initSync.
+   *
+   * Returns null when the storage path is the root itself: in that case the main
+   * sync's prefix already IS `users/{id}/`, so its `.agents/skills/` is the root
+   * `.agents/skills/` — pulling it again here would be a duplicate.
+   */
+  async waitForSharedSkillsSync(): Promise<string | null> {
+    await this.initPromise;
+
+    // Root storagePath: main sync already covers users/{id}/.agents/skills/.
+    if (!this.normalizedStoragePath) return null;
+
+    const rootSync = new S3WorkspaceSync({
+      bucket: this.bucketName,
+      prefix: `users/${this.resolvedStorageKey}/${SKILLS_DIR_NAME}/`,
+      workspaceDir: SHARED_SKILLS_DIRECTORY,
+      region: config.AWS_REGION,
+      s3Client: this.resolvedS3Client,
+      logger,
+    });
+
+    const result = await rootSync.pull();
+
+    if (!fs.existsSync(SHARED_SKILLS_DIRECTORY) || result.downloadedFiles === 0) {
+      return null;
+    }
+    return SHARED_SKILLS_DIRECTORY;
   }
 
   /**

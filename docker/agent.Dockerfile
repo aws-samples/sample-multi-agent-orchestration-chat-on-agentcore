@@ -77,6 +77,12 @@ RUN npm ci --omit=dev --ignore-scripts && npm cache clean --force
 COPY --chown=node:node --from=builder --parents /build/./packages/**/dist ./
 COPY --chown=node:node --from=builder /build/packages/agent/scripts ./packages/agent/scripts
 
+# Bundled platform skills (moca-guide etc.) — markdown assets, not compiled by
+# tsc, so copied verbatim. Must sit at the agent package root, where
+# BUNDLED_SKILLS_DIRECTORY (config/index.ts) resolves to `../../skills` from
+# dist/config/.
+COPY --chown=node:node --from=builder /build/packages/agent/skills ./packages/agent/skills
+
 # Set working directory to agent package
 WORKDIR /app/packages/agent
 

@@ -37,6 +37,8 @@ docs/
 scripts/src
 *.md
 !packages/*/README.md
+# Bundled agent skills ship as markdown assets (moca-guide etc.); keep them.
+!packages/agent/skills/**
 
 # Test files
 **/*.test.ts
