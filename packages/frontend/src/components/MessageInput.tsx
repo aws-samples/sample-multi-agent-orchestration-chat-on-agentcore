@@ -584,13 +584,16 @@ export const MessageInput: React.FC<MessageInputProps> = ({
                 )}
               </button>
 
-              {/* Send button - fixed width, pinned to the right, never overlapped. */}
+              {/* Send button - fixed width, sits directly next to the goal button.
+                  The goal button carries the `ml-auto` that pushes the pair to
+                  the right edge, so the send button must NOT add its own or a
+                  gap opens up between the two. */}
               <button
                 type="submit"
                 disabled={
                   (!input.trim() && attachedImages.length === 0) || isLoading || isAgentStoreLoading
                 }
-                className={`ml-auto shrink-0 w-8 h-8 rounded-md flex items-center justify-center transition-all duration-200 ${
+                className={`shrink-0 w-8 h-8 rounded-md flex items-center justify-center transition-all duration-200 ${
                   (!input.trim() && attachedImages.length === 0) || isLoading || isAgentStoreLoading
                     ? 'text-fg-disabled cursor-not-allowed'
                     : 'text-black hover:bg-surface-secondary'
