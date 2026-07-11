@@ -75,6 +75,12 @@ export interface Message {
   timestamp: Date;
   isStreaming?: boolean;
   isError?: boolean; // Flag to indicate this message contains an error
+  /**
+   * GoalLoop outcome for this assistant turn, set from the completion event's
+   * `metadata.goalResult` when the message was sent with a goal. Rendered as a
+   * compact "refined N times" summary. Absent for non-goal turns.
+   */
+  goalResult?: { passed: boolean; stopReason: string; attempts: number };
 }
 
 // Session-specific chat state

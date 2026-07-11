@@ -212,6 +212,21 @@ chat:
     uploaded: '{{count}}件のファイルをアップロードしました'
     failed: '{{name}} のアップロードに失敗しました: {{error}}'
     tooLarge: '{{name}} は500MBの上限を超えています。'
+  goal:
+    buttonTitle: このメッセージのゴールを設定
+    modalTitle: メッセージのゴール
+    modalDescription: >-
+      良い回答が満たすべき条件を記述してください。ジャッジモデルがゴール達成と判断するまで（またはリトライ上限に達するまで）エージェントが回答を改善します。このメッセージにのみ適用されます。
+    inputLabel: ゴール
+    placeholder: '例：3文以内で、専門用語を使わずに回答する。'
+    judgeModelLabel: ジャッジモデル
+    judgeModelDefault: デフォルト（サーバー設定）
+    set: 設定
+    clear: クリア
+    activeBadge: ゴール設定済み
+    completedSummary: '{{count}}回の改善でゴール{{status}}'
+    statusMet: 達成
+    statusNotMet: 未達
   searchPlaceholder: 'セッションを検索...'
   searchDateRange: '期間'
   searchDateStart: '開始日'

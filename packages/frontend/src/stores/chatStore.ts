@@ -120,7 +120,13 @@ interface ChatActions {
   switchSession: (sessionId: string) => void;
   addMessage: (sessionId: string, message: Omit<Message, 'id' | 'timestamp'>) => string;
   updateMessage: (sessionId: string, messageId: string, updates: Partial<Message>) => void;
-  sendPrompt: (prompt: string, sessionId: string, images?: ImageAttachment[]) => Promise<void>;
+  sendPrompt: (
+    prompt: string,
+    sessionId: string,
+    images?: ImageAttachment[],
+    goal?: string,
+    goalJudgeModelId?: string
+  ) => Promise<void>;
   clearSession: (sessionId: string) => void;
   setLoading: (sessionId: string, loading: boolean) => void;
   setError: (sessionId: string, error: string | null) => void;
@@ -224,8 +230,21 @@ export const useChatStore = create<ChatStore>()(
         });
       },
 
-      sendPrompt: async (prompt: string, sessionId: string, images?: ImageAttachment[]) => {
+      sendPrompt: async (
+        prompt: string,
+        sessionId: string,
+        images?: ImageAttachment[],
+        goal?: string,
+        goalJudgeModelId?: string
+      ) => {
         const { addMessage, updateMessage, sessions } = get();
+
+        // Per-message goal: applied only to this send. A whitespace-only goal is
+        // treated as no goal; when there is no goal we also drop the judge model
+        // so the wire body stays clean (agent falls back to GOAL_JUDGE_MODEL_ID).
+        const trimmedGoal = goal?.trim() || undefined;
+        const goalForConfig = trimmedGoal;
+        const goalJudgeModelIdForConfig = trimmedGoal ? goalJudgeModelId : undefined;
 
         // Set activeSessionId (for streaming callbacks to work correctly)
         set({ activeSessionId: sessionId });
@@ -351,6 +370,8 @@ export const useChatStore = create<ChatStore>()(
                 memoryEnabled: isMemoryEnabled,
                 mcpConfig: selectedAgent.mcpConfig as Record<string, unknown> | undefined,
                 images: imageData,
+                goal: goalForConfig,
+                goalJudgeModelId: goalJudgeModelIdForConfig,
               }
             : {
                 modelId: selectedModelId,
@@ -358,6 +379,8 @@ export const useChatStore = create<ChatStore>()(
                 storagePath: agentWorkingDirectory,
                 memoryEnabled: isMemoryEnabled,
                 images: imageData,
+                goal: goalForConfig,
+                goalJudgeModelId: goalJudgeModelIdForConfig,
               };
 
           // Debug log
@@ -477,9 +500,18 @@ export const useChatStore = create<ChatStore>()(
                   // (see appendStreamingDelta).
                 }
               },
-              onComplete: () => {
+              onComplete: (metadata) => {
+                // Surface the GoalLoop summary (if this turn ran under a goal).
+                // `metadata.goalResult` is only present for goal turns; the UI
+                // shows a "refined N times" note when attempts > 1.
+                const goalResult = (
+                  metadata as {
+                    goalResult?: { passed: boolean; stopReason: string; attempts: number };
+                  }
+                )?.goalResult;
                 updateMessage(sessionId, assistantMessageId, {
                   isStreaming: false,
+                  ...(goalResult ? { goalResult } : {}),
                 });
 
                 const { sessions, lastStreamCompletedAt } = get();

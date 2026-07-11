@@ -213,6 +213,23 @@ chat:
     uploaded: 'Uploaded {{count}} file(s)'
     failed: 'Failed to upload {{name}}: {{error}}'
     tooLarge: '{{name}} exceeds the 500MB limit.'
+  goal:
+    buttonTitle: Set a goal for this message
+    modalTitle: Message goal
+    modalDescription: >-
+      Describe what a good answer must satisfy. The agent refines its response
+      until a judge model decides the goal is met (or the retry limit is
+      reached). Applies to this message only.
+    inputLabel: Goal
+    placeholder: 'e.g. Answer in at most 3 sentences, no jargon.'
+    judgeModelLabel: Judge model
+    judgeModelDefault: Default (server setting)
+    set: Set
+    clear: Clear
+    activeBadge: Goal set
+    completedSummary: 'Goal {{status}} after {{count}} attempts'
+    statusMet: met
+    statusNotMet: not met
   searchPlaceholder: 'Search sessions...'
   searchDateRange: 'Date range'
   searchDateStart: 'Start date'

@@ -31,7 +31,7 @@ interface StreamingCallbacks {
 /**
  * Agent configuration options
  */
-interface AgentConfig {
+export interface AgentConfig {
   modelId?: string;
   reasoningEffort?: ReasoningDepth;
   enabledTools?: string[];
@@ -50,9 +50,10 @@ interface AgentConfig {
 
 /**
  * Build request body from prompt and optional agent config
- * Strips undefined values to keep the payload clean
+ * Strips undefined values to keep the payload clean.
+ * Exported for unit testing (goal / goalJudgeModelId inclusion + omission).
  */
-function buildRequestBody(prompt: string, agentConfig?: AgentConfig): string {
+export function buildRequestBody(prompt: string, agentConfig?: AgentConfig): string {
   const body: Record<string, unknown> = { prompt };
 
   if (agentConfig) {

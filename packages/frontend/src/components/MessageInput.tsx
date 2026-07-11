@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Send, Loader2, Paperclip, CheckCircle2 } from 'lucide-react';
+import { Send, Loader2, Paperclip, CheckCircle2, Target } from 'lucide-react';
 import { randomId } from '../utils/randomId';
 import { useChatStore } from '../stores/chatStore';
 import { useAgentStore } from '../stores/agentStore';
@@ -11,6 +11,7 @@ import * as storageApi from '../api/storage';
 import { StoragePathDisplay } from './StoragePathDisplay';
 import { StorageManagementModal } from './StorageManagementModal';
 import { ModelReasoningSelector } from './ui/ModelReasoningSelector';
+import { GoalModal } from './GoalModal';
 import { ImagePreview } from './ImagePreview';
 import type { ImageAttachment } from '../types/index';
 import { IMAGE_ATTACHMENT_CONFIG } from '../types/index';
@@ -40,6 +41,11 @@ export const MessageInput: React.FC<MessageInputProps> = ({
   const [input, setInput] = useState('');
   const [attachedImages, setAttachedImages] = useState<ImageAttachment[]>([]);
   const [isStorageModalOpen, setIsStorageModalOpen] = useState(false);
+  // Per-message goal state (transient — cleared after each send so a goal never
+  // leaks into the next message). goalJudgeModelId undefined = server default.
+  const [goal, setGoal] = useState('');
+  const [goalJudgeModelId, setGoalJudgeModelId] = useState<string | undefined>(undefined);
+  const [isGoalModalOpen, setIsGoalModalOpen] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
   const [uploadingFileName, setUploadingFileName] = useState<string | null>(null);
   // Brief "upload complete" message shown in the same spot as the uploading
@@ -395,10 +401,17 @@ export const MessageInput: React.FC<MessageInputProps> = ({
       // Save message to send
       const messageToSend = input.trim();
       const imagesToSend = [...attachedImages];
+      // Snapshot the per-message goal, then clear it below alongside the input
+      // so it applies to exactly this send.
+      const goalToSend = goal.trim() || undefined;
+      const goalJudgeModelIdToSend = goalToSend ? goalJudgeModelId : undefined;
 
       // Clear input field immediately
       setInput('');
       setAttachedImages([]);
+      // Clear the goal every send (per-message scope, no stickiness).
+      setGoal('');
+      setGoalJudgeModelId(undefined);
 
       // Return focus to textarea after sending
       textareaRef.current?.focus();
@@ -410,7 +423,13 @@ export const MessageInput: React.FC<MessageInputProps> = ({
       }
 
       // Send message (continue asynchronously)
-      await sendPrompt(messageToSend, targetSessionId, imagesToSend);
+      await sendPrompt(
+        messageToSend,
+        targetSessionId,
+        imagesToSend,
+        goalToSend,
+        goalJudgeModelIdToSend
+      );
 
       // Release Object URLs after sending
       imagesToSend.forEach((img) => {
@@ -537,6 +556,34 @@ export const MessageInput: React.FC<MessageInputProps> = ({
                 </button>
               </div>
 
+              {/* Goal button — sits just left of the send button. A modal (not a
+                  popover) so the left-controls no-overflow constraint doesn't
+                  apply. Active state (goal set) is shown with the accent color
+                  and a small dot badge. */}
+              <button
+                type="button"
+                onClick={() => setIsGoalModalOpen(true)}
+                disabled={isLoading}
+                aria-haspopup="dialog"
+                aria-expanded={isGoalModalOpen}
+                title={t('chat.goal.buttonTitle')}
+                className={`relative ml-auto shrink-0 p-1.5 rounded-md transition-colors ${
+                  isLoading
+                    ? 'text-fg-disabled cursor-not-allowed'
+                    : goal.trim()
+                      ? 'text-action-primary hover:bg-surface-secondary'
+                      : 'text-fg-muted hover:text-fg-secondary hover:bg-surface-secondary'
+                }`}
+              >
+                <Target className="w-4 h-4" />
+                {goal.trim() && (
+                  <span
+                    aria-label={t('chat.goal.activeBadge')}
+                    className="absolute top-0.5 right-0.5 w-1.5 h-1.5 rounded-full bg-action-primary"
+                  />
+                )}
+              </button>
+
               {/* Send button - fixed width, pinned to the right, never overlapped. */}
               <button
                 type="submit"
@@ -564,6 +611,21 @@ export const MessageInput: React.FC<MessageInputProps> = ({
       <StorageManagementModal
         isOpen={isStorageModalOpen}
         onClose={() => setIsStorageModalOpen(false)}
+      />
+
+      {/* Per-message goal modal */}
+      <GoalModal
+        isOpen={isGoalModalOpen}
+        onClose={() => setIsGoalModalOpen(false)}
+        value={goal}
+        onChange={setGoal}
+        judgeModelId={goalJudgeModelId}
+        onJudgeModelChange={setGoalJudgeModelId}
+        onClear={() => {
+          setGoal('');
+          setGoalJudgeModelId(undefined);
+          setIsGoalModalOpen(false);
+        }}
       />
     </div>
   );
