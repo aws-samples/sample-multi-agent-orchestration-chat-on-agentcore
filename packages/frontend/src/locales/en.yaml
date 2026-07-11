@@ -224,6 +224,9 @@ chat:
     placeholder: 'e.g. Answer in at most 3 sentences, no jargon.'
     judgeModelLabel: Judge model
     judgeModelDefault: Default (server setting)
+    sticky: Keep applying to future messages
+    stickyNote: Saved in this browser and re-applied to every send until cleared. Each goal message uses extra judge calls.
+    stickyActiveTitle: Goal is applied to every message (open to change)
     set: Set
     clear: Clear
     activeBadge: Goal set

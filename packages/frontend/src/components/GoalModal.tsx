@@ -3,11 +3,14 @@
  *
  * Per-message goal editor. Opened from the goal button beside the chat send
  * button. Lets the user set a natural-language goal (the GoalLoop refinement
- * criterion for the next send) and optionally pick the judge model.
+ * criterion for the next send), optionally pick the judge model, and choose
+ * whether the goal should stick across sends ("継続適用" — persisted to
+ * localStorage via settingsStore; the wire contract stays per-message).
  *
- * State lives in MessageInput (transient per-message); this component is a
- * controlled editor over `value` / `judgeModelId`. "Set" simply closes the
- * modal (the values are already lifted); "Clear" resets both and closes.
+ * State lives in MessageInput; this component is a controlled editor over
+ * `value` / `judgeModelId` / `sticky`. "Set" commits the sticky choice (via
+ * onSet) and closes; "Clear" resets everything (including the persisted sticky
+ * goal) and closes.
  */
 
 import React from 'react';
@@ -27,7 +30,12 @@ export interface GoalModalProps {
   /** Selected judge model id, or undefined for the server default. */
   judgeModelId: string | undefined;
   onJudgeModelChange: (modelId: string | undefined) => void;
-  /** Reset goal + judge model to empty/default. */
+  /** Whether the goal should keep applying to future sends. */
+  sticky: boolean;
+  onStickyChange: (sticky: boolean) => void;
+  /** Commit the current values (incl. sticky persistence) and close. */
+  onSet: () => void;
+  /** Reset goal + judge model + sticky persistence. */
   onClear: () => void;
 }
 
@@ -38,6 +46,9 @@ export const GoalModal: React.FC<GoalModalProps> = ({
   onChange,
   judgeModelId,
   onJudgeModelChange,
+  sticky,
+  onStickyChange,
+  onSet,
   onClear,
 }) => {
   const { t } = useTranslation();
@@ -82,6 +93,25 @@ export const GoalModal: React.FC<GoalModalProps> = ({
               ))}
             </select>
           </FormField>
+
+          {/* Sticky flag: keep applying this goal to every future send until
+              cleared. Every goal turn costs judge calls + up to 3 refinement
+              re-runs, so this is opt-in and clearly labeled. */}
+          <label className="flex items-start gap-2 cursor-pointer select-none">
+            <input
+              type="checkbox"
+              checked={sticky}
+              onChange={(e) => onStickyChange(e.target.checked)}
+              className="mt-0.5 h-4 w-4 shrink-0 rounded border-border accent-action-primary"
+              aria-describedby="goal-sticky-note"
+            />
+            <span className="text-sm text-fg-default">
+              {t('chat.goal.sticky')}
+              <span id="goal-sticky-note" className="block text-xs text-fg-muted">
+                {t('chat.goal.stickyNote')}
+              </span>
+            </span>
+          </label>
         </div>
       </Modal.Content>
 
@@ -89,7 +119,7 @@ export const GoalModal: React.FC<GoalModalProps> = ({
         <Button variant="ghost" size="md" onClick={onClear}>
           {t('chat.goal.clear')}
         </Button>
-        <Button variant="primary" size="md" onClick={onClose}>
+        <Button variant="primary" size="md" onClick={onSet}>
           {t('chat.goal.set')}
         </Button>
       </Modal.Footer>

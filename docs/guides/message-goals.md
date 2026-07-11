@@ -9,9 +9,18 @@ agent runs Strands' `GoalLoop`: after producing a response it asks a **judge
 model** whether the goal is met, and if not, feeds the judge's feedback back in
 and tries again — up to a fixed limit.
 
-Goals are **per-message**: a goal you set applies to exactly the next message you
-send and is cleared automatically afterward. It does not persist on the agent or
-across sessions.
+Goals are **per-message by default**: a goal you set applies to exactly the next
+message you send and is cleared automatically afterward. It does not persist on
+the agent or across sessions.
+
+Check **"Keep applying to future messages"** in the goal modal to make the goal
+sticky: it is saved in your browser (localStorage — not synced across devices)
+and re-attached to every send, including new sessions, until you clear it.
+Unchecking the box reverts to per-message behavior — the goal text stays for one
+more send, then clears. **Clear** removes the goal and the sticky setting at
+once. Remember that every goal-bearing message costs extra judge calls (and up
+to 3 refinement re-runs), so leave sticky mode off unless you want that on every
+message.
 
 ## Using it
 

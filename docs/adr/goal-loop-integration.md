@@ -52,6 +52,21 @@ AgentCore Runtime directly), and `buildRequestBody` already forwards every
 non-undefined `AgentConfig` key, so adding `goal` / `goalJudgeModelId` to the
 config type is enough to put them on the wire.
 
+**Amendment (2026-07-11): opt-in sticky goal, client-side only.** Users asked
+for a "keep applying" mode. The wire contract above is UNCHANGED — the agent
+still receives a plain per-message `goal` and persists nothing. Stickiness is
+implemented entirely in the frontend: a checkbox in the goal modal mirrors the
+goal into `settingsStore.persistentGoal` (zustand `persist` → localStorage, one
+global value), and `MessageInput` seeds its local goal state from it and skips
+the after-send clear while the flag is on. Unchecking reverts to per-message
+(the typed goal survives for exactly one more send); "Clear" removes both.
+
+Rejected alternative — server-side per-agent goal persistence: it would break
+runtime statelessness, hide a per-turn judge cost behind an agent config the
+user may not remember, and require backend/API changes for what is a UI
+preference. localStorage means no cross-device sync; that trade-off is accepted
+and labeled in the UI ("saved in this browser").
+
 ### 3. GoalLoop plugin ordering + the AGENT_COMPLETE hazard
 
 `AfterInvocationEvent` fires **once per attempt**. `SessionPersistenceHook`

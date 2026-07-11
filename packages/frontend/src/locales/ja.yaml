@@ -221,6 +221,9 @@ chat:
     placeholder: '例：3文以内で、専門用語を使わずに回答する。'
     judgeModelLabel: ジャッジモデル
     judgeModelDefault: デフォルト（サーバー設定）
+    sticky: 次回以降のメッセージにも適用する
+    stickyNote: このブラウザに保存され、クリアするまで毎回の送信に適用されます。ゴール付き送信ごとにジャッジ呼び出しのコストがかかります。
+    stickyActiveTitle: ゴールを毎回のメッセージに適用中（クリックで変更）
     set: 設定
     clear: クリア
     activeBadge: ゴール設定済み
