@@ -331,6 +331,71 @@ describe('streamAgentResponse', () => {
     });
   });
 
+  describe('goalResult metadata', () => {
+    it('includes goalResult in the completion event when goalLoop.lastResult is defined', async () => {
+      const agent = createMockAgent([]);
+      const options: StreamOptions = {
+        ...defaultOptions,
+        goalLoop: {
+          lastResult: jest.fn<any>().mockReturnValue({
+            passed: true,
+            stopReason: 'satisfied',
+            // attempts is an array; the handler surfaces only its length.
+            attempts: [{ attempt: 1, passed: false }, { attempt: 2, passed: true }],
+          }),
+        } as any,
+      };
+
+      await streamAgentResponse(agent, 'Hello', undefined, res, options);
+
+      const lastWrite = res.write.mock.calls[res.write.mock.calls.length - 1][0];
+      const event = JSON.parse(lastWrite.trim());
+      expect(event.metadata.goalResult).toEqual({
+        passed: true,
+        stopReason: 'satisfied',
+        attempts: 2,
+      });
+    });
+
+    it('reads lastResult with the same agent instance that streamed', async () => {
+      const agent = createMockAgent([]);
+      const lastResult = jest.fn<any>().mockReturnValue({
+        passed: false,
+        stopReason: 'maxAttempts',
+        attempts: [{ attempt: 1 }, { attempt: 2 }, { attempt: 3 }],
+      });
+      const options: StreamOptions = { ...defaultOptions, goalLoop: { lastResult } as any };
+
+      await streamAgentResponse(agent, 'Hello', undefined, res, options);
+
+      expect(lastResult).toHaveBeenCalledWith(agent);
+    });
+
+    it('omits goalResult when no goalLoop is provided', async () => {
+      const agent = createMockAgent([]);
+
+      await streamAgentResponse(agent, 'Hello', undefined, res, defaultOptions);
+
+      const lastWrite = res.write.mock.calls[res.write.mock.calls.length - 1][0];
+      const event = JSON.parse(lastWrite.trim());
+      expect(event.metadata.goalResult).toBeUndefined();
+    });
+
+    it('omits goalResult when goalLoop.lastResult returns undefined (no run finished)', async () => {
+      const agent = createMockAgent([]);
+      const options: StreamOptions = {
+        ...defaultOptions,
+        goalLoop: { lastResult: jest.fn<any>().mockReturnValue(undefined) } as any,
+      };
+
+      await streamAgentResponse(agent, 'Hello', undefined, res, options);
+
+      const lastWrite = res.write.mock.calls[res.write.mock.calls.length - 1][0];
+      const event = JSON.parse(lastWrite.trim());
+      expect(event.metadata.goalResult).toBeUndefined();
+    });
+  });
+
   describe('large event streaming', () => {
     it('should correctly stream all events when there are many', async () => {
       const eventCount = 200;

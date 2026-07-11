@@ -201,6 +201,12 @@ export interface ServerCompletionEvent extends AgentStreamEvent {
     duration: number;
     sessionId: string;
     conversationLength: number;
+    /**
+     * Present only when the turn ran under a GoalLoop (a goal was sent).
+     * `attempts` is the number of refinement attempts (1 = passed first try).
+     * Per-attempt feedback text is intentionally NOT streamed to the client.
+     */
+    goalResult?: { passed: boolean; stopReason: string; attempts: number };
   };
 }
 

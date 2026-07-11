@@ -321,6 +321,18 @@ export class SessionPersistenceHook implements Plugin {
    * Fallback for when real-time saving is not performed
    */
   private async onAfterInvocation(event: AfterInvocationEvent): Promise<void> {
+    // GoalLoop guard: AfterInvocationEvent fires once per attempt. When the
+    // GoalLoop plugin decides to retry, it sets `event.resume` (an InvokeArgs)
+    // so the agent re-enters the loop with fresh feedback. On those intermediate
+    // attempts we must NOT finalize — saving messages or publishing
+    // AGENT_COMPLETE now would persist a mid-refinement state and tell the
+    // frontend the turn is done prematurely. Only the terminal attempt (goal
+    // met / maxAttempts / timeout) leaves `resume === undefined`, and that's
+    // when we finalize. `resume` is `InvokeArgs | undefined`, so compare against
+    // undefined explicitly (not a truthiness check). Real-time per-message
+    // persistence still runs via onMessageAdded, so no message is lost.
+    if (event.resume !== undefined) return;
+
     const { actorId, sessionId } = this.sessionConfig;
     try {
       const messages = event.agent.messages;

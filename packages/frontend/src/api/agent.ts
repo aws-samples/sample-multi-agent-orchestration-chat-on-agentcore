@@ -42,6 +42,10 @@ interface AgentConfig {
   memoryTopK?: number;
   mcpConfig?: Record<string, unknown>;
   images?: Array<{ base64: string; mimeType: string }>;
+  /** Natural-language goal applied to this single send (per-message, not sticky). */
+  goal?: string;
+  /** Judge model ID for the goal. Omitted → agent falls back to GOAL_JUDGE_MODEL_ID. */
+  goalJudgeModelId?: string;
 }
 
 /**

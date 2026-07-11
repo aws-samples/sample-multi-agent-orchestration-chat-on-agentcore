@@ -6,6 +6,7 @@
  */
 
 import type { Agent, Plugin } from '@strands-agents/sdk';
+import type { GoalLoop } from '@strands-agents/sdk/vended-plugins/goal';
 import type { IdentityId, ReasoningDepth } from '@moca/core';
 import type { SessionStorage, SessionConfig } from './session-types.js';
 // Type-only import: no runtime dependency on the runtime/ layer, so this does
@@ -54,6 +55,18 @@ export interface CreateAgentOptions {
    * picked up by AgentCore Observability for trace-level correlation.
    */
   agentId?: string;
+  /**
+   * Natural-language goal for this turn. When non-empty (after trim), a
+   * GoalLoop plugin is attached that iteratively refines the response until a
+   * judge Agent decides the goal is met (or bounds are hit). Per-message only —
+   * not persisted per-agent or across sessions.
+   */
+  goal?: string;
+  /**
+   * Model ID for the GoalLoop judge Agent. Falls back to `GOAL_JUDGE_MODEL_ID`
+   * when unset or not found in the model registry.
+   */
+  goalJudgeModelId?: string;
 }
 
 /**
@@ -70,6 +83,13 @@ export interface CreateAgentResult {
    * is scoped to this turn.
    */
   retryStrategy: StreamTerminationRetryStrategy;
+  /**
+   * The GoalLoop plugin attached to this agent, or undefined when no goal was
+   * supplied. Exposed so the stream handler can read `goalLoop.lastResult(agent)`
+   * after the turn and surface `{ passed, stopReason, attempts }` in the
+   * completion event's metadata.
+   */
+  goalLoop?: GoalLoop;
 }
 
 /**

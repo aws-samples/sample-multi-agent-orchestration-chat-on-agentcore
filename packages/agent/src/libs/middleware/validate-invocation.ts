@@ -44,5 +44,17 @@ export function validateInvocationMiddleware(
     }
   }
 
+  // Normalize the optional GoalLoop goal in place: a whitespace-only goal is
+  // treated as "no goal" (dropped), and an over-long goal is clamped so a
+  // pathological payload can't bloat the judge prompt. Downstream (agent.ts)
+  // enables GoalLoop only when `goal` is a non-empty string.
+  if (typeof body.goal === 'string') {
+    const trimmed = body.goal.trim();
+    body.goal = trimmed ? trimmed.slice(0, MAX_GOAL_LENGTH) : undefined;
+  }
+
   next();
 }
+
+/** Upper bound on the goal string (characters). Longer goals are clamped. */
+const MAX_GOAL_LENGTH = 4000;

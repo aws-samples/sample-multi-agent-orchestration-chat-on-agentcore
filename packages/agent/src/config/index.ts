@@ -106,6 +106,14 @@ const envSchema = z.object({
     .string()
     .default('true')
     .transform((val) => val === 'true'),
+
+  // GoalLoop judge model.
+  // Default judge model for the per-message GoalLoop feature (natural-language
+  // goal → {passed, feedback}). A Haiku-class model keeps judging cheap. Must be
+  // an id present in @moca/core's BEDROCK_MODEL_DEFINITIONS (and mirrored in the
+  // CDK bedrockModels config for IAM). Overridable per-request from the UI; this
+  // is the fallback when the request omits goalJudgeModelId.
+  GOAL_JUDGE_MODEL_ID: z.string().default('global.anthropic.claude-haiku-4-5'),
 });
 
 /**
@@ -134,6 +142,15 @@ function parseEnv(): Config {
  * Application configuration
  */
 export const config = parseEnv();
+
+/**
+ * GoalLoop bounds. The SDK defaults both `maxAttempts` and `timeout` to
+ * Infinity and emits a `warnOnce` when neither is set — always pass finite
+ * values. These cap a per-message goal turn so a stubborn judge can't loop
+ * forever (attempts) or block the microVM indefinitely (wall-clock).
+ */
+export const GOAL_LOOP_MAX_ATTEMPTS = 3;
+export const GOAL_LOOP_TIMEOUT_MS = 120_000;
 
 /**
  * Workspace directory

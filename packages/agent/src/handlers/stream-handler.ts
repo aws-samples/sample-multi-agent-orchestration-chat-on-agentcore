@@ -7,6 +7,7 @@
 
 import type { Response } from 'express';
 import type { Agent } from '@strands-agents/sdk';
+import type { GoalLoop } from '@strands-agents/sdk/vended-plugins/goal';
 import { logger } from '../libs/logger/index.js';
 import {
   createErrorMessage,
@@ -33,6 +34,12 @@ export interface StreamOptions {
    * thread it through (e.g. some tests) still type-check.
    */
   retryStrategy?: StreamTerminationRetryStrategy;
+  /**
+   * GoalLoop plugin attached to this turn's agent, when a goal was supplied.
+   * Read after the stream completes to surface `{ passed, stopReason, attempts }`
+   * in the completion event metadata. Undefined for non-goal turns.
+   */
+  goalLoop?: GoalLoop;
   /** Session storage (for saving error messages on stream failure) */
   sessionStorage?: SessionStorage;
   /** Session config (for saving error messages on stream failure) */
@@ -55,6 +62,11 @@ function setStreamingHeaders(res: Response): void {
 function sendCompletionEvent(res: Response, agent: Agent, options: StreamOptions): void {
   const context = getCurrentContext();
   const contextMeta = getContextMetadata();
+  // Surface the GoalLoop outcome (if this turn ran under a goal) as a compact
+  // summary. Per-attempt feedback text is intentionally NOT streamed — only the
+  // pass flag, stop reason, and attempt count, which the UI turns into a
+  // "refined N times" note.
+  const goalResult = options.goalLoop?.lastResult(agent);
   const completionEvent = {
     type: 'serverCompletionEvent',
     metadata: {
@@ -64,6 +76,15 @@ function sendCompletionEvent(res: Response, agent: Agent, options: StreamOptions
       actorId: context?.userId,
       conversationLength: agent.messages.length,
       agentMetadata: options.metadata,
+      ...(goalResult
+        ? {
+            goalResult: {
+              passed: goalResult.passed,
+              stopReason: goalResult.stopReason,
+              attempts: goalResult.attempts.length,
+            },
+          }
+        : {}),
     },
   };
   res.write(`${JSON.stringify(completionEvent)}\n`);

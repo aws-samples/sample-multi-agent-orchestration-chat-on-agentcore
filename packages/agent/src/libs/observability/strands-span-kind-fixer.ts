@@ -77,6 +77,21 @@ import type { ReadableSpan, Span, SpanProcessor } from '@opentelemetry/sdk-trace
 const STRANDS_AGENT_OPERATION = 'invoke_agent';
 
 /**
+ * Attribute that positively identifies one of OUR agent spans (main or
+ * sub-agent). Every agent we build goes through `createAgent`, which runs
+ * inside a request context and always stamps `enduser.id` (the userId is
+ * required) onto the `invoke_agent` span via `traceAttributes`.
+ *
+ * The GoalLoop judge Agent is constructed internally by the SDK with no id,
+ * the default name, and NONE of our trace attributes — so its `invoke_agent`
+ * span lacks this key. Both adaptations below are gated on its presence so the
+ * judge span is left as INTERNAL and its tokens are NOT rolled into the
+ * trace-level CLIENT aggregation (which would double-count the goal turn: host
+ * agent + judge). Sub-agents keep their attribution because they DO carry it.
+ */
+const OUR_AGENT_MARKER_ATTR = 'enduser.id';
+
+/**
  * Per-message events Strands TS SDK writes in **stable** semconv mode (the
  * default — `OTEL_SEMCONV_STABILITY_OPT_IN` is not set in this deployment).
  * The user-message event carries a JSON-stringified `content` attribute (an
@@ -125,6 +140,10 @@ export class StrandsSpanKindFixer implements SpanProcessor {
   onStart(span: Span, _parentContext: Context): void {
     if (span.kind !== SpanKind.INTERNAL) return;
     if (span.attributes['gen_ai.operation.name'] !== STRANDS_AGENT_OPERATION) return;
+    // Leave the GoalLoop judge's own invoke_agent span as INTERNAL so its tokens
+    // are not summed into the trace-level CLIENT aggregation (double-counting the
+    // goal turn). The judge span lacks our marker attribute; ours always has it.
+    if (span.attributes[OUR_AGENT_MARKER_ATTR] === undefined) return;
     (span as { kind: SpanKind }).kind = SpanKind.CLIENT;
   }
 
@@ -137,6 +156,10 @@ export class StrandsSpanKindFixer implements SpanProcessor {
    */
   onEnd(span: ReadableSpan): void {
     if (span.attributes['gen_ai.operation.name'] !== STRANDS_AGENT_OPERATION) return;
+    // Skip the GoalLoop judge span (see OUR_AGENT_MARKER_ATTR): the judge's
+    // prompt/completion is internal grading, not user-facing I/O, so it should
+    // not populate the trace list's Input/Output columns.
+    if (span.attributes[OUR_AGENT_MARKER_ATTR] === undefined) return;
 
     // `ReadableSpan.attributes` is `Readonly` at the type level only; the
     // runtime object is the same one the OTLP transformer iterates. Cast

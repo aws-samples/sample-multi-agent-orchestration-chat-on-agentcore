@@ -22,10 +22,13 @@
  */
 
 import { Agent, SlidingWindowConversationManager } from '@strands-agents/sdk';
-import { config } from './config/index.js';
+import { GoalLoop } from '@strands-agents/sdk/vended-plugins/goal';
+import { isKnownModelId } from '@moca/core';
+import { config, GOAL_LOOP_MAX_ATTEMPTS, GOAL_LOOP_TIMEOUT_MS } from './config/index.js';
 import { buildSystemPrompt } from './config/prompts/index.js';
 import { createBedrockModel } from './config/index.js';
 import { getCurrentContext } from './libs/context/request-context.js';
+import { logger } from './libs/logger/index.js';
 
 // Agent building blocks
 import { buildUserMCPClients } from './runtime/agent/mcp-clients-builder.js';
@@ -117,6 +120,36 @@ export async function createAgent(options?: CreateAgentOptions): Promise<CreateA
   // for post-turn observability (`retryStrategy.retryCount`).
   const retryStrategy = new StreamTerminationRetryStrategy();
 
+  // Build the GoalLoop plugin when this turn carries a non-empty goal. The loop
+  // validates each response against a natural-language goal via an internal
+  // judge Agent and re-runs with feedback until the goal is met or the finite
+  // bounds are hit. Per-message only — nothing is persisted across turns.
+  const trimmedGoal = options?.goal?.trim();
+  let goalLoop: GoalLoop | undefined;
+  if (trimmedGoal) {
+    // Fall back to the server default when the requested judge model is absent
+    // or not in the registry (an unknown id would fail at invocation with
+    // AccessDenied / ValidationException; validating here keeps the judge cheap
+    // and predictable).
+    const requestedJudge = options?.goalJudgeModelId?.trim();
+    const judgeModelId =
+      requestedJudge && isKnownModelId(requestedJudge)
+        ? requestedJudge
+        : config.GOAL_JUDGE_MODEL_ID;
+    logger.info(
+      { judgeModelId, maxAttempts: GOAL_LOOP_MAX_ATTEMPTS, timeoutMs: GOAL_LOOP_TIMEOUT_MS },
+      'GoalLoop enabled for this turn'
+    );
+    goalLoop = new GoalLoop({
+      goal: trimmedGoal,
+      // Finite bounds are mandatory: the SDK warns (and never terminates) when
+      // both maxAttempts and timeout are Infinity.
+      maxAttempts: GOAL_LOOP_MAX_ATTEMPTS,
+      timeout: GOAL_LOOP_TIMEOUT_MS,
+      judge: { model: createBedrockModel({ modelId: judgeModelId }) },
+    });
+  }
+
   const agent = new Agent({
     model,
     systemPrompt,
@@ -132,11 +165,20 @@ export async function createAgent(options?: CreateAgentOptions): Promise<CreateA
     //     otherwise reject on the next turn (see empty-reasoning-block-hook.ts).
     // The skills plugin (when present) injects `<available_skills>` into the
     // system prompt; it sits after the sanitizers and before caller plugins.
+    //
+    // GoalLoop MUST be last. After* hooks dispatch in reverse-registration
+    // (LIFO) order, and when GoalLoop retries it sets `event.resume` on the
+    // AfterInvocationEvent. Placing it last means its callback runs FIRST, so
+    // SessionPersistenceHook.onAfterInvocation observes the resume flag and
+    // skips its early finalize (AGENT_COMPLETE / saveMessages) on intermediate
+    // attempts — see the resume guard in session-persistence-hook.ts. Only the
+    // final attempt (resume === undefined) finalizes.
     plugins: [
       new EmptyTextBlockHook(),
       new EmptyReasoningBlockHook(),
       ...(skillsPlugin ? [skillsPlugin] : []),
       ...(options?.plugins ?? []),
+      ...(goalLoop ? [goalLoop] : []),
     ],
     conversationManager,
     id: options?.agentId,
@@ -154,6 +196,7 @@ export async function createAgent(options?: CreateAgentOptions): Promise<CreateA
   return {
     agent,
     retryStrategy,
+    goalLoop,
     metadata: {
       loadedMessagesCount: savedMessages.length,
       longTermMemoriesCount: memoryResult.memories.length,

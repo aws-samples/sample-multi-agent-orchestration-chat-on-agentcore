@@ -219,6 +219,22 @@ export const BEDROCK_MODEL_DEFINITIONS = [
     reasoningMaxEffort: 'high',
   },
   {
+    // Fast, low-cost Anthropic model. Standard bedrock-runtime Converse path,
+    // no account prerequisites. Used as the default GoalLoop judge model
+    // (see GOAL_JUDGE_MODEL_ID in packages/agent) because judging is a cheap,
+    // high-frequency structured-output call — but also selectable as a main
+    // chat model. The judge itself sends no thinking field (reasoning depth
+    // defaults to 'off' for the judge model), so this cap only matters when a
+    // user picks Haiku as a chat model.
+    id: 'global.anthropic.claude-haiku-4-5',
+    name: 'Claude Haiku 4.5',
+    provider: 'Anthropic',
+    maxOutputTokens: 64000, // 64k (Anthropic docs, Haiku 4.5)
+    reasoningCapable: true,
+    // Non-Opus tier: Bedrock rejects effort 'max', cap at 'high' (same as Sonnet).
+    reasoningMaxEffort: 'high',
+  },
+  {
     id: 'global.amazon.nova-2-lite-v1:0',
     name: 'Nova Lite 2',
     provider: 'Amazon',
@@ -318,6 +334,16 @@ function findModel(modelId: string): BedrockModelDefinition | undefined {
  */
 export function getMaxOutputTokens(modelId: string): number | undefined {
   return findModel(modelId)?.maxOutputTokens;
+}
+
+/**
+ * Whether the given modelId resolves to a registry entry (prefix-insensitive).
+ * Used to validate an externally-supplied model id before invoking it — e.g.
+ * the GoalLoop judge model from the request falls back to a server default when
+ * this returns false.
+ */
+export function isKnownModelId(modelId: string): boolean {
+  return findModel(modelId) !== undefined;
 }
 
 /**
