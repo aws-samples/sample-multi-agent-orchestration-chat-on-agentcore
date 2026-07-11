@@ -101,7 +101,7 @@ spans is stable because we control it.
 
 ### 5. Haiku-class judge default + finite bounds
 
-`GOAL_JUDGE_MODEL_ID` defaults to `global.anthropic.claude-haiku-4-5` — judging
+`GOAL_JUDGE_MODEL_ID` defaults to `global.anthropic.claude-haiku-4-5-20251001-v1:0` — judging
 is a cheap, high-frequency structured-output call, so a small fast model is the
 right default. Adding Haiku 4.5 required a new entry in the `@moca/core`
 `BEDROCK_MODEL_DEFINITIONS` registry AND a mirror in CDK `bedrockModels` (CDK does

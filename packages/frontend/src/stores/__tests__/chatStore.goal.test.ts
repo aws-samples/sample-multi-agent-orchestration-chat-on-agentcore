@@ -39,17 +39,17 @@ describe('chatStore.sendPrompt goal passthrough', () => {
   it('passes goal and goalJudgeModelId into agentConfig', async () => {
     await useChatStore
       .getState()
-      .sendPrompt('hello', SESSION_ID, undefined, 'Be concise', 'global.anthropic.claude-haiku-4-5');
+      .sendPrompt('hello', SESSION_ID, undefined, 'Be concise', 'global.anthropic.claude-haiku-4-5-20251001-v1:0');
 
     const config = capturedAgentConfig();
     expect(config?.goal).toBe('Be concise');
-    expect(config?.goalJudgeModelId).toBe('global.anthropic.claude-haiku-4-5');
+    expect(config?.goalJudgeModelId).toBe('global.anthropic.claude-haiku-4-5-20251001-v1:0');
   });
 
   it('trims the goal and drops the judge model when the goal is whitespace-only', async () => {
     await useChatStore
       .getState()
-      .sendPrompt('hello', SESSION_ID, undefined, '   ', 'global.anthropic.claude-haiku-4-5');
+      .sendPrompt('hello', SESSION_ID, undefined, '   ', 'global.anthropic.claude-haiku-4-5-20251001-v1:0');
 
     const config = capturedAgentConfig();
     expect(config?.goal).toBeUndefined();
@@ -67,7 +67,7 @@ describe('chatStore.sendPrompt goal passthrough', () => {
   it('drops the judge model when a goal is absent even if a judge id is passed', async () => {
     await useChatStore
       .getState()
-      .sendPrompt('hello', SESSION_ID, undefined, undefined, 'global.anthropic.claude-haiku-4-5');
+      .sendPrompt('hello', SESSION_ID, undefined, undefined, 'global.anthropic.claude-haiku-4-5-20251001-v1:0');
 
     const config = capturedAgentConfig();
     expect(config?.goal).toBeUndefined();

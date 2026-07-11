@@ -46,7 +46,7 @@ on the **agent** (Runtime container). It defaults to a fast, low-cost Haiku-clas
 model:
 
 ```
-GOAL_JUDGE_MODEL_ID=global.anthropic.claude-haiku-4-5
+GOAL_JUDGE_MODEL_ID=global.anthropic.claude-haiku-4-5-20251001-v1:0
 ```
 
 Notes:

@@ -226,7 +226,7 @@ export const BEDROCK_MODEL_DEFINITIONS = [
     // chat model. The judge itself sends no thinking field (reasoning depth
     // defaults to 'off' for the judge model), so this cap only matters when a
     // user picks Haiku as a chat model.
-    id: 'global.anthropic.claude-haiku-4-5',
+    id: 'global.anthropic.claude-haiku-4-5-20251001-v1:0',
     name: 'Claude Haiku 4.5',
     provider: 'Anthropic',
     maxOutputTokens: 64000, // 64k (Anthropic docs, Haiku 4.5)

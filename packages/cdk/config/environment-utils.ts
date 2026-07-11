@@ -132,7 +132,7 @@ const DEFAULT_CONFIG = {
       // (GOAL_JUDGE_MODEL_ID in packages/agent) and selectable as a chat model.
       // Mirror of the BEDROCK_MODEL_DEFINITIONS entry — this grants its
       // inference-profile IAM ARN so the agent (and judge) can invoke it.
-      id: 'global.anthropic.claude-haiku-4-5',
+      id: 'global.anthropic.claude-haiku-4-5-20251001-v1:0',
       name: 'Claude Haiku 4.5',
       provider: 'Anthropic',
     },

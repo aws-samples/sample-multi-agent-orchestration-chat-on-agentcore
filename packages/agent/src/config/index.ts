@@ -113,7 +113,7 @@ const envSchema = z.object({
   // an id present in @moca/core's BEDROCK_MODEL_DEFINITIONS (and mirrored in the
   // CDK bedrockModels config for IAM). Overridable per-request from the UI; this
   // is the fallback when the request omits goalJudgeModelId.
-  GOAL_JUDGE_MODEL_ID: z.string().default('global.anthropic.claude-haiku-4-5'),
+  GOAL_JUDGE_MODEL_ID: z.string().default('global.anthropic.claude-haiku-4-5-20251001-v1:0'),
 });
 
 /**

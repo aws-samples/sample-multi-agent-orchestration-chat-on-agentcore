@@ -14,11 +14,11 @@ describe('buildRequestBody goal fields', () => {
     const config: AgentConfig = {
       modelId: 'global.anthropic.claude-opus-4-8',
       goal: 'Answer in 3 sentences',
-      goalJudgeModelId: 'global.anthropic.claude-haiku-4-5',
+      goalJudgeModelId: 'global.anthropic.claude-haiku-4-5-20251001-v1:0',
     };
     const body = JSON.parse(buildRequestBody('hi', config));
     expect(body.goal).toBe('Answer in 3 sentences');
-    expect(body.goalJudgeModelId).toBe('global.anthropic.claude-haiku-4-5');
+    expect(body.goalJudgeModelId).toBe('global.anthropic.claude-haiku-4-5-20251001-v1:0');
   });
 
   it('includes goal but omits goalJudgeModelId when the judge model is undefined', () => {

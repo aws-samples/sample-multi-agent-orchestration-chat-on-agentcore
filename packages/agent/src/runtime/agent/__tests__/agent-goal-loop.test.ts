@@ -56,7 +56,7 @@ jest.unstable_mockModule('@moca/core', () => ({
 }));
 
 jest.unstable_mockModule('../../../config/index.js', () => ({
-  config: { GOAL_JUDGE_MODEL_ID: 'global.anthropic.claude-haiku-4-5', CONVERSATION_WINDOW_SIZE: 40 },
+  config: { GOAL_JUDGE_MODEL_ID: 'global.anthropic.claude-haiku-4-5-20251001-v1:0', CONVERSATION_WINDOW_SIZE: 40 },
   GOAL_LOOP_MAX_ATTEMPTS: 3,
   GOAL_LOOP_TIMEOUT_MS: 120000,
   createBedrockModel: jest.fn<any>().mockImplementation((opts: any) => {
@@ -179,7 +179,7 @@ describe('createAgent GoalLoop wiring', () => {
     await createAgent({ goal: 'g', goalJudgeModelId: 'made-up-model' });
 
     expect(
-      createBedrockModelCalls.some((c) => c?.modelId === 'global.anthropic.claude-haiku-4-5')
+      createBedrockModelCalls.some((c) => c?.modelId === 'global.anthropic.claude-haiku-4-5-20251001-v1:0')
     ).toBe(true);
   });
 
@@ -187,7 +187,7 @@ describe('createAgent GoalLoop wiring', () => {
     await createAgent({ goal: 'g' });
 
     expect(
-      createBedrockModelCalls.some((c) => c?.modelId === 'global.anthropic.claude-haiku-4-5')
+      createBedrockModelCalls.some((c) => c?.modelId === 'global.anthropic.claude-haiku-4-5-20251001-v1:0')
     ).toBe(true);
   });
 });
