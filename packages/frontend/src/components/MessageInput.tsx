@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Send, Loader2, Paperclip, CheckCircle2, Target } from 'lucide-react';
+import { Send, Loader2, Paperclip, CheckCircle2, Goal } from 'lucide-react';
 import { randomId } from '../utils/randomId';
 import { useChatStore } from '../stores/chatStore';
 import { useAgentStore } from '../stores/agentStore';
@@ -567,52 +567,50 @@ export const MessageInput: React.FC<MessageInputProps> = ({
                 >
                   <Paperclip className="w-4 h-4" />
                 </button>
+
+                {/* Goal button — sits directly right of the image-attach button
+                    in the left controls group. A modal (not a popover) so the
+                    left-controls no-overflow constraint doesn't apply. Active
+                    state (goal set) is shown with the accent color and a small
+                    dot badge. */}
+                <button
+                  type="button"
+                  onClick={() => setIsGoalModalOpen(true)}
+                  disabled={isLoading}
+                  aria-haspopup="dialog"
+                  aria-expanded={isGoalModalOpen}
+                  // Sticky goals cost judge calls on EVERY send — surface the
+                  // sticky state in the tooltip so it isn't forgotten.
+                  title={
+                    isGoalSticky && goal.trim()
+                      ? t('chat.goal.stickyActiveTitle')
+                      : t('chat.goal.buttonTitle')
+                  }
+                  className={`relative shrink-0 p-1.5 rounded-md transition-colors ${
+                    isLoading
+                      ? 'text-fg-disabled cursor-not-allowed'
+                      : goal.trim()
+                        ? 'text-action-primary hover:bg-surface-secondary'
+                        : 'text-fg-muted hover:text-fg-secondary hover:bg-surface-secondary'
+                  }`}
+                >
+                  <Goal className="w-4 h-4" />
+                  {goal.trim() && (
+                    <span
+                      aria-label={t('chat.goal.activeBadge')}
+                      className="absolute top-0.5 right-0.5 w-1.5 h-1.5 rounded-full bg-action-primary"
+                    />
+                  )}
+                </button>
               </div>
 
-              {/* Goal button — sits just left of the send button. A modal (not a
-                  popover) so the left-controls no-overflow constraint doesn't
-                  apply. Active state (goal set) is shown with the accent color
-                  and a small dot badge. */}
-              <button
-                type="button"
-                onClick={() => setIsGoalModalOpen(true)}
-                disabled={isLoading}
-                aria-haspopup="dialog"
-                aria-expanded={isGoalModalOpen}
-                // Sticky goals cost judge calls on EVERY send — surface the
-                // sticky state in the tooltip so it isn't forgotten.
-                title={
-                  isGoalSticky && goal.trim()
-                    ? t('chat.goal.stickyActiveTitle')
-                    : t('chat.goal.buttonTitle')
-                }
-                className={`relative ml-auto shrink-0 p-1.5 rounded-md transition-colors ${
-                  isLoading
-                    ? 'text-fg-disabled cursor-not-allowed'
-                    : goal.trim()
-                      ? 'text-action-primary hover:bg-surface-secondary'
-                      : 'text-fg-muted hover:text-fg-secondary hover:bg-surface-secondary'
-                }`}
-              >
-                <Target className="w-4 h-4" />
-                {goal.trim() && (
-                  <span
-                    aria-label={t('chat.goal.activeBadge')}
-                    className="absolute top-0.5 right-0.5 w-1.5 h-1.5 rounded-full bg-action-primary"
-                  />
-                )}
-              </button>
-
-              {/* Send button - fixed width, sits directly next to the goal button.
-                  The goal button carries the `ml-auto` that pushes the pair to
-                  the right edge, so the send button must NOT add its own or a
-                  gap opens up between the two. */}
+              {/* Send button - fixed width, pinned to the right, never overlapped. */}
               <button
                 type="submit"
                 disabled={
                   (!input.trim() && attachedImages.length === 0) || isLoading || isAgentStoreLoading
                 }
-                className={`shrink-0 w-8 h-8 rounded-md flex items-center justify-center transition-all duration-200 ${
+                className={`ml-auto shrink-0 w-8 h-8 rounded-md flex items-center justify-center transition-all duration-200 ${
                   (!input.trim() && attachedImages.length === 0) || isLoading || isAgentStoreLoading
                     ? 'text-fg-disabled cursor-not-allowed'
                     : 'text-black hover:bg-surface-secondary'
