@@ -67,6 +67,12 @@ export interface CreateAgentOptions {
    * when unset or not found in the model registry.
    */
   goalJudgeModelId?: string;
+  /**
+   * GoalLoop attempt cap for this turn. Clamped to
+   * [GOAL_LOOP_ATTEMPTS_MIN, GOAL_LOOP_ATTEMPTS_MAX]; falls back to
+   * GOAL_LOOP_MAX_ATTEMPTS when unset or not a valid integer.
+   */
+  goalMaxAttempts?: number;
 }
 
 /**

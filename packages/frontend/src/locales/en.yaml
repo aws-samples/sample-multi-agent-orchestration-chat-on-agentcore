@@ -217,13 +217,54 @@ chat:
     buttonTitle: Set a goal for this message
     modalTitle: Message goal
     modalDescription: >-
-      Describe what a good answer must satisfy. The agent refines its response
-      until a judge model decides the goal is met (or the retry limit is
-      reached). Applies to this message only.
+      Describe what a good answer must satisfy. Write verifiable conditions as a
+      numbered list so the judge model can grade the answer text alone. The
+      agent refines its response until the judge decides the goal is met (or
+      the retry limit is reached). Applies to this message only.
     inputLabel: Goal
-    placeholder: 'e.g. Answer in at most 3 sentences, no jargon.'
+    placeholder: >-
+      e.g. The answer must satisfy all of: 1) state the conclusion in one
+      opening sentence, 2) back it with at most 3 bullet points of evidence,
+      3) end with one concrete recommended next action.
+    examplesLabel: Pick an example (click to fill)
+    examples:
+      review:
+        label: Document review
+        hint: Verdict, evidence, and confidence per criterion; route low confidence to a human
+        text: |-
+          The answer must satisfy all of the following.
+          1) For each review criterion (or stated aspect), output a table with: verdict (pass / fail / undeterminable), evidence (quote or reference to the relevant passage), and confidence (high / medium / low).
+          2) List every item whose confidence is not "high" separately as "needs human review", with the reason.
+          3) Never state a failure as final — phrase it as a proposal, e.g. "likely fails criterion X".
+          4) Do not judge anything not covered by the criteria; mark it "undeterminable — needs review" instead of improvising an interpretation.
+      factcheck:
+        label: Evidence & limitations
+        hint: Ground every claim, separate speculation from fact, state unknowns
+        text: |-
+          The answer must satisfy all of the following.
+          1) Every factual claim carries supporting evidence (a source, data point, or reference).
+          2) Anything without evidence is explicitly labeled as speculation, kept distinct from fact.
+          3) Unknown or unverifiable points are listed as "unknown" rather than omitted.
+          4) The answer ends with the assumptions it depends on and at least one condition under which the conclusion would change.
+      coding:
+        label: Code change checklist
+        hint: Full code, rationale per change, verification steps, impact scope
+        text: |-
+          The answer must satisfy all of the following.
+          1) Show the changed code (or diff) in full, with no elided sections.
+          2) For each change, explain in one line what was changed and why.
+          3) State how to verify the change: the exact run/test commands and their expected results.
+          4) List the impact scope (call sites, related files) and any edge cases deliberately left unhandled.
     judgeModelLabel: Judge model
     judgeModelDefault: Default (server setting)
+    maxAttemptsLabel: Retry limit
+    maxAttemptsDefault: Default (3 attempts)
+    maxAttemptsOption_one: '{{count}} attempt'
+    maxAttemptsOption_other: '{{count}} attempts'
+    maxAttemptsNote: >-
+      The retry limit caps how many times the agent may regenerate the answer.
+      Higher values raise the chance of meeting the goal but add latency and
+      cost (judge calls + regenerations).
     sticky: Keep applying to future messages
     stickyNote: Saved in this browser and re-applied to every send until cleared. Each goal message uses extra judge calls.
     stickyActiveTitle: Goal is applied to every message (open to change)

@@ -125,7 +125,8 @@ interface ChatActions {
     sessionId: string,
     images?: ImageAttachment[],
     goal?: string,
-    goalJudgeModelId?: string
+    goalJudgeModelId?: string,
+    goalMaxAttempts?: number
   ) => Promise<void>;
   clearSession: (sessionId: string) => void;
   setLoading: (sessionId: string, loading: boolean) => void;
@@ -235,16 +236,19 @@ export const useChatStore = create<ChatStore>()(
         sessionId: string,
         images?: ImageAttachment[],
         goal?: string,
-        goalJudgeModelId?: string
+        goalJudgeModelId?: string,
+        goalMaxAttempts?: number
       ) => {
         const { addMessage, updateMessage, sessions } = get();
 
         // Per-message goal: applied only to this send. A whitespace-only goal is
         // treated as no goal; when there is no goal we also drop the judge model
-        // so the wire body stays clean (agent falls back to GOAL_JUDGE_MODEL_ID).
+        // and attempt cap so the wire body stays clean (agent falls back to
+        // GOAL_JUDGE_MODEL_ID / GOAL_LOOP_MAX_ATTEMPTS).
         const trimmedGoal = goal?.trim() || undefined;
         const goalForConfig = trimmedGoal;
         const goalJudgeModelIdForConfig = trimmedGoal ? goalJudgeModelId : undefined;
+        const goalMaxAttemptsForConfig = trimmedGoal ? goalMaxAttempts : undefined;
 
         // Set activeSessionId (for streaming callbacks to work correctly)
         set({ activeSessionId: sessionId });
@@ -372,6 +376,7 @@ export const useChatStore = create<ChatStore>()(
                 images: imageData,
                 goal: goalForConfig,
                 goalJudgeModelId: goalJudgeModelIdForConfig,
+                goalMaxAttempts: goalMaxAttemptsForConfig,
               }
             : {
                 modelId: selectedModelId,
@@ -381,6 +386,7 @@ export const useChatStore = create<ChatStore>()(
                 images: imageData,
                 goal: goalForConfig,
                 goalJudgeModelId: goalJudgeModelIdForConfig,
+                goalMaxAttempts: goalMaxAttemptsForConfig,
               };
 
           // Debug log

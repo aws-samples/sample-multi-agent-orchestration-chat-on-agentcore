@@ -46,6 +46,24 @@ describe('chatStore.sendPrompt goal passthrough', () => {
     expect(config?.goalJudgeModelId).toBe('global.anthropic.claude-haiku-4-5-20251001-v1:0');
   });
 
+  it('passes goalMaxAttempts into agentConfig alongside the goal', async () => {
+    await useChatStore
+      .getState()
+      .sendPrompt('hello', SESSION_ID, undefined, 'Be concise', undefined, 5);
+
+    const config = capturedAgentConfig();
+    expect(config?.goal).toBe('Be concise');
+    expect(config?.goalMaxAttempts).toBe(5);
+  });
+
+  it('drops goalMaxAttempts when the goal is absent', async () => {
+    await useChatStore.getState().sendPrompt('hello', SESSION_ID, undefined, undefined, undefined, 5);
+
+    const config = capturedAgentConfig();
+    expect(config?.goal).toBeUndefined();
+    expect(config?.goalMaxAttempts).toBeUndefined();
+  });
+
   it('trims the goal and drops the judge model when the goal is whitespace-only', async () => {
     await useChatStore
       .getState()

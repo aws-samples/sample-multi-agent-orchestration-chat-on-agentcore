@@ -151,6 +151,14 @@ export const config = parseEnv();
  */
 export const GOAL_LOOP_MAX_ATTEMPTS = 3;
 export const GOAL_LOOP_TIMEOUT_MS = 120_000;
+/**
+ * Bounds for the per-request `goalMaxAttempts` override (set from the UI).
+ * Values outside this range are clamped; non-integers fall back to
+ * GOAL_LOOP_MAX_ATTEMPTS. The wall-clock timeout above still applies
+ * regardless of the attempt count.
+ */
+export const GOAL_LOOP_ATTEMPTS_MIN = 1;
+export const GOAL_LOOP_ATTEMPTS_MAX = 10;
 
 /**
  * Workspace directory

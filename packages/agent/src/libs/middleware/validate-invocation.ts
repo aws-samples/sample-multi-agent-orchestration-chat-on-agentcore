@@ -8,6 +8,7 @@
 
 import type { Request, Response, NextFunction } from 'express';
 import { logger } from '../logger/index.js';
+import { GOAL_LOOP_ATTEMPTS_MIN, GOAL_LOOP_ATTEMPTS_MAX } from '../../config/index.js';
 import { validateImageData } from '../../types/index.js';
 import type { InvocationRequest } from '../../types/invocation-types.js';
 
@@ -51,6 +52,17 @@ export function validateInvocationMiddleware(
   if (typeof body.goal === 'string') {
     const trimmed = body.goal.trim();
     body.goal = trimmed ? trimmed.slice(0, MAX_GOAL_LENGTH) : undefined;
+  }
+
+  // Normalize the optional GoalLoop attempt cap: non-numbers / non-integers
+  // are dropped (agent falls back to GOAL_LOOP_MAX_ATTEMPTS), out-of-range
+  // integers are clamped so a pathological payload can't spin the loop.
+  if (body.goalMaxAttempts !== undefined) {
+    const n = body.goalMaxAttempts;
+    body.goalMaxAttempts =
+      typeof n === 'number' && Number.isInteger(n)
+        ? Math.min(Math.max(n, GOAL_LOOP_ATTEMPTS_MIN), GOAL_LOOP_ATTEMPTS_MAX)
+        : undefined;
   }
 
   next();

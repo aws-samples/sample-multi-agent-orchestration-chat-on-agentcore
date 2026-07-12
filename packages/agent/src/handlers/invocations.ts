@@ -122,6 +122,7 @@ export async function handleInvocation(req: Request, res: Response): Promise<voi
     // (already trimmed/clamped by validateInvocationMiddleware).
     goal: body.goal,
     goalJudgeModelId: body.goalJudgeModelId,
+    goalMaxAttempts: body.goalMaxAttempts,
   });
 
   logger.info(

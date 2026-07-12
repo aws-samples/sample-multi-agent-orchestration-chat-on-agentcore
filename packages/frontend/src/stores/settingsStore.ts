@@ -29,6 +29,8 @@ export interface PersistentGoal {
   text: string;
   /** Judge model id, or undefined for the server default. */
   judgeModelId?: string;
+  /** GoalLoop attempt cap, or undefined for the server default. */
+  maxAttempts?: number;
 }
 
 /**
@@ -125,7 +127,9 @@ export const useSettingsStore = create<SettingsState>()(
             set({ persistentGoal: null });
             return;
           }
-          set({ persistentGoal: { text, judgeModelId: goal.judgeModelId } });
+          set({
+            persistentGoal: { text, judgeModelId: goal.judgeModelId, maxAttempts: goal.maxAttempts },
+          });
           logger.log(`[SettingsStore] Persistent goal set (${text.length} chars)`);
         },
 

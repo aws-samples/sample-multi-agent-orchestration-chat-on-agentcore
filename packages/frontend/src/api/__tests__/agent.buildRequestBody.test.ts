@@ -28,6 +28,16 @@ describe('buildRequestBody goal fields', () => {
     expect('goalJudgeModelId' in body).toBe(false);
   });
 
+  it('includes goalMaxAttempts when set and omits it when undefined', () => {
+    const withAttempts = JSON.parse(
+      buildRequestBody('hi', { goal: 'Be concise', goalMaxAttempts: 5 })
+    );
+    expect(withAttempts.goalMaxAttempts).toBe(5);
+
+    const withoutAttempts = JSON.parse(buildRequestBody('hi', { goal: 'Be concise' }));
+    expect('goalMaxAttempts' in withoutAttempts).toBe(false);
+  });
+
   it('omits both goal and goalJudgeModelId when unset', () => {
     const config: AgentConfig = { modelId: 'global.anthropic.claude-opus-4-8' };
     const body = JSON.parse(buildRequestBody('hi', config));

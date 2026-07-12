@@ -59,6 +59,8 @@ jest.unstable_mockModule('../../../config/index.js', () => ({
   config: { GOAL_JUDGE_MODEL_ID: 'global.anthropic.claude-haiku-4-5-20251001-v1:0', CONVERSATION_WINDOW_SIZE: 40 },
   GOAL_LOOP_MAX_ATTEMPTS: 3,
   GOAL_LOOP_TIMEOUT_MS: 120000,
+  GOAL_LOOP_ATTEMPTS_MIN: 1,
+  GOAL_LOOP_ATTEMPTS_MAX: 10,
   createBedrockModel: jest.fn<any>().mockImplementation((opts: any) => {
     createBedrockModelCalls.push(opts);
     return { __model: opts?.modelId ?? 'default' };
@@ -181,6 +183,28 @@ describe('createAgent GoalLoop wiring', () => {
     expect(
       createBedrockModelCalls.some((c) => c?.modelId === 'global.anthropic.claude-haiku-4-5-20251001-v1:0')
     ).toBe(true);
+  });
+
+  it('uses the requested goalMaxAttempts when it is a valid integer', async () => {
+    await createAgent({ goal: 'g', goalMaxAttempts: 5 });
+
+    expect(goalLoopCtorArgs[0].maxAttempts).toBe(5);
+  });
+
+  it('clamps goalMaxAttempts to the allowed range', async () => {
+    await createAgent({ goal: 'g', goalMaxAttempts: 0 });
+    expect(goalLoopCtorArgs[0].maxAttempts).toBe(1);
+
+    await createAgent({ goal: 'g', goalMaxAttempts: 99 });
+    expect(goalLoopCtorArgs[1].maxAttempts).toBe(10);
+  });
+
+  it('falls back to GOAL_LOOP_MAX_ATTEMPTS when goalMaxAttempts is not an integer', async () => {
+    await createAgent({ goal: 'g', goalMaxAttempts: 2.5 });
+    expect(goalLoopCtorArgs[0].maxAttempts).toBe(3);
+
+    await createAgent({ goal: 'g' });
+    expect(goalLoopCtorArgs[1].maxAttempts).toBe(3);
   });
 
   it('falls back to GOAL_JUDGE_MODEL_ID when no judge model is requested', async () => {

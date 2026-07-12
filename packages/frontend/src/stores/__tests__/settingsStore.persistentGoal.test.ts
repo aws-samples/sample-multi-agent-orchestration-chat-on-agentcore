@@ -48,6 +48,13 @@ describe('settingsStore persistentGoal', () => {
     expect(useSettingsStore.getState().persistentGoal).toEqual({
       text: 'goal',
       judgeModelId: undefined,
+      maxAttempts: undefined,
     });
+  });
+
+  it('stores maxAttempts with the sticky goal', () => {
+    useSettingsStore.getState().setPersistentGoal({ text: 'goal', maxAttempts: 5 });
+
+    expect(useSettingsStore.getState().persistentGoal?.maxAttempts).toBe(5);
   });
 });

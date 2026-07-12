@@ -24,7 +24,13 @@
 import { Agent, SlidingWindowConversationManager } from '@strands-agents/sdk';
 import { GoalLoop } from '@strands-agents/sdk/vended-plugins/goal';
 import { isKnownModelId } from '@moca/core';
-import { config, GOAL_LOOP_MAX_ATTEMPTS, GOAL_LOOP_TIMEOUT_MS } from './config/index.js';
+import {
+  config,
+  GOAL_LOOP_MAX_ATTEMPTS,
+  GOAL_LOOP_TIMEOUT_MS,
+  GOAL_LOOP_ATTEMPTS_MIN,
+  GOAL_LOOP_ATTEMPTS_MAX,
+} from './config/index.js';
 import { buildSystemPrompt } from './config/prompts/index.js';
 import { createBedrockModel } from './config/index.js';
 import { getCurrentContext } from './libs/context/request-context.js';
@@ -136,15 +142,23 @@ export async function createAgent(options?: CreateAgentOptions): Promise<CreateA
       requestedJudge && isKnownModelId(requestedJudge)
         ? requestedJudge
         : config.GOAL_JUDGE_MODEL_ID;
+    // Per-request attempt cap. validateInvocationMiddleware already clamps
+    // HTTP-supplied values; re-clamp here so direct callers (tests, triggers)
+    // get the same bounds.
+    const requestedAttempts = options?.goalMaxAttempts;
+    const maxAttempts =
+      typeof requestedAttempts === 'number' && Number.isInteger(requestedAttempts)
+        ? Math.min(Math.max(requestedAttempts, GOAL_LOOP_ATTEMPTS_MIN), GOAL_LOOP_ATTEMPTS_MAX)
+        : GOAL_LOOP_MAX_ATTEMPTS;
     logger.info(
-      { judgeModelId, maxAttempts: GOAL_LOOP_MAX_ATTEMPTS, timeoutMs: GOAL_LOOP_TIMEOUT_MS },
+      { judgeModelId, maxAttempts, timeoutMs: GOAL_LOOP_TIMEOUT_MS },
       'GoalLoop enabled for this turn'
     );
     goalLoop = new GoalLoop({
       goal: trimmedGoal,
       // Finite bounds are mandatory: the SDK warns (and never terminates) when
       // both maxAttempts and timeout are Infinity.
-      maxAttempts: GOAL_LOOP_MAX_ATTEMPTS,
+      maxAttempts,
       timeout: GOAL_LOOP_TIMEOUT_MS,
       judge: { model: createBedrockModel({ modelId: judgeModelId }) },
     });

@@ -46,6 +46,8 @@ export interface AgentConfig {
   goal?: string;
   /** Judge model ID for the goal. Omitted → agent falls back to GOAL_JUDGE_MODEL_ID. */
   goalJudgeModelId?: string;
+  /** GoalLoop attempt cap. Omitted → agent falls back to GOAL_LOOP_MAX_ATTEMPTS. */
+  goalMaxAttempts?: number;
 }
 
 /**

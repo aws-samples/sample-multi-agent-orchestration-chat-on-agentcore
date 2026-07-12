@@ -54,6 +54,9 @@ export const MessageInput: React.FC<MessageInputProps> = ({
   const [goalJudgeModelId, setGoalJudgeModelId] = useState<string | undefined>(
     () => persistentGoal?.judgeModelId
   );
+  const [goalMaxAttempts, setGoalMaxAttempts] = useState<number | undefined>(
+    () => persistentGoal?.maxAttempts
+  );
   const [isGoalSticky, setIsGoalSticky] = useState(() => persistentGoal !== null);
   const [isGoalModalOpen, setIsGoalModalOpen] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
@@ -415,6 +418,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({
       // so it applies to exactly this send.
       const goalToSend = goal.trim() || undefined;
       const goalJudgeModelIdToSend = goalToSend ? goalJudgeModelId : undefined;
+      const goalMaxAttemptsToSend = goalToSend ? goalMaxAttempts : undefined;
 
       // Clear input field immediately
       setInput('');
@@ -424,6 +428,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({
       if (!isGoalSticky) {
         setGoal('');
         setGoalJudgeModelId(undefined);
+        setGoalMaxAttempts(undefined);
       }
 
       // Return focus to textarea after sending
@@ -441,7 +446,8 @@ export const MessageInput: React.FC<MessageInputProps> = ({
         targetSessionId,
         imagesToSend,
         goalToSend,
-        goalJudgeModelIdToSend
+        goalJudgeModelIdToSend,
+        goalMaxAttemptsToSend
       );
 
       // Release Object URLs after sending
@@ -641,6 +647,8 @@ export const MessageInput: React.FC<MessageInputProps> = ({
         onChange={setGoal}
         judgeModelId={goalJudgeModelId}
         onJudgeModelChange={setGoalJudgeModelId}
+        maxAttempts={goalMaxAttempts}
+        onMaxAttemptsChange={setGoalMaxAttempts}
         sticky={isGoalSticky}
         onStickyChange={setIsGoalSticky}
         onSet={() => {
@@ -648,7 +656,11 @@ export const MessageInput: React.FC<MessageInputProps> = ({
           // localStorage; sticky OFF removes any persisted goal but keeps the
           // local goal for one more send (per-message behavior).
           if (isGoalSticky && goal.trim()) {
-            setPersistentGoal({ text: goal, judgeModelId: goalJudgeModelId });
+            setPersistentGoal({
+              text: goal,
+              judgeModelId: goalJudgeModelId,
+              maxAttempts: goalMaxAttempts,
+            });
           } else {
             clearPersistentGoal();
           }
@@ -657,6 +669,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({
         onClear={() => {
           setGoal('');
           setGoalJudgeModelId(undefined);
+          setGoalMaxAttempts(undefined);
           setIsGoalSticky(false);
           clearPersistentGoal();
           setIsGoalModalOpen(false);
