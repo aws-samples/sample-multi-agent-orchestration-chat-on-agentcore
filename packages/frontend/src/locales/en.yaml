@@ -230,7 +230,6 @@ chat:
     examples:
       review:
         label: Document review
-        hint: Verdict, evidence, and confidence per criterion; route low confidence to a human
         text: |-
           The answer must satisfy all of the following.
           1) For each review criterion (or stated aspect), output a table with: verdict (pass / fail / undeterminable), evidence (quote or reference to the relevant passage), and confidence (high / medium / low).
@@ -239,7 +238,6 @@ chat:
           4) Do not judge anything not covered by the criteria; mark it "undeterminable — needs review" instead of improvising an interpretation.
       factcheck:
         label: Evidence & limitations
-        hint: Ground every claim, separate speculation from fact, state unknowns
         text: |-
           The answer must satisfy all of the following.
           1) Every factual claim carries supporting evidence (a source, data point, or reference).
@@ -248,13 +246,12 @@ chat:
           4) The answer ends with the assumptions it depends on and at least one condition under which the conclusion would change.
       coding:
         label: Code change checklist
-        hint: Full code, rationale per change, verification steps, impact scope
         text: |-
-          The answer must satisfy all of the following.
-          1) Show the changed code (or diff) in full, with no elided sections.
-          2) For each change, explain in one line what was changed and why.
-          3) State how to verify the change: the exact run/test commands and their expected results.
-          4) List the impact scope (call sites, related files) and any edge cases deliberately left unhandled.
+          All of the following must hold.
+          1) After changing the code, actually run the tests (e.g. npm run test) and include the passing output in the answer. Reporting with failing tests is not acceptable.
+          2) Also run the linter (e.g. npm run lint) and the build (e.g. npm run build), and show that both complete without errors, with their output.
+          3) For each change, explain in one line what was changed and why.
+          4) Verify and list the impact scope (call sites, related files), and state any edge cases deliberately left unhandled.
     judgeModelLabel: Judge model
     judgeModelDefault: Default (server setting)
     maxAttemptsLabel: Retry limit

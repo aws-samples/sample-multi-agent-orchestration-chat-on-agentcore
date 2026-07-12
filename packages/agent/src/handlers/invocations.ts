@@ -92,6 +92,12 @@ export async function handleInvocation(req: Request, res: Response): Promise<voi
         sessionType,
         agentId: body.agentId,
         storagePath: body.storagePath,
+        // Goal turns buffer real-time persistence so intermediate refinement
+        // attempts and judge-feedback prompts never reach Memory / AppSync.
+        // `body.goal` is already trimmed/validated by validateInvocationMiddleware,
+        // so a non-empty string here is exactly the condition under which
+        // createAgent attaches the GoalLoop.
+        goalActive: typeof body.goal === 'string' && body.goal.length > 0,
         deps: createSessionPersistenceDeps(),
       })
     : null;

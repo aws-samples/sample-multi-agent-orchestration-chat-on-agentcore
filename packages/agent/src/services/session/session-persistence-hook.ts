@@ -73,15 +73,35 @@ export class SessionPersistenceHook implements Plugin {
   private agentId?: string;
   private storagePath?: string;
 
+  // ── GoalLoop turn buffering ─────────────────────────────────────────
+  // When the turn runs under a GoalLoop (goalActive), real-time egress
+  // (Memory appendMessage + AppSync MESSAGE_ADDED) for everything after the
+  // user's own input is DEFERRED: intermediate failed attempts and the
+  // synthetic judge-feedback "user" messages must never reach the persisted
+  // transcript or other tabs. On an intermediate AfterInvocationEvent
+  // (resume armed) the buffered attempt is discarded; on the terminal one the
+  // buffer — now holding only the final attempt's messages — is flushed.
+  // Discarding whole failed attempts (feedback user message included) keeps
+  // user/assistant alternation valid for the next turn's Bedrock replay:
+  // the flushed transcript is [user input, final assistant(+tool pairs)].
+  private readonly goalActive: boolean;
+  private goalBuffer: Message[] = [];
+  /** The user's own turn input was already persisted (first message only). */
+  private turnInputPersisted = false;
+  /** Set when a resume was armed: the NEXT user message is judge feedback. */
+  private pendingGoalFeedback = false;
+
   constructor(
     private readonly storage: SessionStorage,
     private readonly sessionConfig: SessionConfig,
     private readonly deps: SessionPersistenceDeps,
     agentId?: string,
-    storagePath?: string
+    storagePath?: string,
+    goalActive = false
   ) {
     this.agentId = agentId;
     this.storagePath = storagePath;
+    this.goalActive = goalActive;
   }
 
   /**
@@ -104,6 +124,42 @@ export class SessionPersistenceHook implements Plugin {
    */
   private async onMessageAdded(event: MessageAddedEvent): Promise<void> {
     const message = event.message;
+
+    // GoalLoop turn: real-time egress is deferred for everything after the
+    // user's own input. MessageAddedEvent fires for EVERY message the loop
+    // appends — including failed intermediate attempts and the synthetic
+    // judge-feedback "user" prompts — none of which may reach the persisted
+    // transcript or other tabs. Only the first user message (the turn input)
+    // takes the normal real-time path below; the rest is buffered and either
+    // discarded (attempt failed → resume) or flushed (terminal) in
+    // onAfterInvocation. Trade-off: other tabs see the goal turn's assistant
+    // message at turn end instead of streaming — acceptable, since only the
+    // final attempt should ever be visible there.
+    if (this.goalActive) {
+      if (!this.turnInputPersisted && message.role === 'user') {
+        // The user's own input: persist/publish immediately (normal path).
+        this.turnInputPersisted = true;
+      } else if (this.pendingGoalFeedback && message.role === 'user') {
+        // The first user message after a resume is the GoalLoop's synthetic
+        // judge-feedback prompt — internal scaffolding, never persisted.
+        this.pendingGoalFeedback = false;
+        return;
+      } else {
+        this.goalBuffer.push(message);
+        return;
+      }
+    }
+
+    await this.persistAndPublish(message);
+  }
+
+  /**
+   * Persist a message to AgentCore Memory, maintain DynamoDB session metadata,
+   * trigger title generation, and publish MESSAGE_ADDED — the real-time path.
+   * Called directly for non-goal turns, and from the terminal flush for the
+   * final attempt of a goal turn.
+   */
+  private async persistAndPublish(message: Message): Promise<void> {
     const { actorId, sessionId } = this.sessionConfig;
 
     // Real-time message persistence to AgentCore Memory
@@ -323,18 +379,39 @@ export class SessionPersistenceHook implements Plugin {
   private async onAfterInvocation(event: AfterInvocationEvent): Promise<void> {
     // GoalLoop guard: AfterInvocationEvent fires once per attempt. When the
     // GoalLoop plugin decides to retry, it sets `event.resume` (an InvokeArgs)
-    // so the agent re-enters the loop with fresh feedback. On those intermediate
-    // attempts we must NOT finalize — saving messages or publishing
-    // AGENT_COMPLETE now would persist a mid-refinement state and tell the
-    // frontend the turn is done prematurely. Only the terminal attempt (goal
-    // met / maxAttempts / timeout) leaves `resume === undefined`, and that's
-    // when we finalize. `resume` is `InvokeArgs | undefined`, so compare against
-    // undefined explicitly (not a truthiness check). Real-time per-message
-    // persistence still runs via onMessageAdded, so no message is lost.
-    if (event.resume !== undefined) return;
+    // so the agent re-enters the loop with fresh feedback. On those
+    // intermediate attempts we must NOT finalize — the buffered attempt is a
+    // failed refinement the transcript must never contain, and AGENT_COMPLETE
+    // would tell the frontend the turn is done prematurely. `resume` is
+    // `InvokeArgs | undefined`, so compare against undefined explicitly (not
+    // a truthiness check).
+    if (event.resume !== undefined) {
+      // Discard the failed attempt's buffered messages and mark that the next
+      // user message is the GoalLoop's synthetic feedback prompt (skip it).
+      this.goalBuffer = [];
+      this.pendingGoalFeedback = true;
+      return;
+    }
 
     const { actorId, sessionId } = this.sessionConfig;
     try {
+      if (this.goalActive) {
+        // Terminal attempt of a goal turn: flush the buffer, which now holds
+        // exactly the final attempt's messages. The saveMessages fallback
+        // below is intentionally skipped — `event.agent.messages` still
+        // contains ALL attempts (GoalLoop keeps context across retries), and
+        // its slice-based dedup would re-leak the intermediate scaffolding.
+        for (const message of this.goalBuffer) {
+          await this.persistAndPublish(message);
+        }
+        log.debug(
+          { actorId, sessionId, flushed: this.goalBuffer.length },
+          'Goal turn finalized: flushed final-attempt messages'
+        );
+        this.goalBuffer = [];
+        return;
+      }
+
       const messages = event.agent.messages;
 
       log.debug(

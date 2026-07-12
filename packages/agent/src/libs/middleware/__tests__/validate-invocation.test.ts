@@ -91,6 +91,38 @@ describe('validateInvocationMiddleware', () => {
     expect(res.status).not.toHaveBeenCalled();
   });
 
+  describe('goal normalization', () => {
+    it('trims the goal in place', () => {
+      const body: any = { prompt: 'p', goal: '  be concise  ' };
+      validateInvocationMiddleware({ body } as any, res, next as any);
+      expect(body.goal).toBe('be concise');
+      expect(next).toHaveBeenCalled();
+    });
+
+    it('drops a whitespace-only goal', () => {
+      const body: any = { prompt: 'p', goal: '   ' };
+      validateInvocationMiddleware({ body } as any, res, next as any);
+      expect(body.goal).toBeUndefined();
+      expect(next).toHaveBeenCalled();
+    });
+
+    it('rejects an over-long goal with 400 instead of silently truncating', () => {
+      // Truncation could cut a NL criterion mid-sentence (e.g. before a
+      // negation) and invert its meaning — fail loud like the other checks.
+      const body: any = { prompt: 'p', goal: 'x'.repeat(4001) };
+      validateInvocationMiddleware({ body } as any, res, next as any);
+      expect(res.status).toHaveBeenCalledWith(400);
+      expect(next).not.toHaveBeenCalled();
+    });
+
+    it('accepts a goal at exactly the maximum length', () => {
+      const body: any = { prompt: 'p', goal: 'x'.repeat(4000) };
+      validateInvocationMiddleware({ body } as any, res, next as any);
+      expect(body.goal).toHaveLength(4000);
+      expect(next).toHaveBeenCalled();
+    });
+  });
+
   describe('goalMaxAttempts normalization', () => {
     it('keeps an in-range integer as-is', () => {
       const body: any = { prompt: 'p', goalMaxAttempts: 5 };

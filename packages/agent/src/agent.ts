@@ -112,7 +112,16 @@ export async function createAgent(options?: CreateAgentOptions): Promise<CreateA
   // span inserted between `POST /invocations` and `invoke_agent` breaks
   // that aggregation.
   const ctx = getCurrentContext();
-  const traceAttributes: Record<string, string> = {};
+  const traceAttributes: Record<string, string> = {
+    // Unconditional marker identifying a Moca-managed agent span. The
+    // observability span-kind fixer gates its CLIENT promotion + LLO
+    // projection on this key so the GoalLoop's internal judge Agent (which
+    // carries none of our trace attributes) is excluded from trace-level
+    // token aggregation. Deliberately NOT keyed off `enduser.id`: userId is
+    // optional on some paths (e.g. sub-agent tasks that lost their context),
+    // and those spans must keep their attribution.
+    'moca.agent.managed': 'true',
+  };
   if (ctx?.userId) traceAttributes['enduser.id'] = ctx.userId;
   if (ctx?.sessionId) traceAttributes['session.id'] = ctx.sessionId;
   if (ctx?.sessionType) traceAttributes['session.type'] = ctx.sessionType;
@@ -134,9 +143,15 @@ export async function createAgent(options?: CreateAgentOptions): Promise<CreateA
   let goalLoop: GoalLoop | undefined;
   if (trimmedGoal) {
     // Fall back to the server default when the requested judge model is absent
-    // or not in the registry (an unknown id would fail at invocation with
-    // AccessDenied / ValidationException; validating here keeps the judge cheap
-    // and predictable).
+    // or not in the registry. WHY the judge is validated but options.modelId is
+    // NOT (deliberate asymmetry): a bad judge id throws INSIDE the GoalLoop
+    // validator, which swallows the error into per-attempt feedback — silently
+    // burning the whole attempt budget (observed live). A bad main model id
+    // fails the FIRST model call and streams a visible error to the user
+    // immediately. Validating options.modelId against the registry would also
+    // break deployments that add custom models via CDK bedrockModels overrides
+    // without a registry entry — those work through createBedrockModel's
+    // defaults, so they must not be rejected or silently swapped.
     const requestedJudge = options?.goalJudgeModelId?.trim();
     const judgeModelId =
       requestedJudge && isKnownModelId(requestedJudge)

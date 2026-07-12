@@ -53,6 +53,13 @@ export interface SessionSetupOptions {
   sessionType?: SessionType;
   agentId?: string;
   storagePath?: string;
+  /**
+   * True when this turn runs under a GoalLoop. The persistence hook then
+   * buffers all post-input messages and flushes only the final attempt on the
+   * terminal AfterInvocationEvent, so intermediate refinement attempts and
+   * judge-feedback prompts never reach Memory / AppSync.
+   */
+  goalActive?: boolean;
   deps: SessionPersistenceDeps;
   /**
    * Optional pre-built SessionStorage — bypasses user-scoped client creation.
@@ -106,7 +113,8 @@ export async function setupSession(options: SessionSetupOptions): Promise<Sessio
     sessionConfig,
     options.deps,
     options.agentId,
-    options.storagePath
+    options.storagePath,
+    options.goalActive ?? false
   );
 
   return { config: sessionConfig, hook, storage };

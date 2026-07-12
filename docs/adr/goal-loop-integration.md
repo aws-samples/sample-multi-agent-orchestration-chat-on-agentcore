@@ -26,10 +26,16 @@ rather than silently floating to 1.9.x.
 
 `@strands-agents/sdk@>=1.8` declares `express ^5` as an **optional** peer. This
 repo intentionally stays on Express 4 (Lambda Web Adapter and AgentCore both
-work with it; an Express 5 migration is out of scope). npm still raises ERESOLVE
-when a present dependency mismatches an optional peer, so a root `.npmrc` sets
-`legacy-peer-deps=true`. This is a dependency-resolution relaxation only — no
-runtime behavior changes.
+work with it; an Express 5 migration is out of scope). npm raises ERESOLVE when
+a present dependency mismatches an optional peer, so the upgrade commit itself
+was installed with `--legacy-peer-deps`. A repo-wide `.npmrc` with
+`legacy-peer-deps=true` was considered and REJECTED: it silences install-time
+peer-conflict detection for every package, not just this one mismatch. The
+committed `package-lock.json` already encodes the resolved tree, so
+`npm install` / `npm ci` succeed with strict peer checking; only a future
+re-resolution of the SDK subtree (e.g. bumping `@strands-agents/sdk`) re-fires
+the ERESOLVE — pass `--legacy-peer-deps` for that one command, or move to
+Express 5 by then.
 
 **Collateral (verified, not a GoalLoop concern):** 1.8 changed `AgentSkills` to
 load filesystem path sources lazily in `initAgent(agent)` via `agent.sandbox`,
@@ -86,13 +92,33 @@ Two-part fix, both required:
    The comparison is `!== undefined`, not truthiness, because `resume` is
    `InvokeArgs | undefined` and a falsy-but-defined value still means "resuming".
 
-Real-time per-message persistence (`onMessageAdded`) is unaffected, so no message
-is lost on intermediate attempts.
+**Amendment (2026-07-13): the resume guard alone was not enough.**
+`MessageAddedEvent` also fires once per appended message — including the failed
+intermediate assistant answers and the synthetic judge-feedback prompts the
+resume loop appends as *user* messages. The hook's real-time path
+(`onMessageAdded` → Memory `appendMessage` + AppSync `MESSAGE_ADDED`) was
+persisting and broadcasting all of that scaffolding. Fix: `setupSession` passes
+`goalActive` (derived from the validated request `goal`), and the hook then
+buffers everything after the turn's own user input. An intermediate
+`AfterInvocationEvent` (resume armed) discards the buffered attempt and marks
+the next user message as judge feedback (skipped); the terminal event flushes
+the buffer — now exactly the final attempt — through the normal
+persist+publish path. The whole-history `saveMessages` fallback is skipped on
+goal turns: `agent.messages` still contains every attempt (GoalLoop keeps
+context across retries), and its count-based dedup would re-leak them.
+Trade-off: other tabs see the goal turn's assistant message at turn end
+instead of streaming — acceptable, since only the final attempt may ever be
+visible there. Pinned by an end-to-end test
+(`goal-loop-persistence.test.ts`) that runs a real Agent + GoalLoop + hook
+through the SDK's actual dispatch and asserts exactly one `AGENT_COMPLETE`
+and a persisted transcript of `[input, final answer]` — this also locks the
+LIFO After*-hook dispatch assumption to observed behavior.
 
 Rejected alternative: gating persistence on a GoalLoop-specific flag threaded
-through options. The resume field is already the SDK's own signal for "another
-attempt is coming"; keying off it needs no extra plumbing and is robust to any
-future plugin that resumes.
+through options for the AGENT_COMPLETE half. The resume field is already the
+SDK's own signal for "another attempt is coming"; keying off it needs no extra
+plumbing. (The buffering half does need the `goalActive` flag — resume state
+isn't visible from MessageAddedEvent.)
 
 ### 4. Judge span excluded from observability token aggregation
 
@@ -103,16 +129,20 @@ onto LLO attributes. Applied to the judge span, this would **double-count** the
 goal turn's tokens (host agent + judge) and surface the judge's internal grading
 as user-facing Input/Output.
 
-Discriminator: every agent WE build goes through `createAgent`, which runs inside
-a request context and always stamps `enduser.id` on the span via
-`traceAttributes` (userId is required). The judge Agent is constructed internally
-by the SDK with no id, the default name, and none of our trace attributes. So the
-fixer gates both adaptations on the presence of `enduser.id`: our spans (main and
-sub-agents) have it; the judge span does not. Sub-agents keep their attribution.
+Discriminator: every agent WE build goes through `createAgent`, which stamps a
+dedicated marker `moca.agent.managed=true` onto the span via `traceAttributes`
+— **unconditionally**, independent of any resolved user. The judge Agent is
+constructed internally by the SDK with no id, the default name, and none of our
+trace attributes, so its span lacks the marker. The fixer gates both
+adaptations on that marker.
 
-Rejected alternative: matching the judge by agent name (`'Strands Agent'`) or by
-absence of an id. Both are fragile to SDK internals; a positive marker on our own
-spans is stable because we control it.
+Rejected alternatives: matching the judge by agent name (`'Strands Agent'`) or
+absence of an id — fragile to SDK internals. Gating on `enduser.id` (the first
+implementation) — repurposes a user-attribution attribute as an "our agent"
+marker, and `userId` is optional on some paths (a sub-agent task that lost its
+context), so those spans would silently drop out of token aggregation. A
+positive, purpose-built marker on our own spans is stable because we control
+both ends.
 
 ### 5. Haiku-class judge default + finite bounds
 

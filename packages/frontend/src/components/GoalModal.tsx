@@ -1,20 +1,24 @@
 /**
  * GoalModal
  *
- * Per-message goal editor. Opened from the goal button beside the chat send
- * button. Lets the user set a natural-language goal (the GoalLoop refinement
- * criterion for the next send), optionally pick the judge model and the retry
- * (attempt) cap, and choose whether the goal should stick across sends
- * ("継続適用" — persisted to localStorage via settingsStore; the wire contract
- * stays per-message).
+ * Goal editor opened from the goal button in the chat input. Lets the user set
+ * a natural-language goal (the GoalLoop refinement criterion), optionally pick
+ * the judge model and the retry (attempt) cap, and choose whether the goal
+ * should stick across sends ("継続適用" — persisted to localStorage via
+ * settingsStore; the wire contract stays per-message).
  *
- * State lives in MessageInput; this component is a controlled editor over
- * `value` / `judgeModelId` / `maxAttempts` / `sticky`. "Set" commits the
- * sticky choice (via onSet) and closes; "Clear" resets everything (including
- * the persisted sticky goal) and closes.
+ * Draft-commit semantics: the modal edits a LOCAL draft seeded from the
+ * committed values each time it opens. Only "Set" commits the draft to the
+ * parent (and to the persisted sticky goal); dismissing via ESC / overlay / ×
+ * discards the draft entirely. WHY: a live-controlled editor had two real
+ * failure modes — a goal typed then abandoned with ESC still ran GoalLoop on
+ * the next send (unwanted judge cost), and unchecking sticky then dismissing
+ * silently reverted on the next mount because localStorage was never updated.
+ * With draft-commit, dismiss is always a no-op and the UI never diverges from
+ * what is actually committed/persisted.
  */
 
-import React from 'react';
+import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Modal } from './ui/Modal';
 import { Button } from './ui/Button';
@@ -29,45 +33,51 @@ import { AVAILABLE_MODELS } from '../config/models';
  */
 const MAX_ATTEMPTS_OPTIONS = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
 
-/** Keys under chat.goal.examples.* — each has a `label`, a `hint`, and a `text`. */
+/** Keys under chat.goal.examples.* — each has a `label` and a `text`. */
 const EXAMPLE_KEYS = ['review', 'factcheck', 'coding'] as const;
+
+/** The values the modal edits and commits as one unit. */
+export interface GoalDraft {
+  text: string;
+  /** Judge model id, or undefined for the server default. */
+  judgeModelId: string | undefined;
+  /** Attempt cap, or undefined for the server default. */
+  maxAttempts: number | undefined;
+  /** Whether the goal keeps applying to future sends. */
+  sticky: boolean;
+}
 
 export interface GoalModalProps {
   isOpen: boolean;
   onClose: () => void;
-  /** Current goal text. */
-  value: string;
-  onChange: (value: string) => void;
-  /** Selected judge model id, or undefined for the server default. */
-  judgeModelId: string | undefined;
-  onJudgeModelChange: (modelId: string | undefined) => void;
-  /** Attempt cap for the GoalLoop, or undefined for the server default. */
-  maxAttempts: number | undefined;
-  onMaxAttemptsChange: (maxAttempts: number | undefined) => void;
-  /** Whether the goal should keep applying to future sends. */
-  sticky: boolean;
-  onStickyChange: (sticky: boolean) => void;
-  /** Commit the current values (incl. sticky persistence) and close. */
-  onSet: () => void;
-  /** Reset goal + judge model + attempts + sticky persistence. */
+  /** Committed values used to seed the draft each time the modal opens. */
+  committed: GoalDraft;
+  /** Commit the draft (Set button). The parent owns persistence. */
+  onCommit: (draft: GoalDraft) => void;
+  /** Reset goal + judge model + attempts + sticky persistence (Clear button). */
   onClear: () => void;
 }
 
 export const GoalModal: React.FC<GoalModalProps> = ({
   isOpen,
   onClose,
-  value,
-  onChange,
-  judgeModelId,
-  onJudgeModelChange,
-  maxAttempts,
-  onMaxAttemptsChange,
-  sticky,
-  onStickyChange,
-  onSet,
+  committed,
+  onCommit,
   onClear,
 }) => {
   const { t } = useTranslation();
+
+  // Local draft, re-seeded from the committed values on every open so a
+  // previously discarded edit never leaks into the next editing session.
+  // Re-seeding uses the render-phase "adjust state when a prop changes"
+  // pattern (not an effect): `committed` is intentionally read only at the
+  // open transition — mid-edit external changes must not clobber the draft.
+  const [draft, setDraft] = useState<GoalDraft>(committed);
+  const [wasOpen, setWasOpen] = useState(isOpen);
+  if (isOpen !== wasOpen) {
+    setWasOpen(isOpen);
+    if (isOpen) setDraft(committed);
+  }
 
   return (
     // `lg` + a widened max-w: the goal textarea and example chips need more
@@ -88,34 +98,29 @@ export const GoalModal: React.FC<GoalModalProps> = ({
               id="goal-input"
               aria-label={t('chat.goal.inputLabel')}
               placeholder={t('chat.goal.placeholder')}
-              value={value}
-              onChange={(e) => onChange(e.target.value)}
+              value={draft.text}
+              onChange={(e) => setDraft((d) => ({ ...d, text: e.target.value }))}
               rows={6}
               resize="vertical"
             />
           </FormField>
 
-          {/* Example goals: clicking one replaces the goal text so users can
-              start from a concrete, working criterion instead of a blank box.
-              The example texts are multi-line condition checklists, so each
-              entry shows a label + one-line hint instead of a bare chip. */}
+          {/* Example goal chips: clicking one replaces the goal text so users
+              can start from a concrete, working criterion instead of a blank
+              box. Title-only chips — the full checklist shows in the hover
+              tooltip and lands in the textarea on click. */}
           <div>
             <p className="text-xs text-fg-muted mb-1.5">{t('chat.goal.examplesLabel')}</p>
-            <div className="space-y-1.5">
+            <div className="flex flex-wrap gap-1.5">
               {EXAMPLE_KEYS.map((key) => (
                 <button
                   key={key}
                   type="button"
-                  onClick={() => onChange(t(`chat.goal.examples.${key}.text`))}
+                  onClick={() => setDraft((d) => ({ ...d, text: t(`chat.goal.examples.${key}.text`) }))}
                   title={t(`chat.goal.examples.${key}.text`)}
-                  className="w-full text-left px-3 py-2 rounded-input border border-border hover:bg-surface-secondary transition-colors"
+                  className="px-2.5 py-1 text-xs rounded-full border border-border text-fg-secondary hover:bg-surface-secondary hover:text-fg-default transition-colors"
                 >
-                  <span className="block text-xs font-medium text-fg-default">
-                    {t(`chat.goal.examples.${key}.label`)}
-                  </span>
-                  <span className="block text-xs text-fg-muted">
-                    {t(`chat.goal.examples.${key}.hint`)}
-                  </span>
+                  {t(`chat.goal.examples.${key}.label`)}
                 </button>
               ))}
             </div>
@@ -129,8 +134,10 @@ export const GoalModal: React.FC<GoalModalProps> = ({
                 id="goal-judge-model"
                 aria-label={t('chat.goal.judgeModelLabel')}
                 // Empty string = server default; map to/from `undefined` on the wire.
-                value={judgeModelId ?? ''}
-                onChange={(e) => onJudgeModelChange(e.target.value || undefined)}
+                value={draft.judgeModelId ?? ''}
+                onChange={(e) =>
+                  setDraft((d) => ({ ...d, judgeModelId: e.target.value || undefined }))
+                }
                 className="w-full px-3 py-2 text-sm border border-border rounded-input bg-surface-primary text-fg-default focus:outline-none focus:ring-2 focus:ring-border-focus focus:border-transparent transition-colors duration-200"
               >
                 <option value="">{t('chat.goal.judgeModelDefault')}</option>
@@ -147,9 +154,12 @@ export const GoalModal: React.FC<GoalModalProps> = ({
                 id="goal-max-attempts"
                 aria-label={t('chat.goal.maxAttemptsLabel')}
                 // Empty string = server default; map to/from `undefined` on the wire.
-                value={maxAttempts ?? ''}
+                value={draft.maxAttempts ?? ''}
                 onChange={(e) =>
-                  onMaxAttemptsChange(e.target.value ? Number(e.target.value) : undefined)
+                  setDraft((d) => ({
+                    ...d,
+                    maxAttempts: e.target.value ? Number(e.target.value) : undefined,
+                  }))
                 }
                 className="w-full px-3 py-2 text-sm border border-border rounded-input bg-surface-primary text-fg-default focus:outline-none focus:ring-2 focus:ring-border-focus focus:border-transparent transition-colors duration-200"
               >
@@ -171,8 +181,8 @@ export const GoalModal: React.FC<GoalModalProps> = ({
           <label className="flex items-start gap-2 cursor-pointer select-none">
             <input
               type="checkbox"
-              checked={sticky}
-              onChange={(e) => onStickyChange(e.target.checked)}
+              checked={draft.sticky}
+              onChange={(e) => setDraft((d) => ({ ...d, sticky: e.target.checked }))}
               className="mt-0.5 h-4 w-4 shrink-0 rounded border-border accent-action-primary"
               aria-describedby="goal-sticky-note"
             />
@@ -190,7 +200,7 @@ export const GoalModal: React.FC<GoalModalProps> = ({
         <Button variant="ghost" size="md" onClick={onClear}>
           {t('chat.goal.clear')}
         </Button>
-        <Button variant="primary" size="md" onClick={onSet}>
+        <Button variant="primary" size="md" onClick={() => onCommit(draft)}>
           {t('chat.goal.set')}
         </Button>
       </Modal.Footer>

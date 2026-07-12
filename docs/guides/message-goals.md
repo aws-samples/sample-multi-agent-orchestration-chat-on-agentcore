@@ -38,11 +38,19 @@ unless you want that on every message.
    - **Retry limit** — how many times the agent may regenerate the answer
      (1–10). Leave it on **"Default (3 attempts)"** unless you want more (or
      fewer) refinement rounds; higher values add latency and judge-call cost.
-3. Click **Set**, then send your message as usual.
+3. Click **Set**, then send your message as usual. Only **Set** applies your
+   edits — closing the modal with ESC, the overlay, or × discards them, so an
+   accidentally typed goal never runs.
 4. When the turn finishes, if the agent refined more than once you'll see a small
-   **"Goal met / not met after N attempts"** note under the response.
+   **"Goal met / not met after N attempts"** note under the response. The note
+   is shown in the tab that sent the message; it is not part of the saved
+   history, so it disappears on reload.
 
 Use **Clear** in the modal to drop the goal without sending.
+
+While the agent is refining, intermediate attempts and the judge's feedback are
+internal — only your message and the final answer are saved to the session
+history and shown in other tabs.
 
 ## Bounds
 

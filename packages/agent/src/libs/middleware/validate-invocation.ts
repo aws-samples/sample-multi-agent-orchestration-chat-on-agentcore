@@ -46,12 +46,21 @@ export function validateInvocationMiddleware(
   }
 
   // Normalize the optional GoalLoop goal in place: a whitespace-only goal is
-  // treated as "no goal" (dropped), and an over-long goal is clamped so a
-  // pathological payload can't bloat the judge prompt. Downstream (agent.ts)
-  // enables GoalLoop only when `goal` is a non-empty string.
+  // treated as "no goal" (dropped). An over-long goal is REJECTED (not
+  // clamped): a goal is a natural-language criterion, and cutting it
+  // mid-string can invert its meaning (e.g. truncating just before a
+  // negation), making the judge grade against a corrupted criterion with no
+  // signal to the user. Rejecting keeps this middleware's fail-loud contract
+  // consistent with the prompt/image checks above.
   if (typeof body.goal === 'string') {
     const trimmed = body.goal.trim();
-    body.goal = trimmed ? trimmed.slice(0, MAX_GOAL_LENGTH) : undefined;
+    if (trimmed.length > MAX_GOAL_LENGTH) {
+      res.status(400).json({
+        error: `Goal is too long (${trimmed.length} chars). Maximum is ${MAX_GOAL_LENGTH} characters.`,
+      });
+      return;
+    }
+    body.goal = trimmed || undefined;
   }
 
   // Normalize the optional GoalLoop attempt cap: non-numbers / non-integers
@@ -68,5 +77,5 @@ export function validateInvocationMiddleware(
   next();
 }
 
-/** Upper bound on the goal string (characters). Longer goals are clamped. */
+/** Upper bound on the goal string (characters). Longer goals are rejected with 400. */
 const MAX_GOAL_LENGTH = 4000;

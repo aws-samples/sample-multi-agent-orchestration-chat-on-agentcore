@@ -78,18 +78,20 @@ const STRANDS_AGENT_OPERATION = 'invoke_agent';
 
 /**
  * Attribute that positively identifies one of OUR agent spans (main or
- * sub-agent). Every agent we build goes through `createAgent`, which runs
- * inside a request context and always stamps `enduser.id` (the userId is
- * required) onto the `invoke_agent` span via `traceAttributes`.
+ * sub-agent). Every agent we build goes through `createAgent`, which stamps
+ * this marker UNCONDITIONALLY onto the `invoke_agent` span via
+ * `traceAttributes` — unlike `enduser.id`, it does not depend on a resolved
+ * userId, so a context-less invocation (e.g. a sub-agent whose task lost its
+ * userId) still keeps CLIENT promotion and token aggregation.
  *
  * The GoalLoop judge Agent is constructed internally by the SDK with no id,
  * the default name, and NONE of our trace attributes — so its `invoke_agent`
  * span lacks this key. Both adaptations below are gated on its presence so the
  * judge span is left as INTERNAL and its tokens are NOT rolled into the
  * trace-level CLIENT aggregation (which would double-count the goal turn: host
- * agent + judge). Sub-agents keep their attribution because they DO carry it.
+ * agent + judge).
  */
-const OUR_AGENT_MARKER_ATTR = 'enduser.id';
+const OUR_AGENT_MARKER_ATTR = 'moca.agent.managed';
 
 /**
  * Per-message events Strands TS SDK writes in **stable** semconv mode (the
