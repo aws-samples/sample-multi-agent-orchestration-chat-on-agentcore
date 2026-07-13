@@ -203,9 +203,30 @@ export async function streamAgentResponse(
     // aggregator only works when the canonical
     // `POST → invoke_agent → execute_event_loop_cycle → chat` hierarchy
     // is preserved.
+    // GoalLoop retry gating: after we emit a willRetry=true
+    // afterInvocationEvent, the NEXT messageAddedEvent is the synthetic
+    // judge-feedback prompt (user role). The frontend ignores user-text
+    // messageAddedEvents for display, so it wouldn't render as a bubble —
+    // but the feedback text is internal scaffolding (judge's raw rubric
+    // evaluation) and MUST NOT cross the wire. Drop it here; subsequent
+    // model events (attempt 2) stream normally.
+    let skipNextUserMessage = false;
+
     for await (const event of agent.stream(agentInput)) {
       const safeEvents = serializeStreamEvent(event);
       for (const safeEvent of safeEvents) {
+        const se = safeEvent as { type?: string; willRetry?: boolean; message?: { role?: string } };
+
+        // After emitting a retry boundary, arm the skip for the next user message.
+        if (se.type === 'afterInvocationEvent' && se.willRetry) {
+          skipNextUserMessage = true;
+        }
+        // Drop the synthetic judge-feedback user message.
+        if (skipNextUserMessage && se.type === 'messageAddedEvent' && se.message?.role === 'user') {
+          skipNextUserMessage = false;
+          continue;
+        }
+
         res.write(`${JSON.stringify(safeEvent)}\n`);
       }
     }

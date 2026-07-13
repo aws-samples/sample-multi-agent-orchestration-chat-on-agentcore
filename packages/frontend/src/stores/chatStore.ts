@@ -416,6 +416,19 @@ export const useChatStore = create<ChatStore>()(
               // wrongly drop legitimately repeated tokens).
               onReasoningDelta: makeDeltaHandler('reasoning'),
               onTextDelta: makeDeltaHandler('text'),
+              // GoalLoop retry boundary: the attempt just streamed failed the
+              // judge and the agent is about to re-run. Reset the bubble so the
+              // final attempt streams into an empty message — the live view then
+              // converges on the persisted history, which keeps only
+              // [input, final attempt] (intermediate attempts are internal).
+              onGoalRetry: () => {
+                const { activeSessionId } = get();
+                if (activeSessionId !== sessionId) return;
+                updateMessage(sessionId, assistantMessageId, {
+                  contents: [],
+                  isStreaming: true,
+                });
+              },
               onToolUse: (toolUse: ToolUse) => {
                 const { activeSessionId, sessions } = get();
                 if (activeSessionId !== sessionId) return;

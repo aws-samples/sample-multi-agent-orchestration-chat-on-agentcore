@@ -396,6 +396,52 @@ describe('streamAgentResponse', () => {
     });
   });
 
+  describe('GoalLoop retry filtering', () => {
+    it('drops the judge-feedback user messageAddedEvent after a willRetry boundary', async () => {
+      // serializeStreamEvent is mocked to pass-through events unchanged, so
+      // we supply the ALREADY-SERIALIZED wire shapes that the real serializer
+      // would produce (willRetry:true instead of resume). stream-handler's
+      // filter operates on the serialized wire shape.
+      const events = [
+        { type: 'modelContentBlockDeltaEvent', delta: { type: 'textDelta', text: 'attempt 1' } },
+        { type: 'afterInvocationEvent', willRetry: true },
+        { type: 'messageAddedEvent', message: { role: 'user', content: [{ type: 'textBlock', text: 'JUDGE FEEDBACK' }] } },
+        { type: 'modelContentBlockDeltaEvent', delta: { type: 'textDelta', text: 'final' } },
+        { type: 'afterInvocationEvent' }, // terminal — no willRetry
+      ];
+      const agent = createMockAgent(events);
+
+      await streamAgentResponse(agent, 'Hello', undefined, res, defaultOptions);
+
+      const written = res.write.mock.calls.map((c: any[]) => c[0].trim());
+      // The feedback message is absent from wire output.
+      expect(written.join('\n')).not.toContain('JUDGE FEEDBACK');
+      // But everything else (deltas, boundary, terminal) is present.
+      expect(written.join('\n')).toContain('attempt 1');
+      expect(written.join('\n')).toContain('final');
+      expect(written.join('\n')).toContain('willRetry');
+    });
+
+    it('does not drop a non-user messageAddedEvent after willRetry', async () => {
+      const events = [
+        { type: 'afterInvocationEvent', willRetry: true },
+        { type: 'messageAddedEvent', message: { role: 'assistant', content: [{ type: 'textBlock', text: 'assistant msg' }] } },
+        { type: 'messageAddedEvent', message: { role: 'user', content: [{ type: 'textBlock', text: 'JUDGE' }] } },
+        { type: 'afterInvocationEvent' },
+      ];
+      const agent = createMockAgent(events);
+
+      await streamAgentResponse(agent, 'Hello', undefined, res, defaultOptions);
+
+      const written = res.write.mock.calls.map((c: any[]) => c[0].trim()).join('\n');
+      // assistant msg passed through (not user role → not dropped)
+      expect(written).toContain('assistant msg');
+      // The user feedback after the assistant IS dropped (first user-role
+      // messageAddedEvent after the boundary).
+      expect(written).not.toContain('JUDGE');
+    });
+  });
+
   describe('large event streaming', () => {
     it('should correctly stream all events when there are many', async () => {
       const eventCount = 200;

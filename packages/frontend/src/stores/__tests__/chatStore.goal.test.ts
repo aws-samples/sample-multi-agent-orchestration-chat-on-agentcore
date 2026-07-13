@@ -36,6 +36,48 @@ describe('chatStore.sendPrompt goal passthrough', () => {
     useSettingsStore.setState({ selectedModelId: 'global.anthropic.claude-opus-4-8' });
   });
 
+  it('onGoalRetry resets the streaming bubble so only the final attempt remains', async () => {
+    // Simulate a 2-attempt goal turn: attempt-1 text streams, the retry
+    // boundary fires, then the final attempt streams. Without the reset the
+    // bubble would render 'attempt 1 (bad)final answer' live while history
+    // keeps only the final answer — content silently changing on reload.
+    vi.mocked(streamAgentResponse).mockImplementation(async (_prompt, _sessionId, callbacks) => {
+      callbacks.onTextDelta?.('attempt 1 (bad)');
+      callbacks.onGoalRetry?.();
+      callbacks.onTextDelta?.('final answer');
+      callbacks.onComplete?.({
+        goalResult: { passed: true, stopReason: 'satisfied', attempts: 2 },
+      });
+    });
+
+    await useChatStore.getState().sendPrompt('hello', SESSION_ID, undefined, 'Be concise');
+
+    const messages = useChatStore.getState().sessions[SESSION_ID].messages;
+    const assistant = messages.find((m) => m.type === 'assistant');
+    const text = assistant?.contents.map((c) => c.text ?? '').join('');
+    expect(text).toBe('final answer');
+    expect(text).not.toContain('attempt 1');
+    expect(assistant?.goalResult?.attempts).toBe(2);
+  });
+
+  it('onGoalRetry also discards buffered tool blocks from the failed attempt', async () => {
+    vi.mocked(streamAgentResponse).mockImplementation(async (_prompt, _sessionId, callbacks) => {
+      callbacks.onTextDelta?.('calling tool');
+      callbacks.onToolUse?.({ id: 't1', name: 'calc', input: {}, status: 'running' });
+      callbacks.onGoalRetry?.();
+      callbacks.onTextDelta?.('final answer');
+      callbacks.onComplete?.({});
+    });
+
+    await useChatStore.getState().sendPrompt('hello', SESSION_ID, undefined, 'Be concise');
+
+    const assistant = useChatStore
+      .getState()
+      .sessions[SESSION_ID].messages.find((m) => m.type === 'assistant');
+    expect(assistant?.contents).toHaveLength(1);
+    expect(assistant?.contents[0].text).toBe('final answer');
+  });
+
   it('passes goal and goalJudgeModelId into agentConfig', async () => {
     await useChatStore
       .getState()

@@ -142,4 +142,48 @@ describe('GoalLoop × SessionPersistenceHook (real SDK dispatch)', () => {
     // still holds all attempts and would re-leak them).
     expect(saveMessages).not.toHaveBeenCalled();
   });
+
+  it('the NDJSON wire marks each retry boundary with willRetry and leaks no feedback', async () => {
+    // Same 2-attempt setup, but driven through agent.stream() +
+    // serializeStreamEvent — the exact pipeline stream-handler.ts writes to
+    // the sender tab. The frontend relies on `afterInvocationEvent.willRetry`
+    // to reset the in-progress bubble; the judge feedback text must never
+    // appear in any serialized event.
+    const { serializeStreamEvent } = await import('../../../libs/utils/stream-serializer.js');
+
+    let attempts = 0;
+    const goalLoop = new GoalLoop({
+      goal: () => {
+        attempts++;
+        return attempts >= 2 || { passed: false, feedback: 'SECRET-FEEDBACK try harder' };
+      },
+      maxAttempts: 3,
+      timeout: 120_000,
+    });
+    const agent = new Agent({
+      model: new ScriptedModel(['first (bad) answer', 'final answer']),
+      printer: false,
+      plugins: [goalLoop],
+    });
+
+    const wireLines: Array<{ type: string; willRetry?: boolean }> = [];
+    for await (const event of agent.stream('turn input')) {
+      for (const serialized of serializeStreamEvent(event)) {
+        wireLines.push(serialized as { type: string; willRetry?: boolean });
+      }
+    }
+
+    // Exactly one retry boundary (attempt 1 failed), terminal attempt unmarked.
+    const afterEvents = wireLines.filter((l) => l.type === 'afterInvocationEvent');
+    expect(afterEvents).toHaveLength(2);
+    expect(afterEvents[0].willRetry).toBe(true);
+    expect('willRetry' in afterEvents[1]).toBe(false);
+
+    // Note: The serializer does NOT suppress the feedback messageAddedEvent
+    // — that is the responsibility of stream-handler.ts (which applies a
+    // skip-filter on the NDJSON pipeline). This test pins only that the
+    // willRetry marker is emitted correctly and the serializer does not
+    // leak `resume` (the raw InvokeArgs value).
+    expect(JSON.stringify(wireLines)).not.toContain('"resume"');
+  });
 });

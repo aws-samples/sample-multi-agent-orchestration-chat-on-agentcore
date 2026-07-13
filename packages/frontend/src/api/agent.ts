@@ -24,6 +24,13 @@ interface StreamingCallbacks {
   onToolUse?: (toolUse: ToolUse) => void;
   onToolInputUpdate?: (toolUseId: string, input: Record<string, unknown>) => void;
   onToolResult?: (toolResult: ToolResult) => void;
+  /**
+   * GoalLoop retry boundary: the judge failed the attempt just streamed and
+   * the agent is about to re-run. The store resets the in-progress assistant
+   * bubble here so the live rendering converges on the persisted history,
+   * which keeps only [input, final attempt].
+   */
+  onGoalRetry?: () => void;
   onComplete?: (metadata: Record<string, unknown>) => void;
   onError?: (error: Error) => void;
 }
@@ -296,6 +303,17 @@ const handleStreamEvent = (event: AgentStreamEvent, callbacks: StreamingCallback
             }
           });
         }
+      }
+      break;
+    }
+
+    case 'afterInvocationEvent': {
+      // GoalLoop retry boundary. `willRetry` is set by the server serializer
+      // when the judge failed this attempt (the feedback text itself never
+      // crosses the wire). A plain afterInvocationEvent (terminal attempt, or
+      // any non-goal turn) is a no-op.
+      if ((event as { willRetry?: boolean }).willRetry && callbacks.onGoalRetry) {
+        callbacks.onGoalRetry();
       }
       break;
     }
