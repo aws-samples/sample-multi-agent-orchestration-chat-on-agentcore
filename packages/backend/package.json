@@ -46,7 +46,7 @@
     "@moca/core": "*",
     "@moca/tool-definitions": "*",
     "@modelcontextprotocol/sdk": "^1.25.1",
-    "@strands-agents/sdk": "^1.2.0",
+    "@strands-agents/sdk": "~1.8.0",
     "aws-jwt-verify": "^5.1.1",
     "cors": "^2.8.5",
     "dotenv": "^16.3.1",

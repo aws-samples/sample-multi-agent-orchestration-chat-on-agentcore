@@ -120,7 +120,14 @@ interface ChatActions {
   switchSession: (sessionId: string) => void;
   addMessage: (sessionId: string, message: Omit<Message, 'id' | 'timestamp'>) => string;
   updateMessage: (sessionId: string, messageId: string, updates: Partial<Message>) => void;
-  sendPrompt: (prompt: string, sessionId: string, images?: ImageAttachment[]) => Promise<void>;
+  sendPrompt: (
+    prompt: string,
+    sessionId: string,
+    images?: ImageAttachment[],
+    goal?: string,
+    goalJudgeModelId?: string,
+    goalMaxAttempts?: number
+  ) => Promise<void>;
   clearSession: (sessionId: string) => void;
   setLoading: (sessionId: string, loading: boolean) => void;
   setError: (sessionId: string, error: string | null) => void;
@@ -224,8 +231,24 @@ export const useChatStore = create<ChatStore>()(
         });
       },
 
-      sendPrompt: async (prompt: string, sessionId: string, images?: ImageAttachment[]) => {
+      sendPrompt: async (
+        prompt: string,
+        sessionId: string,
+        images?: ImageAttachment[],
+        goal?: string,
+        goalJudgeModelId?: string,
+        goalMaxAttempts?: number
+      ) => {
         const { addMessage, updateMessage, sessions } = get();
+
+        // Per-message goal: applied only to this send. A whitespace-only goal is
+        // treated as no goal; when there is no goal we also drop the judge model
+        // and attempt cap so the wire body stays clean (agent falls back to
+        // GOAL_JUDGE_MODEL_ID / GOAL_LOOP_MAX_ATTEMPTS).
+        const trimmedGoal = goal?.trim() || undefined;
+        const goalForConfig = trimmedGoal;
+        const goalJudgeModelIdForConfig = trimmedGoal ? goalJudgeModelId : undefined;
+        const goalMaxAttemptsForConfig = trimmedGoal ? goalMaxAttempts : undefined;
 
         // Set activeSessionId (for streaming callbacks to work correctly)
         set({ activeSessionId: sessionId });
@@ -351,6 +374,9 @@ export const useChatStore = create<ChatStore>()(
                 memoryEnabled: isMemoryEnabled,
                 mcpConfig: selectedAgent.mcpConfig as Record<string, unknown> | undefined,
                 images: imageData,
+                goal: goalForConfig,
+                goalJudgeModelId: goalJudgeModelIdForConfig,
+                goalMaxAttempts: goalMaxAttemptsForConfig,
               }
             : {
                 modelId: selectedModelId,
@@ -358,6 +384,9 @@ export const useChatStore = create<ChatStore>()(
                 storagePath: agentWorkingDirectory,
                 memoryEnabled: isMemoryEnabled,
                 images: imageData,
+                goal: goalForConfig,
+                goalJudgeModelId: goalJudgeModelIdForConfig,
+                goalMaxAttempts: goalMaxAttemptsForConfig,
               };
 
           // Debug log
@@ -387,6 +416,19 @@ export const useChatStore = create<ChatStore>()(
               // wrongly drop legitimately repeated tokens).
               onReasoningDelta: makeDeltaHandler('reasoning'),
               onTextDelta: makeDeltaHandler('text'),
+              // GoalLoop retry boundary: the attempt just streamed failed the
+              // judge and the agent is about to re-run. Reset the bubble so the
+              // final attempt streams into an empty message — the live view then
+              // converges on the persisted history, which keeps only
+              // [input, final attempt] (intermediate attempts are internal).
+              onGoalRetry: () => {
+                const { activeSessionId } = get();
+                if (activeSessionId !== sessionId) return;
+                updateMessage(sessionId, assistantMessageId, {
+                  contents: [],
+                  isStreaming: true,
+                });
+              },
               onToolUse: (toolUse: ToolUse) => {
                 const { activeSessionId, sessions } = get();
                 if (activeSessionId !== sessionId) return;
@@ -477,9 +519,18 @@ export const useChatStore = create<ChatStore>()(
                   // (see appendStreamingDelta).
                 }
               },
-              onComplete: () => {
+              onComplete: (metadata) => {
+                // Surface the GoalLoop summary (if this turn ran under a goal).
+                // `metadata.goalResult` is only present for goal turns; the UI
+                // shows a "refined N times" note when attempts > 1.
+                const goalResult = (
+                  metadata as {
+                    goalResult?: { passed: boolean; stopReason: string; attempts: number };
+                  }
+                )?.goalResult;
                 updateMessage(sessionId, assistantMessageId, {
                   isStreaming: false,
+                  ...(goalResult ? { goalResult } : {}),
                 });
 
                 const { sessions, lastStreamCompletedAt } = get();

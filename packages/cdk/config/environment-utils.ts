@@ -128,6 +128,15 @@ const DEFAULT_CONFIG = {
       provider: 'Anthropic',
     },
     {
+      // Fast, low-cost Anthropic model. Default GoalLoop judge model
+      // (GOAL_JUDGE_MODEL_ID in packages/agent) and selectable as a chat model.
+      // Mirror of the BEDROCK_MODEL_DEFINITIONS entry — this grants its
+      // inference-profile IAM ARN so the agent (and judge) can invoke it.
+      id: 'global.anthropic.claude-haiku-4-5-20251001-v1:0',
+      name: 'Claude Haiku 4.5',
+      provider: 'Anthropic',
+    },
+    {
       id: 'global.amazon.nova-2-lite-v1:0',
       name: 'Nova Lite 2',
       provider: 'Amazon',

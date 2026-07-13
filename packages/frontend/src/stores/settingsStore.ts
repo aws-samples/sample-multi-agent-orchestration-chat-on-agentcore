@@ -17,6 +17,23 @@ import { logger } from '../utils/logger';
 export type SendBehavior = 'enter' | 'cmdEnter';
 
 /**
+ * A goal the user opted to keep applying to every message ("継続適用").
+ *
+ * The wire contract stays per-message: the agent never persists a goal.
+ * Stickiness is purely client-side — MessageInput restores this into its local
+ * goal state and re-attaches it on every send instead of clearing. One global
+ * value (not per-agent / per-session) by design; stored in localStorage via
+ * the zustand persist middleware, so it does NOT sync across devices.
+ */
+export interface PersistentGoal {
+  text: string;
+  /** Judge model id, or undefined for the server default. */
+  judgeModelId?: string;
+  /** GoalLoop attempt cap, or undefined for the server default. */
+  maxAttempts?: number;
+}
+
+/**
  * Settings Store state
  */
 interface SettingsState {
@@ -33,11 +50,19 @@ interface SettingsState {
    */
   reasoningDepthByModel: Record<string, ReasoningDepth>;
 
+  /**
+   * Sticky goal re-attached to every send when set (see PersistentGoal).
+   * null = no sticky goal (the default per-message behavior).
+   */
+  persistentGoal: PersistentGoal | null;
+
   // Actions
   setSendBehavior: (behavior: SendBehavior) => void;
   setSelectedModelId: (modelId: string) => void;
   setReasoningDepthFor: (modelId: string, depth: ReasoningDepth) => void;
   getReasoningDepthFor: (modelId: string) => ReasoningDepth;
+  setPersistentGoal: (goal: PersistentGoal) => void;
+  clearPersistentGoal: () => void;
 }
 
 /**
@@ -88,6 +113,31 @@ export const useSettingsStore = create<SettingsState>()(
         getReasoningDepthFor: (modelId: string): ReasoningDepth => {
           return get().reasoningDepthByModel[modelId] ?? 'off';
         },
+
+        // Initial state: no sticky goal
+        persistentGoal: null,
+
+        /**
+         * Save a sticky goal. A whitespace-only goal is treated as clear —
+         * an empty sticky goal would silently no-op on the agent side.
+         */
+        setPersistentGoal: (goal: PersistentGoal) => {
+          const text = goal.text.trim();
+          if (!text) {
+            set({ persistentGoal: null });
+            return;
+          }
+          set({
+            persistentGoal: { text, judgeModelId: goal.judgeModelId, maxAttempts: goal.maxAttempts },
+          });
+          logger.log(`[SettingsStore] Persistent goal set (${text.length} chars)`);
+        },
+
+        /** Remove the sticky goal (reverts to per-message behavior). */
+        clearPersistentGoal: () => {
+          set({ persistentGoal: null });
+          logger.log('[SettingsStore] Persistent goal cleared');
+        },
       }),
       {
         onRehydrateStorage: () => (state) => {
@@ -100,6 +150,15 @@ export const useSettingsStore = create<SettingsState>()(
               if (!isReasoningDepth(depth)) {
                 delete state.reasoningDepthByModel[modelId];
               }
+            }
+          }
+          // Drop a malformed sticky goal (missing/empty text). A stale judge
+          // model id is kept — the agent validates it and falls back to the
+          // server default, so it degrades gracefully.
+          if (state?.persistentGoal) {
+            const text = state.persistentGoal.text;
+            if (typeof text !== 'string' || !text.trim()) {
+              state.persistentGoal = null;
             }
           }
         },

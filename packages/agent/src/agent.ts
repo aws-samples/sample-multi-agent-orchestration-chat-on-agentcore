@@ -22,10 +22,19 @@
  */
 
 import { Agent, SlidingWindowConversationManager } from '@strands-agents/sdk';
-import { config } from './config/index.js';
+import { GoalLoop } from '@strands-agents/sdk/vended-plugins/goal';
+import { isKnownModelId } from '@moca/core';
+import {
+  config,
+  GOAL_LOOP_MAX_ATTEMPTS,
+  GOAL_LOOP_TIMEOUT_MS,
+  GOAL_LOOP_ATTEMPTS_MIN,
+  GOAL_LOOP_ATTEMPTS_MAX,
+} from './config/index.js';
 import { buildSystemPrompt } from './config/prompts/index.js';
 import { createBedrockModel } from './config/index.js';
 import { getCurrentContext } from './libs/context/request-context.js';
+import { logger } from './libs/logger/index.js';
 
 // Agent building blocks
 import { buildUserMCPClients } from './runtime/agent/mcp-clients-builder.js';
@@ -103,7 +112,16 @@ export async function createAgent(options?: CreateAgentOptions): Promise<CreateA
   // span inserted between `POST /invocations` and `invoke_agent` breaks
   // that aggregation.
   const ctx = getCurrentContext();
-  const traceAttributes: Record<string, string> = {};
+  const traceAttributes: Record<string, string> = {
+    // Unconditional marker identifying a Moca-managed agent span. The
+    // observability span-kind fixer gates its CLIENT promotion + LLO
+    // projection on this key so the GoalLoop's internal judge Agent (which
+    // carries none of our trace attributes) is excluded from trace-level
+    // token aggregation. Deliberately NOT keyed off `enduser.id`: userId is
+    // optional on some paths (e.g. sub-agent tasks that lost their context),
+    // and those spans must keep their attribution.
+    'moca.agent.managed': 'true',
+  };
   if (ctx?.userId) traceAttributes['enduser.id'] = ctx.userId;
   if (ctx?.sessionId) traceAttributes['session.id'] = ctx.sessionId;
   if (ctx?.sessionType) traceAttributes['session.type'] = ctx.sessionType;
@@ -116,6 +134,50 @@ export async function createAgent(options?: CreateAgentOptions): Promise<CreateA
   // and must not be shared across agents. Kept in a local so it can be returned
   // for post-turn observability (`retryStrategy.retryCount`).
   const retryStrategy = new StreamTerminationRetryStrategy();
+
+  // Build the GoalLoop plugin when this turn carries a non-empty goal. The loop
+  // validates each response against a natural-language goal via an internal
+  // judge Agent and re-runs with feedback until the goal is met or the finite
+  // bounds are hit. Per-message only — nothing is persisted across turns.
+  const trimmedGoal = options?.goal?.trim();
+  let goalLoop: GoalLoop | undefined;
+  if (trimmedGoal) {
+    // Fall back to the server default when the requested judge model is absent
+    // or not in the registry. WHY the judge is validated but options.modelId is
+    // NOT (deliberate asymmetry): a bad judge id throws INSIDE the GoalLoop
+    // validator, which swallows the error into per-attempt feedback — silently
+    // burning the whole attempt budget (observed live). A bad main model id
+    // fails the FIRST model call and streams a visible error to the user
+    // immediately. Validating options.modelId against the registry would also
+    // break deployments that add custom models via CDK bedrockModels overrides
+    // without a registry entry — those work through createBedrockModel's
+    // defaults, so they must not be rejected or silently swapped.
+    const requestedJudge = options?.goalJudgeModelId?.trim();
+    const judgeModelId =
+      requestedJudge && isKnownModelId(requestedJudge)
+        ? requestedJudge
+        : config.GOAL_JUDGE_MODEL_ID;
+    // Per-request attempt cap. validateInvocationMiddleware already clamps
+    // HTTP-supplied values; re-clamp here so direct callers (tests, triggers)
+    // get the same bounds.
+    const requestedAttempts = options?.goalMaxAttempts;
+    const maxAttempts =
+      typeof requestedAttempts === 'number' && Number.isInteger(requestedAttempts)
+        ? Math.min(Math.max(requestedAttempts, GOAL_LOOP_ATTEMPTS_MIN), GOAL_LOOP_ATTEMPTS_MAX)
+        : GOAL_LOOP_MAX_ATTEMPTS;
+    logger.info(
+      { judgeModelId, maxAttempts, timeoutMs: GOAL_LOOP_TIMEOUT_MS },
+      'GoalLoop enabled for this turn'
+    );
+    goalLoop = new GoalLoop({
+      goal: trimmedGoal,
+      // Finite bounds are mandatory: the SDK warns (and never terminates) when
+      // both maxAttempts and timeout are Infinity.
+      maxAttempts,
+      timeout: GOAL_LOOP_TIMEOUT_MS,
+      judge: { model: createBedrockModel({ modelId: judgeModelId }) },
+    });
+  }
 
   const agent = new Agent({
     model,
@@ -132,11 +194,20 @@ export async function createAgent(options?: CreateAgentOptions): Promise<CreateA
     //     otherwise reject on the next turn (see empty-reasoning-block-hook.ts).
     // The skills plugin (when present) injects `<available_skills>` into the
     // system prompt; it sits after the sanitizers and before caller plugins.
+    //
+    // GoalLoop MUST be last. After* hooks dispatch in reverse-registration
+    // (LIFO) order, and when GoalLoop retries it sets `event.resume` on the
+    // AfterInvocationEvent. Placing it last means its callback runs FIRST, so
+    // SessionPersistenceHook.onAfterInvocation observes the resume flag and
+    // skips its early finalize (AGENT_COMPLETE / saveMessages) on intermediate
+    // attempts — see the resume guard in session-persistence-hook.ts. Only the
+    // final attempt (resume === undefined) finalizes.
     plugins: [
       new EmptyTextBlockHook(),
       new EmptyReasoningBlockHook(),
       ...(skillsPlugin ? [skillsPlugin] : []),
       ...(options?.plugins ?? []),
+      ...(goalLoop ? [goalLoop] : []),
     ],
     conversationManager,
     id: options?.agentId,
@@ -154,6 +225,7 @@ export async function createAgent(options?: CreateAgentOptions): Promise<CreateA
   return {
     agent,
     retryStrategy,
+    goalLoop,
     metadata: {
       loadedMessagesCount: savedMessages.length,
       longTermMemoriesCount: memoryResult.memories.length,

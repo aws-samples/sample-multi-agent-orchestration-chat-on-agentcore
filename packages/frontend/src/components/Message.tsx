@@ -8,7 +8,7 @@ import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { oneLight } from 'react-syntax-highlighter/dist/esm/styles/prism';
 import { oneDark } from 'react-syntax-highlighter/dist/esm/styles/prism';
 import { useTranslation } from 'react-i18next';
-import { AlertTriangle } from 'lucide-react';
+import { AlertTriangle, Target } from 'lucide-react';
 import type { Message as MessageType } from '../types/index';
 import { useThemeStore } from '../stores/themeStore';
 import { useUIStore } from '../stores/uiStore';
@@ -339,6 +339,25 @@ export const Message: React.FC<MessageProps> = ({ message }) => {
                 (message.contents.length === 0 ||
                   message.contents[message.contents.length - 1]?.type === 'toolResult') && (
                   <TypingIndicator />
+                )}
+
+              {/* GoalLoop refinement summary. Only shown once the turn is done
+                  and it actually refined (attempts > 1) — a single-attempt pass
+                  is the normal case and needs no note. */}
+              {!message.isStreaming &&
+                message.goalResult &&
+                message.goalResult.attempts > 1 && (
+                  <div className="mt-2 flex items-center gap-1.5 text-xs text-fg-muted">
+                    <Target className="w-3.5 h-3.5 shrink-0" />
+                    <span>
+                      {t('chat.goal.completedSummary', {
+                        count: message.goalResult.attempts,
+                        status: message.goalResult.passed
+                          ? t('chat.goal.statusMet')
+                          : t('chat.goal.statusNotMet'),
+                      })}
+                    </span>
+                  </div>
                 )}
             </div>
           </div>

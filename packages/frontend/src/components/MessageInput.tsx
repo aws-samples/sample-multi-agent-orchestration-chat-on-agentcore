@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Send, Loader2, Paperclip, CheckCircle2 } from 'lucide-react';
+import { Send, Loader2, Paperclip, CheckCircle2, Goal } from 'lucide-react';
 import { randomId } from '../utils/randomId';
 import { useChatStore } from '../stores/chatStore';
 import { useAgentStore } from '../stores/agentStore';
@@ -11,6 +11,7 @@ import * as storageApi from '../api/storage';
 import { StoragePathDisplay } from './StoragePathDisplay';
 import { StorageManagementModal } from './StorageManagementModal';
 import { ModelReasoningSelector } from './ui/ModelReasoningSelector';
+import { GoalModal, type GoalDraft } from './GoalModal';
 import { ImagePreview } from './ImagePreview';
 import type { ImageAttachment } from '../types/index';
 import { IMAGE_ATTACHMENT_CONFIG } from '../types/index';
@@ -30,6 +31,9 @@ export const MessageInput: React.FC<MessageInputProps> = ({
   const { t } = useTranslation();
   const { sendPrompt } = useChatStore();
   const { sendBehavior } = useSettingsStore();
+  const persistentGoal = useSettingsStore((s) => s.persistentGoal);
+  const setPersistentGoal = useSettingsStore((s) => s.setPersistentGoal);
+  const clearPersistentGoal = useSettingsStore((s) => s.clearPersistentGoal);
   const sessionState = useChatStore((state) =>
     sessionId ? (state.sessions[sessionId] ?? null) : null
   );
@@ -40,6 +44,23 @@ export const MessageInput: React.FC<MessageInputProps> = ({
   const [input, setInput] = useState('');
   const [attachedImages, setAttachedImages] = useState<ImageAttachment[]>([]);
   const [isStorageModalOpen, setIsStorageModalOpen] = useState(false);
+  // Committed goal state — a single object so text/judge/attempts/sticky can
+  // never desync from each other. Per-message by default (cleared after each
+  // send). When sticky is ON the goal survives sends / remounts / reloads by
+  // being mirrored to settingsStore.persistentGoal (localStorage) — the wire
+  // contract stays per-message, the frontend just re-attaches it every send.
+  // The GoalModal edits a local DRAFT and commits here only on "Set" (see
+  // GoalModal for why: ESC/overlay dismiss must discard, not apply).
+  // Lazy initializer seeds from the persisted sticky goal so a reload or
+  // session switch restores it.
+  const [committedGoal, setCommittedGoal] = useState<GoalDraft>(() => ({
+    text: persistentGoal?.text ?? '',
+    judgeModelId: persistentGoal?.judgeModelId,
+    maxAttempts: persistentGoal?.maxAttempts,
+    sticky: persistentGoal !== null,
+  }));
+  const [isGoalModalOpen, setIsGoalModalOpen] = useState(false);
+  const hasGoal = committedGoal.text.trim().length > 0;
   const [isDragging, setIsDragging] = useState(false);
   const [uploadingFileName, setUploadingFileName] = useState<string | null>(null);
   // Brief "upload complete" message shown in the same spot as the uploading
@@ -395,10 +416,24 @@ export const MessageInput: React.FC<MessageInputProps> = ({
       // Save message to send
       const messageToSend = input.trim();
       const imagesToSend = [...attachedImages];
+      // Snapshot the committed goal so it applies to exactly this send.
+      const goalToSend = committedGoal.text.trim() || undefined;
+      const goalJudgeModelIdToSend = goalToSend ? committedGoal.judgeModelId : undefined;
+      const goalMaxAttemptsToSend = goalToSend ? committedGoal.maxAttempts : undefined;
 
       // Clear input field immediately
       setInput('');
       setAttachedImages([]);
+      // Per-message goal: clear after the send. Sticky goal: keep it so the
+      // next send re-attaches the same goal (cleared only via the modal).
+      if (!committedGoal.sticky) {
+        setCommittedGoal({
+          text: '',
+          judgeModelId: undefined,
+          maxAttempts: undefined,
+          sticky: false,
+        });
+      }
 
       // Return focus to textarea after sending
       textareaRef.current?.focus();
@@ -410,7 +445,14 @@ export const MessageInput: React.FC<MessageInputProps> = ({
       }
 
       // Send message (continue asynchronously)
-      await sendPrompt(messageToSend, targetSessionId, imagesToSend);
+      await sendPrompt(
+        messageToSend,
+        targetSessionId,
+        imagesToSend,
+        goalToSend,
+        goalJudgeModelIdToSend,
+        goalMaxAttemptsToSend
+      );
 
       // Release Object URLs after sending
       imagesToSend.forEach((img) => {
@@ -535,6 +577,41 @@ export const MessageInput: React.FC<MessageInputProps> = ({
                 >
                   <Paperclip className="w-4 h-4" />
                 </button>
+
+                {/* Goal button — sits directly right of the image-attach button
+                    in the left controls group. A modal (not a popover) so the
+                    left-controls no-overflow constraint doesn't apply. Active
+                    state (goal set) is shown with the accent color and a small
+                    dot badge. */}
+                <button
+                  type="button"
+                  onClick={() => setIsGoalModalOpen(true)}
+                  disabled={isLoading}
+                  aria-haspopup="dialog"
+                  aria-expanded={isGoalModalOpen}
+                  // Sticky goals cost judge calls on EVERY send — surface the
+                  // sticky state in the tooltip so it isn't forgotten.
+                  title={
+                    committedGoal.sticky && hasGoal
+                      ? t('chat.goal.stickyActiveTitle')
+                      : t('chat.goal.buttonTitle')
+                  }
+                  className={`relative shrink-0 p-1.5 rounded-md transition-colors ${
+                    isLoading
+                      ? 'text-fg-disabled cursor-not-allowed'
+                      : hasGoal
+                        ? 'text-action-primary hover:bg-surface-secondary'
+                        : 'text-fg-muted hover:text-fg-secondary hover:bg-surface-secondary'
+                  }`}
+                >
+                  <Goal className="w-4 h-4" />
+                  {hasGoal && (
+                    <span
+                      aria-label={t('chat.goal.activeBadge')}
+                      className="absolute top-0.5 right-0.5 w-1.5 h-1.5 rounded-full bg-action-primary"
+                    />
+                  )}
+                </button>
               </div>
 
               {/* Send button - fixed width, pinned to the right, never overlapped. */}
@@ -564,6 +641,46 @@ export const MessageInput: React.FC<MessageInputProps> = ({
       <StorageManagementModal
         isOpen={isStorageModalOpen}
         onClose={() => setIsStorageModalOpen(false)}
+      />
+
+      {/* Goal modal (per-message by default; sticky when the checkbox is on).
+          Draft-commit: the modal edits a local draft and this handler runs
+          only on "Set" — ESC/overlay dismiss discards the draft, so committed
+          state and localStorage always agree. */}
+      <GoalModal
+        isOpen={isGoalModalOpen}
+        onClose={() => setIsGoalModalOpen(false)}
+        committed={committedGoal}
+        onCommit={(draft) => {
+          // Sticky requires a non-empty goal — an empty sticky goal would be
+          // a no-op, so normalize it to non-sticky to keep the UI truthful.
+          const normalized: GoalDraft = draft.text.trim()
+            ? draft
+            : { ...draft, sticky: false };
+          setCommittedGoal(normalized);
+          if (normalized.sticky) {
+            setPersistentGoal({
+              text: normalized.text,
+              judgeModelId: normalized.judgeModelId,
+              maxAttempts: normalized.maxAttempts,
+            });
+          } else {
+            // Sticky OFF removes any persisted goal; the committed goal still
+            // applies to the next send (per-message behavior).
+            clearPersistentGoal();
+          }
+          setIsGoalModalOpen(false);
+        }}
+        onClear={() => {
+          setCommittedGoal({
+            text: '',
+            judgeModelId: undefined,
+            maxAttempts: undefined,
+            sticky: false,
+          });
+          clearPersistentGoal();
+          setIsGoalModalOpen(false);
+        }}
       />
     </div>
   );
