@@ -31,7 +31,7 @@
   },
   "dependencies": {
     "@cdklabs/deploy-time-build": "^0.1.0",
-    "aws-cdk-lib": "2.256.1",
+    "aws-cdk-lib": "2.260.0",
     "cdk-nag": "^2.37.55",
     "constructs": "^10.0.0"
   }
