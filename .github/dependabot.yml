@@ -12,6 +12,10 @@
 #   Grouping rules defined here also override the repository/organization
 #   "grouped security updates" UI setting.
 #
+#   Each ecosystem also sets a `cooldown` so newly published versions age before
+#   being proposed (supply-chain protection). Cooldown applies to version updates
+#   only -- security updates still open immediately.
+#
 # Docs: https://docs.github.com/en/code-security/dependabot/working-with-dependabot/dependabot-options-reference
 version: 2
 updates:
@@ -25,6 +29,20 @@ updates:
       day: "monday"
       time: "09:00"
       timezone: "Asia/Tokyo"
+    # Let a release age before adopting it: if a maintainer account is
+    # compromised and a malicious version is published, most such releases are
+    # caught and yanked within a few days. The cooldown gives scanners and the
+    # community that window before Dependabot proposes the bump.
+    #
+    # This affects VERSION updates only. Security updates for known
+    # vulnerabilities still open immediately, so vulnerability fixes are never
+    # delayed by these settings. (Patches use a shorter window than minor/major
+    # since they carry the least change.)
+    cooldown:
+      default-days: 7
+      semver-major-days: 7
+      semver-minor-days: 7
+      semver-patch-days: 3
     open-pull-requests-limit: 3
     labels:
       - "dependencies"
@@ -61,6 +79,11 @@ updates:
       day: "monday"
       time: "09:00"
       timezone: "Asia/Tokyo"
+    # Same supply-chain cooldown as npm (version updates only; security updates
+    # are unaffected). Action release tags are typically major-only, so a single
+    # default window is enough here.
+    cooldown:
+      default-days: 7
     open-pull-requests-limit: 2
     labels:
       - "dependencies"
