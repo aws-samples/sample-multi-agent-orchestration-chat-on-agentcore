@@ -5,12 +5,12 @@ they start work. Extended thinking is controlled separately by reasoning depth.
 
 ## Choosing a model
 
-The default is **Claude Opus 4.8** — the strongest general model; a good default
+The default is **Claude Opus 5** — the strongest general model; a good default
 when unsure. The available catalog (deployment-dependent):
 
 | Model | Provider | Extended thinking |
 |---|---|---|
-| Claude Opus 4.8 (default), 4.7, 4.6 | Anthropic | yes (up to `max`) |
+| Claude Opus 5 (default), Opus 4.8, 4.7, 4.6 | Anthropic | yes (up to `max`) |
 | Claude Fable 5 | Anthropic | yes (up to `max`; needs data-share mode in-region) |
 | Claude Sonnet 5, Sonnet 4.6 | Anthropic | yes (capped at `high`) |
 | Nova Lite 2 | Amazon | no |

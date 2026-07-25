@@ -136,8 +136,21 @@ export type BedrockEndpoint = 'bedrock-openai' | 'mantle';
  */
 export const BEDROCK_MODEL_DEFINITIONS = [
   {
-    // Default model. No account-level prerequisite (unlike Fable 5's data
-    // retention requirement), so it works out of the box in every region.
+    // Default model. GA on Bedrock 2026-07-23. 1M context window, 128k max
+    // output. Standard bedrock-runtime Converse/ConverseStream path — no
+    // special account prerequisites (unlike Fable 5's data-share requirement),
+    // so it works out of the box in every region.
+    // Adaptive thinking ON by default; Opus-tier → effort: 'max' is supported.
+    // Source: AWS Bedrock model card, 2026-07-23.
+    id: 'global.anthropic.claude-opus-5',
+    name: 'Claude Opus 5',
+    provider: 'Anthropic',
+    maxOutputTokens: 128000, // 128k (AWS Bedrock model card, 2026-07-23)
+    reasoningCapable: true, // adaptive thinking + output_config.effort; max OK (Opus-tier)
+  },
+  {
+    // No account-level prerequisite (unlike Fable 5's data retention
+    // requirement), so it works out of the box in every region.
     id: 'global.anthropic.claude-opus-4-8',
     name: 'Claude Opus 4.8',
     provider: 'Anthropic',

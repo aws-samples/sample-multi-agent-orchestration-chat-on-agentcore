@@ -121,18 +121,18 @@ describe('BEDROCK_MODEL_DEFINITIONS invariants', () => {
     }
   });
 
-  it('registers Claude Opus 4.8 as the default (first) model with the correct limit', () => {
+  it('registers Claude Opus 5 as the default (first) model with the correct limit', () => {
     const first = BEDROCK_MODEL_DEFINITIONS[0];
-    expect(first.id).toBe('global.anthropic.claude-opus-4-8');
-    expect(first.name).toBe('Claude Opus 4.8');
+    expect(first.id).toBe('global.anthropic.claude-opus-5');
+    expect(first.name).toBe('Claude Opus 5');
     expect(first.provider).toBe('Anthropic');
-    expect(getMaxOutputTokens('global.anthropic.claude-opus-4-8')).toBe(128000);
+    expect(getMaxOutputTokens('global.anthropic.claude-opus-5')).toBe(128000);
   });
 
-  it('does not region-pin the default model (Opus 4.8 must use the deploy region)', () => {
+  it('does not region-pin the default model (Opus 5 must use the deploy region)', () => {
     // The default model must work in any deployment region with no special
     // account setup, so it must not be pinned to a specific region.
-    expect(getModelRegion('global.anthropic.claude-opus-4-8')).toBeUndefined();
+    expect(getModelRegion('global.anthropic.claude-opus-5')).toBeUndefined();
   });
 
   it('only reasoning-capable models declare a max-effort cap', () => {

@@ -88,7 +88,13 @@ const DEFAULT_CONFIG = {
    */
   bedrockModels: [
     {
-      // Default model. No account-level prerequisite, so it works out of the box.
+      // Default model. No account-level prerequisites, no region pin required.
+      id: 'global.anthropic.claude-opus-5',
+      name: 'Claude Opus 5',
+      provider: 'Anthropic',
+    },
+    {
+      // No account-level prerequisite, so it works out of the box.
       id: 'global.anthropic.claude-opus-4-8',
       name: 'Claude Opus 4.8',
       provider: 'Anthropic',
