@@ -11,7 +11,7 @@
     "test": "jest --passWithNoTests"
   },
   "devDependencies": {
-    "@types/aws-lambda": "^8.10.145"
+    "@types/aws-lambda": "^8.10.162"
   },
   "engines": {
     "node": ">=22.12.0"

@@ -20,6 +20,6 @@
   },
   "devDependencies": {
     "@aws-sdk/client-bedrock-runtime": "^3.1051.0",
-    "vitest": "^4.1.8"
+    "vitest": "^4.1.10"
   }
 }
