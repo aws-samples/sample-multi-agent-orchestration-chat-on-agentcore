@@ -27,7 +27,7 @@
     "destroy:stg": "cdk destroy -c env=stg"
   },
   "devDependencies": {
-    "aws-cdk": "^2.1040.0"
+    "aws-cdk": "^2.1133.0"
   },
   "dependencies": {
     "@cdklabs/deploy-time-build": "^0.1.0",
