@@ -1,0 +1,102 @@
+# Dependabot configuration
+#
+# Why this file exists:
+#   Without a dependabot.yml, only security updates run and each vulnerable
+#   dependency gets its own pull request. That produced a backlog of individual
+#   `chore(deps): bump ...` PRs that all touch package-lock.json, so every one of
+#   them needed a separate CI run and a separate manual verification pass.
+#
+#   The `groups` option below collapses those into a single PR per category.
+#   Note that a single set of grouping rules cannot apply to both version updates
+#   and security updates, so each category is defined separately via `applies-to`.
+#   Grouping rules defined here also override the repository/organization
+#   "grouped security updates" UI setting.
+#
+#   Each ecosystem also sets a `cooldown` so newly published versions age before
+#   being proposed (supply-chain protection). Cooldown applies to version updates
+#   only -- security updates still open immediately.
+#
+# Docs: https://docs.github.com/en/code-security/dependabot/working-with-dependabot/dependabot-options-reference
+version: 2
+updates:
+  # ---------------------------------------------------------------------------
+  # npm (single lockfile at the repository root; all packages/* are workspaces)
+  # ---------------------------------------------------------------------------
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "09:00"
+      timezone: "Asia/Tokyo"
+    # Let a release age before adopting it: if a maintainer account is
+    # compromised and a malicious version is published, most such releases are
+    # caught and yanked within a few days. The cooldown gives scanners and the
+    # community that window before Dependabot proposes the bump.
+    #
+    # This affects VERSION updates only. Security updates for known
+    # vulnerabilities still open immediately, so vulnerability fixes are never
+    # delayed by these settings. (Patches use a shorter window than minor/major
+    # since they carry the least change.)
+    cooldown:
+      default-days: 7
+      semver-major-days: 7
+      semver-minor-days: 7
+      semver-patch-days: 3
+    open-pull-requests-limit: 3
+    labels:
+      - "dependencies"
+    commit-message:
+      prefix: "chore(deps)"
+      prefix-development: "chore(deps-dev)"
+      include: "scope"
+    groups:
+      # All security updates land in one PR so a single verification pass covers
+      # the whole batch.
+      npm-security:
+        applies-to: security-updates
+        patterns:
+          - "*"
+      # Routine minor/patch updates are batched as well. Major bumps are
+      # deliberately excluded from this group so that Dependabot keeps raising
+      # them as individual PRs, which keeps breaking changes reviewable in
+      # isolation.
+      npm-minor-and-patch:
+        applies-to: version-updates
+        patterns:
+          - "*"
+        update-types:
+          - "minor"
+          - "patch"
+
+  # ---------------------------------------------------------------------------
+  # GitHub Actions (workflow `uses:` refs are SHA-pinned, so they need bumping)
+  # ---------------------------------------------------------------------------
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "09:00"
+      timezone: "Asia/Tokyo"
+    # Same supply-chain cooldown as npm (version updates only; security updates
+    # are unaffected). Action release tags are typically major-only, so a single
+    # default window is enough here.
+    cooldown:
+      default-days: 7
+    open-pull-requests-limit: 2
+    labels:
+      - "dependencies"
+      - "github_actions"
+    commit-message:
+      prefix: "chore(ci)"
+      include: "scope"
+    groups:
+      actions-security:
+        applies-to: security-updates
+        patterns:
+          - "*"
+      actions-all:
+        applies-to: version-updates
+        patterns:
+          - "*"
