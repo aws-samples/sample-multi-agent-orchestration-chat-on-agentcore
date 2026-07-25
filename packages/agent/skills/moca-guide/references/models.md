@@ -15,6 +15,7 @@ when unsure. The available catalog (deployment-dependent):
 | Claude Sonnet 5, Sonnet 4.6 | Anthropic | yes (capped at `high`) |
 | Nova Lite 2 | Amazon | no |
 | Qwen3 Coder Next | Qwen | no |
+| GPT-5.6 Sol / Terra / Luna | OpenAI | no |
 | GPT-5.5 / GPT-5.4 | OpenAI | no |
 | GPT-OSS 120B / 20B | OpenAI | no |
 

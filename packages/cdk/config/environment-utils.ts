@@ -161,6 +161,34 @@ const DEFAULT_CONFIG = {
       endpoint: 'mantle',
     },
     {
+      // OpenAI GPT-5.6 Sol via Bedrock Mantle. GA 2026-07-13; pinned to
+      // us-east-1 to match the other Mantle models (also available in
+      // us-east-2). MUST stay in sync with BEDROCK_MODEL_DEFINITIONS.
+      id: 'openai.gpt-5.6-sol',
+      name: 'GPT-5.6 Sol',
+      provider: 'OpenAI',
+      region: 'us-east-1',
+      endpoint: 'mantle',
+    },
+    {
+      // OpenAI GPT-5.6 Terra via Bedrock Mantle. Pinned to us-east-1 (also
+      // available in us-east-2 and us-west-2).
+      id: 'openai.gpt-5.6-terra',
+      name: 'GPT-5.6 Terra',
+      provider: 'OpenAI',
+      region: 'us-east-1',
+      endpoint: 'mantle',
+    },
+    {
+      // OpenAI GPT-5.6 Luna via Bedrock Mantle. Pinned to us-east-1 (also
+      // available in us-east-2 and us-west-2).
+      id: 'openai.gpt-5.6-luna',
+      name: 'GPT-5.6 Luna',
+      provider: 'OpenAI',
+      region: 'us-east-1',
+      endpoint: 'mantle',
+    },
+    {
       // OpenAI GPT-OSS (open-weight) via Bedrock's OpenAI-compatible Chat
       // Completions endpoint. Bare id → foundation-model ARN only (same IAM
       // shape as qwen.*). No region pin: available in ap-northeast-1 and

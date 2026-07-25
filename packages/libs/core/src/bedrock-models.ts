@@ -266,6 +266,40 @@ export const BEDROCK_MODEL_DEFINITIONS = [
     endpoint: 'mantle',
   },
   {
+    // OpenAI GPT-5.6 Sol on Bedrock (Mantle). Same Responses-API path as
+    // GPT-5.5/5.4. GA on Bedrock 2026-07-13; available in us-east-1 and
+    // us-east-2. Pin to us-east-1 to match the existing Mantle region so one
+    // region serves all GPT-5.x models. maxOutputTokens mirrors GPT-5.5.
+    id: 'openai.gpt-5.6-sol',
+    name: 'GPT-5.6 Sol',
+    provider: 'OpenAI',
+    maxOutputTokens: 128000,
+    region: 'us-east-1',
+    endpoint: 'mantle',
+  },
+  {
+    // OpenAI GPT-5.6 Terra on Bedrock (Mantle). Available in us-east-1,
+    // us-east-2, and us-west-2; pinned to us-east-1 for parity with the other
+    // Mantle models.
+    id: 'openai.gpt-5.6-terra',
+    name: 'GPT-5.6 Terra',
+    provider: 'OpenAI',
+    maxOutputTokens: 128000,
+    region: 'us-east-1',
+    endpoint: 'mantle',
+  },
+  {
+    // OpenAI GPT-5.6 Luna on Bedrock (Mantle). Available in us-east-1,
+    // us-east-2, and us-west-2; pinned to us-east-1 for parity with the other
+    // Mantle models.
+    id: 'openai.gpt-5.6-luna',
+    name: 'GPT-5.6 Luna',
+    provider: 'OpenAI',
+    maxOutputTokens: 128000,
+    region: 'us-east-1',
+    endpoint: 'mantle',
+  },
+  {
     // OpenAI GPT-OSS (open-weight) on Bedrock. Invoked via the OpenAI-compatible
     // Chat Completions endpoint on the standard runtime host
     // (bedrock-runtime.{region}.amazonaws.com/openai/v1), NOT Converse and NOT
