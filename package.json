@@ -47,7 +47,7 @@
     "@eslint/js": "^10.0.0",
     "@types/jest": "^29.5.0",
     "@types/node": "^22.0.0",
-    "concurrently": "^9.1.2",
+    "concurrently": "^9.2.3",
     "eslint": "^10.0.0",
     "eslint-config-prettier": "^10.1.8",
     "eslint-plugin-boundaries": "^6.0.2",
