@@ -11,6 +11,19 @@ export interface SystemPromptOptions {
 }
 
 /**
+ * Resolve the chat-facing path for a workspace-relative file.
+ *
+ * Single source of truth for every path example in the prompt: naive template
+ * interpolation of `storagePath` silently dropped the separator
+ * ("/aws-ai-update" + "plots/chart.png" -> "/aws-ai-updateplots/chart.png") and a
+ * separate call site double-slashed it, so the prompt shipped three mutually
+ * inconsistent conventions and the model reproduced whichever example it saw.
+ */
+export function toDisplayPath(storagePath: string | undefined, relativePath: string): string {
+  return path.posix.join('/', storagePath ?? '/', relativePath);
+}
+
+/**
  * Generate system prompt
  */
 export function buildSystemPrompt(options: SystemPromptOptions): string {
@@ -39,6 +52,10 @@ ${options.longTermMemories.map((memory, index) => `${index + 1}. ${memory}`).joi
     ? path.join(WORKSPACE_DIRECTORY, normalizedStoragePath)
     : WORKSPACE_DIRECTORY;
 
+  // Every chat-facing path example must come from here (see toDisplayPath).
+  const display = (relativePath: string): string =>
+    toDisplayPath(options.storagePath, relativePath);
+
   // Add workspace and storage path information
   if (options.storagePath) {
     basePrompt += `
@@ -64,25 +81,16 @@ The workspace sync handles most file operations automatically, making your workf
 - The "${SKILLS_DIR_NAME}/" folder holds skill definitions loaded into your capabilities. Do NOT edit or delete files under "${SKILLS_DIR_NAME}/" unless the user explicitly asks you to manage skills.
 
 ### Displaying Files in Chat
-When referencing files in chat, strip "${WORKSPACE_DIRECTORY}" from the local path to get the display path:
-- Local: ${activeWorkDir}/report.md → Chat: ${options.storagePath}/report.md
-- Local: ${activeWorkDir}/plots/chart.png → Chat: ${options.storagePath}/plots/chart.png
+Chat links resolve against the user's storage root, not the local filesystem. Take the
+local path and swap the "${activeWorkDir}" prefix for "${options.storagePath}":
 
-**For images**: \`![Chart](${options.storagePath || '/'}plots/chart.png)\`
-**For videos**: \`![Video](${options.storagePath || '/'}demo.mp4)\` or \`[Video](${options.storagePath || '/'}demo.mp4)\`
-**For other files**: \`[Report](${options.storagePath || '/'}documents/report.pdf)\`
+- \`${activeWorkDir}/plots/chart.png\` → \`![Chart](${display('plots/chart.png')})\`
+- \`${activeWorkDir}/report.md\` → \`[Report](${display('report.md')})\`
 
-Supported video formats: .mp4, .webm, .mov, .avi, .mkv, .m4v
+Videos (.mp4, .webm, .mov, .avi, .mkv, .m4v) use the same form and render inline.
 
-**Rules:**
-- ✅ ALWAYS strip "${WORKSPACE_DIRECTORY}" prefix from paths when referencing files in chat
-- ✅ The frontend will automatically generate secure download URLs when needed
-- ❌ NEVER include "${WORKSPACE_DIRECTORY}" or "/tmp/" in file references shown to users
-- ❌ NEVER generate presigned URLs or full S3 URLs like "https://bucket.s3.amazonaws.com/..."
-
-**Examples** (with storage path "${options.storagePath}"):
-- ✅ Correct: \`![Chart](${options.storagePath || '/'}chart.png)\`, \`[Data](${options.storagePath || '/'}results.csv)\`
-- ❌ Wrong: \`![Chart](${activeWorkDir}/chart.png)\`, \`[Data](/tmp/ws/results.csv)\`
+A local path (\`${WORKSPACE_DIRECTORY}/...\`) or a presigned S3 URL will not resolve in a
+chat link: the frontend signs download URLs itself from the storage-relative path.
 `;
 
     // Check S3 tool availability
@@ -119,8 +127,7 @@ When using the code_interpreter tool, follow these critical guidelines for relia
 | DO ✅ | DON'T ❌ |
 |-------|----------|
 | Create file → downloadFiles → Use userPath | Reference files without downloading |
-| \`![Chart](${options.storagePath || '/'}chart.png)\` | \`![Chart](${activeWorkDir}/chart.png)\` |
-| \`![Chart](${options.storagePath || '/'}chart.png)\` | \`![Chart](/opt/amazon/.../chart.png)\` |
+| \`![Chart](${display('chart.png')})\` | a link to \`${activeWorkDir}/chart.png\` or \`/opt/amazon/.../chart.png\` |
 | Check downloadFiles result for userPath | Use localPath or internal paths |
 
 **MANDATORY WORKFLOW:**
@@ -152,7 +159,7 @@ Step 3: Use 'userPath' from result (NOT 'localPath')
 1. ✅ Create files in Code Interpreter (executeCode/executeCommand)
 2. ✅ Download files to Runtime (\`downloadFiles\` to ${activeWorkDir})
 3. ✅ Verify download success
-4. ✅ Return relative paths starting with "/" (e.g., /chart.png, /report.pdf)
+4. ✅ Reference the file by its chat path (see "Displaying Files in Chat")
 
 ### Complete File Creation Workflow (MANDATORY)
 
@@ -180,7 +187,7 @@ Step 3: Use 'userPath' from result (NOT 'localPath')
 
 **Step 3: Return correct path to user**
 \`\`\`markdown
-Here is your chart: ![Chart](/chart.png)
+Here is your chart: ![Chart](${display('chart.png')})
 \`\`\`
 
 ⚠️ **Skipping Step 2 causes broken file references and hallucination!**
@@ -198,14 +205,14 @@ Here is your chart: ![Chart](/chart.png)
 # In Code Interpreter
 plt.savefig('analysis.png')
 \`\`\`
-Then immediately: "Here is your analysis: ![Result](/analysis.png)"
+Then immediately: "Here is your analysis: ![Result](${display('analysis.png')})"
 → File wasn't downloaded to Runtime. Link is broken.
 
 ❌ **WRONG: Including workspace path in user-facing references**
 \`\`\`
 "Your file is at ${activeWorkDir}/report.pdf"
 \`\`\`
-→ Should strip "${WORKSPACE_DIRECTORY}" prefix for proper S3 integration
+→ Should be \`${display('report.pdf')}\` so the frontend can resolve it
 
 ✅ **CORRECT: Complete workflow**
 \`\`\`python
@@ -216,7 +223,7 @@ plt.savefig('analysis.png')
 // Step 2: Download
 {"action": "downloadFiles", "sourcePaths": ["analysis.png"], "destinationDir": "${activeWorkDir}"}
 \`\`\`
-"Here is your analysis: ![Result](/analysis.png)" // Step 3: Reference
+"Here is your analysis: ![Result](${display('analysis.png')})" // Step 3: Reference
 
 ### Pre-Reference Checklist (Verify Before Responding)
 
@@ -224,7 +231,7 @@ Before returning any file reference to the user, verify:
 - [ ] Did I create a file via executeCode/executeCommand?
 - [ ] Did I run \`downloadFiles\` to transfer it to ${activeWorkDir}?
 - [ ] Did the download succeed? (Check tool response)
-- [ ] Am I using relative path with "/" prefix? (e.g., ${options.storagePath || '/'}/file.png, not ${activeWorkDir}/file.png)
+- [ ] Am I using the chat path (\`${display('file.png')}\`), not \`${activeWorkDir}/file.png\`?
 - [ ] Am I NOT using Code Interpreter internal paths?
 
 If you answer "No" to any of these, DO NOT reference the file yet.
@@ -264,7 +271,7 @@ Step 4: Download results if needed
   "action": "downloadFiles",
   "sessionName": "data-analysis-20240101",
   "sourcePaths": ["results.png"],
-  "destinationDir": "/tmp/analysis-results"
+  "destinationDir": "${activeWorkDir}"
 }
 \`\`\`
 
