@@ -64,6 +64,7 @@ export {
   REASONING_DEPTHS,
   EFFORT_ORDER,
   getMaxOutputTokens,
+  isKnownModelId,
   getModelRegion,
   getReasoningConfig,
   getMaxReasoningDepth,

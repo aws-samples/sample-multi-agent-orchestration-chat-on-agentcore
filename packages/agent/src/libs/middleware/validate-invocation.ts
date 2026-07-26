@@ -8,6 +8,7 @@
 
 import type { Request, Response, NextFunction } from 'express';
 import { logger } from '../logger/index.js';
+import { GOAL_LOOP_ATTEMPTS_MIN, GOAL_LOOP_ATTEMPTS_MAX } from '../../config/index.js';
 import { validateImageData } from '../../types/index.js';
 import type { InvocationRequest } from '../../types/invocation-types.js';
 
@@ -44,5 +45,37 @@ export function validateInvocationMiddleware(
     }
   }
 
+  // Normalize the optional GoalLoop goal in place: a whitespace-only goal is
+  // treated as "no goal" (dropped). An over-long goal is REJECTED (not
+  // clamped): a goal is a natural-language criterion, and cutting it
+  // mid-string can invert its meaning (e.g. truncating just before a
+  // negation), making the judge grade against a corrupted criterion with no
+  // signal to the user. Rejecting keeps this middleware's fail-loud contract
+  // consistent with the prompt/image checks above.
+  if (typeof body.goal === 'string') {
+    const trimmed = body.goal.trim();
+    if (trimmed.length > MAX_GOAL_LENGTH) {
+      res.status(400).json({
+        error: `Goal is too long (${trimmed.length} chars). Maximum is ${MAX_GOAL_LENGTH} characters.`,
+      });
+      return;
+    }
+    body.goal = trimmed || undefined;
+  }
+
+  // Normalize the optional GoalLoop attempt cap: non-numbers / non-integers
+  // are dropped (agent falls back to GOAL_LOOP_MAX_ATTEMPTS), out-of-range
+  // integers are clamped so a pathological payload can't spin the loop.
+  if (body.goalMaxAttempts !== undefined) {
+    const n = body.goalMaxAttempts;
+    body.goalMaxAttempts =
+      typeof n === 'number' && Number.isInteger(n)
+        ? Math.min(Math.max(n, GOAL_LOOP_ATTEMPTS_MIN), GOAL_LOOP_ATTEMPTS_MAX)
+        : undefined;
+  }
+
   next();
 }
+
+/** Upper bound on the goal string (characters). Longer goals are rejected with 400. */
+const MAX_GOAL_LENGTH = 4000;

@@ -363,9 +363,24 @@ export function serializeStreamEvent(event: unknown): object[] {
         },
       ];
 
+    // GoalLoop retry boundary. `resume` is armed by the GoalLoop plugin when
+    // the judge failed the attempt and the agent is about to re-run. The
+    // frontend uses `willRetry` to reset the in-progress assistant bubble so
+    // the live rendering converges on what the persisted history will hold
+    // ([input, final answer] — see SessionPersistenceHook goal buffering).
+    // Only the boolean marker crosses the wire: the resume value contains the
+    // judge's feedback text, which is internal scaffolding and must not leak
+    // to the client.
+    case 'afterInvocationEvent':
+      return [
+        {
+          ...baseEvent,
+          ...(eventObj.resume !== undefined ? { willRetry: true } : {}),
+        },
+      ];
+
     // Lifecycle events with no payload of interest to the frontend
     case 'beforeInvocationEvent':
-    case 'afterInvocationEvent':
     case 'beforeModelCallEvent':
     case 'beforeToolCallEvent':
     case 'afterToolCallEvent':

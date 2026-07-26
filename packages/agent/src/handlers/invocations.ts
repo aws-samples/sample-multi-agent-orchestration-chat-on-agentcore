@@ -92,6 +92,12 @@ export async function handleInvocation(req: Request, res: Response): Promise<voi
         sessionType,
         agentId: body.agentId,
         storagePath: body.storagePath,
+        // Goal turns buffer real-time persistence so intermediate refinement
+        // attempts and judge-feedback prompts never reach Memory / AppSync.
+        // `body.goal` is already trimmed/validated by validateInvocationMiddleware,
+        // so a non-empty string here is exactly the condition under which
+        // createAgent attaches the GoalLoop.
+        goalActive: typeof body.goal === 'string' && body.goal.length > 0,
         deps: createSessionPersistenceDeps(),
       })
     : null;
@@ -99,7 +105,7 @@ export async function handleInvocation(req: Request, res: Response): Promise<voi
   // 3. Create and stream agent response. The Strands SDK opens its own
   // `invoke_agent` span (with `traceAttributes` injected by `agent.ts`),
   // so we don't add a wrapper span here.
-  const { agent, metadata, retryStrategy } = await createAgent({
+  const { agent, metadata, retryStrategy, goalLoop } = await createAgent({
     plugins: [
       ...(sessionResult ? [sessionResult.hook] : []),
       ...(workspaceSyncResult ? [workspaceSyncResult.hook] : []),
@@ -118,6 +124,11 @@ export async function handleInvocation(req: Request, res: Response): Promise<voi
     sessionConfig: sessionResult?.config,
     skillsPaths,
     agentId: body.agentId,
+    // Per-message GoalLoop: enabled only when the request carries a goal
+    // (already trimmed/clamped by validateInvocationMiddleware).
+    goal: body.goal,
+    goalJudgeModelId: body.goalJudgeModelId,
+    goalMaxAttempts: body.goalMaxAttempts,
   });
 
   logger.info(
@@ -133,6 +144,7 @@ export async function handleInvocation(req: Request, res: Response): Promise<voi
   await streamAgentResponse(agent, body.prompt, body.images, res, {
     metadata,
     retryStrategy,
+    goalLoop,
     sessionStorage: sessionResult?.storage,
     sessionConfig: sessionResult?.config,
   });

@@ -14,6 +14,33 @@ import { Message, TextBlock, ToolUseBlock, ToolResultBlock } from '@strands-agen
 import { serializeStreamEvent } from '../stream-serializer.js';
 
 describe('serializeStreamEvent', () => {
+  describe('afterInvocationEvent (GoalLoop retry boundary)', () => {
+    it('marks willRetry when the event carries a resume (intermediate attempt)', () => {
+      // GoalLoop arms `event.resume` when the judge failed the attempt. The
+      // frontend uses this marker to reset the in-progress bubble so the
+      // final rendering matches the persisted history. The resume CONTENT
+      // (judge feedback) must NOT go over the wire.
+      const [serialised] = serializeStreamEvent({
+        type: 'afterInvocationEvent',
+        resume: 'Your previous attempt did not satisfy the goal. Feedback: too long.',
+      }) as Array<{ type: string; willRetry?: boolean; resume?: unknown }>;
+
+      expect(serialised.type).toBe('afterInvocationEvent');
+      expect(serialised.willRetry).toBe(true);
+      expect('resume' in serialised).toBe(false);
+    });
+
+    it('omits willRetry on the terminal attempt (no resume)', () => {
+      const [serialised] = serializeStreamEvent({
+        type: 'afterInvocationEvent',
+        resume: undefined,
+      }) as Array<{ type: string; willRetry?: boolean }>;
+
+      expect(serialised.type).toBe('afterInvocationEvent');
+      expect('willRetry' in serialised).toBe(false);
+    });
+  });
+
   describe('messageAddedEvent', () => {
     it('preserves block.type for assistant messages with toolUseBlock content', () => {
       const message = new Message({

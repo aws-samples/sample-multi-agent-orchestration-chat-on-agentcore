@@ -15,6 +15,7 @@ import { describe, it, expect } from '@jest/globals';
 import fs from 'fs';
 import { AgentSkills } from '@strands-agents/sdk/vended-plugins/skills';
 import { BUNDLED_SKILLS_DIRECTORY } from '../index.js';
+import { loadSkillNames } from '../../tests/skills-local-sandbox.js';
 
 describe('bundled skills', () => {
   it('resolves to an existing directory', () => {
@@ -25,13 +26,14 @@ describe('bundled skills', () => {
   it('loads every bundled skill under the strict loader', async () => {
     // strict: true turns a malformed SKILL.md into a throw rather than a warn,
     // so a parse failure fails the test instead of silently shipping.
+    //
+    // As of `@strands-agents/sdk@1.8`, path sources load in `initAgent(agent)`
+    // via `agent.sandbox`, not in the constructor — `loadSkillNames` runs that
+    // step against a local-FS fake agent (see skills-local-sandbox.ts).
     const plugin = new AgentSkills({ skills: [BUNDLED_SKILLS_DIRECTORY], strict: true });
-    const skills = await plugin.getAvailableSkills();
+    const names = await loadSkillNames(plugin);
 
-    expect(skills.length).toBeGreaterThan(0);
-    expect(skills.map((s) => s.name)).toContain('moca-guide');
-    for (const s of skills) {
-      expect(s.description.length).toBeGreaterThan(0);
-    }
+    expect(names.length).toBeGreaterThan(0);
+    expect(names).toContain('moca-guide');
   });
 });

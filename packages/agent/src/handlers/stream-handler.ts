@@ -7,6 +7,7 @@
 
 import type { Response } from 'express';
 import type { Agent } from '@strands-agents/sdk';
+import type { GoalLoop } from '@strands-agents/sdk/vended-plugins/goal';
 import { logger } from '../libs/logger/index.js';
 import {
   createErrorMessage,
@@ -33,6 +34,12 @@ export interface StreamOptions {
    * thread it through (e.g. some tests) still type-check.
    */
   retryStrategy?: StreamTerminationRetryStrategy;
+  /**
+   * GoalLoop plugin attached to this turn's agent, when a goal was supplied.
+   * Read after the stream completes to surface `{ passed, stopReason, attempts }`
+   * in the completion event metadata. Undefined for non-goal turns.
+   */
+  goalLoop?: GoalLoop;
   /** Session storage (for saving error messages on stream failure) */
   sessionStorage?: SessionStorage;
   /** Session config (for saving error messages on stream failure) */
@@ -55,6 +62,11 @@ function setStreamingHeaders(res: Response): void {
 function sendCompletionEvent(res: Response, agent: Agent, options: StreamOptions): void {
   const context = getCurrentContext();
   const contextMeta = getContextMetadata();
+  // Surface the GoalLoop outcome (if this turn ran under a goal) as a compact
+  // summary. Per-attempt feedback text is intentionally NOT streamed — only the
+  // pass flag, stop reason, and attempt count, which the UI turns into a
+  // "refined N times" note.
+  const goalResult = options.goalLoop?.lastResult(agent);
   const completionEvent = {
     type: 'serverCompletionEvent',
     metadata: {
@@ -64,6 +76,15 @@ function sendCompletionEvent(res: Response, agent: Agent, options: StreamOptions
       actorId: context?.userId,
       conversationLength: agent.messages.length,
       agentMetadata: options.metadata,
+      ...(goalResult
+        ? {
+            goalResult: {
+              passed: goalResult.passed,
+              stopReason: goalResult.stopReason,
+              attempts: goalResult.attempts.length,
+            },
+          }
+        : {}),
     },
   };
   res.write(`${JSON.stringify(completionEvent)}\n`);
@@ -182,9 +203,30 @@ export async function streamAgentResponse(
     // aggregator only works when the canonical
     // `POST → invoke_agent → execute_event_loop_cycle → chat` hierarchy
     // is preserved.
+    // GoalLoop retry gating: after we emit a willRetry=true
+    // afterInvocationEvent, the NEXT messageAddedEvent is the synthetic
+    // judge-feedback prompt (user role). The frontend ignores user-text
+    // messageAddedEvents for display, so it wouldn't render as a bubble —
+    // but the feedback text is internal scaffolding (judge's raw rubric
+    // evaluation) and MUST NOT cross the wire. Drop it here; subsequent
+    // model events (attempt 2) stream normally.
+    let skipNextUserMessage = false;
+
     for await (const event of agent.stream(agentInput)) {
       const safeEvents = serializeStreamEvent(event);
       for (const safeEvent of safeEvents) {
+        const se = safeEvent as { type?: string; willRetry?: boolean; message?: { role?: string } };
+
+        // After emitting a retry boundary, arm the skip for the next user message.
+        if (se.type === 'afterInvocationEvent' && se.willRetry) {
+          skipNextUserMessage = true;
+        }
+        // Drop the synthetic judge-feedback user message.
+        if (skipNextUserMessage && se.type === 'messageAddedEvent' && se.message?.role === 'user') {
+          skipNextUserMessage = false;
+          continue;
+        }
+
         res.write(`${JSON.stringify(safeEvent)}\n`);
       }
     }

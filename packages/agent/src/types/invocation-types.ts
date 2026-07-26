@@ -21,4 +21,7 @@ export interface InvocationRequest {
   mcpConfig?: Record<string, unknown>; // Optional: User-defined MCP server configuration
   images?: ImageData[]; // Optional: Array of images for multimodal input
   targetUserId?: string; // Optional: Target user ID for batch processing (machine user only)
+  goal?: string; // Optional: Natural-language goal. When non-empty, enables the GoalLoop refinement plugin for this turn only.
+  goalJudgeModelId?: string; // Optional: Model ID for the GoalLoop judge Agent. Falls back to GOAL_JUDGE_MODEL_ID when unset/invalid.
+  goalMaxAttempts?: number; // Optional: GoalLoop attempt cap for this turn. Clamped to [GOAL_LOOP_ATTEMPTS_MIN, GOAL_LOOP_ATTEMPTS_MAX]; non-integers fall back to GOAL_LOOP_MAX_ATTEMPTS.
 }
