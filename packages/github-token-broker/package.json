@@ -21,10 +21,10 @@
   "author": "AgentCore GitHub Token Broker",
   "license": "MIT",
   "dependencies": {
-    "@aws-sdk/client-secrets-manager": "^3.685.0"
+    "@aws-sdk/client-secrets-manager": "^3.1090.0"
   },
   "devDependencies": {
-    "@types/aws-lambda": "^8.10.145"
+    "@types/aws-lambda": "^8.10.162"
   },
   "engines": {
     "node": ">=22.12.0"
