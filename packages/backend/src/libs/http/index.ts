@@ -30,6 +30,7 @@ export {
   decodePageToken,
   encodePageToken,
   queryString,
+  pathParam,
 } from './pagination.js';
 
 export { zAgentId, zUserId, zSessionId, zTriggerId } from './schemas.js';

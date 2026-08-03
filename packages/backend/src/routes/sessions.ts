@@ -23,6 +23,7 @@ import {
   ok,
   parseLimit,
   queryString,
+  pathParam,
   zSessionId,
 } from '../libs/http/index.js';
 
@@ -86,7 +87,7 @@ router.get(
   validate({ params: sessionIdParams }),
   asyncHandler(async (req: AuthenticatedRequest, res) => {
     const actorId = req.identityId!;
-    const { sessionId } = req.params;
+    const sessionId = pathParam(req.params.sessionId);
 
     // Ownership check, scoped to the caller's actorId. A missing row is
     // "not found" (404) rather than "forbidden" — returning 404 leaks nothing
@@ -121,7 +122,7 @@ router.delete(
   validate({ params: sessionIdParams }),
   asyncHandler(async (req: AuthenticatedRequest, res) => {
     const actorId = req.identityId!;
-    const { sessionId } = req.params;
+    const sessionId = pathParam(req.params.sessionId);
 
     // Ownership check. A missing DynamoDB row means the session is either
     // already deleted or not owned by this caller, so we skip the DynamoDB

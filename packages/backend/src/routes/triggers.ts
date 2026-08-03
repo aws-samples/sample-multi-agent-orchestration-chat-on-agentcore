@@ -35,6 +35,7 @@ import {
   ok,
   parseLimit,
   queryString,
+  pathParam,
   zTriggerId,
 } from '../libs/http/index.js';
 
@@ -173,7 +174,7 @@ router.get(
   validate({ params: triggerIdParams }),
   asyncHandler(async (req: AuthenticatedRequest, res) => {
     const userId = requireUserId(req);
-    const triggerId = parseTriggerId(req.params.id);
+    const triggerId = parseTriggerId(pathParam(req.params.id));
 
     const trigger = await getConfiguredTriggersService().getTrigger(userId, triggerId);
     if (!trigger) {
@@ -297,7 +298,7 @@ router.put(
   validate({ params: triggerIdParams, body: updateTriggerBody }),
   asyncHandler(async (req: AuthenticatedRequest, res) => {
     const userId = requireUserId(req);
-    const triggerId = parseTriggerId(req.params.id);
+    const triggerId = parseTriggerId(pathParam(req.params.id));
 
     const triggersService = getConfiguredTriggersService();
     const existingTrigger = await triggersService.getTrigger(userId, triggerId);
@@ -461,7 +462,7 @@ router.delete(
   validate({ params: triggerIdParams }),
   asyncHandler(async (req: AuthenticatedRequest, res) => {
     const userId = requireUserId(req);
-    const triggerId = parseTriggerId(req.params.id);
+    const triggerId = parseTriggerId(pathParam(req.params.id));
 
     const triggersService = getConfiguredTriggersService();
     const trigger = await triggersService.getTrigger(userId, triggerId);
@@ -498,7 +499,7 @@ router.post(
   validate({ params: triggerIdParams }),
   asyncHandler(async (req: AuthenticatedRequest, res) => {
     const userId = requireUserId(req);
-    const triggerId = parseTriggerId(req.params.id);
+    const triggerId = parseTriggerId(pathParam(req.params.id));
 
     const triggersService = getConfiguredTriggersService();
     const trigger = await triggersService.getTrigger(userId, triggerId);
@@ -540,7 +541,7 @@ router.post(
   validate({ params: triggerIdParams }),
   asyncHandler(async (req: AuthenticatedRequest, res) => {
     const userId = requireUserId(req);
-    const triggerId = parseTriggerId(req.params.id);
+    const triggerId = parseTriggerId(pathParam(req.params.id));
 
     const triggersService = getConfiguredTriggersService();
     const trigger = await triggersService.getTrigger(userId, triggerId);
@@ -582,7 +583,7 @@ router.get(
   validate({ params: triggerIdParams }),
   asyncHandler(async (req: AuthenticatedRequest, res) => {
     const userId = requireUserId(req);
-    const triggerId = parseTriggerId(req.params.id);
+    const triggerId = parseTriggerId(pathParam(req.params.id));
     const limit = parseLimit(req, 20);
     const exclusiveStartKey = decodePageToken(queryString(req.query.nextToken));
 

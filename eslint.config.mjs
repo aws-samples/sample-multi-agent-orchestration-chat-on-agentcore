@@ -377,25 +377,40 @@ export default tseslint.config(
         'error',
         {
           default: 'disallow',
-          rules: [
+          policies: [
             // types: nothing below — no imports allowed
-            { from: { type: 'types' }, disallow: { to: { type: '*' } } },
+            { from: { element: { type: 'types' } }, disallow: { to: { element: { type: '*' } } } },
             // config: only types and libs
-            { from: { type: 'config' }, allow: { to: { type: ['types', 'libs'] } } },
+            {
+              from: { element: { type: 'config' } },
+              allow: { to: { element: { types: { anyOf: ['types', 'libs'] } } } },
+            },
             // services: types, config, libs
-            { from: { type: 'services' }, allow: { to: { type: ['types', 'config', 'libs'] } } },
+            {
+              from: { element: { type: 'services' } },
+              allow: { to: { element: { types: { anyOf: ['types', 'config', 'libs'] } } } },
+            },
             // runtime: types, config, services, libs
             {
-              from: { type: 'runtime' },
-              allow: { to: { type: ['types', 'config', 'services', 'libs'] } },
+              from: { element: { type: 'runtime' } },
+              allow: {
+                to: { element: { types: { anyOf: ['types', 'config', 'services', 'libs'] } } },
+              },
             },
             // handlers: all lower layers
             {
-              from: { type: 'handlers' },
-              allow: { to: { type: ['types', 'config', 'services', 'runtime', 'libs'] } },
+              from: { element: { type: 'handlers' } },
+              allow: {
+                to: {
+                  element: { types: { anyOf: ['types', 'config', 'services', 'runtime', 'libs'] } },
+                },
+              },
             },
             // libs (Provider): only types and config
-            { from: { type: 'libs' }, allow: { to: { type: ['types', 'config'] } } },
+            {
+              from: { element: { type: 'libs' } },
+              allow: { to: { element: { types: { anyOf: ['types', 'config'] } } } },
+            },
           ],
         },
       ],
@@ -424,22 +439,36 @@ export default tseslint.config(
         'error',
         {
           default: 'disallow',
-          rules: [
-            { from: { type: 'types' }, disallow: { to: { type: '*' } } },
-            { from: { type: 'config' }, allow: { to: { type: ['types', 'libs'] } } },
+          policies: [
+            { from: { element: { type: 'types' } }, disallow: { to: { element: { type: '*' } } } },
             {
-              from: { type: 'middleware' },
-              allow: { to: { type: ['types', 'config', 'libs'] } },
+              from: { element: { type: 'config' } },
+              allow: { to: { element: { types: { anyOf: ['types', 'libs'] } } } },
             },
             {
-              from: { type: 'services' },
-              allow: { to: { type: ['types', 'config', 'middleware', 'libs'] } },
+              from: { element: { type: 'middleware' } },
+              allow: { to: { element: { types: { anyOf: ['types', 'config', 'libs'] } } } },
             },
             {
-              from: { type: 'routes' },
-              allow: { to: { type: ['types', 'config', 'middleware', 'services', 'libs'] } },
+              from: { element: { type: 'services' } },
+              allow: {
+                to: { element: { types: { anyOf: ['types', 'config', 'middleware', 'libs'] } } },
+              },
             },
-            { from: { type: 'libs' }, allow: { to: { type: ['types', 'config'] } } },
+            {
+              from: { element: { type: 'routes' } },
+              allow: {
+                to: {
+                  element: {
+                    types: { anyOf: ['types', 'config', 'middleware', 'services', 'libs'] },
+                  },
+                },
+              },
+            },
+            {
+              from: { element: { type: 'libs' } },
+              allow: { to: { element: { types: { anyOf: ['types', 'config'] } } } },
+            },
           ],
         },
       ],
@@ -495,22 +524,39 @@ export default tseslint.config(
         'error',
         {
           default: 'disallow',
-          rules: [
-            { from: { type: 'foundation' }, disallow: { to: { type: '*' } } },
-            { from: { type: 'utils' }, allow: { to: { type: 'foundation' } } },
-            { from: { type: 'state' }, allow: { to: { type: ['foundation', 'utils'] } } },
+          policies: [
             {
-              from: { type: 'components' },
-              allow: { to: { type: ['foundation', 'utils', 'state'] } },
+              from: { element: { type: 'foundation' } },
+              disallow: { to: { element: { type: '*' } } },
             },
             {
-              from: { type: 'features' },
-              allow: { to: { type: ['foundation', 'utils', 'state', 'components'] } },
+              from: { element: { type: 'utils' } },
+              allow: { to: { element: { type: 'foundation' } } },
             },
             {
-              from: { type: 'pages' },
+              from: { element: { type: 'state' } },
+              allow: { to: { element: { types: { anyOf: ['foundation', 'utils'] } } } },
+            },
+            {
+              from: { element: { type: 'components' } },
+              allow: { to: { element: { types: { anyOf: ['foundation', 'utils', 'state'] } } } },
+            },
+            {
+              from: { element: { type: 'features' } },
               allow: {
-                to: { type: ['foundation', 'utils', 'state', 'components', 'features'] },
+                to: {
+                  element: { types: { anyOf: ['foundation', 'utils', 'state', 'components'] } },
+                },
+              },
+            },
+            {
+              from: { element: { type: 'pages' } },
+              allow: {
+                to: {
+                  element: {
+                    types: { anyOf: ['foundation', 'utils', 'state', 'components', 'features'] },
+                  },
+                },
               },
             },
           ],

@@ -16,6 +16,31 @@ import fs from 'fs';
 import { AgentSkills } from '@strands-agents/sdk/vended-plugins/skills';
 import { BUNDLED_SKILLS_DIRECTORY } from '../index.js';
 
+/**
+ * Minimal filesystem-backed sandbox + agent. Since @strands-agents/sdk v1.11,
+ * `AgentSkills` loads filesystem path sources lazily at `initAgent()` through the
+ * agent's sandbox rather than during construction, and `getAvailableSkills()`
+ * only returns path-loaded skills when passed the agent they were loaded for.
+ */
+class LocalFsSandbox {
+  async listFiles(dir: string): Promise<Array<{ name: string; isDir: boolean }>> {
+    return fs
+      .readdirSync(dir, { withFileTypes: true })
+      .map((e) => ({ name: e.name, isDir: e.isDirectory() }));
+  }
+  async readText(filePath: string): Promise<string> {
+    return fs.readFileSync(filePath, 'utf8');
+  }
+}
+
+async function loadPluginSkills(plugin: AgentSkills) {
+  const agent = { sandbox: new LocalFsSandbox(), addHook: () => {} };
+  await plugin.initAgent(agent as unknown as Parameters<typeof plugin.initAgent>[0]);
+  return plugin.getAvailableSkills(
+    agent as unknown as Parameters<typeof plugin.getAvailableSkills>[0]
+  );
+}
+
 describe('bundled skills', () => {
   it('resolves to an existing directory', () => {
     expect(fs.existsSync(BUNDLED_SKILLS_DIRECTORY)).toBe(true);
@@ -26,7 +51,7 @@ describe('bundled skills', () => {
     // strict: true turns a malformed SKILL.md into a throw rather than a warn,
     // so a parse failure fails the test instead of silently shipping.
     const plugin = new AgentSkills({ skills: [BUNDLED_SKILLS_DIRECTORY], strict: true });
-    const skills = await plugin.getAvailableSkills();
+    const skills = await loadPluginSkills(plugin);
 
     expect(skills.length).toBeGreaterThan(0);
     expect(skills.map((s) => s.name)).toContain('moca-guide');

@@ -43,6 +43,31 @@ function makeSkillsDir(name = 'greeting'): string {
   return path.join(root, '.agents/skills');
 }
 
+/**
+ * Minimal filesystem-backed sandbox + agent. Since @strands-agents/sdk v1.11,
+ * `AgentSkills` loads filesystem path sources lazily at `initAgent()` through the
+ * agent's sandbox rather than during construction, and `getAvailableSkills()`
+ * only returns path-loaded skills when passed the agent they were loaded for.
+ * These helpers drive that flow against the real local filesystem so the tests
+ * exercise the same code path production uses.
+ */
+class LocalFsSandbox {
+  async listFiles(dir: string): Promise<Array<{ name: string; isDir: boolean }>> {
+    return fs
+      .readdirSync(dir, { withFileTypes: true })
+      .map((e) => ({ name: e.name, isDir: e.isDirectory() }));
+  }
+  async readText(filePath: string): Promise<string> {
+    return fs.readFileSync(filePath, 'utf8');
+  }
+}
+
+async function loadPluginSkills(plugin: NonNullable<ReturnType<typeof buildSkillsPlugin>>) {
+  const agent = { sandbox: new LocalFsSandbox(), addHook: () => {} };
+  await plugin.initAgent(agent as unknown as Parameters<typeof plugin.initAgent>[0]);
+  return plugin.getAvailableSkills(agent as unknown as Parameters<typeof plugin.getAvailableSkills>[0]);
+}
+
 describe('buildSkillsPlugin', () => {
   const tmpRoots: string[] = [];
 
@@ -66,7 +91,7 @@ describe('buildSkillsPlugin', () => {
     const plugin = buildSkillsPlugin([skillsDir]);
 
     expect(plugin).not.toBeNull();
-    const skills = await plugin!.getAvailableSkills();
+    const skills = await loadPluginSkills(plugin!);
     expect(skills.map((s) => s.name)).toContain('greeting');
   });
 
@@ -78,7 +103,7 @@ describe('buildSkillsPlugin', () => {
     const plugin = buildSkillsPlugin([sharedDir, wsDir]);
 
     expect(plugin).not.toBeNull();
-    const names = (await plugin!.getAvailableSkills()).map((s) => s.name);
+    const names = (await loadPluginSkills(plugin!)).map((s) => s.name);
     expect(names).toContain('sailor');
     expect(names).toContain('greeting');
   });

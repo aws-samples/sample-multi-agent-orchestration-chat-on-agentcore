@@ -159,34 +159,50 @@ export default defineConfig([
         'error',
         {
           default: 'disallow',
-          rules: [
+          policies: [
             // foundation: no outward imports (intra-layer allowed via same-type rule below)
-            { from: { type: 'foundation' }, allow: { to: { type: 'foundation' } } },
+            {
+              from: { element: { type: 'foundation' } },
+              allow: { to: { element: { type: 'foundation' } } },
+            },
             // utils: foundation + intra-layer
-            { from: { type: 'utils' }, allow: { to: { type: ['foundation', 'utils'] } } },
+            {
+              from: { element: { type: 'utils' } },
+              allow: { to: { element: { types: { anyOf: ['foundation', 'utils'] } } } },
+            },
             // state: foundation, utils + intra-layer (hooks can import stores and vice versa)
             {
-              from: { type: 'state' },
-              allow: { to: { type: ['foundation', 'utils', 'state'] } },
+              from: { element: { type: 'state' } },
+              allow: { to: { element: { types: { anyOf: ['foundation', 'utils', 'state'] } } } },
             },
             // components: foundation, utils, state + intra-layer
             {
-              from: { type: 'components' },
-              allow: { to: { type: ['foundation', 'utils', 'state', 'components'] } },
+              from: { element: { type: 'components' } },
+              allow: {
+                to: { element: { types: { anyOf: ['foundation', 'utils', 'state', 'components'] } } },
+              },
             },
             // features: foundation, utils, state, components + intra-layer
             {
-              from: { type: 'features' },
+              from: { element: { type: 'features' } },
               allow: {
-                to: { type: ['foundation', 'utils', 'state', 'components', 'features'] },
+                to: {
+                  element: {
+                    types: { anyOf: ['foundation', 'utils', 'state', 'components', 'features'] },
+                  },
+                },
               },
             },
             // pages: all lower layers + intra-layer
             {
-              from: { type: 'pages' },
+              from: { element: { type: 'pages' } },
               allow: {
                 to: {
-                  type: ['foundation', 'utils', 'state', 'components', 'features', 'pages'],
+                  element: {
+                    types: {
+                      anyOf: ['foundation', 'utils', 'state', 'components', 'features', 'pages'],
+                    },
+                  },
                 },
               },
             },

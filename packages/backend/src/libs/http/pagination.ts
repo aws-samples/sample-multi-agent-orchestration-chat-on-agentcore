@@ -77,3 +77,17 @@ export function queryString(value: unknown): string | undefined {
   if (Array.isArray(value) && typeof value[0] === 'string') return value[0];
   return undefined;
 }
+
+/**
+ * Read a required path param, tolerating the `string | string[]` shape that
+ * Express 5's typings produce for route params. Path params are guaranteed to
+ * be present (and single-valued) after the router matches the route and the
+ * `validate({ params })` middleware runs, so this collapses the union back to a
+ * plain `string`. Returns an empty string only for the impossible case of a
+ * missing value, which downstream `parse*` validators reject explicitly.
+ */
+export function pathParam(value: unknown): string {
+  if (typeof value === 'string') return value;
+  if (Array.isArray(value) && typeof value[0] === 'string') return value[0];
+  return '';
+}
