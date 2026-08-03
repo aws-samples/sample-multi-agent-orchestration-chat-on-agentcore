@@ -28,7 +28,6 @@ import {
   ok,
   parseLimit,
   queryString,
-  pathParam,
   zAgentId,
   zUserId,
 } from '../libs/http/index.js';
@@ -83,9 +82,9 @@ router.get(
   '/:agentId',
   resolveTargetUser,
   validate({ params: agentIdParams }),
-  asyncHandler(async (req: AuthenticatedRequest, res) => {
+  asyncHandler(async (req: AuthenticatedRequest<{ agentId: string }>, res) => {
     const userId = req.targetUserId!;
-    const agentId = parseAgentId(pathParam(req.params.agentId));
+    const agentId = parseAgentId(req.params.agentId);
 
     const agentsService = createAgentsService();
     const agent = await agentsService.getAgent(userId, agentId);
@@ -135,9 +134,9 @@ router.put(
   '/:agentId',
   resolveTargetUser,
   validate({ params: agentIdParams, body: updateAgentBody }),
-  asyncHandler(async (req: AuthenticatedRequest, res) => {
+  asyncHandler(async (req: AuthenticatedRequest<{ agentId: string }>, res) => {
     const userId = req.targetUserId!;
-    const agentId = parseAgentId(pathParam(req.params.agentId));
+    const agentId = parseAgentId(req.params.agentId);
     const input = req.body;
 
     const agentsService = createAgentsService();
@@ -168,9 +167,9 @@ router.put(
 router.delete(
   '/:agentId',
   validate({ params: agentIdParams }),
-  asyncHandler(async (req: AuthenticatedRequest, res) => {
+  asyncHandler(async (req: AuthenticatedRequest<{ agentId: string }>, res) => {
     const userId = requireUserId(req);
-    const agentId = parseAgentId(pathParam(req.params.agentId));
+    const agentId = parseAgentId(req.params.agentId);
 
     const agentsService = createAgentsService();
     await agentsService.deleteAgent(userId, agentId);
@@ -187,9 +186,9 @@ router.delete(
 router.put(
   '/:agentId/share',
   validate({ params: agentIdParams }),
-  asyncHandler(async (req: AuthenticatedRequest, res) => {
+  asyncHandler(async (req: AuthenticatedRequest<{ agentId: string }>, res) => {
     const userId = requireUserId(req);
-    const agentId = parseAgentId(pathParam(req.params.agentId));
+    const agentId = parseAgentId(req.params.agentId);
 
     const agentsService = createAgentsService();
     let agent;
@@ -296,9 +295,9 @@ router.get(
 router.get(
   '/shared-agents/:userId/:agentId',
   validate({ params: sharedAgentParams }),
-  asyncHandler(async (req: AuthenticatedRequest, res) => {
-    const userId = parseUserId(pathParam(req.params.userId));
-    const agentId = parseAgentId(pathParam(req.params.agentId));
+  asyncHandler(async (req: AuthenticatedRequest<{ userId: string; agentId: string }>, res) => {
+    const userId = parseUserId(req.params.userId);
+    const agentId = parseAgentId(req.params.agentId);
 
     const agentsService = createAgentsService();
     const agent = await agentsService.getSharedAgent(userId, agentId);
@@ -320,11 +319,11 @@ router.get(
 router.post(
   '/shared-agents/:userId/:agentId/clone',
   validate({ params: sharedAgentParams }),
-  asyncHandler(async (req: AuthenticatedRequest, res) => {
+  asyncHandler(async (req: AuthenticatedRequest<{ userId: string; agentId: string }>, res) => {
     const auth = getCurrentAuth(req);
     const targetUserId = requireUserId(req);
-    const sourceUserId = parseUserId(pathParam(req.params.userId));
-    const sourceAgentId = parseAgentId(pathParam(req.params.agentId));
+    const sourceUserId = parseUserId(req.params.userId);
+    const sourceAgentId = parseAgentId(req.params.agentId);
 
     const agentsService = createAgentsService();
     let clonedAgent;

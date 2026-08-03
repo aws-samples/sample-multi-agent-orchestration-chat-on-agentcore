@@ -12,10 +12,11 @@
  */
 
 import type { Response, NextFunction } from 'express';
+import type { ParamsDictionary } from 'express-serve-static-core';
 import type { AuthenticatedRequest } from '../types/index.js';
 
-type AsyncRequestHandler = (
-  req: AuthenticatedRequest,
+type AsyncRequestHandler<P = ParamsDictionary> = (
+  req: AuthenticatedRequest<P>,
   res: Response,
   next: NextFunction
 ) => Promise<unknown>;
@@ -23,9 +24,14 @@ type AsyncRequestHandler = (
 /**
  * Wraps an async Express handler so rejected promises are forwarded to
  * Express error middleware via `next(error)`.
+ *
+ * Generic over the route params type `P`, inferred from the handler. This
+ * lets callers annotate typed path params (e.g.
+ * `AuthenticatedRequest<{ agentId: string }>`) without the wrapper widening
+ * them back to `ParamsDictionary`.
  */
-export function asyncHandler(fn: AsyncRequestHandler) {
-  return (req: AuthenticatedRequest, res: Response, next: NextFunction): void => {
+export function asyncHandler<P = ParamsDictionary>(fn: AsyncRequestHandler<P>) {
+  return (req: AuthenticatedRequest<P>, res: Response, next: NextFunction): void => {
     fn(req, res, next).catch(next);
   };
 }
