@@ -30,9 +30,9 @@
     "aws-cdk": "^2.1133.0"
   },
   "dependencies": {
-    "@cdklabs/deploy-time-build": "^0.1.0",
-    "aws-cdk-lib": "2.260.0",
+    "@cdklabs/deploy-time-build": "^0.1.7",
+    "aws-cdk-lib": "2.262.1",
     "cdk-nag": "^2.37.55",
-    "constructs": "^10.0.0"
+    "constructs": "^10.7.1"
   }
 }

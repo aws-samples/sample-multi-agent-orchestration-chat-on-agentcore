@@ -43,14 +43,14 @@
     "node": ">=18.0.0"
   },
   "dependencies": {
-    "ignore": "^7.0.5",
+    "ignore": "^7.0.6",
     "p-limit": "^6.1.0"
   },
   "peerDependencies": {
     "@aws-sdk/client-s3": "^3.0.0"
   },
   "devDependencies": {
-    "@aws-sdk/client-s3": "^3.654.0",
-    "vitest": "^4.1.8"
+    "@aws-sdk/client-s3": "^3.1095.0",
+    "vitest": "^4.1.10"
   }
 }
