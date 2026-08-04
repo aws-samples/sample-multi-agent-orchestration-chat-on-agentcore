@@ -87,12 +87,19 @@ export class StreamTerminationRetryStrategy extends DefaultModelRetryStrategy {
   retryCount = 0;
 
   /**
-   * Default to 3 total attempts (SDK default is 6). A transient truncation that
-   * survives two re-issues is unlikely to be transient, and bounding attempts
-   * caps token/latency cost on a genuinely stuck stream.
+   * Default to 6 total attempts (1 initial + 5 retries), matching the SDK
+   * default. Raised from 3 after a rise in `Stream ended without completing a
+   * message` aborts: the extra re-issues catch truncations that a single retry
+   * missed. The trade-off is worst-case added latency — inherited exponential
+   * backoff (base 4s, ×2, full jitter) means the 5th retry can wait up to ~64s,
+   * and the full retry budget can add ~124s on a stream that keeps truncating.
+   * Backoff is intentionally left at the SDK default; only the attempt count
+   * changed. If truncations are systemic (e.g. a gateway idle timeout on long
+   * generations) rather than transient, more attempts won't help — revisit the
+   * upstream cause before raising this further.
    */
   constructor(opts: DefaultModelRetryStrategyOptions = {}) {
-    const resolved = { maxAttempts: 3, ...opts };
+    const resolved = { maxAttempts: 6, ...opts };
     super(resolved);
     this.maxAttempts = resolved.maxAttempts;
   }

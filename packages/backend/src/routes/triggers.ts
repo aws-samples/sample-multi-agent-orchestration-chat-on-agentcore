@@ -171,7 +171,7 @@ router.get(
 router.get(
   '/:id',
   validate({ params: triggerIdParams }),
-  asyncHandler(async (req: AuthenticatedRequest, res) => {
+  asyncHandler(async (req: AuthenticatedRequest<{ id: string }>, res) => {
     const userId = requireUserId(req);
     const triggerId = parseTriggerId(req.params.id);
 
@@ -295,7 +295,7 @@ router.post(
 router.put(
   '/:id',
   validate({ params: triggerIdParams, body: updateTriggerBody }),
-  asyncHandler(async (req: AuthenticatedRequest, res) => {
+  asyncHandler(async (req: AuthenticatedRequest<{ id: string }>, res) => {
     const userId = requireUserId(req);
     const triggerId = parseTriggerId(req.params.id);
 
@@ -459,7 +459,7 @@ router.put(
 router.delete(
   '/:id',
   validate({ params: triggerIdParams }),
-  asyncHandler(async (req: AuthenticatedRequest, res) => {
+  asyncHandler(async (req: AuthenticatedRequest<{ id: string }>, res) => {
     const userId = requireUserId(req);
     const triggerId = parseTriggerId(req.params.id);
 
@@ -496,7 +496,7 @@ router.delete(
 router.post(
   '/:id/enable',
   validate({ params: triggerIdParams }),
-  asyncHandler(async (req: AuthenticatedRequest, res) => {
+  asyncHandler(async (req: AuthenticatedRequest<{ id: string }>, res) => {
     const userId = requireUserId(req);
     const triggerId = parseTriggerId(req.params.id);
 
@@ -538,7 +538,7 @@ router.post(
 router.post(
   '/:id/disable',
   validate({ params: triggerIdParams }),
-  asyncHandler(async (req: AuthenticatedRequest, res) => {
+  asyncHandler(async (req: AuthenticatedRequest<{ id: string }>, res) => {
     const userId = requireUserId(req);
     const triggerId = parseTriggerId(req.params.id);
 
@@ -580,7 +580,7 @@ router.post(
 router.get(
   '/:id/executions',
   validate({ params: triggerIdParams }),
-  asyncHandler(async (req: AuthenticatedRequest, res) => {
+  asyncHandler(async (req: AuthenticatedRequest<{ id: string }>, res) => {
     const userId = requireUserId(req);
     const triggerId = parseTriggerId(req.params.id);
     const limit = parseLimit(req, 20);

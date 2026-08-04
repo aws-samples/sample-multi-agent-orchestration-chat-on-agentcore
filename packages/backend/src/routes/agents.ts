@@ -82,7 +82,7 @@ router.get(
   '/:agentId',
   resolveTargetUser,
   validate({ params: agentIdParams }),
-  asyncHandler(async (req: AuthenticatedRequest, res) => {
+  asyncHandler(async (req: AuthenticatedRequest<{ agentId: string }>, res) => {
     const userId = req.targetUserId!;
     const agentId = parseAgentId(req.params.agentId);
 
@@ -134,7 +134,7 @@ router.put(
   '/:agentId',
   resolveTargetUser,
   validate({ params: agentIdParams, body: updateAgentBody }),
-  asyncHandler(async (req: AuthenticatedRequest, res) => {
+  asyncHandler(async (req: AuthenticatedRequest<{ agentId: string }>, res) => {
     const userId = req.targetUserId!;
     const agentId = parseAgentId(req.params.agentId);
     const input = req.body;
@@ -167,7 +167,7 @@ router.put(
 router.delete(
   '/:agentId',
   validate({ params: agentIdParams }),
-  asyncHandler(async (req: AuthenticatedRequest, res) => {
+  asyncHandler(async (req: AuthenticatedRequest<{ agentId: string }>, res) => {
     const userId = requireUserId(req);
     const agentId = parseAgentId(req.params.agentId);
 
@@ -186,7 +186,7 @@ router.delete(
 router.put(
   '/:agentId/share',
   validate({ params: agentIdParams }),
-  asyncHandler(async (req: AuthenticatedRequest, res) => {
+  asyncHandler(async (req: AuthenticatedRequest<{ agentId: string }>, res) => {
     const userId = requireUserId(req);
     const agentId = parseAgentId(req.params.agentId);
 
@@ -295,7 +295,7 @@ router.get(
 router.get(
   '/shared-agents/:userId/:agentId',
   validate({ params: sharedAgentParams }),
-  asyncHandler(async (req: AuthenticatedRequest, res) => {
+  asyncHandler(async (req: AuthenticatedRequest<{ userId: string; agentId: string }>, res) => {
     const userId = parseUserId(req.params.userId);
     const agentId = parseAgentId(req.params.agentId);
 
@@ -319,7 +319,7 @@ router.get(
 router.post(
   '/shared-agents/:userId/:agentId/clone',
   validate({ params: sharedAgentParams }),
-  asyncHandler(async (req: AuthenticatedRequest, res) => {
+  asyncHandler(async (req: AuthenticatedRequest<{ userId: string; agentId: string }>, res) => {
     const auth = getCurrentAuth(req);
     const targetUserId = requireUserId(req);
     const sourceUserId = parseUserId(req.params.userId);

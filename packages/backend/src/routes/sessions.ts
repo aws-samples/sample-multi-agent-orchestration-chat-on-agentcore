@@ -84,9 +84,9 @@ router.get(
 router.get(
   '/:sessionId/events',
   validate({ params: sessionIdParams }),
-  asyncHandler(async (req: AuthenticatedRequest, res) => {
+  asyncHandler(async (req: AuthenticatedRequest<{ sessionId: string }>, res) => {
     const actorId = req.identityId!;
-    const { sessionId } = req.params;
+    const sessionId = req.params.sessionId;
 
     // Ownership check, scoped to the caller's actorId. A missing row is
     // "not found" (404) rather than "forbidden" — returning 404 leaks nothing
@@ -119,9 +119,9 @@ router.get(
 router.delete(
   '/:sessionId',
   validate({ params: sessionIdParams }),
-  asyncHandler(async (req: AuthenticatedRequest, res) => {
+  asyncHandler(async (req: AuthenticatedRequest<{ sessionId: string }>, res) => {
     const actorId = req.identityId!;
-    const { sessionId } = req.params;
+    const sessionId = req.params.sessionId;
 
     // Ownership check. A missing DynamoDB row means the session is either
     // already deleted or not owned by this caller, so we skip the DynamoDB

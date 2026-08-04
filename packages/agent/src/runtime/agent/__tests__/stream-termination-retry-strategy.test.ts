@@ -251,6 +251,14 @@ describe('StreamTerminationRetryStrategy observability', () => {
     expect(s.maxAttempts).toBe(3);
   });
 
+  // Tripwire for the production default (constructed with no options in
+  // agent.ts). Raised from 3 to 6 to catch more transient truncations; if this
+  // changes, update the constructor doc comment and the latency note there.
+  it('defaults to 6 total attempts when constructed with no options', () => {
+    const s = new StreamTerminationRetryStrategy();
+    expect(s.maxAttempts).toBe(6);
+  });
+
   it('increments retryCount only when an error is classified retryable', () => {
     const s = new StreamTerminationRetryStrategy({ maxAttempts: 5 });
 

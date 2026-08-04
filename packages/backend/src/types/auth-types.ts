@@ -4,6 +4,7 @@
  */
 
 import { Request } from 'express';
+import type { ParamsDictionary } from 'express-serve-static-core';
 import type { IdentityId, UserId } from '@moca/core';
 
 /**
@@ -57,8 +58,13 @@ export interface JWTVerificationResult {
 /**
  * Authenticated request type definition
  * Add JWT information to Express Request object
+ *
+ * Generic over the route params type `P` (defaults to Express's
+ * `ParamsDictionary`). Handlers with typed path params should specialise it,
+ * e.g. `AuthenticatedRequest<{ agentId: string }>`, so `req.params.agentId`
+ * is `string` rather than `string | string[]`.
  */
-export interface AuthenticatedRequest extends Request {
+export interface AuthenticatedRequest<P = ParamsDictionary> extends Request<P> {
   /** JWT payload (access token — cryptographically verified). */
   jwt?: CognitoJWTPayload;
   /**
