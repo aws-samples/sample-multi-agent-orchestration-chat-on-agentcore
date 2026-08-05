@@ -192,6 +192,7 @@ chat:
   typingMessage: メッセージを入力...
   thinking: 考え中...
   stopGenerating: 生成を停止
+  generationStopped: 生成を停止しました
   selectAgent: エージェントを選択
   changeAgent: エージェントを変更
   toggleWideView: 画面幅を切り替え

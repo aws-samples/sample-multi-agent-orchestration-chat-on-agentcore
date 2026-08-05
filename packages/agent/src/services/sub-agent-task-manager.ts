@@ -28,7 +28,7 @@ import type { CreateAgentOptions } from '../types/agent-types.js';
 /**
  * Task status
  */
-export type TaskStatus = 'pending' | 'running' | 'completed' | 'failed';
+export type TaskStatus = 'pending' | 'running' | 'completed' | 'failed' | 'cancelled';
 
 /**
  * Sub-agent task definition
@@ -58,6 +58,12 @@ export interface SubAgentTask {
   authHeader?: string;
   /** Captured Cognito ID Token from parent request context (for Identity Pool credential exchange in background) */
   idToken?: string;
+  /**
+   * Aborts this task's agent turn. Fed to `agent.invoke` as `cancelSignal` so a
+   * cancel request stops the sub-agent at the next SDK checkpoint. Not persisted
+   * / not serialized — it only lives for the duration of the background run.
+   */
+  abortController?: AbortController;
 }
 
 /**
@@ -130,6 +136,7 @@ class SubAgentTaskManager {
       storagePath: options.storagePath,
       authHeader,
       idToken,
+      abortController: new AbortController(),
     };
 
     this.tasks.set(taskId, task);
@@ -305,8 +312,20 @@ class SubAgentTaskManager {
 
       this.updateTaskStatus(taskId, 'running', 'Executing query...');
 
-      // Execute query
-      const result = await agent.invoke(task.query);
+      // Execute query. The cancelSignal lets cancelTask / cancelTasksByParentSession
+      // interrupt the turn at the SDK's next checkpoint; the SDK returns an
+      // AgentResult with stopReason 'cancelled' rather than throwing.
+      const result = await agent.invoke(task.query, {
+        cancelSignal: task.abortController?.signal,
+      });
+
+      // A cancelled turn is not a completion — reflect it distinctly so callers
+      // (and the status tool) can tell "user stopped it" from "it finished".
+      if (task.abortController?.signal.aborted || result?.stopReason === 'cancelled') {
+        this.updateTaskStatus(taskId, 'cancelled', undefined, 'Cancelled');
+        logger.info({ taskId, agentId: task.agentId }, 'Sub-agent task cancelled:');
+        return;
+      }
 
       // Update to completed
       this.updateTaskStatus(taskId, 'completed', String(result));
@@ -360,6 +379,51 @@ class SubAgentTaskManager {
   }
 
   /**
+   * Cancel a single running task by aborting its agent turn.
+   *
+   * Cooperative: the SDK stops at its next checkpoint and _executeTaskInContext
+   * transitions the task to 'cancelled'. No-op for unknown or already-settled
+   * tasks. Returns true if a cancel was actually signalled.
+   */
+  cancelTask(taskId: string): boolean {
+    const task = this.tasks.get(taskId);
+    if (!task) return false;
+    if (task.status === 'completed' || task.status === 'failed' || task.status === 'cancelled') {
+      return false;
+    }
+    task.abortController?.abort();
+    return true;
+  }
+
+  /**
+   * Cancel every not-yet-settled task spawned by a given parent session.
+   *
+   * This is the propagation path from a cancelled main turn: when the user stops
+   * the primary agent, its in-flight sub-agent tasks must stop too rather than
+   * keep billing the microVM. Returns the number of tasks signalled.
+   */
+  cancelTasksByParentSession(parentSessionId: string): number {
+    let count = 0;
+    for (const task of this.tasks.values()) {
+      if (task.parentSessionId === parentSessionId && this.cancelTask(task.taskId)) {
+        count++;
+      }
+    }
+    return count;
+  }
+
+  /**
+   * Cancel all not-yet-settled tasks. Used on shutdown paths and by tests.
+   */
+  cancelAllTasks(): number {
+    let count = 0;
+    for (const task of this.tasks.values()) {
+      if (this.cancelTask(task.taskId)) count++;
+    }
+    return count;
+  }
+
+  /**
    * Get task by ID
    */
   async getTask(taskId: string): Promise<SubAgentTask | null> {
@@ -375,7 +439,7 @@ class SubAgentTaskManager {
 
     for (const [taskId, task] of this.tasks.entries()) {
       const age = now - task.createdAt;
-      if (age > this.TASK_EXPIRATION_MS && ['completed', 'failed'].includes(task.status)) {
+      if (age > this.TASK_EXPIRATION_MS && ['completed', 'failed', 'cancelled'].includes(task.status)) {
         this.tasks.delete(taskId);
         cleanedCount++;
       }
@@ -395,6 +459,7 @@ class SubAgentTaskManager {
     running: number;
     completed: number;
     failed: number;
+    cancelled: number;
   } {
     const tasks = Array.from(this.tasks.values());
     return {
@@ -403,6 +468,7 @@ class SubAgentTaskManager {
       running: tasks.filter((t) => t.status === 'running').length,
       completed: tasks.filter((t) => t.status === 'completed').length,
       failed: tasks.filter((t) => t.status === 'failed').length,
+      cancelled: tasks.filter((t) => t.status === 'cancelled').length,
     };
   }
 }
