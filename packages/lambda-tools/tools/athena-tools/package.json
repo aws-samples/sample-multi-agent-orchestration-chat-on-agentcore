@@ -10,8 +10,8 @@
     "lint": "eslint src/"
   },
   "dependencies": {
-    "@aws-sdk/client-athena": "^3.1095.0",
-    "@aws-sdk/client-glue": "^3.1095.0",
+    "@aws-sdk/client-athena": "^3.1101.0",
+    "@aws-sdk/client-glue": "^3.1101.0",
     "@moca/lambda-tools-shared": "*"
   },
   "devDependencies": {

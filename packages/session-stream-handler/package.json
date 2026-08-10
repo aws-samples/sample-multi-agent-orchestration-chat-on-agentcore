@@ -23,7 +23,7 @@
   "license": "MIT",
   "dependencies": {
     "@aws-crypto/sha256-js": "^5.2.0",
-    "@aws-sdk/credential-provider-node": "^3.750.0",
+    "@aws-sdk/credential-provider-node": "^3.972.78",
     "@smithy/signature-v4": "^4.0.0",
     "pino": "^10.3.1"
   },
