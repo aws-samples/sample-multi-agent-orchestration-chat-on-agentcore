@@ -83,6 +83,18 @@ export interface AgentCoreGatewayProps {
    * Used together with identityPoolId to build the Logins key for GetId.
    */
   readonly userPoolId?: string;
+
+  /**
+   * Whether the AgentCore Web Search Tool connector target will be attached to
+   * this Gateway (optional).
+   *
+   * When true, the Gateway service role is granted `bedrock-agentcore:InvokeWebSearch`
+   * on the service-owned tool ARN so the Gateway can authorize web search
+   * invocations. The connector target itself is created in
+   * AgentCoreGatewayTargetStack, gated on the same envConfig.webSearch flag.
+   * @default false
+   */
+  readonly enableWebSearch?: boolean;
 }
 
 /**
@@ -229,6 +241,21 @@ export class AgentCoreGateway extends Construct {
         resources: [`arn:aws:secretsmanager:${Aws.REGION}:${Aws.ACCOUNT_ID}:secret:agentcore/*`],
       })
     );
+
+    // InvokeWebSearch permission (only when the Web Search connector target is enabled).
+    // The AgentCore Web Search Tool connector is authorized per-request against the
+    // service-owned tool ARN. The account segment is literally `aws` (not the caller's
+    // account ID) because the tool resource is owned by the AgentCore service.
+    if (props.enableWebSearch) {
+      gatewayRole.addToPolicy(
+        new iam.PolicyStatement({
+          sid: 'InvokeWebSearch',
+          effect: iam.Effect.ALLOW,
+          actions: ['bedrock-agentcore:InvokeWebSearch'],
+          resources: [`arn:aws:bedrock-agentcore:${Aws.REGION}:aws:tool/web-search.v1`],
+        })
+      );
+    }
 
     // Expose the role created by L2 Construct
     this.gatewayRole = gatewayRole;

@@ -33,7 +33,7 @@ export const DEFAULT_AGENTS: CreateAgentInput[] = [
 5. **Be transparent**: Let the user know what you're doing and why, especially for multi-step tasks
 
 ## Tool Usage Guidelines
-- **Web search (${GATEWAY_TOOL_NAMES.TAVILY_SEARCH})**: Use when information may be outdated, time-sensitive, or beyond your knowledge. Perform multiple searches for research tasks to gather comprehensive information from different angles.
+- **Web search (${GATEWAY_TOOL_NAMES.WEB_SEARCH}, ${GATEWAY_TOOL_NAMES.TAVILY_SEARCH})**: Use when information may be outdated, time-sensitive, or beyond your knowledge. Prefer ${GATEWAY_TOOL_NAMES.WEB_SEARCH} for up-to-date facts and current events; use ${GATEWAY_TOOL_NAMES.TAVILY_SEARCH} when you need deeper page extraction. Perform multiple searches for research tasks to gather information from different angles. Always cite the source URL of any web result you rely on.
 - **File operations (${RUNTIME_TOOL_NAMES.FILE_EDITOR}, ${RUNTIME_TOOL_NAMES.S3_LIST_FILES})**: Use when the user provides files or wants to work with stored content
 - **Command execution (${RUNTIME_TOOL_NAMES.EXECUTE_COMMAND})**: Use for tasks that benefit from computation, scripts, or system operations — briefly explain what you're running and why
 - When using multiple tools, think step-by-step and wait for results before proceeding to the next action
@@ -48,6 +48,7 @@ export const DEFAULT_AGENTS: CreateAgentInput[] = [
       RUNTIME_TOOL_NAMES.EXECUTE_COMMAND,
       RUNTIME_TOOL_NAMES.FILE_EDITOR,
       RUNTIME_TOOL_NAMES.S3_LIST_FILES,
+      GATEWAY_TOOL_NAMES.WEB_SEARCH,
       GATEWAY_TOOL_NAMES.TAVILY_SEARCH,
     ],
     scenarios: [
@@ -317,7 +318,8 @@ export const DEFAULT_AGENTS: CreateAgentInput[] = [
 6. Provide comprehensive and structured answers
 
 [How to use web search]
-- Use the ${GATEWAY_TOOL_NAMES.TAVILY_SEARCH} tool to obtain accurate and up-to-date information
+- Use the ${GATEWAY_TOOL_NAMES.WEB_SEARCH} tool as your primary tool for accurate, up-to-date information and current events
+- Use the ${GATEWAY_TOOL_NAMES.TAVILY_SEARCH} tool as an alternative or when you need a second source
 - Conduct not just one search, but at least two or three additional searches to dig deeper into the information
 - Try search queries from different angles to ensure a variety of sources
 - Evaluate the reliability of search results and prioritize reliable sources
@@ -342,11 +344,12 @@ export const DEFAULT_AGENTS: CreateAgentInput[] = [
 
 
 [Available tools]
-- Actively use the ${GATEWAY_TOOL_NAMES.TAVILY_SEARCH} tool for web searches
+- Actively use the ${GATEWAY_TOOL_NAMES.WEB_SEARCH} and ${GATEWAY_TOOL_NAMES.TAVILY_SEARCH} tools for web searches
 - Use the ${GATEWAY_TOOL_NAMES.TAVILY_EXTRACT} tool for detailed website analysis
 - If you need to execute commands, ask the user's permission beforehand`,
     enabledTools: [
       RUNTIME_TOOL_NAMES.FILE_EDITOR,
+      GATEWAY_TOOL_NAMES.WEB_SEARCH,
       GATEWAY_TOOL_NAMES.TAVILY_SEARCH,
       GATEWAY_TOOL_NAMES.TAVILY_EXTRACT,
       GATEWAY_TOOL_NAMES.TAVILY_CRAWL,
@@ -473,6 +476,7 @@ Users will primarily request software engineering assistance including bug fixes
 `,
     enabledTools: [
       RUNTIME_TOOL_NAMES.EXECUTE_COMMAND,
+      GATEWAY_TOOL_NAMES.WEB_SEARCH,
       GATEWAY_TOOL_NAMES.TAVILY_SEARCH,
       RUNTIME_TOOL_NAMES.FILE_EDITOR,
     ],
@@ -693,6 +697,7 @@ When working with code, I'll ensure:
     enabledTools: [
       RUNTIME_TOOL_NAMES.FILE_EDITOR,
       RUNTIME_TOOL_NAMES.S3_LIST_FILES,
+      GATEWAY_TOOL_NAMES.WEB_SEARCH,
       GATEWAY_TOOL_NAMES.TAVILY_SEARCH,
       RUNTIME_TOOL_NAMES.CODE_INTERPRETER,
     ],
@@ -1211,6 +1216,7 @@ Final: Integration & delivery
 - Ask for clarification before large multi-step workflows`,
     enabledTools: [
       RUNTIME_TOOL_NAMES.CALL_AGENT,
+      GATEWAY_TOOL_NAMES.WEB_SEARCH,
       GATEWAY_TOOL_NAMES.TAVILY_SEARCH,
       RUNTIME_TOOL_NAMES.FILE_EDITOR,
       RUNTIME_TOOL_NAMES.S3_LIST_FILES,
@@ -1466,6 +1472,7 @@ When proposing a scheduled agent, present this memory design alongside the sched
       RUNTIME_TOOL_NAMES.MANAGE_AGENT,
       RUNTIME_TOOL_NAMES.MANAGE_TRIGGER,
       RUNTIME_TOOL_NAMES.CALL_AGENT,
+      GATEWAY_TOOL_NAMES.WEB_SEARCH,
       GATEWAY_TOOL_NAMES.TAVILY_SEARCH,
       GATEWAY_TOOL_NAMES.TAVILY_EXTRACT,
       RUNTIME_TOOL_NAMES.FILE_EDITOR,

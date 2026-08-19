@@ -257,6 +257,42 @@ export interface EnvironmentConfig {
    * When NOT set, the Knowledge Base Tools Lambda target is NOT deployed at all.
    */
   knowledgeBaseIds?: string[];
+
+  /**
+   * AgentCore Web Search Tool connector (optional, opt-in)
+   * When set with `enabled: true`, a built-in `web-search` connector Gateway target
+   * is deployed and the Gateway service role is granted `bedrock-agentcore:InvokeWebSearch`.
+   * Unlike Tavily, this is a fully managed AWS connector: no API key and no Lambda —
+   * search queries stay within AWS.
+   *
+   * IMPORTANT: The connector is only available in us-east-1, eu-west-1, and
+   * ap-northeast-1. Enabling it in any other deployment region makes
+   * CreateGatewayTarget fail.
+   */
+  webSearch?: WebSearchConfig;
+}
+
+/**
+ * AgentCore Web Search Tool connector configuration.
+ */
+export interface WebSearchConfig {
+  /**
+   * Whether to deploy the Web Search connector target.
+   */
+  enabled: boolean;
+
+  /**
+   * Target-level domain exclude list (optional).
+   * Domains excluded from every search on this target. Enforced server-side and
+   * hidden from the calling agent.
+   */
+  excludeDomains?: string[];
+
+  /**
+   * Target-level domain include list (optional).
+   * Restricts every search on this target to these domains.
+   */
+  includeDomains?: string[];
 }
 
 /**

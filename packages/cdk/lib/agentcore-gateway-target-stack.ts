@@ -86,6 +86,12 @@ export class AgentCoreGatewayTargetStack extends cdk.Stack {
   public readonly tavilyToolsTarget: AgentCoreLambdaTarget | undefined;
 
   /**
+   * AgentCore Web Search Tool connector target.
+   * Undefined when envConfig.webSearch?.enabled is not true.
+   */
+  public readonly webSearchTarget: agentcore.CfnGatewayTarget | undefined;
+
+  /**
    * Nova Canvas Tools Lambda Target
    */
   public readonly novaCanvasToolsTarget: AgentCoreLambdaTarget;
@@ -389,6 +395,58 @@ export class AgentCoreGatewayTargetStack extends cdk.Stack {
       new cdk.CfnOutput(this, 'TavilyToolsLambdaName', {
         value: this.tavilyToolsTarget.lambdaFunction.functionName,
         description: 'Tavily Tools Lambda Function Name',
+      });
+    }
+
+    // ── Web Search Tool Connector Target (opt-in: requires webSearch.enabled) ──
+    // Built-in AWS-managed `web-search` connector. Unlike Tavily, there is no
+    // Lambda and no API key — the Gateway routes searches internally within AWS.
+    // The Gateway service role is granted `bedrock-agentcore:InvokeWebSearch` in
+    // the core stack (AgentCoreGateway, gated on the same webSearch flag).
+    //
+    // NOTE: The connector is only available in us-east-1, eu-west-1, and
+    // ap-northeast-1. Enabling it in any other region makes CreateGatewayTarget fail.
+    if (envConfig.webSearch?.enabled) {
+      const webSearch = envConfig.webSearch;
+
+      // Target-level domain filter (both lists optional). Passed through verbatim
+      // in parameterValues (typed `any`), so the connector receives the lowercase
+      // `domainFilter` keys it expects. The include list requires connector 1.2.0+.
+      const domainFilter: { include?: string[]; exclude?: string[] } = {};
+      if (webSearch.includeDomains && webSearch.includeDomains.length > 0) {
+        domainFilter.include = webSearch.includeDomains;
+      }
+      if (webSearch.excludeDomains && webSearch.excludeDomains.length > 0) {
+        domainFilter.exclude = webSearch.excludeDomains;
+      }
+      const parameterValues =
+        Object.keys(domainFilter).length > 0 ? { domainFilter } : {};
+
+      this.webSearchTarget = new agentcore.CfnGatewayTarget(this, 'WebSearchTarget', {
+        gatewayIdentifier: gatewayId,
+        name: 'web-search',
+        description: 'AgentCore managed Web Search Tool connector (WebSearch)',
+        targetConfiguration: {
+          mcp: {
+            connector: {
+              source: { connectorId: 'web-search' },
+              configurations: [{ name: 'WebSearch', parameterValues }],
+            },
+          },
+        },
+        credentialProviderConfigurations: [{ credentialProviderType: 'GATEWAY_IAM_ROLE' }],
+      });
+
+      // NOTE: The connector version cannot be pinned via CloudFormation. The
+      // AWS::BedrockAgentCore::GatewayTarget resource schema defines ConnectorSource
+      // with only `ConnectorId` and `additionalProperties: false` — a `Version` key
+      // fails oneOf validation (surfaces as the misleading "extraneous key [Mcp]").
+      // The connector resolves to the service's current version, which already
+      // supports the domain include/exclude filters passed above.
+
+      new cdk.CfnOutput(this, 'WebSearchTargetId', {
+        value: this.webSearchTarget.attrTargetId,
+        description: 'Web Search Connector Gateway Target ID',
       });
     }
 

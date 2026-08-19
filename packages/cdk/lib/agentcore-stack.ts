@@ -214,6 +214,9 @@ export class AgentCoreStack extends cdk.Stack {
       enableInterceptor: true, // Enable JWT context injection for Lambda tools
       identityPoolId: cognitoIdentityPool.identityPoolId,
       userPoolId: this.cognitoAuth.userPoolId,
+      // Grant the Gateway role InvokeWebSearch when the Web Search connector target
+      // is enabled (the target itself lives in AgentCoreGatewayTargetStack).
+      enableWebSearch: envConfig.webSearch?.enabled ?? false,
       mcpConfig: {
         instructions:
           'Use this Gateway to integrate AgentCore tools with external services. Utility tools (Echo/Ping, etc.) are available.',

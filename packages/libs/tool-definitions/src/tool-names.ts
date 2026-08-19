@@ -63,6 +63,12 @@ export const GATEWAY_TOOL_NAMES = {
   /** tavily-tools___tavily_crawl */
   TAVILY_CRAWL: 'tavily-tools___tavily_crawl',
 
+  // ── Web Search Tool (opt-in: requires webSearch.enabled in environments.ts) ──
+  // Built-in AgentCore `web-search` connector target. The connector exposes a
+  // single tool named `WebSearch`, so the composed Gateway name is:
+  /** web-search___WebSearch */
+  WEB_SEARCH: 'web-search___WebSearch',
+
   // ── Athena Tools (opt-in: requires athenaSourceBuckets in environments.ts) ──
   // Tool names are defined by the athena-tools Lambda package (athena-tools__*)
 
