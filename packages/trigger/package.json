@@ -27,8 +27,8 @@
   "dependencies": {
     "@moca/core": "*",
     "@aws-sdk/client-dynamodb": "^3.1106.0",
-    "@aws-sdk/client-ssm": "^3.1106.0",
-    "@aws-sdk/util-dynamodb": "^3.996.8",
+    "@aws-sdk/client-ssm": "^3.1111.0",
+    "@aws-sdk/util-dynamodb": "^3.996.9",
     "pino": "^10.3.1",
     "uuid": "^13.0.0"
   },
