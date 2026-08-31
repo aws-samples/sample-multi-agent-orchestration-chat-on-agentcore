@@ -10,7 +10,7 @@
   },
   "dependencies": {
     "@aws-sdk/client-bedrock-runtime": "^3.1106.0",
-    "@aws-sdk/client-s3": "^3.1106.0",
+    "@aws-sdk/client-s3": "^3.1116.0",
     "@moca/lambda-tools-shared": "*"
   },
   "devDependencies": {
