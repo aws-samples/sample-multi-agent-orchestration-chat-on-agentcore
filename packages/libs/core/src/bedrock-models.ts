@@ -158,6 +158,48 @@ export const BEDROCK_MODEL_DEFINITIONS = [
     reasoningCapable: true, // adaptive thinking + output_config.effort; max OK (Opus-tier)
   },
   {
+    // GA on Bedrock 2026-09-01 (AWS ML blog: "Introducing Claude Fable 5.1 on
+    // AWS"). Successor to Fable 5 — same Mythos-class family, stronger on the
+    // hardest reasoning / agentic-coding work. Standard bedrock-runtime path:
+    // Invoke / Converse / ConverseStream are all supported (the blog documents
+    // Messages API + "you can also stay on the Invoke and Converse APIs on
+    // bedrock-runtime"), so no `endpoint` override — the Mantle endpoint is only
+    // required in AWS GovCloud (US).
+    //
+    // ⚠️ Data retention: Fable 5.1 is a Covered Model, so it can ONLY be invoked
+    // when the account's Bedrock Data Retention mode is `aws_review` in the
+    // invocation region (prompts/outputs retained up to 30 days for human safety
+    // review within the AWS boundary). Unlike Fable 5 it does NOT require sharing
+    // with the model provider (`provider_data_share`). With the default mode the
+    // runtime rejects every request with:
+    //   ValidationException: data retention mode 'default' is not available for this model
+    // This is an account/region setting (Bedrock Data Retention API), not a
+    // per-request field, so no code change works around it. EFS-eligible
+    // customers can instead run it with zero data retention.
+    //
+    // Availability: US Geo CRIS (us.) and Global CRIS (global.) inference
+    // profiles. We register the Global profile — verified ACTIVE via
+    // `aws bedrock get-inference-profile` in ap-northeast-1, and the underlying
+    // foundation model is present (responseStreamingSupported: true) in
+    // us-east-1 / us-west-2 / ap-northeast-1. No region pin: like Fable 5 it is
+    // invoked in the deployment's BEDROCK_REGION, so its inference-profile IAM
+    // ARN matches the call. If your deploy region cannot enable `aws_review`,
+    // pin it to a region that has it by overriding `bedrockModels` (with a
+    // `region`) in environments.ts — environment-specific config kept OUT of
+    // this OSS default.
+    id: 'global.anthropic.claude-fable-5-1',
+    name: 'Claude Fable 5.1',
+    provider: 'Anthropic',
+    // Mythos-class: adaptive thinking is always ON model-side (the blog's own
+    // sample skips a leading thinking block), so responses may carry reasoning
+    // blocks even at depth `off` (see EmptyReasoningBlockHook). Opus-tier →
+    // effort: 'max' is supported.
+    reasoningCapable: true,
+    // 128k — same documented Bedrock ceiling as Fable 5 / the other current
+    // Anthropic entries (the runtime rejects maxTokens above 128000).
+    maxOutputTokens: 128000,
+  },
+  {
     // First Mythos-class model GA'd on Bedrock (2026-06-09). 1M context window,
     // 128k max output. Inference profile id verified ACTIVE via
     // `aws bedrock get-foundation-model` + a live ConverseCommand (PONG) in
