@@ -20,7 +20,8 @@ export function generateDefaultContext(
   const markdownRules = `    This system supports the following Markdown formats:
     - Mermaid diagram notation (\`\`\`mermaid ... \`\`\`)
     - LaTeX math notation (inline: $...$, block: $$...$$)
-    - Image: ![alt](https://xxx.s3.us-east-1.amazonaws.com/<presignedUrl>)`;
+    - Image: standard Markdown image syntax, pointing at a storage-relative path
+      (see "Displaying Files in Chat" for the exact form)`;
 
   // Check if S3-related tools are enabled
   const s3ToolNames: readonly string[] = [RUNTIME_TOOL_NAMES.S3_LIST_FILES];
@@ -34,11 +35,11 @@ export function generateDefaultContext(
     userStorageSection = `
 
   ## About File Output
-  - You are running on AWS Bedrock AgentCore. Therefore, when writing files, always write them under ${WORKSPACE_DIR}.
-  - Similarly, if you need a workspace, please use the ${WORKSPACE_DIR} directory. Do not ask the user about their current workspace. It's always ${WORKSPACE_DIR}.
-  - Also, users cannot directly access files written under ${WORKSPACE_DIR}. So when submitting these files to users, *always upload them to S3 using the s3_upload_file tool and provide the S3 URL*. The S3 URL must be included in the final output.
-  - If the output file is an image file, the S3 URL output must be in Markdown format.
-  - Note: When uploading files with Japanese or non-ASCII characters, specify contentType with charset (e.g., "text/plain; charset=utf-8") to ensure proper encoding.
+  - You are running on AWS Bedrock AgentCore. Write files under ${WORKSPACE_DIR}; that is
+    always the workspace, so don't ask the user where to put them.
+  - The workspace is synced to the user's storage automatically. To hand a file to the
+    user, link it by its storage-relative path (see "Displaying Files in Chat") — no
+    upload step is needed.
 
   <user_storage>
     <description>
@@ -51,8 +52,7 @@ ${enabledToolsList}
     <usage_guidelines>
       - All paths are relative to user's root (e.g., "/code/app.py", "/docs/report.md")
       - Organize files logically using directories (e.g., /code/, /notes/, /data/)
-      - Presigned URLs are valid for 1 hour by default and can be shared externally
-      - For large files or binary content, prefer presigned URLs over inline content
+      - For large files or binary content, prefer linking the file over inlining content
     </usage_guidelines>
   </user_storage>`;
   }
