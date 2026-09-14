@@ -161,6 +161,17 @@ const DEFAULT_CONFIG = {
       provider: 'Qwen',
     },
     {
+      // OpenAI GPT-6 Astra. Unlike the GPT-5.x Mantle models below, Astra
+      // supports Converse on bedrock-runtime, so it has NO `endpoint` and is
+      // authorized by the standard Converse InvokeModel grant (no
+      // CallWithBearerToken). Global CRIS id → deriveBedrockIamResources() grants
+      // both the inference-profile ARN (deploy region) and the foundation-model
+      // ARN. No region pin (Global CRIS is available in the deploy region).
+      id: 'global.openai.gpt-6-astra',
+      name: 'GPT-6 Astra',
+      provider: 'OpenAI',
+    },
+    {
       // OpenAI GPT-5.5 via Bedrock Mantle (OpenAI-compatible Responses API).
       // Region pin us-east-1: only region hosting gpt-5.5 (404 elsewhere). MUST
       // match BEDROCK_MODEL_DEFINITIONS so the Mantle base URL and this grant

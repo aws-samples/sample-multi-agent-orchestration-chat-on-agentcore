@@ -194,6 +194,21 @@ describe('BEDROCK_MODEL_DEFINITIONS invariants', () => {
     // Standard Converse path — not a Mantle/OpenAI transport.
     expect(getBedrockEndpoint('global.anthropic.claude-fable-5-1')).toBeUndefined();
   });
+
+  it('registers GPT-6 Astra on the Converse path (no endpoint), no region pin, non-reasoning', () => {
+    // GPT-6 Astra (GA 2026-09-08) is an OpenAI model that — unlike the GPT-5.x
+    // Mantle models — supports Converse on bedrock-runtime, so it loads on the
+    // standard Converse path with NO endpoint override. Its Global CRIS profile
+    // is available in every region (incl. the deploy region), so no region pin.
+    // reasoningCapable is intentionally omitted: getReasoningConfig() would send
+    // the Anthropic-native thinking shape, which OpenAI rejects over Converse.
+    expect(getMaxOutputTokens('global.openai.gpt-6-astra')).toBe(128000);
+    expect(getModelRegion('global.openai.gpt-6-astra')).toBeUndefined();
+    // Converse transport — not Mantle/bedrock-openai.
+    expect(getBedrockEndpoint('global.openai.gpt-6-astra')).toBeUndefined();
+    // No depth selector surfaced for this model.
+    expect(isReasoningCapable('global.openai.gpt-6-astra')).toBe(false);
+  });
 });
 
 describe('isReasoningCapable', () => {

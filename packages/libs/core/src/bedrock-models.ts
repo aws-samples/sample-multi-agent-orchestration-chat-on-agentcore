@@ -295,6 +295,28 @@ export const BEDROCK_MODEL_DEFINITIONS = [
     region: 'us-east-1',
   },
   {
+    // OpenAI GPT-6 Astra on Bedrock. GA 2026-09-08. Unlike the GPT-5.x models
+    // below, Astra officially supports the Converse API on bedrock-runtime, so
+    // we load it on the STANDARD Converse path (no `endpoint` override) rather
+    // than Mantle — same shape as the Anthropic entries. Its Global CRIS profile
+    // (global.openai.gpt-6-astra) is available in every region including the
+    // default deploy region (ap-northeast-1), so no region pin. bedrock-runtime
+    // in-Region inference is NOT supported for this model, so the CRIS profile
+    // id is mandatory. No special data-retention requirement (per the model card,
+    // unlike Fable's Mythos-class constraint).
+    //
+    // reasoning: Astra reasons internally, but `reasoningCapable` is deliberately
+    // omitted. getReasoningConfig() emits the Anthropic-native
+    // `thinking: { type: 'adaptive' } + output_config.effort` shape, which an
+    // OpenAI model rejects over Converse — so we do not expose the depth selector
+    // or send an effort hint (same treatment as Nova/Qwen). Exposing an
+    // OpenAI-shaped effort field over Converse is a follow-up pending live verification.
+    id: 'global.openai.gpt-6-astra',
+    name: 'GPT-6 Astra',
+    provider: 'OpenAI',
+    maxOutputTokens: 128000, // 128k (AWS Bedrock model card, 2026-09-08)
+  },
+  {
     // OpenAI GPT-5.5 on Bedrock (Mantle). Invoked via the Bedrock Mantle
     // endpoint (bedrock-mantle.{region}.api.aws/openai/v1) using the Responses
     // API — NOT Converse and NOT Chat Completions (both rejected live). See
