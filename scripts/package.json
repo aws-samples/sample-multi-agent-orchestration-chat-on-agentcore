@@ -12,10 +12,10 @@
     "ts-morph": "^28.0.0"
   },
   "dependencies": {
-    "@aws-sdk/client-cloudformation": "^3.1106.0",
-    "@aws-sdk/client-cognito-identity-provider": "^3.1106.0",
-    "@aws-sdk/client-dynamodb": "^3.1106.0",
-    "@aws-sdk/util-dynamodb": "^3.996.8",
+    "@aws-sdk/client-cloudformation": "^3.1127.0",
+    "@aws-sdk/client-cognito-identity-provider": "^3.1127.0",
+    "@aws-sdk/client-dynamodb": "^3.1127.0",
+    "@aws-sdk/util-dynamodb": "^3.996.9",
     "uuid": "^13.0.0"
   }
 }
