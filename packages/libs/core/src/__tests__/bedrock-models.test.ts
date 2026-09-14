@@ -179,6 +179,21 @@ describe('BEDROCK_MODEL_DEFINITIONS invariants', () => {
     // the published default.
     expect(getModelRegion('global.anthropic.claude-fable-5')).toBeUndefined();
   });
+
+  it('registers Claude Fable 5.1 with 128k output tokens, reasoning-capable, no region pin', () => {
+    // Fable 5.1 (GA 2026-09-01) is a Covered Model: it needs Bedrock Data
+    // Retention mode `aws_review` in its invocation region, but WHICH region has
+    // it is account/deployment-specific — so, like Fable 5, the OSS default
+    // ships no region pin (invoked in the deploy region). It shares the 128k
+    // Bedrock output ceiling and, as a Mythos-class Anthropic model, is
+    // reasoning-capable up to `max` (Opus-tier).
+    expect(getMaxOutputTokens('global.anthropic.claude-fable-5-1')).toBe(128000);
+    expect(getModelRegion('global.anthropic.claude-fable-5-1')).toBeUndefined();
+    expect(isReasoningCapable('global.anthropic.claude-fable-5-1')).toBe(true);
+    expect(getMaxReasoningDepth('global.anthropic.claude-fable-5-1')).toBe('max');
+    // Standard Converse path — not a Mantle/OpenAI transport.
+    expect(getBedrockEndpoint('global.anthropic.claude-fable-5-1')).toBeUndefined();
+  });
 });
 
 describe('isReasoningCapable', () => {

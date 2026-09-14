@@ -100,6 +100,21 @@ const DEFAULT_CONFIG = {
       provider: 'Anthropic',
     },
     {
+      // Covered Model: requires Bedrock Data Retention mode `aws_review` in the
+      // deployment region (NOT provider_data_share — Fable 5.1 does not require
+      // sharing with the model provider). See the registry note in
+      // packages/libs/core/src/bedrock-models.ts and the README. No region pin
+      // in this OSS default: Fable 5.1 is invoked in the deploy region, so
+      // deriveBedrockIamResources() scopes its inference-profile IAM ARN to the
+      // deploy region. If your deploy region cannot enable aws_review, pin it to
+      // a region that has it by overriding bedrockModels (with a `region`) for
+      // your environment in environments.ts — and mirror that region in
+      // BEDROCK_MODEL_DEFINITIONS so the agent invokes there too.
+      id: 'global.anthropic.claude-fable-5-1',
+      name: 'Claude Fable 5.1',
+      provider: 'Anthropic',
+    },
+    {
       // Requires Bedrock Data Retention mode `provider_data_share` in the
       // deployment region — see the registry note in
       // packages/libs/core/src/bedrock-models.ts and the README. No region pin
