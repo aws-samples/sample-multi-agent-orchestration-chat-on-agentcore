@@ -86,7 +86,7 @@ export interface AuthenticatedRequest<P = ParamsDictionary> extends Request<P> {
    * Populated by `authMiddleware` when the caller forwards the Cognito ID
    * Token in `X-Amzn-Bedrock-AgentCore-Runtime-Custom-Id-Token`. Used as the
    * storage key (S3 prefix, DynamoDB partition key, AgentCore Memory actorId).
-   * Undefined for machine-user tokens that do not supply the ID Token header.
+   * Present only after the identity token has passed authentication.
    */
   identityId?: IdentityId;
   /**
@@ -94,7 +94,8 @@ export interface AuthenticatedRequest<P = ParamsDictionary> extends Request<P> {
    * For regular users this is the caller's own JWT `sub`; for machine users
    * (Client Credentials Flow) it is the `X-Target-User-Id` header, enabling
    * EventBridge-triggered agents to act on behalf of a target user. Only
-   * populated on routes that mount `resolveTargetUser`.
+   * populated on routes that mount `resolveTargetUser`, after verifying the
+   * developer identity link for machine callers.
    */
   targetUserId?: UserId;
   /** Request ID (for log tracking) */

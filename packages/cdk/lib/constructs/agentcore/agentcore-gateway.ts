@@ -83,6 +83,8 @@ export interface AgentCoreGatewayProps {
    * Used together with identityPoolId to build the Logins key for GetId.
    */
   readonly userPoolId?: string;
+  readonly userPoolClientId?: string;
+  readonly machineUserClientId?: string;
 }
 
 /**
@@ -235,9 +237,12 @@ export class AgentCoreGateway extends Construct {
 
     // Configure Gateway Interceptor (if enabled)
     if (props.enableInterceptor) {
-      if (!props.identityPoolId || !props.userPoolId) {
+      const userPoolClientId = props.cognitoAuth?.clientId ?? props.userPoolClientId;
+      const machineUserClientId =
+        props.cognitoAuth?.machineUserClientId ?? props.machineUserClientId;
+      if (!props.identityPoolId || !props.userPoolId || !userPoolClientId) {
         throw new Error(
-          'identityPoolId and userPoolId are required when enableInterceptor is true'
+          'identityPoolId, userPoolId and userPoolClientId are required when enableInterceptor is true'
         );
       }
       // Create Interceptor Lambda function
@@ -262,6 +267,8 @@ export class AgentCoreGateway extends Construct {
           // identityPoolId is validated above; non-null assertion is safe here.
           IDENTITY_POOL_ID: props.identityPoolId!,
           COGNITO_USER_POOL_ID: props.userPoolId!,
+          COGNITO_USER_POOL_CLIENT_ID: userPoolClientId,
+          ...(machineUserClientId ? { COGNITO_MACHINE_USER_CLIENT_ID: machineUserClientId } : {}),
         },
         bundling: {
           minify: true,

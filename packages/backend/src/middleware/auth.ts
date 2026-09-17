@@ -1,43 +1,17 @@
 /**
- * Combined Authentication Middleware
- *
- * Every protected backend route is expected to be invoked by a
- * browser-authenticated user, so this middleware enforces ALL of the
- * following and rejects with 401 on failure:
- *
- *   1. Valid Cognito access token in `Authorization: Bearer ...`
- *      (JWKS signature + `iss` + `aud` allow-list + `exp` +
- *      `token_use === 'access'`). Populates `req.jwt` / `req.userId`.
- *   2. Valid Cognito ID token in `X-Amzn-Bedrock-AgentCore-Runtime-Custom-Id-Token`
- *      for regular users (same checks plus `aud === frontend client_id`).
- *      Populates `req.idPayload`. Machine users and event-driven Trigger
- *      Lambda requests do NOT provide this token.
- *   3. `access.sub === id.sub` when both tokens are present. Defeats the
- *      token-confusion attack (pairing user B's access token with user
- *      A's ID token), which would otherwise let B authenticate as B but
- *      receive A's Identity-Pool-scoped credentials via
- *      `GetCredentialsForIdentity`.
- *   4. Identity Pool identityId resolution via `resolveIdentityId`.
- *      Populates `req.identityId`, used as the partition key for
- *      per-user storage (S3 / DynamoDB / AgentCore Memory).
- *
- * Token-type branching
- * --------------------
- * The backend sees three distinct caller profiles:
- *   - Frontend user: access token + UserPool ID token. All checks apply.
- *   - Machine user (Client Credentials Flow): access token only. ID token
- *     header is absent; identityId resolution is skipped (these callers
- *     are service-level and do not own user storage).
- *   - Event-driven Trigger Lambda: machine-user access token + developer-auth
- *     openIdToken (iss=cognito-identity.amazonaws.com). The openIdToken
- *     cannot be verified with the User Pool JWKS; its validation is
- *     delegated to `resolveIdentityId` / Cognito Identity Pool.
+ * Authenticate both tokens before resolving storage identity.
+ * Regular users must supply matching User Pool access and ID tokens.
+ * Delegated requests require an authorized machine access token and a verified
+ * Identity Pool OpenID token. An access token alone is insufficient.
  */
 
 import { Response, NextFunction } from 'express';
 import { isUserId, parseUserId, type UserId } from '@moca/core';
 import { verifyJWT, verifyIdToken, extractJWTFromHeader } from '../libs/auth/index.js';
-import { resolveIdentityId } from '../libs/auth/identity-resolver.js';
+import {
+  resolveIdentityId,
+  verifyTargetUserLinkedToIdentity,
+} from '../libs/auth/identity-resolver.js';
 import { AppError, ErrorCode } from '../libs/http/index.js';
 import type {
   CognitoJWTPayload,
@@ -46,6 +20,7 @@ import type {
   AuthErrorResponse,
 } from '../types/index.js';
 import { logger } from '../libs/logger/index.js';
+import { config } from '../config/index.js';
 
 // Re-export types for backward compatibility
 export type { AuthenticatedRequest, AuthInfo } from '../types/index.js';
@@ -71,27 +46,15 @@ function createAuthErrorResponse(
   };
 }
 
-/**
- * Heuristic: detect tokens minted by `GetOpenIdTokenForDeveloperIdentity`
- * (Cognito Identity Pool). These tokens carry
- * `iss=https://cognito-identity.amazonaws.com` and their `sub` claim encodes
- * the identityId directly (`REGION:UUID`). They CANNOT be verified against
- * the Cognito User Pool JWKS — validation is deferred to Cognito Identity
- * Pool when `resolveIdentityId` is invoked downstream.
- *
- * We peek at the unverified payload only to decide which verifier to run;
- * no claim is trusted on the strength of this check alone.
- */
 function looksLikeDeveloperAuthToken(token: string): boolean {
   try {
     const parts = token.split('.');
     if (parts.length !== 3) return false;
-    const payload = JSON.parse(Buffer.from(parts[1], 'base64').toString('utf-8')) as Record<
+    const payload = JSON.parse(Buffer.from(parts[1], 'base64url').toString('utf-8')) as Record<
       string,
       unknown
     >;
-    const iss = payload.iss;
-    return typeof iss === 'string' && iss.includes('cognito-identity.amazonaws.com');
+    return payload.iss === 'https://cognito-identity.amazonaws.com';
   } catch {
     return false;
   }
@@ -159,8 +122,7 @@ export function authMiddleware(req: AuthenticatedRequest, res: Response, next: N
       req.jwt = accessPayload;
       req.userId = accessPayload.sub || accessPayload['cognito:username'];
 
-      // (3) ID token header — required for regular users, skipped for
-      //     machine users and event-driven Trigger Lambda requests.
+      // (3) Both regular and delegated requests require an identity token.
       const idToken = req.get('X-Amzn-Bedrock-AgentCore-Runtime-Custom-Id-Token');
       if (!idToken) {
         logger.warn('ID Token header missing (%s)', requestId);
@@ -178,10 +140,29 @@ export function authMiddleware(req: AuthenticatedRequest, res: Response, next: N
 
       // (4) ID token verification — ONLY for User Pool ID tokens.
       //     Developer-auth openIdTokens use a different issuer and JWKS;
-      //     they are validated downstream by Cognito Identity Pool when
-      //     `resolveIdentityId` calls `GetCredentialsForIdentity`.
+      //     the resolver verifies them against the Identity Pool JWKS.
       const isDeveloperAuthToken = looksLikeDeveloperAuthToken(idToken);
-      if (!isDeveloperAuthToken) {
+      const machineUser = isMachineUserToken(accessPayload);
+      if (isDeveloperAuthToken) {
+        const scopes = accessPayload.scope?.split(/\s+/) ?? [];
+        const allowedMachine =
+          machineUser &&
+          !!config.COGNITO_MACHINE_USER_CLIENT_ID &&
+          accessPayload.client_id === config.COGNITO_MACHINE_USER_CLIENT_ID &&
+          scopes.includes('agent/invoke');
+        if (!allowedMachine) {
+          res
+            .status(401)
+            .json(
+              createAuthErrorResponse(
+                'INVALID_ID_TOKEN',
+                'Developer-auth token requires an authorized machine access token',
+                requestId
+              )
+            );
+          return;
+        }
+      } else {
         const idResult = await verifyIdToken(idToken);
         if (!idResult.valid || !idResult.payload) {
           logger.warn({ requestId, err: idResult.error }, 'ID token verification failed');
@@ -202,7 +183,7 @@ export function authMiddleware(req: AuthenticatedRequest, res: Response, next: N
         // (5) Token-confusion defence: both tokens must describe the
         //     same Cognito user. If `access.sub` and `id.sub` disagree,
         //     reject regardless of how each token individually verified.
-        if (accessPayload.sub && idPayload.sub && accessPayload.sub !== idPayload.sub) {
+        if (!accessPayload.sub || !idPayload.sub || accessPayload.sub !== idPayload.sub) {
           logger.warn(
             {
               requestId,
@@ -376,8 +357,19 @@ export function resolveTargetUser(
         'X-Target-User-Id must be a valid UUID format'
       );
     }
-    req.targetUserId = parseUserId(targetUserId);
-    next();
+    if (!req.identityId) {
+      throw new AppError(ErrorCode.UNAUTHENTICATED, 'Failed to retrieve identity ID');
+    }
+    void verifyTargetUserLinkedToIdentity({ targetUserId, identityId: req.identityId })
+      .then(() => {
+        req.targetUserId = parseUserId(targetUserId);
+        next();
+      })
+      .catch(() => {
+        next(
+          new AppError(ErrorCode.UNAUTHENTICATED, 'Target user is not linked to caller identity')
+        );
+      });
     return;
   }
 

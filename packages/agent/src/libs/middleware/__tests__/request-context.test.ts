@@ -230,6 +230,67 @@ describe('requestContextMiddleware', () => {
     expect(res.status).not.toHaveBeenCalled();
   });
 
+  it('rejects a developer identity token paired with a regular user access token', async () => {
+    verifyAccessTokenMock.mockResolvedValueOnce({
+      sub: USER_SUB,
+      client_id: 'frontend-client',
+      token_use: 'access',
+      username: USER_SUB,
+      raw: {},
+    });
+    const body = Buffer.from(
+      JSON.stringify({
+        iss: 'https://cognito-identity.amazonaws.com',
+        sub: 'us-east-1:11111111-1111-1111-1111-111111111111',
+      })
+    ).toString('base64url');
+    const req = createRequest({
+      headers: {
+        authorization: 'Bearer at',
+        'x-amzn-bedrock-agentcore-runtime-custom-id-token': `header.${body}.signature`,
+      },
+    });
+    const res = createResponse();
+    const next = jest.fn();
+    await new Promise<void>((resolve) => {
+      res.json.mockImplementation(() => {
+        resolve();
+        return res;
+      });
+      requestContextMiddleware(req, res, next as unknown as NextFunction);
+    });
+    expect(res.status).toHaveBeenCalledWith(401);
+    expect(next).not.toHaveBeenCalled();
+    expect(verifyIdTokenMock).not.toHaveBeenCalled();
+  });
+
+  it('preserves the machine relay token for downstream Identity Pool verification', async () => {
+    verifyAccessTokenMock.mockResolvedValueOnce({
+      sub: 'machine-client',
+      client_id: 'machine-client',
+      scope: 'agent/invoke agent/tools',
+      token_use: 'access',
+      raw: {},
+    });
+    const relayedToken = 'developer-token';
+    const req = createRequest({
+      headers: {
+        authorization: 'Bearer at',
+        'x-amzn-bedrock-agentcore-runtime-custom-id-token': relayedToken,
+      },
+    });
+    const res = createResponse();
+    await new Promise<void>((resolve) => {
+      requestContextMiddleware(req, res, (() => {
+        expect(getCurrentContext()?.idToken).toBe(relayedToken);
+        expect(getCurrentContext()?.isMachineUser).toBe(true);
+        resolve();
+      }) as NextFunction);
+    });
+    expect(res.status).not.toHaveBeenCalled();
+    expect(verifyIdTokenMock).not.toHaveBeenCalled();
+  });
+
   it('accepts machine-user access token without requiring an id token', async () => {
     verifyAccessTokenMock.mockResolvedValueOnce({
       sub: 'machine-client',

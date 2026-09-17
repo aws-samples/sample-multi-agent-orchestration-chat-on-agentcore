@@ -3,7 +3,7 @@
  *
  * Verifies that `resolveIdentityId` correctly branches on the ID Token type:
  *   - UserPool ID Token    → calls `GetId`
- *   - Developer-auth Token → reads `sub` directly, MUST NOT call `GetId`
+ *   - Developer-auth Token → verifies and uses `sub`, MUST NOT call `GetId`
  *
  * The developer-auth branch is the fix for event-driven invocations where the
  * Agent forwards a developer-auth OpenID Token to the Backend; calling `GetId`
@@ -19,6 +19,13 @@
  */
 
 import { describe, it, expect, beforeEach, jest } from '@jest/globals';
+
+const verifyIdTokenMock = jest.fn<(token: string) => Promise<unknown>>();
+const verifyDeveloperAuthTokenMock = jest.fn<(token: string) => Promise<unknown>>();
+jest.mock('../jwks.js', () => ({
+  verifyIdToken: verifyIdTokenMock,
+  verifyDeveloperAuthToken: verifyDeveloperAuthTokenMock,
+}));
 
 // Mutable config mock so individual tests can toggle `DEVELOPER_PROVIDER_NAME`
 // to exercise both the link-enabled and link-disabled code paths.
@@ -58,6 +65,10 @@ jest.mock('@aws-sdk/client-cognito-identity', () => ({
     _commandName: 'GetOpenIdTokenForDeveloperIdentityCommand',
     _input: input,
   })),
+  LookupDeveloperIdentityCommand: jest.fn().mockImplementation((input: unknown) => ({
+    _commandName: 'LookupDeveloperIdentityCommand',
+    _input: input,
+  })),
 }));
 
 import { resolveIdentityId, __resetCachesForTests } from '../identity-resolver.js';
@@ -81,6 +92,13 @@ function buildJwt(payload: Record<string, unknown>): string {
   return `${header}.${body}.signature`;
 }
 
+function decodeJwtPayload(token: string): Record<string, unknown> {
+  return JSON.parse(Buffer.from(token.split('.')[1], 'base64url').toString('utf-8')) as Record<
+    string,
+    unknown
+  >;
+}
+
 /**
  * Wait for pending fire-and-forget microtasks to settle. The link call is
  * issued from a non-awaited `void (async () => {})()` block, so the Promise
@@ -95,6 +113,14 @@ describe('resolveIdentityId', () => {
     jest.clearAllMocks();
     __resetCachesForTests();
     mockConfig.DEVELOPER_PROVIDER_NAME = undefined;
+    verifyIdTokenMock.mockImplementation(async (token: string) => ({
+      valid: true,
+      payload: { ...decodeJwtPayload(token), exp: Math.floor(Date.now() / 1000) + 3600 },
+    }));
+    verifyDeveloperAuthTokenMock.mockImplementation(async (token: string) => ({
+      valid: true,
+      payload: { ...decodeJwtPayload(token), exp: Math.floor(Date.now() / 1000) + 3600 },
+    }));
   });
 
   describe('UserPool ID Token (frontend flow)', () => {
@@ -124,6 +150,7 @@ describe('resolveIdentityId', () => {
     it('throws when GetId returns no IdentityId', async () => {
       const idToken = buildJwt({
         iss: 'https://cognito-idp.us-east-1.amazonaws.com/us-east-1_testpool',
+        sub: 'd7a41aa8-8031-70e8-4916-4c302e63588a',
       });
       mockSend.mockResolvedValueOnce({} as never);
 
@@ -134,7 +161,7 @@ describe('resolveIdentityId', () => {
   });
 
   describe('Developer-auth OpenID Token (event-driven flow)', () => {
-    it('uses `sub` as the identityId and does NOT call GetId', async () => {
+    it('uses the verified `sub` as the identityId and does NOT call GetId', async () => {
       const identityId = 'us-east-1:e6224b58-1111-2222-3333-444455556666';
       const idToken = buildJwt({
         iss: 'https://cognito-identity.amazonaws.com',
@@ -147,6 +174,7 @@ describe('resolveIdentityId', () => {
       expect(result).toBe(identityId);
       // Critical: GetId must NOT be invoked because Cognito rejects
       // developer-auth tokens with `NotAuthorizedException`.
+      expect(verifyDeveloperAuthTokenMock).toHaveBeenCalledWith(idToken);
       expect(MockGetIdCommand).not.toHaveBeenCalled();
       expect(mockSend).not.toHaveBeenCalled();
     });
@@ -155,10 +183,9 @@ describe('resolveIdentityId', () => {
       const idToken = buildJwt({
         iss: 'https://cognito-identity.amazonaws.com',
       });
+      verifyDeveloperAuthTokenMock.mockResolvedValueOnce({ valid: false, error: 'missing sub' });
 
-      await expect(resolveIdentityId(idToken)).rejects.toThrow(
-        'Developer-auth OpenID Token is missing `sub` claim (identityId)'
-      );
+      await expect(resolveIdentityId(idToken)).rejects.toThrow('missing sub');
       expect(MockGetIdCommand).not.toHaveBeenCalled();
     });
 

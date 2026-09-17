@@ -570,25 +570,17 @@ export class AgentCoreStack extends cdk.Stack {
       this.cognitoAuth.machineUserClientId
     );
 
-    // DEVELOPER_PROVIDER_NAME enables Backend to call GetOpenIdTokenForDeveloperIdentity
-    // on every frontend login, linking the developer login { developerProviderName: userId }
-    // to the user's Identity Pool identity A. Without this link, Trigger Lambda would
-    // create a second Identity Pool identity on the first event fire (see
-    // docs/adr/event-driven-identity-pool-credentials.md). The Agent container performs the
-    // same link, but only for users who actually hit the Runtime — backend coverage
-    // guarantees the link for users who only create event triggers via the web UI.
     this.backendApi.addEnvironmentVariable('DEVELOPER_PROVIDER_NAME', developerProviderName);
 
-    // Grant Backend API the minimum IAM permission required to establish the link.
-    // Scoped to this Identity Pool only. The call is idempotent and the target
-    // IdentityId must match the UserPool idToken, so the blast radius of a stolen
-    // Backend execution-role credential remains limited to tokens the attacker
-    // already possesses.
+    // Establish developer links on login and validate delegated target users in this pool.
     this.backendApi.lambdaFunction.addToRolePolicy(
       new cdk.aws_iam.PolicyStatement({
         sid: 'CognitoIdentityDeveloperAuthLink',
         effect: cdk.aws_iam.Effect.ALLOW,
-        actions: ['cognito-identity:GetOpenIdTokenForDeveloperIdentity'],
+        actions: [
+          'cognito-identity:GetOpenIdTokenForDeveloperIdentity',
+          'cognito-identity:LookupDeveloperIdentity',
+        ],
         resources: [
           `arn:aws:cognito-identity:${this.region}:${this.account}:identitypool/${cognitoIdentityPool.identityPoolId}`,
         ],
@@ -599,8 +591,7 @@ export class AgentCoreStack extends cdk.Stack {
     // its ARN to the Runtime's environment). The broker is the SOLE caller
     // of `secretsmanager:GetSecretValue` on the GitHub PAT; the Runtime
     // execution role is restricted to `lambda:InvokeFunction` on this ARN.
-    const githubTokenSecretName =
-      props?.githubTokenSecretName || envConfig.githubTokenSecretName;
+    const githubTokenSecretName = props?.githubTokenSecretName || envConfig.githubTokenSecretName;
     const githubTokenBroker = githubTokenSecretName
       ? new GitHubTokenBroker(this, 'GitHubTokenBroker', {
           resourcePrefix,

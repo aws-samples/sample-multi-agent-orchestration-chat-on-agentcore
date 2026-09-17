@@ -30,8 +30,10 @@
     "aws-cdk": "^2.1135.1"
   },
   "dependencies": {
+    "@aws-sdk/client-cognito-identity": "^3.1106.0",
     "@cdklabs/deploy-time-build": "^0.1.7",
     "aws-cdk-lib": "2.263.0",
+    "aws-jwt-verify": "^5.2.1",
     "cdk-nag": "^2.37.55",
     "constructs": "^10.8.1"
   }

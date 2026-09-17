@@ -22,8 +22,12 @@
  * @see https://github.com/awslabs/aws-jwt-verify
  */
 
-import { CognitoJwtVerifier } from 'aws-jwt-verify';
-import type { CognitoAccessTokenPayload, CognitoIdTokenPayload } from 'aws-jwt-verify/jwt-model';
+import { CognitoJwtVerifier, JwtVerifier } from 'aws-jwt-verify';
+import type {
+  CognitoAccessTokenPayload,
+  CognitoIdTokenPayload,
+  JwtPayload,
+} from 'aws-jwt-verify/jwt-model';
 
 import { config } from '../../config/index.js';
 import { logger } from '../logger/index.js';
@@ -31,6 +35,22 @@ import type { CognitoJWTPayload, JWTVerificationResult } from '../../types/index
 
 let accessTokenVerifier: ReturnType<typeof CognitoJwtVerifier.create> | null = null;
 let idTokenVerifier: ReturnType<typeof CognitoJwtVerifier.create> | null = null;
+let developerAuthVerifier: ReturnType<typeof JwtVerifier.create> | null = null;
+
+const DEVELOPER_AUTH_ISSUER = 'https://cognito-identity.amazonaws.com';
+const DEVELOPER_AUTH_JWKS_URI = 'https://cognito-identity.amazonaws.com/.well-known/jwks_uri';
+const IDENTITY_ID_PATTERN =
+  /^[a-z]{2}-(?:(?:gov-)?[a-z]+-\d):[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+function requireExpiry(payload: JwtPayload): void {
+  if (
+    typeof payload.exp !== 'number' ||
+    !Number.isFinite(payload.exp) ||
+    payload.exp <= Math.floor(Date.now() / 1000)
+  ) {
+    throw new Error('A valid token expiration is required');
+  }
+}
 
 /**
  * Returns the access-token verifier. Accepts both the frontend App Client
@@ -57,6 +77,7 @@ function getAccessTokenVerifier() {
     userPoolId: config.COGNITO_USER_POOL_ID,
     tokenUse: 'access',
     clientId: clientIds,
+    customJwtCheck: ({ payload }) => requireExpiry(payload),
   });
   return accessTokenVerifier;
 }
@@ -80,6 +101,7 @@ function getIdTokenVerifier() {
     userPoolId: config.COGNITO_USER_POOL_ID,
     tokenUse: 'id',
     clientId: config.COGNITO_USER_POOL_CLIENT_ID,
+    customJwtCheck: ({ payload }) => requireExpiry(payload),
   });
   return idTokenVerifier;
 }
@@ -131,10 +153,7 @@ export async function verifyJWT(token: string): Promise<JWTVerificationResult> {
  * OpenID tokens issued by `GetOpenIdTokenForDeveloperIdentity` (Trigger
  * Lambda path) CANNOT be verified here — their issuer is
  * `https://cognito-identity.amazonaws.com`, not the User Pool. The
- * caller (`authMiddleware`) is responsible for detecting that token type
- * and skipping this function accordingly; the validation of those tokens
- * is performed by Cognito Identity Pool when `GetCredentialsForIdentity`
- * (or `GetId`) is called downstream.
+ * caller selects the developer-auth verifier for authorized machine users.
  */
 export async function verifyIdToken(token: string): Promise<JWTVerificationResult> {
   try {
@@ -151,6 +170,47 @@ export async function verifyIdToken(token: string): Promise<JWTVerificationResul
     return {
       valid: false,
       error: error instanceof Error ? error.message : 'ID token verification failed',
+      details: error,
+    };
+  }
+}
+
+export function createDeveloperAuthVerifier(poolId: string) {
+  return JwtVerifier.create({
+    issuer: DEVELOPER_AUTH_ISSUER,
+    audience: poolId,
+    jwksUri: DEVELOPER_AUTH_JWKS_URI,
+    customJwtCheck: ({ header, payload }: { header: { alg?: string }; payload: JwtPayload }) => {
+      if (header.alg !== 'RS512') throw new Error('Developer-auth token alg must be RS512');
+      requireExpiry(payload);
+      if (payload.aud !== poolId)
+        throw new Error('Developer-auth token audience must match the pool');
+      if (typeof payload.sub !== 'string' || !IDENTITY_ID_PATTERN.test(payload.sub)) {
+        throw new Error('Developer-auth token sub must be a valid identityId');
+      }
+    },
+  });
+}
+
+function getDeveloperAuthVerifier() {
+  if (!developerAuthVerifier) {
+    developerAuthVerifier = createDeveloperAuthVerifier(config.IDENTITY_POOL_ID);
+  }
+  return developerAuthVerifier;
+}
+
+export async function verifyDeveloperAuthToken(token: string): Promise<JWTVerificationResult> {
+  try {
+    const payload = (await getDeveloperAuthVerifier().verify(token)) as JwtPayload;
+    return { valid: true, payload: payload as unknown as CognitoJWTPayload };
+  } catch (error) {
+    logger.warn(
+      { error: error instanceof Error ? error.message : 'Unknown error' },
+      'Developer-auth token verification failed:'
+    );
+    return {
+      valid: false,
+      error: error instanceof Error ? error.message : 'Developer-auth token verification failed',
       details: error,
     };
   }
@@ -184,4 +244,5 @@ export function extractJWTFromHeader(authHeader: string): string | null {
 export function __resetJwtVerifiersForTests(): void {
   accessTokenVerifier = null;
   idTokenVerifier = null;
+  developerAuthVerifier = null;
 }
