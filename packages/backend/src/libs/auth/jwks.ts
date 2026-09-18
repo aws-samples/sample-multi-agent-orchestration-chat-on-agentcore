@@ -1,11 +1,15 @@
 /**
- * JWT verification for Cognito User Pool tokens (backend side).
+ * JWT verification for the token types the backend accepts.
  *
- * Two separate verifiers are required because the backend accepts both:
+ * Three separate verifiers are required:
  *   - Access tokens in the `Authorization: Bearer ...` header
  *     (from Frontend Code Flow or Machine User Client Credentials Flow)
  *   - ID tokens in `X-Amzn-Bedrock-AgentCore-Runtime-Custom-Id-Token`
  *     (from the Frontend only; machine users never issue an ID token)
+ *   - Developer-authenticated OpenID tokens in the same header, minted by
+ *     `GetOpenIdTokenForDeveloperIdentity` (Trigger Lambda / event-driven
+ *     path). Issued by Cognito Identity, NOT the User Pool, so they need
+ *     their own issuer + JWKS.
  *
  * Why split?
  * ----------
@@ -22,15 +26,30 @@
  * @see https://github.com/awslabs/aws-jwt-verify
  */
 
-import { CognitoJwtVerifier } from 'aws-jwt-verify';
+import { CognitoJwtVerifier, JwtRsaVerifier } from 'aws-jwt-verify';
 import type { CognitoAccessTokenPayload, CognitoIdTokenPayload } from 'aws-jwt-verify/jwt-model';
 
 import { config } from '../../config/index.js';
 import { logger } from '../logger/index.js';
-import type { CognitoJWTPayload, JWTVerificationResult } from '../../types/index.js';
+import type {
+  CognitoJWTPayload,
+  DeveloperAuthTokenVerificationResult,
+  JWTVerificationResult,
+} from '../../types/index.js';
 
 let accessTokenVerifier: ReturnType<typeof CognitoJwtVerifier.create> | null = null;
 let idTokenVerifier: ReturnType<typeof CognitoJwtVerifier.create> | null = null;
+let developerAuthVerifier: ReturnType<typeof JwtRsaVerifier.create> | null = null;
+
+/**
+ * Issuer and JWKS endpoint for tokens minted by
+ * `GetOpenIdTokenForDeveloperIdentity`. Cognito Identity is an OIDC provider
+ * in its own right; the discovery document at
+ * `https://cognito-identity.amazonaws.com/.well-known/openid-configuration`
+ * advertises this `jwks_uri` and `RS512` as the signing algorithm.
+ */
+const DEVELOPER_AUTH_ISSUER_URL = 'https://cognito-identity.amazonaws.com';
+const DEVELOPER_AUTH_JWKS_URI = 'https://cognito-identity.amazonaws.com/.well-known/jwks_uri';
 
 /**
  * Returns the access-token verifier. Accepts both the frontend App Client
@@ -85,14 +104,45 @@ function getIdTokenVerifier() {
 }
 
 /**
+ * Returns the verifier for developer-authenticated OpenID tokens.
+ *
+ * `audience` is pinned to this deployment's Identity Pool ID because Cognito
+ * Identity signs tokens for every pool in the region with the same keys: a
+ * valid signature alone only proves "some Cognito pool minted this", not
+ * "our pool minted this". The `aud` claim carries the pool ID (it is the
+ * source of the `cognito-identity.amazonaws.com:aud` IAM condition key used
+ * in web-identity trust policies), so pinning it confines accepted tokens to
+ * this deployment.
+ */
+function getDeveloperAuthVerifier() {
+  if (developerAuthVerifier) return developerAuthVerifier;
+
+  logger.info(
+    { issuer: DEVELOPER_AUTH_ISSUER_URL, audience: config.IDENTITY_POOL_ID },
+    'Initialising developer-auth OpenID token verifier'
+  );
+
+  developerAuthVerifier = JwtRsaVerifier.create({
+    issuer: DEVELOPER_AUTH_ISSUER_URL,
+    audience: config.IDENTITY_POOL_ID,
+    jwksUri: DEVELOPER_AUTH_JWKS_URI,
+  });
+  return developerAuthVerifier;
+}
+
+/**
  * Pre-load the JWKS cache so the first protected request does not pay the
  * Cognito round-trip. Failures are logged but non-fatal — subsequent
  * `verifyJWT` / `verifyIdToken` calls will retry lazily.
  */
 export async function hydrateJWKS(): Promise<void> {
   try {
-    await Promise.all([getAccessTokenVerifier().hydrate(), getIdTokenVerifier().hydrate()]);
-    logger.info('JWKS cache pre-loaded for access and id token verifiers');
+    await Promise.all([
+      getAccessTokenVerifier().hydrate(),
+      getIdTokenVerifier().hydrate(),
+      getDeveloperAuthVerifier().hydrate(),
+    ]);
+    logger.info('JWKS cache pre-loaded for access, id and developer-auth token verifiers');
   } catch (error) {
     logger.warn({ err: error }, 'Failed to pre-load JWKS cache:');
   }
@@ -130,11 +180,8 @@ export async function verifyJWT(token: string): Promise<JWTVerificationResult> {
  * Note: This only covers User Pool ID tokens. Developer-authenticated
  * OpenID tokens issued by `GetOpenIdTokenForDeveloperIdentity` (Trigger
  * Lambda path) CANNOT be verified here — their issuer is
- * `https://cognito-identity.amazonaws.com`, not the User Pool. The
- * caller (`authMiddleware`) is responsible for detecting that token type
- * and skipping this function accordingly; the validation of those tokens
- * is performed by Cognito Identity Pool when `GetCredentialsForIdentity`
- * (or `GetId`) is called downstream.
+ * `https://cognito-identity.amazonaws.com`, not the User Pool. Those go
+ * through `verifyDeveloperAuthOpenIdToken` instead.
  */
 export async function verifyIdToken(token: string): Promise<JWTVerificationResult> {
   try {
@@ -152,6 +199,42 @@ export async function verifyIdToken(token: string): Promise<JWTVerificationResul
       valid: false,
       error: error instanceof Error ? error.message : 'ID token verification failed',
       details: error,
+    };
+  }
+}
+
+/**
+ * Verify a developer-authenticated OpenID token minted by
+ * `GetOpenIdTokenForDeveloperIdentity` and return its verified `sub`, which is
+ * the Identity Pool identityId.
+ *
+ * This MUST be called before the identityId is used for anything, because the
+ * identityId is the partition key for every per-user resource (S3 prefix,
+ * DynamoDB, AgentCore Memory actor). On the S3 and DynamoDB paths the backend
+ * mints credentials via STS AssumeRole with a session policy built from the
+ * identityId and never hands the token to Cognito, so there is no downstream
+ * AWS-side validation to fall back on: an unverified `sub` here is an
+ * attacker-chosen storage key.
+ */
+export async function verifyDeveloperAuthOpenIdToken(
+  token: string
+): Promise<DeveloperAuthTokenVerificationResult> {
+  try {
+    const payload = await getDeveloperAuthVerifier().verify(token);
+    const sub = payload.sub;
+    if (typeof sub !== 'string' || sub.length === 0) {
+      return { valid: false, error: 'Developer-auth OpenID token has no `sub` claim' };
+    }
+    return { valid: true, identityId: sub };
+  } catch (error) {
+    logger.warn(
+      { error: error instanceof Error ? error.message : 'Unknown error' },
+      'Developer-auth OpenID token verification failed:'
+    );
+    return {
+      valid: false,
+      error:
+        error instanceof Error ? error.message : 'Developer-auth OpenID token verification failed',
     };
   }
 }
@@ -184,4 +267,5 @@ export function extractJWTFromHeader(authHeader: string): string | null {
 export function __resetJwtVerifiersForTests(): void {
   accessTokenVerifier = null;
   idTokenVerifier = null;
+  developerAuthVerifier = null;
 }

@@ -26,9 +26,12 @@
  *               via `GetOpenIdTokenForDeveloperIdentity`.
  *      - iss:   `https://cognito-identity.amazonaws.com`
  *      - sub:   the identityId itself (format `REGION:UUID`).
- *      - Flow:  use `sub` directly; `GetId` MUST NOT be called because it
+ *      - Flow:  verify the signature against the Cognito Identity JWKS, then
+ *               use the verified `sub`. `GetId` MUST NOT be called because it
  *               rejects developer-auth tokens with
  *               `NotAuthorizedException: Invalid login token. Can't pass in a Cognito token.`
+ *               — which is also why the signature check cannot be delegated to
+ *               AWS on this branch and has to happen here.
  *
  * See `docs/adr/event-driven-identity-pool-credentials.md` for the end-to-end
  * design. The Agent container performs the same token-type branching in
@@ -56,6 +59,7 @@ import {
 import type { IdentityId } from '@moca/core';
 import { config } from '../../config/index.js';
 import { logger } from '../logger/index.js';
+import { verifyDeveloperAuthOpenIdToken } from './jwks.js';
 
 /**
  * Cognito Identity Pool identity ID pattern: "<region>:<uuid>".
@@ -120,11 +124,10 @@ interface IdTokenClaims {
 }
 
 /**
- * Decode a JWT payload without verifying the signature. Verification is
- * performed upstream by `aws-jwt-verify` (access token) or — for the
- * developer-auth token — by the downstream Cognito `GetCredentialsForIdentity`
- * call that ultimately consumes the same token elsewhere. Here we only need
- * the `iss` and `sub` claims to branch on token type.
+ * Decode a JWT payload without verifying the signature, to branch on token
+ * type only. NOTHING decoded here may be trusted: the UserPool branch hands
+ * the raw token to `GetId`, and the developer-auth branch re-reads `sub` from
+ * `verifyDeveloperAuthOpenIdToken`'s cryptographically verified payload.
  */
 function decodeJwtClaims(idToken: string): IdTokenClaims | undefined {
   const parts = idToken.split('.');
@@ -214,13 +217,19 @@ export async function resolveIdentityId(idToken: string): Promise<IdentityId> {
   const claims = decodeJwtClaims(idToken);
   const isDeveloperAuthToken = !!claims?.iss?.includes(DEVELOPER_AUTH_ISSUER);
 
-  // Developer-auth token: `sub` IS the identityId. `GetId` rejects this
-  // token type, so skip the API call entirely.
+  // Developer-auth token: `sub` IS the identityId. `GetId` rejects this token
+  // type, so the signature must be checked here against the Cognito Identity
+  // JWKS instead — the identityId keys per-user S3/DynamoDB, and the S3 and
+  // DynamoDB paths never hand the token to Cognito, so nothing downstream
+  // would catch a forgery.
   if (isDeveloperAuthToken) {
-    if (!claims?.sub) {
-      throw new Error('Developer-auth OpenID Token is missing `sub` claim (identityId)');
+    const verified = await verifyDeveloperAuthOpenIdToken(idToken);
+    if (!verified.valid || !verified.identityId) {
+      throw new Error(
+        `Developer-auth OpenID Token verification failed: ${verified.error ?? 'unknown error'}`
+      );
     }
-    const parsed = assertIdentityId(claims.sub);
+    const parsed = assertIdentityId(verified.identityId);
     identityIdCache.set(idToken, parsed);
     return parsed;
   }
