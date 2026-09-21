@@ -193,6 +193,7 @@ chat:
   typingMessage: Type a message...
   thinking: Thinking...
   stopGenerating: Stop Generating
+  generationStopped: Generation stopped
   selectAgent: Select Agent
   changeAgent: Change Agent
   toggleWideView: Toggle wide view

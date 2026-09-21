@@ -54,9 +54,12 @@ async function handleListAgents(): Promise<Record<string, unknown>> {
 }
 
 /**
- * Handle start_task action
+ * Handle start_task action.
+ *
+ * Exported for unit testing (parentSessionId derivation); not part of the
+ * tool's public surface — callers use `callAgentTool`.
  */
-async function handleStartTask(
+export async function handleStartTask(
   input: {
     agentId?: string;
     query?: string;
@@ -90,15 +93,19 @@ async function handleStartTask(
   }
 
   try {
-    // Get session ID from agent state if available
-    const parentSessionId = context?.agent?.appState?.get('sessionId') as string | undefined;
+    // Get userId and the parent turn's sessionId from the request context.
+    //
+    // parentSessionId MUST come from the request context (not
+    // `agent.appState.get('sessionId')`, which is never set): it is the value
+    // `invocations.ts` passes to `cancelTasksByParentSession` when the parent
+    // turn is stopped. Keying tasks by the same sessionId is what lets a Stop on
+    // the parent cancel the sub-agent tasks it spawned.
+    const currentContext = getCurrentContext();
+    const userId = currentContext?.userId;
+    const parentSessionId = currentContext?.sessionId as string | undefined;
 
     // Get storagePath from input or inherit from parent
     const storagePath = input.storagePath || context?.agent?.appState?.get('storagePath');
-
-    // Get userId from request context
-    const currentContext = getCurrentContext();
-    const userId = currentContext?.userId;
 
     // Create task
     const taskId = await subAgentTaskManager.createTask(input.agentId, input.query, {
@@ -192,6 +199,20 @@ async function handleStatus(
           taskId: task.taskId,
           sessionId: task.sessionId,
           status: 'failed',
+          agentId: task.agentId,
+          error: task.error,
+          elapsedTime,
+          pollCount: waitForCompletion ? pollCount : undefined,
+        };
+      }
+
+      // 'cancelled' is terminal too — without this branch a waitForCompletion
+      // poll would spin until the max-wait timeout on a task the user stopped.
+      if (task.status === 'cancelled') {
+        return {
+          taskId: task.taskId,
+          sessionId: task.sessionId,
+          status: 'cancelled',
           agentId: task.agentId,
           error: task.error,
           elapsedTime,
