@@ -4,7 +4,7 @@
  * Loads saved messages from session storage for conversation continuity.
  */
 
-import type { Message } from '@strands-agents/sdk';
+import { Message, TextBlock, type ContentBlock } from '@strands-agents/sdk';
 import { logger } from '../../libs/logger/index.js';
 import type { SessionStorage, SessionConfig } from '../../services/session/types.js';
 
@@ -121,8 +121,102 @@ export function applyWindowTruncation(messages: Message[], windowSize: number): 
 }
 
 /**
+ * Remove orphaned tool blocks from a loaded conversation history.
+ *
+ * WHY: messages are persisted one at a time, in real time, as they are added
+ * (see SessionPersistenceHook.onMessageAdded → storage.appendMessage). When a
+ * long-running agent is interrupted AFTER an assistant `toolUse` block is saved
+ * but BEFORE the matching `toolResult` is produced/saved, the stored history
+ * ends with an orphaned `toolUse`. On resume, that history is restored and the
+ * next user message ("続けてください") is appended after it — so Bedrock sees a
+ * `tool_use` with no following `tool_result` and rejects the request with:
+ *   "tool_use ids were found without tool_result blocks immediately after".
+ *
+ * This pass removes, across the whole history (matched by `toolUseId`):
+ *   - any `toolUseBlock` that has no matching `toolResultBlock`, and
+ *   - any `toolResultBlock` that has no matching `toolUseBlock`.
+ *
+ * Message COUNT is preserved. A whole message is never dropped, because:
+ *   - Dropping a trailing `toolUse`-only assistant message would leave the
+ *     preceding `user` message adjacent to the appended resume `user` message —
+ *     a NEW Bedrock alternation violation.
+ *   - `AgentCoreMemoryStorage.saveMessages` computes new messages via
+ *     `messages.slice(existingCount)` against a fresh raw Memory read; keeping
+ *     the in-memory count aligned with the stored count avoids save drift.
+ * When stripping empties a message's content, a single-space `TextBlock` is
+ * substituted (the same fallback `converters.ts` uses) so Bedrock does not
+ * reject an empty `content` array.
+ *
+ * The returned array is a NEW array when anything changed; otherwise the
+ * original reference is returned unchanged (cheap no-op for tool-free chats).
+ * The input array and its messages are never mutated.
+ *
+ * NOTE: this only sanitises the in-memory history handed to the Agent. The
+ * underlying AgentCore Memory events are NOT modified, so the session-history
+ * API the UI reads (GET /sessions/:id/events) still returns the full record.
+ */
+export function sanitizeOrphanedToolBlocks(messages: Message[]): Message[] {
+  // Collect the toolUseIds that have a corresponding partner of the other kind.
+  const toolUseIds = new Set<string>();
+  const toolResultIds = new Set<string>();
+  for (const message of messages) {
+    for (const block of message.content) {
+      if (block.type === 'toolUseBlock') {
+        if (block.toolUseId) toolUseIds.add(block.toolUseId);
+      } else if (block.type === 'toolResultBlock') {
+        if (block.toolUseId) toolResultIds.add(block.toolUseId);
+      }
+    }
+  }
+
+  // Fast path: no tool blocks at all → nothing to do.
+  if (toolUseIds.size === 0 && toolResultIds.size === 0) {
+    return messages;
+  }
+
+  const isOrphan = (block: ContentBlock): boolean => {
+    if (block.type === 'toolUseBlock') {
+      return !block.toolUseId || !toolResultIds.has(block.toolUseId);
+    }
+    if (block.type === 'toolResultBlock') {
+      return !block.toolUseId || !toolUseIds.has(block.toolUseId);
+    }
+    return false;
+  };
+
+  // Detect whether anything needs stripping before allocating new arrays.
+  const hasOrphans = messages.some((m) => m.content.some(isOrphan));
+  if (!hasOrphans) {
+    return messages;
+  }
+
+  let removedCount = 0;
+  const sanitized = messages.map((message) => {
+    if (!message.content.some(isOrphan)) {
+      return message;
+    }
+    const kept = message.content.filter((block) => !isOrphan(block));
+    removedCount += message.content.length - kept.length;
+    // Never hand Bedrock an empty content array — substitute a placeholder.
+    const content: ContentBlock[] = kept.length > 0 ? kept : [new TextBlock(' ')];
+    return new Message({ role: message.role, content });
+  });
+
+  logger.warn(
+    `Session history: stripped ${removedCount} orphaned tool block(s) (interrupted toolUse/toolResult) from restored history`
+  );
+  return sanitized;
+}
+
+/**
  * Load session history from storage.
  * Returns an empty array if storage or config is not provided.
+ *
+ * The loaded history is always passed through {@link sanitizeOrphanedToolBlocks}
+ * to drop orphaned tool blocks left by an interrupted turn (see that function).
+ * This runs unconditionally — BEFORE windowing — because the bug it fixes slips
+ * through both the early `length <= windowSize` return and the "no valid trim
+ * point" fallback in {@link applyWindowTruncation}.
  *
  * When `windowSize` is provided, the returned history is pre-truncated via
  * {@link applyWindowTruncation} so that no more than `windowSize` messages are
@@ -136,8 +230,10 @@ export async function loadSessionHistory(
   if (!sessionStorage || !sessionConfig) {
     return [];
   }
-  const messages = await sessionStorage.loadMessages(sessionConfig);
-  logger.info(`Session history restored: ${messages.length} messages`);
+  const loaded = await sessionStorage.loadMessages(sessionConfig);
+  logger.info(`Session history restored: ${loaded.length} messages`);
+
+  const messages = sanitizeOrphanedToolBlocks(loaded);
 
   if (windowSize !== undefined) {
     return applyWindowTruncation(messages, windowSize);
