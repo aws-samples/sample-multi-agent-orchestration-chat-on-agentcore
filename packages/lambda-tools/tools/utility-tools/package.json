@@ -9,13 +9,13 @@
     "test": "jest --passWithNoTests"
   },
   "devDependencies": {
-    "@types/aws-lambda": "^8.10.162"
+    "@types/aws-lambda": "^8.10.163"
   },
   "engines": {
     "node": ">=22.12.0"
   },
   "dependencies": {
-    "@aws-sdk/client-bedrock-agent-runtime": "^3.1106.0",
+    "@aws-sdk/client-bedrock-agent-runtime": "^3.1131.0",
     "@moca/lambda-tools-shared": "*"
   }
 }
