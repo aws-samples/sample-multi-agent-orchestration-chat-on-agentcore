@@ -28,6 +28,7 @@ common:
   thinking: Thinking…
   reasoningDepth: Reasoning
   reasoningDepthOff: 'Off'
+  reasoningDepthModelDefault: 'Model default (always on)'
   reasoningDepthLow: Low
   reasoningDepthHigh: High
   reasoningDepthMax: Max

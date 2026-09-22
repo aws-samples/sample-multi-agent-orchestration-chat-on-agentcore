@@ -1,12 +1,30 @@
 import {
   deriveBedrockIamResources,
+  getEnvironmentConfig,
   hasBedrockOpenAiModel,
   hasMantleModel,
   validateBedrockModelsForTest,
 } from './environment-utils';
 
+jest.mock('./environments', () => ({
+  BASE_PREFIX: 'moca',
+  environments: { default: { cognitoDomainPrefix: 'moca-test' } },
+}));
+
 const REGION = 'us-east-1';
 const ACCOUNT = '123456789012';
+
+describe('Opus 5.5 default model configuration', () => {
+  it('adds Opus 5.5 immediately after Opus 5 without promoting it', () => {
+    const { bedrockModels } = getEnvironmentConfig('default');
+    expect(bedrockModels[0].id).toBe('global.anthropic.claude-opus-5');
+    expect(bedrockModels[1]).toEqual({
+      id: 'global.anthropic.claude-opus-5-5',
+      name: 'Claude Opus 5.5',
+      provider: 'Anthropic',
+    });
+  });
+});
 
 describe('deriveBedrockIamResources', () => {
   // ── ARN format helpers ──────────────────────────────────────────────────────
@@ -415,7 +433,12 @@ describe('hasBedrockOpenAiModel', () => {
   it('is true only when a bedrock-openai (gpt-oss) model is configured', () => {
     expect(
       hasBedrockOpenAiModel([
-        { id: 'openai.gpt-oss-20b-1:0', name: 'GPT-OSS 20B', provider: 'OpenAI', endpoint: 'bedrock-openai' },
+        {
+          id: 'openai.gpt-oss-20b-1:0',
+          name: 'GPT-OSS 20B',
+          provider: 'OpenAI',
+          endpoint: 'bedrock-openai',
+        },
       ])
     ).toBe(true);
   });
@@ -423,16 +446,20 @@ describe('hasBedrockOpenAiModel', () => {
   it('is false when only a mantle (gpt-5.x) model is configured', () => {
     expect(
       hasBedrockOpenAiModel([
-        { id: 'openai.gpt-5.5', name: 'GPT-5.5', provider: 'OpenAI', region: 'us-east-1', endpoint: 'mantle' },
+        {
+          id: 'openai.gpt-5.5',
+          name: 'GPT-5.5',
+          provider: 'OpenAI',
+          region: 'us-east-1',
+          endpoint: 'mantle',
+        },
       ])
     ).toBe(false);
   });
 
   it('is false for Converse models and empty lists', () => {
     expect(
-      hasBedrockOpenAiModel([
-        { id: 'qwen.qwen3-coder-next', name: 'Qwen3', provider: 'Qwen' },
-      ])
+      hasBedrockOpenAiModel([{ id: 'qwen.qwen3-coder-next', name: 'Qwen3', provider: 'Qwen' }])
     ).toBe(false);
     expect(hasBedrockOpenAiModel([])).toBe(false);
   });
@@ -442,7 +469,13 @@ describe('hasMantleModel', () => {
   it('is true only when a mantle (gpt-5.x) model is configured', () => {
     expect(
       hasMantleModel([
-        { id: 'openai.gpt-5.4', name: 'GPT-5.4', provider: 'OpenAI', region: 'us-east-1', endpoint: 'mantle' },
+        {
+          id: 'openai.gpt-5.4',
+          name: 'GPT-5.4',
+          provider: 'OpenAI',
+          region: 'us-east-1',
+          endpoint: 'mantle',
+        },
       ])
     ).toBe(true);
   });
@@ -450,7 +483,12 @@ describe('hasMantleModel', () => {
   it('is false when only a bedrock-openai (gpt-oss) model is configured', () => {
     expect(
       hasMantleModel([
-        { id: 'openai.gpt-oss-20b-1:0', name: 'GPT-OSS 20B', provider: 'OpenAI', endpoint: 'bedrock-openai' },
+        {
+          id: 'openai.gpt-oss-20b-1:0',
+          name: 'GPT-OSS 20B',
+          provider: 'OpenAI',
+          endpoint: 'bedrock-openai',
+        },
       ])
     ).toBe(false);
   });

@@ -68,6 +68,7 @@ export {
   getReasoningConfig,
   getMaxReasoningDepth,
   isReasoningCapable,
+  isReasoningAlwaysOn,
   isReasoningDepth,
   getBedrockEndpoint,
 } from './bedrock-models.js';

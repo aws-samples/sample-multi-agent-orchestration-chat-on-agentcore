@@ -30,6 +30,7 @@ common:
   thinking: Thinking…
   reasoningDepth: 思考の深さ
   reasoningDepthOff: オフ
+  reasoningDepthModelDefault: モデル既定（思考は常時オン）
   reasoningDepthLow: 低
   reasoningDepthHigh: 高
   reasoningDepthMax: 最大

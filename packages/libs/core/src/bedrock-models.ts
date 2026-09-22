@@ -16,8 +16,8 @@
  * Reasoning (extended thinking) depth selectable in the UI for a
  * reasoning-capable model.
  *
- * `off` means "send no thinking field" — the model answers without extended
- * thinking. `low | high | max` map 1:1 onto the Bedrock Anthropic-native
+ * `off` means "send no thinking field" — model defaults apply; it does not
+ * disable always-on reasoning. `low | high | max` map 1:1 onto the Bedrock Anthropic-native
  * `output_config.effort` level (paired with `thinking: { type: 'adaptive' }`).
  *
  * WHY effort, not budget_tokens: current Anthropic models on Bedrock (Mythos /
@@ -55,6 +55,8 @@ export interface BedrockModelDefinition {
    * accept a `thinking` request field. Omit (falsy) for models that don't.
    */
   readonly reasoningCapable?: boolean;
+  /** Omitting effort does not disable reasoning; the model uses its default. */
+  readonly reasoningAlwaysOn?: boolean;
   /**
    * Highest selectable depth for this model. Only meaningful when
    * `reasoningCapable`. Defaults to `'max'` when omitted. Set to `'high'` for
@@ -147,6 +149,17 @@ export const BEDROCK_MODEL_DEFINITIONS = [
     provider: 'Anthropic',
     maxOutputTokens: 128000, // 128k (AWS Bedrock model card, 2026-07-23)
     reasoningCapable: true, // adaptive thinking + output_config.effort; max OK (Opus-tier)
+  },
+  {
+    // Keep opt-in: thinking cannot be disabled; omitted effort uses medium.
+    // Global profile verified ACTIVE in ap-northeast-1. Model-specific data
+    // retention/access prerequisites must be confirmed before production use.
+    id: 'global.anthropic.claude-opus-5-5',
+    name: 'Claude Opus 5.5',
+    provider: 'Anthropic',
+    maxOutputTokens: 128000,
+    reasoningCapable: true,
+    reasoningAlwaysOn: true,
   },
   {
     // No account-level prerequisite (unlike Fable 5's data retention
@@ -403,8 +416,8 @@ export const BEDROCK_MODEL_DEFINITIONS = [
   },
 ] as const satisfies readonly BedrockModelDefinition[];
 
-/** Strips cross-region inference profile prefixes (global., us., eu., apac., jp.) */
-const PROFILE_PREFIX = /^(global|us|eu|apac|jp)\./;
+/** Strips cross-region inference profile prefixes (global., us., eu., apac., au., jp.) */
+const PROFILE_PREFIX = /^(global|us|eu|apac|au|jp)\./;
 
 function stripPrefix(modelId: string): string {
   return modelId.replace(PROFILE_PREFIX, '');
@@ -447,6 +460,10 @@ export function getModelRegion(modelId: string): string | undefined {
  */
 export function isReasoningCapable(modelId: string): boolean {
   return findModel(modelId)?.reasoningCapable === true;
+}
+
+export function isReasoningAlwaysOn(modelId: string): boolean {
+  return findModel(modelId)?.reasoningAlwaysOn === true;
 }
 
 /**
@@ -494,9 +511,7 @@ export interface ReasoningRequestConfig {
  * hide depths above the cap (e.g. Sonnet 4.6 tops out at `'high'` because
  * Bedrock rejects `effort: 'max'` on non-Opus models).
  */
-export function getMaxReasoningDepth(
-  modelId: string
-): Exclude<ReasoningDepth, 'off'> | undefined {
+export function getMaxReasoningDepth(modelId: string): Exclude<ReasoningDepth, 'off'> | undefined {
   const match = findModel(modelId);
   if (!match?.reasoningCapable) {
     return undefined;

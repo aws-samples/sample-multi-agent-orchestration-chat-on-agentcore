@@ -6,7 +6,7 @@ import { describe, it, expect, beforeEach, afterEach, jest } from '@jest/globals
 import { AgentInvoker } from '../agent-invoker.js';
 import type { AgentsService } from '../agents-service.js';
 import type { SchedulerEventPayload } from '../../types/index.js';
-import type { TriggerId } from '@moca/core';
+import { getReasoningConfig, type TriggerId } from '@moca/core';
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -187,6 +187,21 @@ describe('AgentInvoker', () => {
       const body = JSON.parse(fetchMock.mock.calls[0][1]!.body as string);
       expect(body.reasoningEffort).toBe('high');
     });
+
+    it.each(['global.', 'us.', 'eu.', 'au.', 'jp.'])(
+      'preserves Opus 5.5 saved off as model-managed through invocation for %s',
+      async (prefix) => {
+        const modelId = `${prefix}anthropic.claude-opus-5-5`;
+        const service = makeAgentsService();
+        fetchMock.mockResolvedValue(new Response(null, { status: 200 }));
+        const invoker = new AgentInvoker('https://api.example.com/invocations', service);
+        await invoker.invokeAsync(makePayload({ modelId, reasoningEffort: 'off' }), 'token');
+        const body = JSON.parse(fetchMock.mock.calls[0][1]!.body as string);
+        expect(body.modelId).toBe(modelId);
+        expect(body.reasoningEffort).toBe('off');
+        expect(getReasoningConfig(body.modelId, body.reasoningEffort)).toBeUndefined();
+      }
+    );
 
     it('omits reasoningEffort from the body when the payload has none', async () => {
       const service = makeAgentsService();
