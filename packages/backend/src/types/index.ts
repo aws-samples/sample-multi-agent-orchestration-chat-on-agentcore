@@ -21,6 +21,7 @@ export { AgentNotFoundError } from './agent-types.js';
 export type {
   CognitoJWTPayload,
   JWTVerificationResult,
+  DeveloperAuthTokenVerificationResult,
   AuthenticatedRequest,
   AuthInfo,
   AuthErrorResponse,

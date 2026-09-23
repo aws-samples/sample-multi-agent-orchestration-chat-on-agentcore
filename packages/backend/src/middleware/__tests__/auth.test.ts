@@ -42,6 +42,15 @@ jest.mock('aws-jwt-verify', () => ({
       };
     }),
   },
+  // Developer-auth openIdToken verifier. Never reached from this suite
+  // (identity-resolver is mocked below) but jwks.ts constructs it lazily, so
+  // the export must exist.
+  JwtRsaVerifier: {
+    create: jest.fn(() => ({
+      verify: jest.fn(() => Promise.reject(new Error('not stubbed'))),
+      hydrate: jest.fn(() => Promise.resolve(undefined as unknown)),
+    })),
+  },
 }));
 
 // Mock identity-resolver to avoid pulling in @moca/core (workspace
@@ -340,6 +349,46 @@ describe('authMiddleware', () => {
     });
 
     expect(res.status).not.toHaveBeenCalled();
+  });
+
+  it('rejects a developer-auth openIdToken presented with a browser-user access token', async () => {
+    // The forgery path: a self-signed-up user pairs their own valid access
+    // token with a hand-crafted openIdToken naming somebody else's identityId.
+    // The machine-user requirement refuses the branch before the identityId is
+    // ever resolved.
+    const developerAuthToken = `header.${Buffer.from(
+      JSON.stringify({
+        iss: 'https://cognito-identity.amazonaws.com',
+        sub: 'us-east-1:victim-identity-uuid',
+      })
+    ).toString('base64')}.sig`;
+
+    accessVerifyMock.mockResolvedValueOnce({
+      sub: USER_SUB,
+      client_id: 'frontend-client',
+      token_use: 'access',
+      'cognito:username': USER_SUB,
+    });
+
+    const req = buildRequest({
+      Authorization: `Bearer ${ACCESS_TOKEN}`,
+      'X-Amzn-Bedrock-AgentCore-Runtime-Custom-Id-Token': developerAuthToken,
+    });
+    const res = buildResponse();
+    const next = jest.fn();
+
+    await new Promise<void>((resolve) => {
+      res.json.mockImplementation((body: unknown) => {
+        expect((body as { code: string }).code).toBe('INVALID_ID_TOKEN');
+        resolve();
+        return res;
+      });
+      authMiddleware(req, res as never, next as never);
+    });
+
+    expect(next).not.toHaveBeenCalled();
+    expect(res.status).toHaveBeenCalledWith(401);
+    expect(resolveIdentityIdMock).not.toHaveBeenCalled();
   });
 
   it('skips User-Pool ID verification for developer-auth openIdTokens', async () => {

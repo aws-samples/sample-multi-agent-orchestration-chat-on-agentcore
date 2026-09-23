@@ -3,7 +3,8 @@
  *
  * Verifies that `resolveIdentityId` correctly branches on the ID Token type:
  *   - UserPool ID Token    → calls `GetId`
- *   - Developer-auth Token → reads `sub` directly, MUST NOT call `GetId`
+ *   - Developer-auth Token → verifies the signature against the Cognito
+ *     Identity JWKS and reads the verified `sub`, MUST NOT call `GetId`
  *
  * The developer-auth branch is the fix for event-driven invocations where the
  * Agent forwards a developer-auth OpenID Token to the Backend; calling `GetId`
@@ -60,6 +61,16 @@ jest.mock('@aws-sdk/client-cognito-identity', () => ({
   })),
 }));
 
+// Mock the developer-auth OpenID token verifier. The real signature check is
+// `aws-jwt-verify`'s job (and needs the live Cognito Identity JWKS); what these
+// tests must pin down is that `resolveIdentityId` takes the identityId from the
+// verifier's result and refuses the token when the verifier rejects it.
+const mockVerifyDeveloperAuthOpenIdToken =
+  jest.fn<(token: string) => Promise<{ valid: boolean; identityId?: string; error?: string }>>();
+jest.mock('../jwks.js', () => ({
+  verifyDeveloperAuthOpenIdToken: (token: string) => mockVerifyDeveloperAuthOpenIdToken(token),
+}));
+
 import { resolveIdentityId, __resetCachesForTests } from '../identity-resolver.js';
 import {
   GetIdCommand,
@@ -95,6 +106,15 @@ describe('resolveIdentityId', () => {
     jest.clearAllMocks();
     __resetCachesForTests();
     mockConfig.DEVELOPER_PROVIDER_NAME = undefined;
+    // Default: the token is genuine, so the verified `sub` matches the payload.
+    mockVerifyDeveloperAuthOpenIdToken.mockImplementation(async (token: string) => {
+      const payload = JSON.parse(Buffer.from(token.split('.')[1], 'base64').toString()) as {
+        sub?: string;
+      };
+      return payload.sub
+        ? { valid: true, identityId: payload.sub }
+        : { valid: false, error: 'Developer-auth OpenID token has no `sub` claim' };
+    });
   });
 
   describe('UserPool ID Token (frontend flow)', () => {
@@ -134,7 +154,7 @@ describe('resolveIdentityId', () => {
   });
 
   describe('Developer-auth OpenID Token (event-driven flow)', () => {
-    it('uses `sub` as the identityId and does NOT call GetId', async () => {
+    it('uses the verified `sub` as the identityId and does NOT call GetId', async () => {
       const identityId = 'us-east-1:e6224b58-1111-2222-3333-444455556666';
       const idToken = buildJwt({
         iss: 'https://cognito-identity.amazonaws.com',
@@ -145,24 +165,60 @@ describe('resolveIdentityId', () => {
       const result = await resolveIdentityId(idToken);
 
       expect(result).toBe(identityId);
+      expect(mockVerifyDeveloperAuthOpenIdToken).toHaveBeenCalledWith(idToken);
       // Critical: GetId must NOT be invoked because Cognito rejects
       // developer-auth tokens with `NotAuthorizedException`.
       expect(MockGetIdCommand).not.toHaveBeenCalled();
       expect(mockSend).not.toHaveBeenCalled();
     });
 
-    it('throws when developer-auth token is missing `sub`', async () => {
+    it('rejects a token whose signature does not verify', async () => {
+      // The forgery this guards against: an attacker crafts an unsigned JWT
+      // naming the victim's identityId. Nothing downstream on the S3/DynamoDB
+      // paths re-checks it, so a pass here would hand over the victim's
+      // storage prefix and session rows.
+      const idToken = buildJwt({
+        iss: 'https://cognito-identity.amazonaws.com',
+        sub: 'us-east-1:00000000-0000-0000-0000-000000000000',
+      });
+      mockVerifyDeveloperAuthOpenIdToken.mockResolvedValueOnce({
+        valid: false,
+        error: 'Invalid signature',
+      });
+
+      await expect(resolveIdentityId(idToken)).rejects.toThrow(
+        /Developer-auth OpenID Token verification failed: Invalid signature/
+      );
+      expect(MockGetIdCommand).not.toHaveBeenCalled();
+    });
+
+    it('never caches an identityId from a rejected token', async () => {
+      const idToken = buildJwt({
+        iss: 'https://cognito-identity.amazonaws.com',
+        sub: 'us-east-1:00000000-0000-0000-0000-000000000000',
+      });
+      mockVerifyDeveloperAuthOpenIdToken.mockResolvedValue({
+        valid: false,
+        error: 'Invalid signature',
+      });
+
+      await expect(resolveIdentityId(idToken)).rejects.toThrow(/verification failed/);
+      // A poisoned cache entry would make the second attempt succeed.
+      await expect(resolveIdentityId(idToken)).rejects.toThrow(/verification failed/);
+    });
+
+    it('throws when the verified token carries no `sub`', async () => {
       const idToken = buildJwt({
         iss: 'https://cognito-identity.amazonaws.com',
       });
 
       await expect(resolveIdentityId(idToken)).rejects.toThrow(
-        'Developer-auth OpenID Token is missing `sub` claim (identityId)'
+        /Developer-auth OpenID Token verification failed/
       );
       expect(MockGetIdCommand).not.toHaveBeenCalled();
     });
 
-    it('throws when developer-auth `sub` is not a valid identityId format', async () => {
+    it('throws when the verified `sub` is not a valid identityId format', async () => {
       const idToken = buildJwt({
         iss: 'https://cognito-identity.amazonaws.com',
         sub: 'not-an-identity-id',

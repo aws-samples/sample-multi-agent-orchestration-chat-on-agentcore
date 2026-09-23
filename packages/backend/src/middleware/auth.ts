@@ -30,14 +30,17 @@
  *     are service-level and do not own user storage).
  *   - Event-driven Trigger Lambda: machine-user access token + developer-auth
  *     openIdToken (iss=cognito-identity.amazonaws.com). The openIdToken
- *     cannot be verified with the User Pool JWKS; its validation is
- *     delegated to `resolveIdentityId` / Cognito Identity Pool.
+ *     cannot be verified with the User Pool JWKS; `resolveIdentityId` verifies
+ *     it against the Cognito Identity JWKS instead. This profile additionally
+ *     requires the access token to belong to the machine-user App Client —
+ *     browser users may not present a developer-auth openIdToken.
  */
 
 import { Response, NextFunction } from 'express';
 import { isUserId, parseUserId, type UserId } from '@moca/core';
 import { verifyJWT, verifyIdToken, extractJWTFromHeader } from '../libs/auth/index.js';
 import { resolveIdentityId } from '../libs/auth/identity-resolver.js';
+import { config } from '../config/index.js';
 import { AppError, ErrorCode } from '../libs/http/index.js';
 import type {
   CognitoJWTPayload,
@@ -76,8 +79,8 @@ function createAuthErrorResponse(
  * (Cognito Identity Pool). These tokens carry
  * `iss=https://cognito-identity.amazonaws.com` and their `sub` claim encodes
  * the identityId directly (`REGION:UUID`). They CANNOT be verified against
- * the Cognito User Pool JWKS — validation is deferred to Cognito Identity
- * Pool when `resolveIdentityId` is invoked downstream.
+ * the Cognito User Pool JWKS — `resolveIdentityId` verifies them against the
+ * Cognito Identity JWKS instead.
  *
  * We peek at the unverified payload only to decide which verifier to run;
  * no claim is trusted on the strength of this check alone.
@@ -177,11 +180,39 @@ export function authMiddleware(req: AuthenticatedRequest, res: Response, next: N
       }
 
       // (4) ID token verification — ONLY for User Pool ID tokens.
-      //     Developer-auth openIdTokens use a different issuer and JWKS;
-      //     they are validated downstream by Cognito Identity Pool when
-      //     `resolveIdentityId` calls `GetCredentialsForIdentity`.
+      //     Developer-auth openIdTokens use a different issuer and JWKS, so
+      //     they are verified inside `resolveIdentityId` against the Cognito
+      //     Identity JWKS instead (see identity-resolver.ts).
       const isDeveloperAuthToken = looksLikeDeveloperAuthToken(idToken);
-      if (!isDeveloperAuthToken) {
+      if (isDeveloperAuthToken) {
+        // Defence in depth: the developer-auth branch exists solely for the
+        // event-driven Trigger Lambda path, which always authenticates with a
+        // machine-user (Client Credentials) access token. A browser user has
+        // no legitimate reason to present one, so refuse the branch outright
+        // rather than relying only on the signature check downstream. Fails
+        // closed when the machine-user client is not configured (local dev).
+        const machineUserClientId = config.COGNITO_MACHINE_USER_CLIENT_ID;
+        if (!machineUserClientId || accessPayload.client_id !== machineUserClientId) {
+          logger.warn(
+            {
+              requestId,
+              accessClientId: accessPayload.client_id,
+              hasMachineUserClientId: !!machineUserClientId,
+            },
+            'Developer-auth ID token presented with a non-machine-user access token'
+          );
+          res
+            .status(401)
+            .json(
+              createAuthErrorResponse(
+                'INVALID_ID_TOKEN',
+                'Developer-auth ID token is only accepted from machine-user callers',
+                requestId
+              )
+            );
+          return;
+        }
+      } else {
         const idResult = await verifyIdToken(idToken);
         if (!idResult.valid || !idResult.payload) {
           logger.warn({ requestId, err: idResult.error }, 'ID token verification failed');

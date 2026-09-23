@@ -56,6 +56,23 @@ export interface JWTVerificationResult {
 }
 
 /**
+ * Result of verifying a developer-authenticated OpenID token (issued by
+ * `GetOpenIdTokenForDeveloperIdentity`). Deliberately narrower than
+ * `JWTVerificationResult`: these tokens are not User Pool tokens and carry
+ * none of the `CognitoJWTPayload` claims, so only the one claim the backend
+ * consumes — the verified `sub`, which IS the Identity Pool identityId — is
+ * surfaced.
+ */
+export interface DeveloperAuthTokenVerificationResult {
+  /** Verification success flag */
+  valid: boolean;
+  /** Verified `sub` claim: the Identity Pool identityId ("REGION:uuid") */
+  identityId?: string;
+  /** Error message */
+  error?: string;
+}
+
+/**
  * Authenticated request type definition
  * Add JWT information to Express Request object
  *

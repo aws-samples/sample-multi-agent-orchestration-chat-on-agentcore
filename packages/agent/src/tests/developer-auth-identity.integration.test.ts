@@ -30,6 +30,7 @@ import {
   GetCredentialsForIdentityCommand,
 } from '@aws-sdk/client-cognito-identity';
 import { S3Client, ListObjectsV2Command } from '@aws-sdk/client-s3';
+import { JwtRsaVerifier } from 'aws-jwt-verify';
 import { config as loadDotenv } from 'dotenv';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -122,6 +123,26 @@ describe('Agent: Developer Auth openIdToken → Identity Pool credentials', () =
       'openIdToken iss (decoded):',
       JSON.parse(Buffer.from(oidcResult.openIdToken.split('.')[1], 'base64').toString()).iss
     );
+  });
+
+  // The Backend cannot delegate verification of this token type to Cognito
+  // (GetId rejects developer-auth tokens, and the S3/DynamoDB paths never hand
+  // the token to Cognito at all), so it verifies the signature itself against
+  // the Cognito Identity JWKS with `audience` pinned to the Identity Pool ID.
+  // This test pins the two claims that contract depends on against a REAL
+  // token — if AWS ever changes them, the Backend starts 401ing the
+  // event-driven path and this test says why.
+  test('openIdToken verifies against the Cognito Identity JWKS with aud = Identity Pool ID', async () => {
+    const verifier = JwtRsaVerifier.create({
+      issuer: 'https://cognito-identity.amazonaws.com',
+      audience: requireEnv('IDENTITY_POOL_ID'),
+      jwksUri: 'https://cognito-identity.amazonaws.com/.well-known/jwks_uri',
+    });
+
+    const payload = await verifier.verify(oidcResult.openIdToken);
+
+    expect(payload.aud).toBe(requireEnv('IDENTITY_POOL_ID'));
+    expect(payload.sub).toBe(oidcResult.identityId);
   });
 
   test('GetCredentialsForIdentity with developer-auth token succeeds', async () => {

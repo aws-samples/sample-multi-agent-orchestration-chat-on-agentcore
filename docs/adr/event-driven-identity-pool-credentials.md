@@ -199,6 +199,16 @@ NotAuthorizedException: Invalid login token. Can't pass in a Cognito token.
 > Skipping `GetId` and reading `sub` directly is therefore semantically equivalent — but avoids
 > the `NotAuthorizedException` entirely.
 
+> **WHY NOT read `sub` without verifying the signature**: skipping `GetId` also skips the only
+> AWS-side check of that token, so `sub` is only as trustworthy as the signature check the caller
+> performs itself. It is safe to read `sub` unverified **only** when the same request later hands
+> the token to Cognito (`GetCredentialsForIdentity`), which fails on a forged signature — that is
+> the Agent's situation. The Backend's S3 and DynamoDB paths do NOT: they mint credentials via STS
+> `AssumeRole` with a session policy built from the `identityId`, and never consume the token. So
+> `packages/backend/src/libs/auth/identity-resolver.ts` must verify the signature itself, against
+> the Cognito Identity JWKS (`https://cognito-identity.amazonaws.com/.well-known/jwks_uri`,
+> `RS512`) with `audience` pinned to this deployment's Identity Pool ID. See Attack 5.
+
 ```typescript
 // scoped-credentials.ts — token type branching
 if (isDeveloperAuthToken) {
@@ -370,6 +380,38 @@ Attacker intercepts an openIdToken in transit:
   -> MITIGATED by short token lifetime v
 ```
 
+### Attack 5: forged developer-auth token names the victim's identityId (Backend)
+
+Reported externally against commit `b48bcb4`; fixed. The claim in Attacks 1-2 that a crafted
+openIdToken "cannot be forged" held only because those paths hand the token back to Cognito. The
+Backend's per-user S3 and DynamoDB routes do not, so the forgery had nothing to fail against:
+
+```
+Any signed-up user takes their own valid access token, and sends
+  X-Amzn-Bedrock-AgentCore-Runtime-Custom-Id-Token: <unsigned JWT,
+    iss=https://cognito-identity.amazonaws.com, sub=VICTIM_IDENTITY_ID>
+  -> authMiddleware saw iss=cognito-identity... and skipped ID-token JWKS
+     verification and the access/id sub-match check
+  -> resolveIdentityId base64-decoded `sub` and only regex-checked REGION:UUID
+  -> req.identityId = VICTIM_IDENTITY_ID
+  -> S3: AssumeRole session policy scoped to users/VICTIM/*  -> read/write/delete
+  -> DynamoDB: VICTIM as partition key                       -> read/delete sessions
+```
+
+Two independent mitigations, either of which blocks it:
+
+1. **Signature verification** (`identity-resolver.ts`) — the developer-auth branch verifies the
+   token against the Cognito Identity JWKS before `sub` is used for anything. `audience` is pinned
+   to this deployment's `IDENTITY_POOL_ID` because Cognito Identity signs tokens for every pool in
+   the region with the same keys, so a valid signature alone only proves "some pool minted this".
+2. **Caller-profile check** (`middleware/auth.ts`) — the developer-auth branch is reachable only by
+   the machine-user App Client (`COGNITO_MACHINE_USER_CLIENT_ID`), the only legitimate presenter of
+   this token type. Fails closed when that client is unconfigured.
+
+The AgentCore Runtime path (`packages/agent/src/libs/utils/scoped-credentials.ts`) was not
+affected: it passes the token to `GetCredentialsForIdentity` in the same request, so Cognito
+rejects a forged signature before any `identityId` is used.
+
 ---
 
 ## Infrastructure Changes
@@ -404,7 +446,9 @@ Agent container — otherwise `GetId` rejects the developer-auth token with
 
 | File | Change |
 |---|---|
-| `packages/backend/src/libs/auth/identity-resolver.ts` | ① Token type detection via `iss` claim; ② skip `GetId` for developer-auth tokens, use `sub` as `identityId`; ③ inline `assertIdentityId` regex (avoids pulling `@moca/core` as a runtime value to stay within jest's existing non-ESM resolver) |
+| `packages/backend/src/libs/auth/identity-resolver.ts` | ① Token type detection via `iss` claim; ② skip `GetId` for developer-auth tokens, use the **verified** `sub` as `identityId`; ③ inline `assertIdentityId` regex (avoids pulling `@moca/core` as a runtime value to stay within jest's existing non-ESM resolver) |
+| `packages/backend/src/libs/auth/jwks.ts` | `verifyDeveloperAuthOpenIdToken` — `JwtRsaVerifier` against the Cognito Identity JWKS, `audience` pinned to `IDENTITY_POOL_ID` (Attack 5) |
+| `packages/backend/src/middleware/auth.ts` | Developer-auth branch restricted to the machine-user App Client (Attack 5) |
 
 ### Trigger Lambda
 
@@ -434,6 +478,7 @@ npm run test:integration
 | `packages/trigger/src/__tests__/integration.test.ts` | Suite 1 | `getOpenIdTokenForUser()` returns openIdToken; JWT `iss` is `cognito-identity.amazonaws.com`; idempotent |
 | `packages/trigger/src/__tests__/integration.test.ts` | Suite 2 | `GetCredentialsForIdentity` with developer-auth token succeeds using `Logins={"cognito-identity.amazonaws.com": token}` |
 | `packages/trigger/src/__tests__/integration.test.ts` | Suite 3 | End-to-end `handler()` invocation returns HTTP 200 with `hasOpenIdToken: true` |
+| `packages/agent/src/tests/developer-auth-identity.integration.test.ts` | Suite 1 | A real openIdToken verifies against the Cognito Identity JWKS with `aud` = Identity Pool ID — the two claims the Backend's signature check depends on (Attack 5) |
 | `packages/agent/src/tests/developer-auth-identity.integration.test.ts` | Suite 1 | developer-auth credentials allow `s3:ListObjects` on `users/{identityId A}/` prefix |
 | `packages/agent/src/tests/developer-auth-identity.integration.test.ts` | Suite 2 | Local Agent accepts POST with `openIdToken` header and streams a response |
 
