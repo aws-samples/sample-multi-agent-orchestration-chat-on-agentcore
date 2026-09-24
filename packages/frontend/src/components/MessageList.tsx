@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState, useMemo } from 'react';
+import React, { useEffect, useRef, useState, useMemo, useCallback } from 'react';
 import { useParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useChatStore } from '../stores/chatStore';
@@ -23,7 +23,13 @@ export const MessageList: React.FC<MessageListProps> = ({
 }) => {
   const { t } = useTranslation();
   const { sessionId } = useParams<{ sessionId?: string }>();
-  const { isLoadingEvents } = useSessionStore();
+  const {
+    isLoadingEvents,
+    eventsHasMore,
+    isLoadingOlderEvents,
+    olderEventsError,
+    loadOlderEvents,
+  } = useSessionStore();
   const isWideView = useUIStore((state) => state.isWideView);
   const sessionState = useChatStore((state) =>
     sessionId ? (state.sessions[sessionId] ?? null) : null
@@ -51,6 +57,31 @@ export const MessageList: React.FC<MessageListProps> = ({
       messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
     }
   }, [messages, shouldAutoScroll]);
+
+  /**
+   * Load older messages and preserve the scroll position so the viewport
+   * does not jump to the top after prepending.
+   *
+   * Strategy: record `scrollHeight` BEFORE the prepend, then after React has
+   * applied the new DOM, set `scrollTop` to `newScrollHeight - oldScrollHeight`
+   * so the visible content stays in place.
+   */
+  const handleLoadOlderMessages = useCallback(async () => {
+    if (!sessionId || isLoadingOlderEvents || !eventsHasMore) return;
+
+    const container = containerRef.current;
+    const scrollHeightBefore = container?.scrollHeight ?? 0;
+
+    await loadOlderEvents(sessionId);
+
+    // After state update and React re-render, adjust scroll so content stays stable.
+    requestAnimationFrame(() => {
+      if (container) {
+        const added = container.scrollHeight - scrollHeightBefore;
+        container.scrollTop += added;
+      }
+    });
+  }, [sessionId, isLoadingOlderEvents, eventsHasMore, loadOlderEvents]);
 
   return (
     <div
@@ -129,6 +160,32 @@ export const MessageList: React.FC<MessageListProps> = ({
                   ))}
                 </div>
               )}
+            </div>
+          )}
+
+        {/* "Load older messages" banner — shown when there is more history to load */}
+        {!isLoadingEvents &&
+          messages.length > 0 &&
+          sessionId &&
+          (eventsHasMore || isLoadingOlderEvents || olderEventsError) && (
+            <div className="flex flex-col items-center gap-2 mb-4">
+              {olderEventsError && (
+                <p className="text-sm text-feedback-error">{t('chat.loadOlderError')}</p>
+              )}
+              <button
+                onClick={handleLoadOlderMessages}
+                disabled={isLoadingOlderEvents || !eventsHasMore}
+                className="flex items-center gap-2 px-4 py-2 text-sm text-fg-secondary bg-surface-secondary hover:bg-surface-primary rounded-lg border border-border transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {isLoadingOlderEvents ? (
+                  <>
+                    <span className="w-4 h-4 border-2 border-fg-disabled border-t-transparent rounded-full animate-spin" />
+                    {t('chat.loadingOlderMessages')}
+                  </>
+                ) : (
+                  t('chat.loadOlderMessages')
+                )}
+              </button>
             </div>
           )}
 

@@ -126,6 +126,18 @@ interface ChatActions {
   setError: (sessionId: string, error: string | null) => void;
   clearError: (sessionId: string) => void;
   loadSessionHistory: (sessionId: string, conversationMessages: ConversationMessage[]) => void;
+  /**
+   * Prepend older messages (loaded via "Load older" pagination) in front of
+   * the existing message list for a session.
+   *
+   * Unlike `loadSessionHistory` (which *replaces* the list), this action
+   * inserts the older messages at index 0 while leaving any already-loaded
+   * messages — including in-flight streaming messages — untouched.
+   * The caller is responsible for deduplication when event IDs overlap across
+   * page boundaries (e.g. an event that spans two pages due to byte-budget
+   * exhaustion); this action trusts the caller's ordering.
+   */
+  prependSessionHistory: (sessionId: string, olderMessages: ConversationMessage[]) => void;
 }
 
 type ChatStore = ChatState & ChatActions;
@@ -689,6 +701,75 @@ export const useChatStore = create<ChatStore>()(
         });
 
         logger.log(`Conversation history restored (${sessionId}): ${messages.length} messages`);
+      },
+
+      prependSessionHistory: (sessionId: string, olderMessages: ConversationMessage[]) => {
+        if (olderMessages.length === 0) return;
+
+        logger.log(`Prepending ${olderMessages.length} older messages to session ${sessionId}`);
+
+        // Reuse the same conversion helpers defined in loadSessionHistory.
+        const isErrorMessage = (contents: MessageContent[]): boolean =>
+          contents.some(
+            (content) =>
+              content.type === 'text' &&
+              content.text &&
+              (content.text.includes('[SYSTEM_ERROR]') ||
+                content.text.startsWith('An error occurred:') ||
+                content.text.startsWith('エラーが発生しました:'))
+          );
+
+        const convertContents = (apiContents: ConversationMessage['contents']): MessageContent[] =>
+          apiContents.map((content) => {
+            if (content.type === 'image' && content.image) {
+              return {
+                type: 'image' as const,
+                image: {
+                  id: randomId(),
+                  fileName: content.image.fileName || 'image',
+                  mimeType: content.image.mimeType,
+                  size: 0,
+                  base64: content.image.base64,
+                } as ImageAttachment,
+              };
+            }
+            return content as MessageContent;
+          });
+
+        const prepended: Message[] = olderMessages.map((convMsg) => {
+          const contents = convertContents(convMsg.contents);
+          return {
+            id: convMsg.id,
+            type: convMsg.type,
+            contents,
+            timestamp: new Date(convMsg.timestamp),
+            isStreaming: false,
+            isError: convMsg.type === 'assistant' && isErrorMessage(contents),
+          };
+        });
+
+        const { sessions } = get();
+        const existing = getOrCreateSessionState(sessions, sessionId);
+
+        // Deduplicate: drop any prepended message whose id already exists in
+        // the current list to guard against page-boundary overlap.
+        const existingIds = new Set(existing.messages.map((m) => m.id));
+        const deduped = prepended.filter((m) => !existingIds.has(m.id));
+
+        set({
+          sessions: {
+            ...sessions,
+            [sessionId]: {
+              ...existing,
+              messages: [...deduped, ...existing.messages],
+              lastUpdated: new Date(),
+            },
+          },
+        });
+
+        logger.log(
+          `Prepended ${deduped.length} older messages (${prepended.length - deduped.length} dupes dropped)`
+        );
       },
     }),
     {

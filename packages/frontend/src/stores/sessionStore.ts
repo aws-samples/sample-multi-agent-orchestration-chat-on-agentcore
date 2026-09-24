@@ -8,7 +8,7 @@ import { devtools } from 'zustand/middleware';
 import toast from 'react-hot-toast';
 import {
   fetchSessions,
-  fetchSessionEvents,
+  fetchSessionEventsPage,
   deleteSession as deleteSessionApi,
 } from '../api/sessions';
 import type { SessionSummary, ConversationMessage, SessionType } from '../api/sessions';
@@ -45,6 +45,18 @@ interface SessionState {
   isLoadingEvents: boolean;
   eventsError: string | null;
 
+  /**
+   * Opaque cursor for the next page of events (oldest-to-newest direction).
+   * Absent when there are no older events to load.
+   */
+  eventsNextCursor: string | null;
+  /** Whether there are older events available via `eventsNextCursor`. */
+  eventsHasMore: boolean;
+  /** True while `loadOlderEvents` is running. */
+  isLoadingOlderEvents: boolean;
+  /** Non-null when `loadOlderEvents` fails; cleared on the next attempt. */
+  olderEventsError: string | null;
+
   isCreatingSession: boolean;
 }
 
@@ -56,6 +68,14 @@ interface SessionActions {
   loadMoreSessions: () => Promise<void>;
   loadAllSessions: () => Promise<void>;
   selectSession: (sessionId: string) => Promise<void>;
+  /**
+   * Load the next (older) page of events for the currently active session.
+   *
+   * Events are prepended to `sessionEvents` in oldest-first order so the UI
+   * can render them above the already-loaded messages. The `eventsNextCursor`
+   * advances with each call. Call is a no-op when `eventsHasMore` is false.
+   */
+  loadOlderEvents: (sessionId: string) => Promise<void>;
   deleteSession: (sessionId: string) => Promise<void>;
   deleteMultipleSessions: (sessionIds: string[]) => Promise<void>;
   setActiveSessionId: (sessionId: string) => void;
@@ -100,6 +120,10 @@ export const useSessionStore = create<SessionStore>()(
       sessionEvents: [],
       isLoadingEvents: false,
       eventsError: null,
+      eventsNextCursor: null,
+      eventsHasMore: false,
+      isLoadingOlderEvents: false,
+      olderEventsError: null,
       isCreatingSession: false,
 
       // Actions
@@ -207,6 +231,11 @@ export const useSessionStore = create<SessionStore>()(
             isLoadingEvents: true,
             eventsError: null,
             activeSessionId: sessionId,
+            // Reset pagination state for the new session.
+            eventsNextCursor: null,
+            eventsHasMore: false,
+            isLoadingOlderEvents: false,
+            olderEventsError: null,
           });
 
           logger.log(`Selecting session: ${sessionId}`);
@@ -236,15 +265,26 @@ export const useSessionStore = create<SessionStore>()(
             }
           }
 
-          const events = await fetchSessionEvents(sessionId);
+          const result = await fetchSessionEventsPage(sessionId);
+
+          // Guard against a race condition: if the user switched away before
+          // this response arrived, discard the result.
+          if (get().activeSessionId !== sessionId) {
+            logger.log(`Session switched away before events loaded (${sessionId}), discarding`);
+            return;
+          }
 
           set({
-            sessionEvents: events,
+            sessionEvents: result.events,
             isLoadingEvents: false,
             eventsError: null,
+            eventsNextCursor: result.nextCursor ?? null,
+            eventsHasMore: result.hasMore,
           });
 
-          logger.log(`Session conversation history loaded: ${events.length} items`);
+          logger.log(
+            `Session events loaded: ${result.events.length} items, hasMore=${result.hasMore}`
+          );
         } catch (error) {
           // Handle a missing/unowned session - redirect to /chat. The backend
           // returns 404 (NOT_FOUND) for a session that does not exist or is
@@ -258,6 +298,8 @@ export const useSessionStore = create<SessionStore>()(
               sessionEvents: [],
               isLoadingEvents: false,
               eventsError: null,
+              eventsNextCursor: null,
+              eventsHasMore: false,
             });
             window.location.href = '/chat';
             return;
@@ -273,7 +315,64 @@ export const useSessionStore = create<SessionStore>()(
             sessionEvents: [],
             isLoadingEvents: false,
             eventsError: errorMessage,
+            eventsNextCursor: null,
+            eventsHasMore: false,
           });
+        }
+      },
+
+      loadOlderEvents: async (sessionId: string) => {
+        const { eventsNextCursor, eventsHasMore, isLoadingOlderEvents, activeSessionId } = get();
+
+        // Guard: only load if there is more data, not already loading, and
+        // the session hasn't changed since the request was initiated.
+        if (!eventsHasMore || isLoadingOlderEvents || !eventsNextCursor) {
+          logger.log('Skipping loadOlderEvents:', {
+            eventsHasMore,
+            isLoadingOlderEvents,
+            hasCursor: !!eventsNextCursor,
+          });
+          return;
+        }
+        if (activeSessionId !== sessionId) {
+          logger.log(
+            `loadOlderEvents called for ${sessionId} but active is ${activeSessionId}, skipping`
+          );
+          return;
+        }
+
+        set({ isLoadingOlderEvents: true, olderEventsError: null });
+
+        try {
+          logger.log(`Loading older events for session: ${sessionId}`);
+          const result = await fetchSessionEventsPage(sessionId, { cursor: eventsNextCursor });
+
+          // Race guard: if the user switched sessions while the request was
+          // in-flight, discard the result to prevent prepending stale events.
+          if (get().activeSessionId !== sessionId) {
+            logger.log(`Session switched while loading older events for ${sessionId}, discarding`);
+            set({ isLoadingOlderEvents: false });
+            return;
+          }
+
+          const { sessionEvents } = get();
+          set({
+            // Prepend older events (they come back oldest-first from the API,
+            // same as the first page) before the currently loaded events.
+            sessionEvents: [...result.events, ...sessionEvents],
+            eventsNextCursor: result.nextCursor ?? null,
+            eventsHasMore: result.hasMore,
+            isLoadingOlderEvents: false,
+            olderEventsError: null,
+          });
+
+          logger.log(
+            `Older events loaded: ${result.events.length} items, hasMore=${result.hasMore}`
+          );
+        } catch (error) {
+          const errorMessage = extractErrorMessage(error, 'Failed to load older events');
+          logger.error('Load older events error:', error);
+          set({ isLoadingOlderEvents: false, olderEventsError: errorMessage });
         }
       },
 
@@ -293,6 +392,10 @@ export const useSessionStore = create<SessionStore>()(
             activeSessionId: null,
             sessionEvents: [],
             eventsError: null,
+            eventsNextCursor: null,
+            eventsHasMore: false,
+            isLoadingOlderEvents: false,
+            olderEventsError: null,
           });
         }
 
@@ -340,6 +443,10 @@ export const useSessionStore = create<SessionStore>()(
             activeSessionId: null,
             sessionEvents: [],
             eventsError: null,
+            eventsNextCursor: null,
+            eventsHasMore: false,
+            isLoadingOlderEvents: false,
+            olderEventsError: null,
           });
         }
 
@@ -387,6 +494,10 @@ export const useSessionStore = create<SessionStore>()(
           sessionEvents: [],
           eventsError: null,
           isLoadingEvents: false,
+          eventsNextCursor: null,
+          eventsHasMore: false,
+          isLoadingOlderEvents: false,
+          olderEventsError: null,
         });
         logger.log(`Set new session as active: ${sessionId}`);
       },
@@ -397,6 +508,10 @@ export const useSessionStore = create<SessionStore>()(
           sessionEvents: [],
           eventsError: null,
           isLoadingEvents: false,
+          eventsNextCursor: null,
+          eventsHasMore: false,
+          isLoadingOlderEvents: false,
+          olderEventsError: null,
         });
         logger.log('Cleared active session');
       },
@@ -430,6 +545,10 @@ export const useSessionStore = create<SessionStore>()(
           sessionEvents: [],
           eventsError: null,
           isLoadingEvents: false,
+          eventsNextCursor: null,
+          eventsHasMore: false,
+          isLoadingOlderEvents: false,
+          olderEventsError: null,
           isCreatingSession: true,
         });
         logger.log(`Created new session: ${newSessionId}`);

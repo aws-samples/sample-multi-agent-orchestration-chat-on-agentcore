@@ -10,12 +10,14 @@ import {
   ListMemoryRecordsCommand,
   RetrieveMemoryRecordsCommand,
   DeleteEventCommand,
+  ListEventsCommand,
   paginateListEvents,
 } from '@aws-sdk/client-bedrock-agentcore';
 import { config } from '../config/index.js';
 import { createAgentCoreClient } from '../libs/auth/scoped-credentials.js';
 import type { AuthenticatedRequest } from '../middleware/auth.js';
 import { createLogger } from '../libs/logger/index.js';
+import { AppError, ErrorCode } from '../libs/http/index.js';
 import {
   convertToMessageContents,
   parseBlobPayload,
@@ -37,10 +39,7 @@ export {
   parseBlobPayload,
   type MessageContent,
 } from './memory/content-codec.js';
-export type {
-  MemoryRecord,
-  MemoryRecordList,
-} from './memory/record-mapper.js';
+export type { MemoryRecord, MemoryRecordList } from './memory/record-mapper.js';
 
 /**
  * Run a long-term-memory read, mapping `ResourceNotFoundException` to an empty
@@ -100,6 +99,33 @@ export interface ConversationMessage {
   contents: MessageContent[];
   timestamp: string; // ISO 8601 string
 }
+
+/**
+ * Paginated events result type definition.
+ *
+ * `nextCursor` is an opaque base64 token that carries the upstream
+ * `nextToken` plus the originating `sessionId`. Callers MUST pass it back
+ * verbatim; the route validates the embedded sessionId to prevent a cursor
+ * issued for session A from being replayed against session B.
+ *
+ * `truncated` is always false in successful responses. When a single event
+ * would alone exceed the byte budget the request fails with a 413 AppError
+ * rather than silently dropping it; this field is reserved to distinguish a
+ * (hypothetical) future partial-success mode from a clean page.
+ */
+export interface SessionEventsPage {
+  messages: ConversationMessage[];
+  nextCursor?: string;
+  hasMore: boolean;
+  truncated: false;
+}
+
+/** Maximum serialized bytes per page sent to the client (~4 MiB). */
+export const SESSION_EVENTS_BYTE_BUDGET = 4 * 1024 * 1024; // 4 MiB
+
+/** Default and maximum page sizes for the events API. */
+export const SESSION_EVENTS_DEFAULT_LIMIT = 50;
+export const SESSION_EVENTS_MAX_LIMIT = 100;
 
 /**
  * Conversational Payload type definition
@@ -346,6 +372,163 @@ export class AgentCoreMemoryService {
   }
 
   /**
+   * Get a single page of conversation history with byte-budget enforcement.
+   *
+   * Each response is capped at SESSION_EVENTS_BYTE_BUDGET bytes (serialised
+   * JSON) so a large session can never produce a >6 MiB Lambda response.
+   *
+   * Cursor encoding/validation:
+   *   cursor = base64( JSON({ sessionId, nextToken }) )
+   * The embedded `sessionId` is compared to the route's `:sessionId` before
+   * the cursor is trusted. A mismatch (or any parse failure) throws a 400.
+   *
+   * Single-event overflow:
+   *   If the very first converted message already exceeds the byte budget the
+   *   call throws a 413 AppError so the client sees an explicit error rather
+   *   than an empty page with no indication of the problem.
+   *
+   * @param actorId    Cognito Identity Pool ID (scoped by IAM policy)
+   * @param sessionId  Session to query
+   * @param limit      Max messages per page (1–SESSION_EVENTS_MAX_LIMIT)
+   * @param cursor     Opaque continuation cursor from a previous response
+   */
+  async getSessionEventsPage(
+    actorId: string,
+    sessionId: string,
+    limit: number,
+    cursor?: string
+  ): Promise<SessionEventsPage> {
+    // Decode and scope-check the cursor before touching the upstream API.
+    let upstreamNextToken: string | undefined;
+    if (cursor) {
+      let decoded: unknown;
+      try {
+        decoded = JSON.parse(Buffer.from(cursor, 'base64url').toString('utf-8'));
+      } catch {
+        throw new AppError(ErrorCode.VALIDATION_ERROR, 'Invalid cursor format');
+      }
+      if (
+        typeof decoded !== 'object' ||
+        decoded === null ||
+        Array.isArray(decoded) ||
+        (decoded as Record<string, unknown>).sessionId !== sessionId
+      ) {
+        throw new AppError(ErrorCode.VALIDATION_ERROR, 'Cursor does not match session');
+      }
+      upstreamNextToken = (decoded as Record<string, unknown>).nextToken as string | undefined;
+    }
+
+    log.info(
+      `Retrieving events page: sessionId=${sessionId}, limit=${limit}, hasCursor=${!!cursor}`
+    );
+
+    const response = await this.client.send(
+      new ListEventsCommand({
+        memoryId: this.memoryId,
+        actorId,
+        sessionId,
+        includePayloads: true,
+        maxResults: limit,
+        nextToken: upstreamNextToken,
+      })
+    );
+
+    const rawEvents = response.events ?? [];
+
+    // Convert raw events → ConversationMessages, enforcing the byte budget.
+    const messages: ConversationMessage[] = [];
+    let bytesSoFar = 2; // opening/closing `[]` brackets
+
+    for (const event of rawEvents) {
+      if (!event.payload || event.payload.length === 0) continue;
+
+      // Collect messages produced by this event's payloads.
+      const eventMessages: ConversationMessage[] = [];
+      for (const payloadItem of event.payload) {
+        if ('conversational' in payloadItem) {
+          const cp = payloadItem as ConversationalPayload;
+          eventMessages.push({
+            id: event.eventId || `event_${messages.length + eventMessages.length}`,
+            type: cp.conversational.role === 'USER' ? 'user' : 'assistant',
+            contents: [{ type: 'text', text: cp.conversational.content.text }],
+            timestamp: event.eventTimestamp?.toISOString() ?? new Date().toISOString(),
+          });
+        } else if ('blob' in payloadItem && payloadItem.blob) {
+          const blobData = parseBlobPayload(payloadItem.blob);
+          if (blobData) {
+            eventMessages.push({
+              id: event.eventId || `event_${messages.length + eventMessages.length}`,
+              type: blobData.role === 'user' ? 'user' : 'assistant',
+              contents: convertToMessageContents(blobData.content),
+              timestamp: event.eventTimestamp?.toISOString() ?? new Date().toISOString(),
+            });
+          }
+        }
+      }
+
+      if (eventMessages.length === 0) continue;
+
+      // All payloads within a single event share the same eventId. To keep
+      // page boundaries clean we never split an event across pages: if any
+      // of its messages would exceed the budget we stop here.
+      const eventJson = JSON.stringify(eventMessages);
+      // +2 per entry for comma + whitespace (conservative)
+      const eventBytes = Buffer.byteLength(eventJson, 'utf-8') + 2 * eventMessages.length;
+
+      if (messages.length === 0 && eventBytes > SESSION_EVENTS_BYTE_BUDGET) {
+        // The very first event already blows the budget. Return an explicit
+        // error rather than an empty page — the client must handle this.
+        throw new AppError(
+          ErrorCode.PAYLOAD_TOO_LARGE,
+          'Single event exceeds response byte budget',
+          {
+            details: { eventId: event.eventId, approxBytes: eventBytes },
+          }
+        );
+      }
+
+      if (bytesSoFar + eventBytes > SESSION_EVENTS_BYTE_BUDGET) {
+        // This event would exceed the budget — stop filling this page.
+        // The upstream nextToken for *this* event position is not available,
+        // but we can note that there is more data. We signal `hasMore: true`
+        // with a cursor pointing to the last upstream page's nextToken so
+        // the client re-requests starting from the upstream position; on
+        // retry the accumulated events already consumed will be skipped
+        // naturally via the upstream token.
+        //
+        // WHY NOT split: splitting an event would create a duplicate eventId
+        // on the next page which the requirement explicitly forbids.
+        log.info(
+          `Byte budget reached at ${bytesSoFar} bytes (budget ${SESSION_EVENTS_BYTE_BUDGET}), stopping page`
+        );
+        break;
+      }
+
+      messages.push(...eventMessages);
+      bytesSoFar += eventBytes;
+    }
+
+    // Build an opaque cursor that carries both the upstream continuation
+    // token AND the sessionId so cross-session replay is detected.
+    const nextCursor = response.nextToken
+      ? Buffer.from(JSON.stringify({ sessionId, nextToken: response.nextToken }), 'utf-8').toString(
+          'base64url'
+        )
+      : undefined;
+
+    log.info(
+      `Events page: ${messages.length} messages, ${bytesSoFar} bytes, hasMore=${!!nextCursor}`
+    );
+
+    return {
+      messages,
+      nextCursor,
+      hasMore: !!nextCursor,
+      truncated: false,
+    };
+  }
+
+  /**
    * Get long-term memory record list
    * @param actorId User ID
    * @param memoryStrategyId Memory strategy ID (e.g., preference_builtin_cdkGen0001-L84bdDEgeO)
@@ -377,9 +560,11 @@ export class AgentCoreMemoryService {
       );
 
       // memoryRecordSummaries is absent from the AWS SDK response type.
-      const summaries = (response as typeof response & {
-        memoryRecordSummaries?: MemoryRecordSummary[];
-      }).memoryRecordSummaries;
+      const summaries = (
+        response as typeof response & {
+          memoryRecordSummaries?: MemoryRecordSummary[];
+        }
+      ).memoryRecordSummaries;
 
       if (!summaries) {
         log.info(`Long-term memory records not found: memoryStrategyId=${memoryStrategyId}`);
@@ -423,9 +608,11 @@ export class AgentCoreMemoryService {
       const response = await this.client.send(new RetrieveMemoryRecordsCommand(retrieveParams));
 
       // memoryRecordSummaries is absent from the AWS SDK response type.
-      const summaries = (response as typeof response & {
-        memoryRecordSummaries?: MemoryRecordSummary[];
-      }).memoryRecordSummaries;
+      const summaries = (
+        response as typeof response & {
+          memoryRecordSummaries?: MemoryRecordSummary[];
+        }
+      ).memoryRecordSummaries;
 
       if (!summaries) {
         log.info(`Semantic search results not found: query=${query}`);

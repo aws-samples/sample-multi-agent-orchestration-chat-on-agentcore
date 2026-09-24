@@ -14,6 +14,10 @@ import { type AuthenticatedRequest } from '../middleware/auth.js';
 import { asyncHandler } from '../middleware/async-handler.js';
 import { validate } from '../middleware/validate.js';
 import { createAgentCoreMemoryServiceForRequest } from '../services/agentcore-memory.js';
+import {
+  SESSION_EVENTS_DEFAULT_LIMIT,
+  SESSION_EVENTS_MAX_LIMIT,
+} from '../services/agentcore-memory.js';
 import { getSessionsRepository } from '../repositories/sessions/sessions-repository.factory.js';
 import { config } from '../config/index.js';
 import {
@@ -78,8 +82,31 @@ router.get(
 );
 
 /**
- * Session conversation history retrieval endpoint
- * GET /sessions/:sessionId/events
+ * Session conversation history retrieval endpoint — paginated.
+ *
+ * GET /sessions/:sessionId/events?limit=50&cursor=<opaque>
+ *
+ * The previous implementation returned all events as a single JSON response.
+ * With long sessions (e.g. 622 messages ≈ 13 MB) that exceeded the ~6 MiB
+ * Lambda response limit and surfaced as an internal 413 → external 500.
+ *
+ * Pagination contract:
+ *   - `limit`  — items per page, 1–SESSION_EVENTS_MAX_LIMIT (default
+ *                SESSION_EVENTS_DEFAULT_LIMIT). Clamped; non-numeric/negative
+ *                falls back to default.
+ *   - `cursor` — opaque base64url token from a previous response. The token
+ *                carries both the upstream continuation token AND the
+ *                sessionId so cross-session cursor replay is rejected with 400.
+ *   - Response payload:
+ *       { events, nextCursor?, hasMore, metadata }
+ *     `events` are ordered oldest-first within the page, consistent with the
+ *     upstream ListEvents sort order. `nextCursor` is absent (or undefined)
+ *     when there are no further pages.
+ *
+ * Large single event:
+ *   If a single event alone exceeds the byte budget the endpoint returns 413
+ *   with code PAYLOAD_TOO_LARGE so the client can surface an actionable error
+ *   rather than receiving an empty page with no indication of the cause.
  */
 router.get(
   '/:sessionId/events',
@@ -100,10 +127,23 @@ router.get(
       }
     }
 
-    const memoryService = await createAgentCoreMemoryServiceForRequest(req);
-    const events = await memoryService.getSessionEvents(actorId, sessionId);
+    const limit = parseLimit(req, SESSION_EVENTS_DEFAULT_LIMIT, SESSION_EVENTS_MAX_LIMIT);
+    const cursor = queryString(req.query.cursor);
 
-    res.status(200).json(ok(req, { events }, { actorId, sessionId, count: events.length }));
+    const memoryService = await createAgentCoreMemoryServiceForRequest(req);
+    const page = await memoryService.getSessionEventsPage(actorId, sessionId, limit, cursor);
+
+    res.status(200).json(
+      ok(
+        req,
+        {
+          events: page.messages,
+          nextCursor: page.nextCursor,
+          hasMore: page.hasMore,
+        },
+        { actorId, sessionId, count: page.messages.length }
+      )
+    );
   })
 );
 

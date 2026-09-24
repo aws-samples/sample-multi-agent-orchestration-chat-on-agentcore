@@ -86,13 +86,22 @@ interface SessionsResponse {
   };
 }
 
-interface SessionEventsResponse {
+/**
+ * Paginated session events response from the backend.
+ *
+ * `nextCursor` is an opaque token; callers must not interpret its contents.
+ * Pass it back verbatim as `cursor` in the next request. Absent when there
+ * are no further pages.
+ */
+interface SessionEventsPageResponse {
   events: ConversationMessage[];
+  nextCursor?: string;
+  hasMore: boolean;
   metadata: {
     requestId: string;
     timestamp: string;
     actorId: string;
-    sessionId: SessionId;
+    sessionId: string;
     count: number;
   };
 }
@@ -111,6 +120,25 @@ export interface FetchSessionsOptions {
 export interface FetchSessionsResult {
   sessions: SessionSummary[];
   nextToken?: string;
+  hasMore: boolean;
+}
+
+/**
+ * Options for fetching session events (paginated).
+ */
+export interface FetchSessionEventsOptions {
+  limit?: number;
+  /** Opaque cursor from a previous `fetchSessionEventsPage` response. */
+  cursor?: string;
+}
+
+/**
+ * Result of a single paginated fetch of session events.
+ */
+export interface FetchSessionEventsResult {
+  events: ConversationMessage[];
+  /** Opaque cursor to pass for the next page. Absent when there are no more pages. */
+  nextCursor?: string;
   hasMore: boolean;
 }
 
@@ -143,13 +171,36 @@ export async function fetchSessions(options?: FetchSessionsOptions): Promise<Fet
 }
 
 /**
- * Fetch session conversation history
- * @param sessionId Session ID
- * @returns Conversation history
+ * Fetch a single page of session conversation history.
+ *
+ * Replaces the old `fetchSessionEvents` (which fetched all events at once and
+ * could exceed the ~6 MiB Lambda response limit for long sessions).
+ *
+ * @param sessionId - Session to query
+ * @param options   - Optional pagination parameters
+ * @returns One page of events plus a cursor for the next page (if any)
  */
-export async function fetchSessionEvents(sessionId: string): Promise<ConversationMessage[]> {
-  const data = await backendClient.get<SessionEventsResponse>(`/sessions/${sessionId}/events`);
-  return data.events;
+export async function fetchSessionEventsPage(
+  sessionId: string,
+  options?: FetchSessionEventsOptions
+): Promise<FetchSessionEventsResult> {
+  const params = new URLSearchParams();
+  if (options?.limit !== undefined) {
+    params.set('limit', String(options.limit));
+  }
+  if (options?.cursor) {
+    params.set('cursor', options.cursor);
+  }
+  const qs = params.toString();
+  const url = qs ? `/sessions/${sessionId}/events?${qs}` : `/sessions/${sessionId}/events`;
+
+  const data = await backendClient.get<SessionEventsPageResponse>(url);
+
+  return {
+    events: data.events,
+    nextCursor: data.nextCursor,
+    hasMore: data.hasMore,
+  };
 }
 
 /**

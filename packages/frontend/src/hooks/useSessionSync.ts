@@ -61,7 +61,9 @@ export function useSessionSync(): UseSessionSyncReturn {
     finalizeNewSession,
   } = useSessionStore();
 
-  const { switchSession, loadSessionHistory } = useChatStore();
+  // Track older-events pagination to sync prepend into chatStore
+  const olderEventsSynced = useSessionStore((s) => s.sessionEvents);
+  const { switchSession, loadSessionHistory, prependSessionHistory } = useChatStore();
 
   // URL → Store synchronization
   useEffect(() => {
@@ -163,13 +165,34 @@ export function useSessionSync(): UseSessionSyncReturn {
     finalizeNewSession,
   ]);
 
-  // Restore session history to chatStore
+  // Restore session history to chatStore (initial load)
   useEffect(() => {
     if (urlSessionId && activeSessionId === urlSessionId && sessionEvents.length > 0) {
       logger.log(`Restoring session history to ChatStore: ${urlSessionId}`);
       loadSessionHistory(urlSessionId, sessionEvents);
     }
   }, [urlSessionId, activeSessionId, sessionEvents, loadSessionHistory]);
+
+  // When older events are prepended in sessionStore (via loadOlderEvents),
+  // mirror the prepend into chatStore so the message list reflects them.
+  //
+  // We only observe olderEventsSynced as the trigger; the actual new messages
+  // are those at the front of sessionStore.sessionEvents that do NOT yet exist
+  // in chatStore — `prependSessionHistory` deduplicates by message id.
+  useEffect(() => {
+    if (urlSessionId && activeSessionId === urlSessionId && olderEventsSynced.length > 0) {
+      const chatState = useChatStore.getState().sessions[urlSessionId];
+      if (!chatState) return;
+
+      // Find messages in sessionStore that are not yet in chatStore (prepended ones)
+      const chatIds = new Set(chatState.messages.map((m) => m.id));
+      const newOlder = olderEventsSynced.filter((e) => !chatIds.has(e.id));
+      if (newOlder.length > 0) {
+        logger.log(`Syncing ${newOlder.length} older events to ChatStore`);
+        prependSessionHistory(urlSessionId, newOlder);
+      }
+    }
+  }, [urlSessionId, activeSessionId, olderEventsSynced, prependSessionHistory]);
 
   // Create new session + navigate
   const createAndNavigateToNewSession = useCallback(() => {
