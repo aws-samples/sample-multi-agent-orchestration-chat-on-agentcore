@@ -51,6 +51,27 @@ export function useSessionSync(): UseSessionSyncReturn {
    */
   const prevUrlSessionIdRef = useRef<string | undefined>(undefined);
 
+  /**
+   * WHY: Track which sessionId has been initially hydrated into chatStore.
+   *
+   * The "restore session history" effect must call loadSessionHistory exactly
+   * once per session (the first time sessionEvents arrives from the API).
+   * Without this guard, the effect would re-fire whenever sessionEvents grows
+   * (e.g. after loadOlderEvents prepends more history), which would:
+   *   1. Replace all chatStore messages with the full sessionEvents array —
+   *      destroying any in-flight streaming messages.
+   *   2. Cause a visual flash as the entire message list is reconstructed.
+   *
+   * The ref holds the sessionId for which we've already called
+   * loadSessionHistory. The incremental-merge effect handles all subsequent
+   * changes.
+   *
+   * The ref is implicitly reset when urlSessionId changes to a different value
+   * because `hydratedForRef.current !== urlSessionId` will be true for the new
+   * session until its first events arrive.
+   */
+  const hydratedForRef = useRef<string | null>(null);
+
   const {
     activeSessionId,
     sessionEvents,
@@ -61,8 +82,6 @@ export function useSessionSync(): UseSessionSyncReturn {
     finalizeNewSession,
   } = useSessionStore();
 
-  // Track older-events pagination to sync prepend into chatStore
-  const olderEventsSynced = useSessionStore((s) => s.sessionEvents);
   const { switchSession, loadSessionHistory, prependSessionHistory } = useChatStore();
 
   // URL → Store synchronization
@@ -128,6 +147,7 @@ export function useSessionSync(): UseSessionSyncReturn {
        */
       if (urlActuallyChanged && previousUrlSessionId) {
         logger.log('Clearing active session for new chat preparation');
+        hydratedForRef.current = null;
         clearActiveSession();
       }
       return;
@@ -137,6 +157,9 @@ export function useSessionSync(): UseSessionSyncReturn {
     if (urlSessionId === activeSessionId) {
       return;
     }
+
+    // Reset hydration flag when switching to a different session.
+    hydratedForRef.current = null;
 
     /**
      * WHY: Parallel fetch of session events
@@ -165,34 +188,56 @@ export function useSessionSync(): UseSessionSyncReturn {
     finalizeNewSession,
   ]);
 
-  // Restore session history to chatStore (initial load)
+  /**
+   * Initial hydrate: load sessionEvents into chatStore the FIRST time they
+   * arrive for the current session.
+   *
+   * This effect calls `loadSessionHistory` exactly once per session (guarded
+   * by `hydratedForRef`). All subsequent additions to `sessionEvents` (via
+   * `loadOlderEvents` / cursor pagination) are handled by the incremental
+   * merge effect below, which calls `prependSessionHistory` instead.
+   *
+   * WHY NOT re-trigger loadSessionHistory on every sessionEvents change:
+   * `loadSessionHistory` REPLACES all chatStore messages for the session.
+   * Re-running it after `loadOlderEvents` would destroy any in-flight
+   * streaming message that arrived between the two calls.
+   */
   useEffect(() => {
-    if (urlSessionId && activeSessionId === urlSessionId && sessionEvents.length > 0) {
-      logger.log(`Restoring session history to ChatStore: ${urlSessionId}`);
-      loadSessionHistory(urlSessionId, sessionEvents);
-    }
+    if (!urlSessionId || activeSessionId !== urlSessionId || sessionEvents.length === 0) return;
+    if (hydratedForRef.current === urlSessionId) return; // already done for this session
+    hydratedForRef.current = urlSessionId;
+    logger.log(`Initial hydrate to ChatStore: ${urlSessionId} (${sessionEvents.length} events)`);
+    loadSessionHistory(urlSessionId, sessionEvents);
   }, [urlSessionId, activeSessionId, sessionEvents, loadSessionHistory]);
 
-  // When older events are prepended in sessionStore (via loadOlderEvents),
-  // mirror the prepend into chatStore so the message list reflects them.
-  //
-  // We only observe olderEventsSynced as the trigger; the actual new messages
-  // are those at the front of sessionStore.sessionEvents that do NOT yet exist
-  // in chatStore — `prependSessionHistory` deduplicates by message id.
+  /**
+   * Incremental merge: when `loadOlderEvents` adds more events to
+   * `sessionEvents`, propagate only the truly-new ones to chatStore via
+   * `prependSessionHistory` (which does a timestamp-sorted merge + dedup).
+   *
+   * This effect is a no-op until the initial hydrate has been performed
+   * (guarded by `hydratedForRef.current === urlSessionId`), preventing a
+   * double-load on the initial page arrival.
+   *
+   * Race guard: `hydratedForRef.current !== urlSessionId` also fires when
+   * the user has navigated to a different session, so stale incremental
+   * updates for a previous session are discarded.
+   */
   useEffect(() => {
-    if (urlSessionId && activeSessionId === urlSessionId && olderEventsSynced.length > 0) {
-      const chatState = useChatStore.getState().sessions[urlSessionId];
-      if (!chatState) return;
+    if (!urlSessionId || activeSessionId !== urlSessionId) return;
+    if (hydratedForRef.current !== urlSessionId) return; // hydrate not yet done
 
-      // Find messages in sessionStore that are not yet in chatStore (prepended ones)
-      const chatIds = new Set(chatState.messages.map((m) => m.id));
-      const newOlder = olderEventsSynced.filter((e) => !chatIds.has(e.id));
-      if (newOlder.length > 0) {
-        logger.log(`Syncing ${newOlder.length} older events to ChatStore`);
-        prependSessionHistory(urlSessionId, newOlder);
-      }
+    const chatState = useChatStore.getState().sessions[urlSessionId];
+    if (!chatState) return;
+
+    // Identify messages in sessionStore that are not yet in chatStore.
+    const chatIds = new Set(chatState.messages.map((m) => m.id));
+    const newMessages = sessionEvents.filter((e) => !chatIds.has(e.id));
+    if (newMessages.length > 0) {
+      logger.log(`Incremental merge: ${newMessages.length} new events to ChatStore`);
+      prependSessionHistory(urlSessionId, newMessages);
     }
-  }, [urlSessionId, activeSessionId, olderEventsSynced, prependSessionHistory]);
+  }, [urlSessionId, activeSessionId, sessionEvents, prependSessionHistory]);
 
   // Create new session + navigate
   const createAndNavigateToNewSession = useCallback(() => {

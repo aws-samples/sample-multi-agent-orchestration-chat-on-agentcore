@@ -103,10 +103,21 @@ export interface ConversationMessage {
 /**
  * Paginated events result type definition.
  *
- * `nextCursor` is an opaque base64 token that carries the upstream
- * `nextToken` plus the originating `sessionId`. Callers MUST pass it back
- * verbatim; the route validates the embedded sessionId to prevent a cursor
- * issued for session A from being replayed against session B.
+ * `nextCursor` is an opaque base64url token that encodes the upstream
+ * continuation token, the originating `sessionId`, and optionally an
+ * intra-page offset. The sessionId is validated on decode so a cursor issued
+ * for session A cannot be replayed against session B (→ 400).
+ *
+ * Cursor schema (version 1):
+ *   { v: 1, sessionId: string, pageToken?: string, offset?: number }
+ *   - pageToken: the upstream nextToken that was supplied to the ListEvents
+ *     call that produced this page (NOT the nextToken returned by it). When
+ *     absent/undefined the cursor means "first page".
+ *   - offset: number of events at the start of the upstream page that have
+ *     already been delivered. Absent/undefined means 0. Used when the byte
+ *     budget cuts mid-page — the consumer re-fetches the same page and skips
+ *     the first `offset` events. This prevents events between the cut-off
+ *     point and the upstream page boundary from being silently dropped.
  *
  * `truncated` is always false in successful responses. When a single event
  * would alone exceed the byte budget the request fails with a 413 AppError
@@ -126,6 +137,22 @@ export const SESSION_EVENTS_BYTE_BUDGET = 4 * 1024 * 1024; // 4 MiB
 /** Default and maximum page sizes for the events API. */
 export const SESSION_EVENTS_DEFAULT_LIMIT = 50;
 export const SESSION_EVENTS_MAX_LIMIT = 100;
+
+/**
+ * Validated, version-1 page cursor.
+ * The cursor is opaque on the wire (base64url-encoded JSON) but decoded and
+ * validated server-side before any upstream API call.
+ */
+interface PageCursorV1 {
+  v: 1;
+  sessionId: string;
+  /** Upstream token used to fetch the page where this cursor was created.
+   *  Undefined/absent → first upstream page (no nextToken to supply). */
+  pageToken?: string;
+  /** Events at the start of the pageToken page that have already been
+   *  delivered. Zero / absent → start from the beginning of the page. */
+  offset?: number;
+}
 
 /**
  * Conversational Payload type definition
@@ -377,15 +404,39 @@ export class AgentCoreMemoryService {
    * Each response is capped at SESSION_EVENTS_BYTE_BUDGET bytes (serialised
    * JSON) so a large session can never produce a >6 MiB Lambda response.
    *
-   * Cursor encoding/validation:
-   *   cursor = base64( JSON({ sessionId, nextToken }) )
-   * The embedded `sessionId` is compared to the route's `:sessionId` before
-   * the cursor is trusted. A mismatch (or any parse failure) throws a 400.
+   * ## Cursor encoding / validation
    *
-   * Single-event overflow:
-   *   If the very first converted message already exceeds the byte budget the
-   *   call throws a 413 AppError so the client sees an explicit error rather
-   *   than an empty page with no indication of the problem.
+   *   cursor = base64url( JSON({ v:1, sessionId, pageToken?, offset? }) )
+   *
+   * - `v` must be exactly 1.
+   * - `sessionId` is compared to the route's `:sessionId`; a mismatch → 400.
+   * - `pageToken` (string | undefined) is the upstream token that was
+   *   supplied to the ListEvents call that produced this page (the INPUT
+   *   token, not the OUTPUT token). Absent/undefined means "first page."
+   * - `offset` (non-negative integer | undefined) is the number of events at
+   *   the start of the re-fetched page to skip because they were already
+   *   returned in a prior response. Absent/undefined → 0.
+   *
+   * ## Why offset?
+   *
+   * The upstream API has no sub-page cursor. When the byte budget is hit
+   * mid-page, returning `response.nextToken` as the cursor would advance to
+   * the next upstream page, permanently skipping all events from the cut-off
+   * point to the end of the current page. Instead, the cursor encodes the
+   * INPUT pageToken and the count of events already delivered so the next
+   * call re-fetches the same upstream page and resumes from the right place.
+   *
+   * ## Upstream error mapping
+   *
+   * Known upstream 4xx (ValidationException, ResourceNotFoundException) are
+   * mapped to the matching AppError code so the Lambda returns a 400/404
+   * rather than a 500.
+   *
+   * ## Single-event overflow
+   *
+   * If the very first converted message already exceeds the byte budget the
+   * call throws a 413 AppError so the client sees an explicit error rather
+   * than an empty page with no indication of the problem.
    *
    * @param actorId    Cognito Identity Pool ID (scoped by IAM policy)
    * @param sessionId  Session to query
@@ -398,8 +449,12 @@ export class AgentCoreMemoryService {
     limit: number,
     cursor?: string
   ): Promise<SessionEventsPage> {
-    // Decode and scope-check the cursor before touching the upstream API.
-    let upstreamNextToken: string | undefined;
+    // -------------------------------------------------------------------------
+    // 1. Decode and scope-check the cursor.
+    // -------------------------------------------------------------------------
+    let upstreamPageToken: string | undefined; // token we send TO the API
+    let skipCount = 0; // events to skip at the start of this page
+
     if (cursor) {
       let decoded: unknown;
       try {
@@ -407,48 +462,122 @@ export class AgentCoreMemoryService {
       } catch {
         throw new AppError(ErrorCode.VALIDATION_ERROR, 'Invalid cursor format');
       }
-      if (
-        typeof decoded !== 'object' ||
-        decoded === null ||
-        Array.isArray(decoded) ||
-        (decoded as Record<string, unknown>).sessionId !== sessionId
-      ) {
+
+      // Must be a plain object (not null, not array).
+      if (typeof decoded !== 'object' || decoded === null || Array.isArray(decoded)) {
+        throw new AppError(ErrorCode.VALIDATION_ERROR, 'Invalid cursor format');
+      }
+
+      const c = decoded as Record<string, unknown>;
+
+      // Version check.
+      if (c.v !== 1) {
+        throw new AppError(ErrorCode.VALIDATION_ERROR, 'Unsupported cursor version');
+      }
+      // sessionId binding.
+      if (c.sessionId !== sessionId) {
         throw new AppError(ErrorCode.VALIDATION_ERROR, 'Cursor does not match session');
       }
-      upstreamNextToken = (decoded as Record<string, unknown>).nextToken as string | undefined;
+      // pageToken must be string or absent.
+      if (c.pageToken !== undefined && typeof c.pageToken !== 'string') {
+        throw new AppError(
+          ErrorCode.VALIDATION_ERROR,
+          'Invalid cursor: pageToken must be a string'
+        );
+      }
+      // offset must be a non-negative integer or absent.
+      if (c.offset !== undefined) {
+        if (!Number.isInteger(c.offset) || (c.offset as number) < 0) {
+          throw new AppError(
+            ErrorCode.VALIDATION_ERROR,
+            'Invalid cursor: offset must be a non-negative integer'
+          );
+        }
+      }
+
+      upstreamPageToken = c.pageToken as string | undefined;
+      skipCount = (c.offset as number | undefined) ?? 0;
     }
 
     log.info(
-      `Retrieving events page: sessionId=${sessionId}, limit=${limit}, hasCursor=${!!cursor}`
+      `Retrieving events page: sessionId=${sessionId}, limit=${limit}, hasCursor=${!!cursor}, skip=${skipCount}`
     );
 
-    const response = await this.client.send(
-      new ListEventsCommand({
-        memoryId: this.memoryId,
-        actorId,
-        sessionId,
-        includePayloads: true,
-        maxResults: limit,
-        nextToken: upstreamNextToken,
-      })
-    );
+    // -------------------------------------------------------------------------
+    // 2. Fetch one upstream page.
+    // -------------------------------------------------------------------------
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    let rawEvents: any[];
+    let upstreamNextToken: string | undefined;
 
-    const rawEvents = response.events ?? [];
+    try {
+      const response = await this.client.send(
+        new ListEventsCommand({
+          memoryId: this.memoryId,
+          actorId,
+          sessionId,
+          includePayloads: true,
+          maxResults: limit,
+          nextToken: upstreamPageToken,
+        })
+      );
+      rawEvents = response.events ?? [];
+      upstreamNextToken = response.nextToken;
+    } catch (err) {
+      // Map known upstream 4xx to actionable AppErrors.
+      if (err instanceof Error) {
+        const name = err.name;
+        if (name === 'ValidationException') {
+          throw new AppError(ErrorCode.VALIDATION_ERROR, err.message, { cause: err });
+        }
+        if (name === 'ResourceNotFoundException') {
+          throw new AppError(ErrorCode.NOT_FOUND, 'Session not found in memory store', {
+            cause: err,
+          });
+        }
+      }
+      throw err; // other errors bubble as-is (→ 500)
+    }
 
-    // Convert raw events → ConversationMessages, enforcing the byte budget.
+    // -------------------------------------------------------------------------
+    // 3. Sort events by timestamp (the upstream API order is not guaranteed).
+    //    Stable sort: tie-break on eventId for determinism.
+    // -------------------------------------------------------------------------
+    rawEvents = [...rawEvents].sort((a, b) => {
+      const tA = a.eventTimestamp ? new Date(a.eventTimestamp).getTime() : 0;
+      const tB = b.eventTimestamp ? new Date(b.eventTimestamp).getTime() : 0;
+      if (tA !== tB) return tA - tB;
+      return (a.eventId ?? '').localeCompare(b.eventId ?? '');
+    });
+
+    // -------------------------------------------------------------------------
+    // 4. Apply intra-page offset (events already delivered in a previous call).
+    // -------------------------------------------------------------------------
+    const pageEvents = skipCount > 0 ? rawEvents.slice(skipCount) : rawEvents;
+
+    // -------------------------------------------------------------------------
+    // 5. Convert events → messages, enforcing the byte budget.
+    // -------------------------------------------------------------------------
     const messages: ConversationMessage[] = [];
     let bytesSoFar = 2; // opening/closing `[]` brackets
+    let eventsConsumed = 0; // events from pageEvents we've added to messages
 
-    for (const event of rawEvents) {
-      if (!event.payload || event.payload.length === 0) continue;
+    for (const event of pageEvents) {
+      if (!event.payload || event.payload.length === 0) {
+        eventsConsumed++;
+        continue;
+      }
 
-      // Collect messages produced by this event's payloads.
+      // Each payload item within an event gets a stable ID that incorporates
+      // its index so multi-payload events don't collide during deduplication.
       const eventMessages: ConversationMessage[] = [];
-      for (const payloadItem of event.payload) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      event.payload.forEach((payloadItem: any, payloadIdx: number) => {
+        const stableId = `${event.eventId ?? `evt_${eventsConsumed}`}:${payloadIdx}`;
         if ('conversational' in payloadItem) {
           const cp = payloadItem as ConversationalPayload;
           eventMessages.push({
-            id: event.eventId || `event_${messages.length + eventMessages.length}`,
+            id: stableId,
             type: cp.conversational.role === 'USER' ? 'user' : 'assistant',
             contents: [{ type: 'text', text: cp.conversational.content.text }],
             timestamp: event.eventTimestamp?.toISOString() ?? new Date().toISOString(),
@@ -457,27 +586,31 @@ export class AgentCoreMemoryService {
           const blobData = parseBlobPayload(payloadItem.blob);
           if (blobData) {
             eventMessages.push({
-              id: event.eventId || `event_${messages.length + eventMessages.length}`,
+              id: stableId,
               type: blobData.role === 'user' ? 'user' : 'assistant',
               contents: convertToMessageContents(blobData.content),
               timestamp: event.eventTimestamp?.toISOString() ?? new Date().toISOString(),
             });
           }
         }
+      });
+
+      if (eventMessages.length === 0) {
+        eventsConsumed++;
+        continue;
       }
 
-      if (eventMessages.length === 0) continue;
-
-      // All payloads within a single event share the same eventId. To keep
-      // page boundaries clean we never split an event across pages: if any
-      // of its messages would exceed the budget we stop here.
+      // Never split a single event across pages: check budget for ALL
+      // messages from this event atomically.
       const eventJson = JSON.stringify(eventMessages);
-      // +2 per entry for comma + whitespace (conservative)
       const eventBytes = Buffer.byteLength(eventJson, 'utf-8') + 2 * eventMessages.length;
 
-      if (messages.length === 0 && eventBytes > SESSION_EVENTS_BYTE_BUDGET) {
-        // The very first event already blows the budget. Return an explicit
-        // error rather than an empty page — the client must handle this.
+      if (
+        messages.length === 0 &&
+        eventsConsumed === 0 &&
+        eventBytes > SESSION_EVENTS_BYTE_BUDGET
+      ) {
+        // First event on first page exceeds budget → explicit error.
         throw new AppError(
           ErrorCode.PAYLOAD_TOO_LARGE,
           'Single event exceeds response byte budget',
@@ -488,32 +621,50 @@ export class AgentCoreMemoryService {
       }
 
       if (bytesSoFar + eventBytes > SESSION_EVENTS_BYTE_BUDGET) {
-        // This event would exceed the budget — stop filling this page.
-        // The upstream nextToken for *this* event position is not available,
-        // but we can note that there is more data. We signal `hasMore: true`
-        // with a cursor pointing to the last upstream page's nextToken so
-        // the client re-requests starting from the upstream position; on
-        // retry the accumulated events already consumed will be skipped
-        // naturally via the upstream token.
-        //
-        // WHY NOT split: splitting an event would create a duplicate eventId
-        // on the next page which the requirement explicitly forbids.
+        // Budget hit mid-page. Create an intra-page cursor so the next call
+        // re-fetches this SAME upstream page and skips the events we already
+        // returned. `upstreamPageToken` is the INPUT token we used for this
+        // call (not `upstreamNextToken` which is the OUTPUT token pointing to
+        // a different page).
+        const newSkip = skipCount + eventsConsumed;
+        const nextCursor = Buffer.from(
+          JSON.stringify({
+            v: 1,
+            sessionId,
+            pageToken: upstreamPageToken, // re-fetch THIS page
+            offset: newSkip,
+          } satisfies PageCursorV1),
+          'utf-8'
+        ).toString('base64url');
+
         log.info(
-          `Byte budget reached at ${bytesSoFar} bytes (budget ${SESSION_EVENTS_BYTE_BUDGET}), stopping page`
+          `Byte budget reached at ${bytesSoFar} bytes; mid-page cursor at offset ${newSkip}`
         );
-        break;
+
+        return { messages, nextCursor, hasMore: true, truncated: false };
       }
 
       messages.push(...eventMessages);
       bytesSoFar += eventBytes;
+      eventsConsumed++;
     }
 
-    // Build an opaque cursor that carries both the upstream continuation
-    // token AND the sessionId so cross-session replay is detected.
-    const nextCursor = response.nextToken
-      ? Buffer.from(JSON.stringify({ sessionId, nextToken: response.nextToken }), 'utf-8').toString(
-          'base64url'
-        )
+    // -------------------------------------------------------------------------
+    // 6. Build next-page cursor when the upstream returned a continuation token.
+    //    At this point we've consumed all of pageEvents without hitting the
+    //    budget, so if the upstream has more pages we advance to the next one
+    //    (offset = 0).
+    // -------------------------------------------------------------------------
+    const nextCursor = upstreamNextToken
+      ? Buffer.from(
+          JSON.stringify({
+            v: 1,
+            sessionId,
+            pageToken: upstreamNextToken, // advance to next upstream page
+            // offset absent → 0 (start from beginning of next page)
+          } satisfies PageCursorV1),
+          'utf-8'
+        ).toString('base64url')
       : undefined;
 
     log.info(

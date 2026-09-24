@@ -10,6 +10,8 @@
  *  6. Session switch clears pagination state
  *  7. clearActiveSession resets all events pagination fields
  *  8. createNewSession resets pagination state
+ *  9. Generation counter is incremented on selectSession
+ * 10. Stale response (A→B→A) is discarded via generation guard
  */
 
 import { describe, it, expect, beforeEach, vi } from 'vitest';
@@ -23,8 +25,6 @@ const SESSION_B = 'BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBb' as const;
 
 // ---------------------------------------------------------------------------
 // Mock dependencies that sessionStore imports
-// vi.mock is hoisted; factories must NOT reference variables defined later
-// in the module. Configured mock return values are set in beforeEach instead.
 // ---------------------------------------------------------------------------
 vi.mock('../../api/sessions', () => ({
   fetchSessions: vi.fn(),
@@ -51,7 +51,7 @@ vi.mock('../../i18n', () => ({
 }));
 
 // ---------------------------------------------------------------------------
-// Helpers (defined AFTER vi.mock so the hoisted factories can't reference them)
+// Helpers
 // ---------------------------------------------------------------------------
 const makeMsg = (id: string, ts = '2024-01-01T00:00:00.000Z') => ({
   id,
@@ -64,6 +64,26 @@ const INITIAL_PAGE_RESULT = {
   events: [makeMsg('page1-msg1'), makeMsg('page1-msg2')],
   nextCursor: 'cursor-page-2',
   hasMore: true,
+};
+
+const RESET_STATE = {
+  sessions: [] as ReturnType<typeof useSessionStore.getState>['sessions'],
+  isLoadingSessions: false,
+  sessionsError: null,
+  hasLoadedOnce: false,
+  nextToken: null,
+  hasMoreSessions: false,
+  isLoadingMoreSessions: false,
+  activeSessionId: null,
+  sessionEvents: [] as ReturnType<typeof useSessionStore.getState>['sessionEvents'],
+  isLoadingEvents: false,
+  eventsError: null,
+  eventsNextCursor: null,
+  eventsHasMore: false,
+  isLoadingOlderEvents: false,
+  olderEventsError: null,
+  eventsLoadGeneration: 0,
+  isCreatingSession: false,
 };
 
 // ---------------------------------------------------------------------------
@@ -82,27 +102,10 @@ describe('sessionStore — events pagination', () => {
     vi.mocked(fetchSessionEventsPage).mockResolvedValue(INITIAL_PAGE_RESULT);
     vi.mocked(deleteSession).mockResolvedValue(undefined);
 
-    useSessionStore.setState({
-      sessions: [],
-      isLoadingSessions: false,
-      sessionsError: null,
-      hasLoadedOnce: false,
-      nextToken: null,
-      hasMoreSessions: false,
-      isLoadingMoreSessions: false,
-      activeSessionId: null,
-      sessionEvents: [],
-      isLoadingEvents: false,
-      eventsError: null,
-      eventsNextCursor: null,
-      eventsHasMore: false,
-      isLoadingOlderEvents: false,
-      olderEventsError: null,
-      isCreatingSession: false,
-    });
+    useSessionStore.setState(RESET_STATE);
     vi.clearAllMocks();
 
-    // Re-apply mock defaults after clearAllMocks
+    // Re-apply defaults after clearAllMocks
     vi.mocked(fetchSessions).mockResolvedValue({
       sessions: [],
       nextToken: undefined,
@@ -112,7 +115,7 @@ describe('sessionStore — events pagination', () => {
     vi.mocked(deleteSession).mockResolvedValue(undefined);
   });
 
-  // 1. Pagination state is reset when selectSession completes
+  // 1. Pagination state is set after selectSession completes
   it('sets eventsNextCursor and eventsHasMore after selectSession', async () => {
     await useSessionStore.getState().selectSession(SESSION_A);
 
@@ -136,16 +139,16 @@ describe('sessionStore — events pagination', () => {
     expect(fetchSessionEventsPage).not.toHaveBeenCalled();
   });
 
-  // 3. Race guard: loadOlderEvents is a no-op for a non-active session
+  // 3. Race guard: loadOlderEvents no-ops for a non-active session
   it('skips loadOlderEvents when called for a session that is no longer active', async () => {
     const { fetchSessionEventsPage } = await import('../../api/sessions');
     useSessionStore.setState({
-      activeSessionId: SESSION_B, // different session is active
+      activeSessionId: SESSION_B,
       eventsHasMore: true,
       eventsNextCursor: 'cursor-x',
     });
 
-    await useSessionStore.getState().loadOlderEvents(SESSION_A); // SESSION_A is not active
+    await useSessionStore.getState().loadOlderEvents(SESSION_A);
 
     expect(fetchSessionEventsPage).not.toHaveBeenCalled();
   });
@@ -154,7 +157,6 @@ describe('sessionStore — events pagination', () => {
   it('prepends older events and updates cursor after loadOlderEvents', async () => {
     const { fetchSessionEventsPage } = await import('../../api/sessions');
 
-    // Set initial state: 2 recent events, cursor available
     useSessionStore.setState({
       activeSessionId: SESSION_A,
       sessionEvents: [makeMsg('recent-1'), makeMsg('recent-2')],
@@ -163,7 +165,6 @@ describe('sessionStore — events pagination', () => {
       isLoadingOlderEvents: false,
     });
 
-    // Override mock to return a second page
     vi.mocked(fetchSessionEventsPage).mockResolvedValueOnce({
       events: [makeMsg('older-1'), makeMsg('older-2')],
       nextCursor: 'cursor-page-3',
@@ -173,7 +174,7 @@ describe('sessionStore — events pagination', () => {
     await useSessionStore.getState().loadOlderEvents(SESSION_A);
 
     const state = useSessionStore.getState();
-    // Older events prepended: [older-1, older-2, recent-1, recent-2]
+    // Older events should appear before recent events in sessionEvents
     expect(state.sessionEvents[0].id).toBe('older-1');
     expect(state.sessionEvents[1].id).toBe('older-2');
     expect(state.sessionEvents[2].id).toBe('recent-1');
@@ -183,7 +184,7 @@ describe('sessionStore — events pagination', () => {
     expect(state.isLoadingOlderEvents).toBe(false);
   });
 
-  // 5. loadOlderEvents clears olderEventsError on the next attempt
+  // 5. loadOlderEvents clears olderEventsError on retry
   it('clears olderEventsError at the start of loadOlderEvents', async () => {
     const { fetchSessionEventsPage } = await import('../../api/sessions');
     useSessionStore.setState({
@@ -203,7 +204,7 @@ describe('sessionStore — events pagination', () => {
     expect(useSessionStore.getState().olderEventsError).toBeNull();
   });
 
-  // 6. Session switch (selectSession) resets pagination state for the new session
+  // 6. Session switch resets pagination state
   it('resets pagination state when selectSession is called for a new session', async () => {
     useSessionStore.setState({
       activeSessionId: SESSION_A,
@@ -216,10 +217,8 @@ describe('sessionStore — events pagination', () => {
 
     const state = useSessionStore.getState();
     expect(state.activeSessionId).toBe(SESSION_B);
-    // Stale cursor must be replaced by the new page's cursor
     expect(state.eventsNextCursor).toBe('cursor-page-2');
     expect(state.eventsHasMore).toBe(true);
-    // Old session's events must not bleed over
     expect(state.sessionEvents.every((e) => e.id.startsWith('page1'))).toBe(true);
   });
 
@@ -259,5 +258,57 @@ describe('sessionStore — events pagination', () => {
     expect(state.eventsHasMore).toBe(false);
     expect(state.eventsNextCursor).toBeNull();
     expect(state.sessionEvents).toHaveLength(0);
+  });
+
+  // 9. Generation counter is incremented each selectSession call
+  it('increments eventsLoadGeneration on each selectSession call', async () => {
+    expect(useSessionStore.getState().eventsLoadGeneration).toBe(0);
+    await useSessionStore.getState().selectSession(SESSION_A);
+    expect(useSessionStore.getState().eventsLoadGeneration).toBe(1);
+    await useSessionStore.getState().selectSession(SESSION_A);
+    expect(useSessionStore.getState().eventsLoadGeneration).toBe(2);
+  });
+
+  // 10. A→B→A stale response is discarded by generation guard
+  it('discards stale A→B→A response: second selectSession(A) wins', async () => {
+    const { fetchSessionEventsPage } = await import('../../api/sessions');
+
+    let resolveFirst!: (v: typeof INITIAL_PAGE_RESULT) => void;
+    const firstCallPromise = new Promise<typeof INITIAL_PAGE_RESULT>((res) => {
+      resolveFirst = res;
+    });
+
+    const staleResult = {
+      events: [makeMsg('stale-event')],
+      nextCursor: 'stale-cursor',
+      hasMore: true,
+    };
+    const freshResult = {
+      events: [makeMsg('fresh-event')],
+      nextCursor: 'fresh-cursor',
+      hasMore: false,
+    };
+
+    // First call (session A) is delayed; second call (session A again) resolves immediately.
+    vi.mocked(fetchSessionEventsPage)
+      .mockReturnValueOnce(firstCallPromise) // delayed first load
+      .mockResolvedValueOnce(freshResult); // immediate second load
+
+    // Start first load (delayed) — do NOT await.
+    const firstLoad = useSessionStore.getState().selectSession(SESSION_A);
+    // Switch to session B in between.
+    await useSessionStore.getState().selectSession(SESSION_B);
+    // Switch back to A — this is the "fresh" second load.
+    vi.mocked(fetchSessionEventsPage).mockResolvedValueOnce(freshResult);
+    await useSessionStore.getState().selectSession(SESSION_A);
+
+    // Now resolve the delayed stale first load.
+    resolveFirst(staleResult);
+    await firstLoad;
+
+    // The fresh second load's result must win; stale result must be discarded.
+    const state = useSessionStore.getState();
+    expect(state.sessionEvents.some((e) => e.id === 'stale-event')).toBe(false);
+    expect(state.sessionEvents.some((e) => e.id === 'fresh-event')).toBe(true);
   });
 });

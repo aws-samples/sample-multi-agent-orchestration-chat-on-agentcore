@@ -46,16 +46,25 @@ interface SessionState {
   eventsError: string | null;
 
   /**
-   * Opaque cursor for the next page of events (oldest-to-newest direction).
-   * Absent when there are no older events to load.
+   * Opaque cursor for the next page of events (ordering follows the upstream
+   * API; no sort-order guarantee should be assumed). Absent when there are no
+   * further event pages to load.
    */
   eventsNextCursor: string | null;
-  /** Whether there are older events available via `eventsNextCursor`. */
+  /** Whether there are more event pages available via `eventsNextCursor`. */
   eventsHasMore: boolean;
   /** True while `loadOlderEvents` is running. */
   isLoadingOlderEvents: boolean;
   /** Non-null when `loadOlderEvents` fails; cleared on the next attempt. */
   olderEventsError: string | null;
+
+  /**
+   * Monotonically increasing counter incremented at the start of every
+   * `selectSession` call. Captured before the async API call and compared
+   * after it so stale responses from a superseded load (A→B→A scenario) are
+   * discarded rather than overwriting the state of the current load.
+   */
+  eventsLoadGeneration: number;
 
   isCreatingSession: boolean;
 }
@@ -124,6 +133,7 @@ export const useSessionStore = create<SessionStore>()(
       eventsHasMore: false,
       isLoadingOlderEvents: false,
       olderEventsError: null,
+      eventsLoadGeneration: 0,
       isCreatingSession: false,
 
       // Actions
@@ -226,11 +236,16 @@ export const useSessionStore = create<SessionStore>()(
       },
 
       selectSession: async (sessionId: string) => {
+        // Increment the generation counter BEFORE the async call. Any response
+        // that arrives with a different generation (i.e. a superseded load,
+        // e.g. A→B→A) will be silently discarded in the post-await guard.
+        const generation = get().eventsLoadGeneration + 1;
         try {
           set({
             isLoadingEvents: true,
             eventsError: null,
             activeSessionId: sessionId,
+            eventsLoadGeneration: generation,
             // Reset pagination state for the new session.
             eventsNextCursor: null,
             eventsHasMore: false,
@@ -267,10 +282,18 @@ export const useSessionStore = create<SessionStore>()(
 
           const result = await fetchSessionEventsPage(sessionId);
 
-          // Guard against a race condition: if the user switched away before
-          // this response arrived, discard the result.
-          if (get().activeSessionId !== sessionId) {
-            logger.log(`Session switched away before events loaded (${sessionId}), discarding`);
+          // Guard against a race condition: if the user switched away (or
+          // switched back then away again — A→B→A), discard the result.
+          // The generation check catches A→B→A where activeSessionId happens
+          // to match but the state belongs to a newer load.
+          const current = get();
+          if (
+            current.activeSessionId !== sessionId ||
+            current.eventsLoadGeneration !== generation
+          ) {
+            logger.log(
+              `Stale events response for ${sessionId} (gen ${generation} vs ${current.eventsLoadGeneration}), discarding`
+            );
             return;
           }
 
@@ -291,6 +314,8 @@ export const useSessionStore = create<SessionStore>()(
           // not owned by the caller; older deployments returned 403, so accept
           // both for backward compatibility during rollout.
           if (error instanceof ApiError && (error.status === 404 || error.status === 403)) {
+            // Only apply the error state if this is still the active load.
+            if (get().eventsLoadGeneration !== generation) return;
             logger.warn(`Session not accessible: ${sessionId}`);
             toast.error(i18n.t('error.forbidden'));
             set({
@@ -304,6 +329,9 @@ export const useSessionStore = create<SessionStore>()(
             window.location.href = '/chat';
             return;
           }
+
+          // Only apply the error state if this is still the active load.
+          if (get().eventsLoadGeneration !== generation) return;
 
           const errorMessage = extractErrorMessage(
             error,

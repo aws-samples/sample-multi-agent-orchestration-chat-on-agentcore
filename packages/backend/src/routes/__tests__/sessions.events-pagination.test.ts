@@ -1,137 +1,240 @@
 /**
- * GET /sessions/:sessionId/events — pagination query-param validation tests
+ * GET /sessions/:sessionId/events — route integration tests
  *
- * These tests focus on the route-level concerns:
- *  - `limit` parsing and clamping (valid / invalid / out-of-range)
- *  - `cursor` forwarding to the service
- *  - Service-thrown AppErrors are mapped to the correct HTTP status
- *  - Response shape matches the paginated contract
+ * Mounts the REAL sessions router on a minimal Express app, mocks out:
+ *  - getSessionsRepository  → controls ownership checks
+ *  - createAgentCoreMemoryServiceForRequest  → controls service behaviour
  *
- * The AgentCoreMemoryService is fully mocked so no AWS calls are made.
+ * A pre-router middleware injects `req.identityId`, `req.requestId`, and
+ * `req.log` so the route handler sees the same shape it expects in production
+ * without needing the full Cognito auth stack.
+ *
+ * Exercises the full route stack: param validation, ownership gate, service
+ * delegation, response serialisation, and error-code → HTTP status mapping.
  */
 
-import { describe, it, expect } from '@jest/globals';
-import { ErrorCode } from '../../libs/http/index';
-import { parseLimit, queryString } from '../../libs/http/index';
-import type { Request } from 'express';
+import { describe, it, expect, jest, beforeEach } from '@jest/globals';
+import express, { Request, Response, NextFunction } from 'express';
+import request from 'supertest';
 
 // ---------------------------------------------------------------------------
-// Re-export helpers from pagination module and validate them directly,
-// following the "extract-and-test" pattern used elsewhere in this package.
+// Mocks — declared BEFORE modules-under-test are imported.
 // ---------------------------------------------------------------------------
 
-describe('parseLimit — events route parameters', () => {
-  const makeReq = (limitValue?: string): Partial<Request> => ({
-    query: limitValue !== undefined ? { limit: limitValue } : {},
-  });
+// 1. Sessions repository factory.
+const mockGetSession = jest.fn<() => Promise<{ sessionId: string } | null>>();
+const mockIsConfigured = jest.fn<() => boolean>().mockReturnValue(true);
 
-  it('returns default when limit is absent', () => {
-    const result = parseLimit(makeReq() as Request, 50, 100);
-    expect(result).toBe(50);
-  });
+jest.mock('../../repositories/sessions/sessions-repository.factory', () => ({
+  getSessionsRepository: () => ({
+    isConfigured: mockIsConfigured,
+    getSession: mockGetSession,
+  }),
+}));
 
-  it('returns the supplied value when within range', () => {
-    expect(parseLimit(makeReq('20') as Request, 50, 100)).toBe(20);
-  });
+// 2. AgentCore memory service factory.
+const mockGetEventsPage = jest.fn();
+const mockMemoryService = { getSessionEventsPage: mockGetEventsPage };
 
-  it('clamps an over-large limit to the maximum', () => {
-    expect(parseLimit(makeReq('9999') as Request, 50, 100)).toBe(100);
-  });
-
-  it('falls back to default for a negative value', () => {
-    expect(parseLimit(makeReq('-1') as Request, 50, 100)).toBe(50);
-  });
-
-  it('falls back to default for a non-numeric string', () => {
-    expect(parseLimit(makeReq('abc') as Request, 50, 100)).toBe(50);
-  });
-
-  it('falls back to default for zero', () => {
-    expect(parseLimit(makeReq('0') as Request, 50, 100)).toBe(50);
-  });
+jest.mock('../../services/agentcore-memory', () => {
+  const actual = jest.requireActual<typeof import('../../services/agentcore-memory')>(
+    '../../services/agentcore-memory'
+  );
+  return {
+    ...actual,
+    createAgentCoreMemoryServiceForRequest: jest.fn().mockResolvedValue(mockMemoryService),
+  };
 });
 
-// ---------------------------------------------------------------------------
-// queryString helper — cursor extraction
-// ---------------------------------------------------------------------------
-
-describe('queryString — cursor extraction', () => {
-  it('returns undefined when cursor is absent', () => {
-    expect(queryString(undefined)).toBeUndefined();
-  });
-
-  it('returns the string value when present', () => {
-    expect(queryString('abc123')).toBe('abc123');
-  });
-
-  it('returns the first element when the value is an array', () => {
-    expect(queryString(['first', 'second'])).toBe('first');
-  });
-
-  it('returns undefined for a non-string, non-array value', () => {
-    expect(queryString(42)).toBeUndefined();
-  });
-});
+// 3. Config.
+jest.mock('../../config/index', () => ({
+  config: { AGENTCORE_MEMORY_ID: 'mem-test' },
+  isDevelopment: false,
+}));
 
 // ---------------------------------------------------------------------------
-// Cursor encoding round-trip
+// Import modules AFTER mocks.
 // ---------------------------------------------------------------------------
-
-describe('cursor encoding round-trip', () => {
-  const SESSION_ID = 'session-abc';
-  const UPSTREAM_TOKEN = 'upstream-next-page-token';
-
-  function encode(sessionId: string, nextToken: string): string {
-    return Buffer.from(JSON.stringify({ sessionId, nextToken }), 'utf-8').toString('base64url');
-  }
-
-  function decode(cursor: string): { sessionId: string; nextToken: string } {
-    return JSON.parse(Buffer.from(cursor, 'base64url').toString('utf-8'));
-  }
-
-  it('encodes and decodes without data loss', () => {
-    const cursor = encode(SESSION_ID, UPSTREAM_TOKEN);
-    const decoded = decode(cursor);
-    expect(decoded.sessionId).toBe(SESSION_ID);
-    expect(decoded.nextToken).toBe(UPSTREAM_TOKEN);
-  });
-
-  it('is URL-safe (contains no + or / characters)', () => {
-    const cursor = encode(SESSION_ID, UPSTREAM_TOKEN);
-    expect(cursor).not.toMatch(/[+/]/);
-  });
-
-  it('a cursor encoded for sessionA is detected as invalid for sessionB', () => {
-    const cursorForA = encode('session-A', UPSTREAM_TOKEN);
-    const decoded = decode(cursorForA);
-    // Route would compare decoded.sessionId !== route :sessionId
-    expect(decoded.sessionId).not.toBe('session-B');
-  });
-});
+import sessionsRouter from '../sessions';
+import { errorHandlerMiddleware } from '../../middleware/error-handler';
+import { AppError, ErrorCode } from '../../libs/http/index';
 
 // ---------------------------------------------------------------------------
-// AppError code → HTTP status mapping
+// Test app setup.
+// ---------------------------------------------------------------------------
+const ACTOR_ID = 'actor-test-123';
+
+function buildApp() {
+  const app = express();
+  app.use(express.json());
+
+  // Inject the fields that auth + request-logger middlewares would set.
+  app.use((req: Request, _res: Response, next: NextFunction) => {
+    const r = req as Request & {
+      identityId: string;
+      requestId: string;
+      log: typeof console;
+    };
+    r.identityId = ACTOR_ID;
+    r.requestId = 'req-test-id';
+    r.log = console;
+    next();
+  });
+
+  app.use('/sessions', sessionsRouter);
+  app.use(errorHandlerMiddleware);
+  return app;
+}
+
+// A valid session ID (matches the zSessionId schema — 33 chars alphanumeric).
+const SESSION_ID = 'SSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSss';
+
+// ---------------------------------------------------------------------------
+// Tests
 // ---------------------------------------------------------------------------
 
-import { AppError, ERROR_CODE_STATUS } from '../../libs/http/index';
+describe('GET /sessions/:sessionId/events', () => {
+  let app: ReturnType<typeof buildApp>;
 
-describe('AppError status mapping for events route', () => {
-  it('VALIDATION_ERROR maps to 400', () => {
-    const err = new AppError(ErrorCode.VALIDATION_ERROR, 'bad cursor');
-    expect(err.status).toBe(400);
+  beforeEach(() => {
+    jest.clearAllMocks();
+    mockGetSession.mockResolvedValue({ sessionId: SESSION_ID });
+    mockGetEventsPage.mockResolvedValue({
+      messages: [],
+      hasMore: false,
+      truncated: false,
+    });
+    mockIsConfigured.mockReturnValue(true);
+    app = buildApp();
   });
 
-  it('NOT_FOUND maps to 404', () => {
-    const err = new AppError(ErrorCode.NOT_FOUND, 'session not found');
-    expect(err.status).toBe(404);
+  // ── Ownership gate ───────────────────────────────────────────────────────
+
+  it('returns 404 when session does not belong to the caller', async () => {
+    mockGetSession.mockResolvedValue(null);
+
+    const res = await request(app).get(`/sessions/${SESSION_ID}/events`);
+
+    expect(res.status).toBe(404);
+    expect(res.body.code).toBe(ErrorCode.NOT_FOUND);
   });
 
-  it('PAYLOAD_TOO_LARGE maps to 413', () => {
-    const err = new AppError(ErrorCode.PAYLOAD_TOO_LARGE, 'too large');
-    expect(err.status).toBe(413);
+  it('returns 200 when session belongs to the caller', async () => {
+    mockGetSession.mockResolvedValue({ sessionId: SESSION_ID });
+
+    const res = await request(app).get(`/sessions/${SESSION_ID}/events`);
+
+    expect(res.status).toBe(200);
+    expect(res.body.events).toBeDefined();
   });
 
-  it('ERROR_CODE_STATUS covers PAYLOAD_TOO_LARGE', () => {
-    expect(ERROR_CODE_STATUS[ErrorCode.PAYLOAD_TOO_LARGE]).toBe(413);
+  it('skips ownership check and succeeds when repository is not configured', async () => {
+    mockIsConfigured.mockReturnValue(false);
+
+    const res = await request(app).get(`/sessions/${SESSION_ID}/events`);
+
+    expect(res.status).toBe(200);
+    expect(mockGetSession).not.toHaveBeenCalled();
+  });
+
+  // ── Response shape ────────────────────────────────────────────────────────
+
+  it('returns events array, hasMore, and nextCursor from the service', async () => {
+    const fakeMessage = {
+      id: 'e1:0',
+      type: 'user',
+      contents: [{ type: 'text', text: 'hello' }],
+      timestamp: '2024-01-01T00:00:00.000Z',
+    };
+    mockGetEventsPage.mockResolvedValue({
+      messages: [fakeMessage],
+      nextCursor: 'cursor-abc',
+      hasMore: true,
+      truncated: false,
+    });
+
+    const res = await request(app).get(`/sessions/${SESSION_ID}/events`);
+
+    expect(res.status).toBe(200);
+    expect(res.body.events).toEqual([fakeMessage]);
+    expect(res.body.nextCursor).toBe('cursor-abc');
+    expect(res.body.hasMore).toBe(true);
+  });
+
+  // ── Cursor forwarding ─────────────────────────────────────────────────────
+
+  it('forwards the ?cursor query param to the service', async () => {
+    const cursor = Buffer.from(
+      JSON.stringify({ v: 1, sessionId: SESSION_ID, pageToken: 'page2' }),
+      'utf-8'
+    ).toString('base64url');
+
+    await request(app).get(`/sessions/${SESSION_ID}/events?cursor=${cursor}`);
+
+    expect(mockGetEventsPage).toHaveBeenCalledWith(
+      ACTOR_ID,
+      SESSION_ID,
+      expect.any(Number),
+      cursor
+    );
+  });
+
+  it('passes undefined cursor to the service when ?cursor is absent', async () => {
+    await request(app).get(`/sessions/${SESSION_ID}/events`);
+
+    expect(mockGetEventsPage).toHaveBeenCalledWith(
+      ACTOR_ID,
+      SESSION_ID,
+      expect.any(Number),
+      undefined
+    );
+  });
+
+  // ── limit parsing ─────────────────────────────────────────────────────────
+
+  it('defaults limit to 50 when not specified', async () => {
+    await request(app).get(`/sessions/${SESSION_ID}/events`);
+    expect(mockGetEventsPage).toHaveBeenCalledWith(ACTOR_ID, SESSION_ID, 50, undefined);
+  });
+
+  it('clamps limit to 100 when ?limit=9999', async () => {
+    await request(app).get(`/sessions/${SESSION_ID}/events?limit=9999`);
+    expect(mockGetEventsPage).toHaveBeenCalledWith(ACTOR_ID, SESSION_ID, 100, undefined);
+  });
+
+  it('falls back to default when ?limit=0', async () => {
+    await request(app).get(`/sessions/${SESSION_ID}/events?limit=0`);
+    expect(mockGetEventsPage).toHaveBeenCalledWith(ACTOR_ID, SESSION_ID, 50, undefined);
+  });
+
+  // ── 4xx / 413 mapping ─────────────────────────────────────────────────────
+
+  it('returns 400 when service throws VALIDATION_ERROR', async () => {
+    mockGetEventsPage.mockRejectedValue(
+      new AppError(ErrorCode.VALIDATION_ERROR, 'Invalid cursor format')
+    );
+
+    const res = await request(app).get(`/sessions/${SESSION_ID}/events?cursor=garbage`);
+
+    expect(res.status).toBe(400);
+    expect(res.body.code).toBe(ErrorCode.VALIDATION_ERROR);
+  });
+
+  it('returns 413 when service throws PAYLOAD_TOO_LARGE', async () => {
+    mockGetEventsPage.mockRejectedValue(
+      new AppError(ErrorCode.PAYLOAD_TOO_LARGE, 'Single event exceeds response byte budget')
+    );
+
+    const res = await request(app).get(`/sessions/${SESSION_ID}/events`);
+
+    expect(res.status).toBe(413);
+    expect(res.body.code).toBe(ErrorCode.PAYLOAD_TOO_LARGE);
+  });
+
+  // ── sessionId path validation ─────────────────────────────────────────────
+
+  it('returns 400 for an invalid sessionId (too short)', async () => {
+    const res = await request(app).get('/sessions/bad/events');
+    expect(res.status).toBe(400);
   });
 });

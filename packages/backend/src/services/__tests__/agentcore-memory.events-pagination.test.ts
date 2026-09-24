@@ -3,17 +3,16 @@
  *
  * All AWS SDK calls are mocked so no real AWS resources are touched.
  *
- * Scenarios covered:
- *  1. Normal single-page response (no continuation)
- *  2. Response with nextToken (cursor generation + format)
- *  3. Cursor decode: valid cursor advances upstream token
- *  4. Cursor decode: malformed base64 → 400 VALIDATION_ERROR
- *  5. Cursor decode: cursor for wrong session → 400 VALIDATION_ERROR
- *  6. Byte budget: 622 events ~13 MB synthetic fixture stops well under budget
- *  7. Single-event overflow → 413 PAYLOAD_TOO_LARGE (explicit error)
- *  8. Empty session → empty page, no cursor
- *  9. Conversational payload (text-only events) are decoded correctly
- * 10. Multiple payload items within one event share the same eventId (no split)
+ * Key correctness properties verified:
+ *  A. Normal single-page, next-page cursor, and cursor forwarding
+ *  B. Cursor v1 strict validation (format, version, sessionId, type checks)
+ *  C. Byte budget: mid-page cut stores offset in cursor so NO events are lost
+ *     — full traversal asserts every event ID appears exactly once
+ *     (both cases: upstream page WITH nextToken and WITHOUT nextToken)
+ *  D. Single-event overflow → 413 (explicit error rather than empty page)
+ *  E. Upstream 4xx (ValidationException, ResourceNotFoundException) → AppError
+ *  F. Stable per-payload IDs: multi-payload event emits IDs `${eventId}:${i}`
+ *  G. Events are sorted by timestamp within a page (regardless of API order)
  */
 
 import { describe, it, expect, jest, beforeEach } from '@jest/globals';
@@ -56,14 +55,27 @@ function makeListEventsResponse(
   };
 }
 
-/** Build a conversational payload text string of approximately `targetBytes` bytes. */
+/** Build a text string of approximately `targetBytes` bytes. */
 function bigText(targetBytes: number): string {
   return 'x'.repeat(targetBytes);
 }
 
-/** Encode an opaque cursor for a given sessionId + upstream token. */
-function encodeCursor(sessionId: string, nextToken: string): string {
-  return Buffer.from(JSON.stringify({ sessionId, nextToken }), 'utf-8').toString('base64url');
+/** Decode an opaque v1 cursor produced by getSessionEventsPage. */
+function decodeCursor(cursor: string): {
+  v: number;
+  sessionId: string;
+  pageToken?: string;
+  offset?: number;
+} {
+  return JSON.parse(Buffer.from(cursor, 'base64url').toString('utf-8'));
+}
+
+/** Encode a v1 cursor (for feeding back to the service). */
+function encodeCursorV1(
+  sessionId: string,
+  opts: { pageToken?: string; offset?: number } = {}
+): string {
+  return Buffer.from(JSON.stringify({ v: 1, sessionId, ...opts }), 'utf-8').toString('base64url');
 }
 
 // ---------------------------------------------------------------------------
@@ -87,7 +99,8 @@ describe('AgentCoreMemoryService.getSessionEventsPage', () => {
     jest.clearAllMocks();
   });
 
-  // 1. Normal single page (no continuation)
+  // ── A. Basic pagination ───────────────────────────────────────────────────
+
   it('returns events and no cursor when upstream has no nextToken', async () => {
     const client = makeMockClient(() =>
       makeListEventsResponse([
@@ -98,71 +111,214 @@ describe('AgentCoreMemoryService.getSessionEventsPage', () => {
     const svc = new AgentCoreMemoryService(MEMORY_ID, client);
     const page = await svc.getSessionEventsPage(ACTOR_ID, SESSION_ID, 50);
 
-    expect(page.messages).toHaveLength(2);
+    expect(page.messages.length).toBe(2);
     expect(page.hasMore).toBe(false);
     expect(page.nextCursor).toBeUndefined();
     expect(page.truncated).toBe(false);
   });
 
-  // 2. Response with nextToken → cursor is generated
-  it('produces a nextCursor when upstream returns a nextToken', async () => {
+  it('produces a v1 nextCursor when upstream returns a nextToken', async () => {
     const client = makeMockClient(() =>
-      makeListEventsResponse([{ eventId: 'e1', timestamp: new Date() }], 'upstream-token-xyz')
+      makeListEventsResponse([{ eventId: 'e1', timestamp: new Date() }], 'upstream-tok')
     );
     const svc = new AgentCoreMemoryService(MEMORY_ID, client);
     const page = await svc.getSessionEventsPage(ACTOR_ID, SESSION_ID, 50);
 
     expect(page.hasMore).toBe(true);
-    expect(typeof page.nextCursor).toBe('string');
-    // Decode and verify structure
-    const decoded = JSON.parse(Buffer.from(page.nextCursor!, 'base64url').toString('utf-8'));
+    const decoded = decodeCursor(page.nextCursor!);
+    expect(decoded.v).toBe(1);
     expect(decoded.sessionId).toBe(SESSION_ID);
-    expect(decoded.nextToken).toBe('upstream-token-xyz');
+    expect(decoded.pageToken).toBe('upstream-tok');
+    expect(decoded.offset).toBeUndefined(); // clean next-page cursor has no offset
   });
 
-  // 3. Valid cursor passes upstream token through
-  it('forwards the upstream nextToken when a valid cursor is supplied', async () => {
-    const cursor = encodeCursor(SESSION_ID, 'upstream-page-2');
+  it('forwards the upstream pageToken when a valid v1 cursor is supplied', async () => {
+    const cursor = encodeCursorV1(SESSION_ID, { pageToken: 'upstream-page-2' });
     const sendMock = jest.fn().mockResolvedValue(makeListEventsResponse([]));
-    const client = makeMockClient(sendMock as Parameters<typeof makeMockClient>[0]);
+    const client = { send: sendMock } as unknown as BedrockAgentCoreClient;
     const svc = new AgentCoreMemoryService(MEMORY_ID, client);
 
     await svc.getSessionEventsPage(ACTOR_ID, SESSION_ID, 50, cursor);
 
-    // The command sent to the AWS client should carry the decoded nextToken
-    const sentCommand = (sendMock as jest.MockedFunction<typeof sendMock>).mock
-      .calls[0][0] as Record<string, unknown>;
-    expect((sentCommand as { input?: { nextToken?: string } }).input?.nextToken).toBe(
-      'upstream-page-2'
-    );
+    const sentInput = (sendMock.mock.calls[0][0] as { input?: { nextToken?: string } }).input;
+    expect(sentInput?.nextToken).toBe('upstream-page-2');
   });
 
-  // 4. Malformed cursor → 400
+  // ── B. Cursor validation ──────────────────────────────────────────────────
+
   it('throws VALIDATION_ERROR for a malformed cursor (not valid base64url JSON)', async () => {
     const client = makeMockClient(() => makeListEventsResponse([]));
     const svc = new AgentCoreMemoryService(MEMORY_ID, client);
-
     await expect(
-      svc.getSessionEventsPage(ACTOR_ID, SESSION_ID, 50, '!not-valid-base64url!!!')
+      svc.getSessionEventsPage(ACTOR_ID, SESSION_ID, 50, '!not-valid!!!')
     ).rejects.toMatchObject({ code: ErrorCode.VALIDATION_ERROR });
   });
 
-  // 5. Cursor for wrong session → 400
   it('throws VALIDATION_ERROR when cursor sessionId does not match route sessionId', async () => {
-    const cursor = encodeCursor('other-session', 'tok');
+    const cursor = encodeCursorV1('other-session', { pageToken: 'tok' });
     const client = makeMockClient(() => makeListEventsResponse([]));
     const svc = new AgentCoreMemoryService(MEMORY_ID, client);
-
     await expect(svc.getSessionEventsPage(ACTOR_ID, SESSION_ID, 50, cursor)).rejects.toMatchObject({
       code: ErrorCode.VALIDATION_ERROR,
     });
   });
 
-  // 6. Byte budget: 622 events (~13 MB synthetic fixture) stops under budget
-  it('stops well under SESSION_EVENTS_BYTE_BUDGET for a 622-event ~13 MB fixture', async () => {
-    // Each event has a ~21 KB text payload → 622 × 21 KB ≈ 13 MB
-    const payloadPerEvent = bigText(21 * 1024);
-    const events = Array.from({ length: 622 }, (_, i) => ({
+  it('throws VALIDATION_ERROR for cursor version other than 1', async () => {
+    const badVersion = Buffer.from(
+      JSON.stringify({ v: 2, sessionId: SESSION_ID }),
+      'utf-8'
+    ).toString('base64url');
+    const client = makeMockClient(() => makeListEventsResponse([]));
+    const svc = new AgentCoreMemoryService(MEMORY_ID, client);
+    await expect(
+      svc.getSessionEventsPage(ACTOR_ID, SESSION_ID, 50, badVersion)
+    ).rejects.toMatchObject({
+      code: ErrorCode.VALIDATION_ERROR,
+    });
+  });
+
+  it('throws VALIDATION_ERROR when cursor decodes to null', async () => {
+    const nullCursor = Buffer.from('null', 'utf-8').toString('base64url');
+    const client = makeMockClient(() => makeListEventsResponse([]));
+    const svc = new AgentCoreMemoryService(MEMORY_ID, client);
+    await expect(
+      svc.getSessionEventsPage(ACTOR_ID, SESSION_ID, 50, nullCursor)
+    ).rejects.toMatchObject({ code: ErrorCode.VALIDATION_ERROR });
+  });
+
+  it('throws VALIDATION_ERROR when cursor decodes to an array', async () => {
+    const arrayCursor = Buffer.from('[]', 'utf-8').toString('base64url');
+    const client = makeMockClient(() => makeListEventsResponse([]));
+    const svc = new AgentCoreMemoryService(MEMORY_ID, client);
+    await expect(
+      svc.getSessionEventsPage(ACTOR_ID, SESSION_ID, 50, arrayCursor)
+    ).rejects.toMatchObject({ code: ErrorCode.VALIDATION_ERROR });
+  });
+
+  it('throws VALIDATION_ERROR when cursor.pageToken is a number (not a string)', async () => {
+    const badPageToken = Buffer.from(
+      JSON.stringify({ v: 1, sessionId: SESSION_ID, pageToken: 42 }),
+      'utf-8'
+    ).toString('base64url');
+    const client = makeMockClient(() => makeListEventsResponse([]));
+    const svc = new AgentCoreMemoryService(MEMORY_ID, client);
+    await expect(
+      svc.getSessionEventsPage(ACTOR_ID, SESSION_ID, 50, badPageToken)
+    ).rejects.toMatchObject({ code: ErrorCode.VALIDATION_ERROR });
+  });
+
+  it('throws VALIDATION_ERROR when cursor.offset is negative', async () => {
+    const badOffset = Buffer.from(
+      JSON.stringify({ v: 1, sessionId: SESSION_ID, offset: -1 }),
+      'utf-8'
+    ).toString('base64url');
+    const client = makeMockClient(() => makeListEventsResponse([]));
+    const svc = new AgentCoreMemoryService(MEMORY_ID, client);
+    await expect(
+      svc.getSessionEventsPage(ACTOR_ID, SESSION_ID, 50, badOffset)
+    ).rejects.toMatchObject({ code: ErrorCode.VALIDATION_ERROR });
+  });
+
+  it('throws VALIDATION_ERROR when cursor.offset is a non-integer float', async () => {
+    const badOffset = Buffer.from(
+      JSON.stringify({ v: 1, sessionId: SESSION_ID, offset: 1.5 }),
+      'utf-8'
+    ).toString('base64url');
+    const client = makeMockClient(() => makeListEventsResponse([]));
+    const svc = new AgentCoreMemoryService(MEMORY_ID, client);
+    await expect(
+      svc.getSessionEventsPage(ACTOR_ID, SESSION_ID, 50, badOffset)
+    ).rejects.toMatchObject({ code: ErrorCode.VALIDATION_ERROR });
+  });
+
+  // ── C. Byte-budget: full-traversal / no events lost ───────────────────────
+
+  /**
+   * Helper: follow all cursors for a multi-call session until hasMore=false.
+   * Returns the ordered list of message IDs collected across all pages.
+   */
+  async function traverseAllPages(
+    svc: AgentCoreMemoryService,
+    sessionId: string,
+    limit: number
+  ): Promise<string[]> {
+    const allIds: string[] = [];
+    let cursor: string | undefined;
+    let iterations = 0;
+    const MAX = 10000; // safety cap
+    do {
+      const page = await svc.getSessionEventsPage(ACTOR_ID, sessionId, limit, cursor);
+      allIds.push(...page.messages.map((m) => m.id));
+      cursor = page.nextCursor;
+      iterations++;
+      if (iterations > MAX) throw new Error('traverseAllPages: safety cap exceeded');
+    } while (cursor !== undefined);
+    return allIds;
+  }
+
+  it('P0: traversing all cursors yields every event ID exactly once — mid-page budget cut, NO upstream nextToken', async () => {
+    // 6 events, each ~1.5 MiB text. Budget (4 MiB) allows ~2 events per page.
+    // All 6 events are on a single upstream page (no nextToken).
+    const eventText = bigText(1.5 * 1024 * 1024);
+    const eventCount = 6;
+    const events = Array.from({ length: eventCount }, (_, i) => ({
+      eventId: `evt-${i}`,
+      timestamp: new Date(1000000 + i * 1000),
+      payloads: [{ conversational: { role: 'USER', content: { text: eventText } } }],
+    }));
+
+    // The mock always returns the same single page (no nextToken).
+    const client = makeMockClient(() => makeListEventsResponse(events)); // no nextToken
+    const svc = new AgentCoreMemoryService(MEMORY_ID, client);
+
+    const allIds = await traverseAllPages(svc, SESSION_ID, 10);
+
+    // Each event produces one message with ID `evt-N:0`.
+    const expectedIds = events.map((e) => `${e.eventId}:0`);
+    expect(allIds).toHaveLength(eventCount);
+    expect(allIds.sort()).toEqual(expectedIds.sort());
+  });
+
+  it('P0: traversing all cursors yields every event ID exactly once — mid-page budget cut WITH upstream nextToken', async () => {
+    // Page 1 (no input token): 4 large events, budget cuts after ~2.
+    // Page 2 (nextToken="page2"): 3 smaller events.
+    const bigText15 = bigText(1.5 * 1024 * 1024);
+    const smallText = 'hello';
+
+    const page1Events = Array.from({ length: 4 }, (_, i) => ({
+      eventId: `p1-${i}`,
+      timestamp: new Date(1000 + i * 1000),
+      payloads: [{ conversational: { role: 'USER', content: { text: bigText15 } } }],
+    }));
+    const page2Events = Array.from({ length: 3 }, (_, i) => ({
+      eventId: `p2-${i}`,
+      timestamp: new Date(10000 + i * 1000),
+      payloads: [{ conversational: { role: 'ASSISTANT', content: { text: smallText } } }],
+    }));
+
+    const sendMock = jest.fn().mockImplementation((cmd: { input?: { nextToken?: string } }) => {
+      const token = cmd?.input?.nextToken;
+      if (!token) return makeListEventsResponse(page1Events, 'page2');
+      if (token === 'page2') return makeListEventsResponse(page2Events);
+      throw new Error(`Unexpected token: ${token}`);
+    });
+    const client = { send: sendMock } as unknown as BedrockAgentCoreClient;
+    const svc = new AgentCoreMemoryService(MEMORY_ID, client);
+
+    const allIds = await traverseAllPages(svc, SESSION_ID, 10);
+
+    const expectedIds = [
+      ...page1Events.map((e) => `${e.eventId}:0`),
+      ...page2Events.map((e) => `${e.eventId}:0`),
+    ];
+    expect(allIds).toHaveLength(7);
+    expect(allIds.sort()).toEqual(expectedIds.sort());
+  });
+
+  it('622-event ~13 MB fixture: budget stops before exhausting events, then traversal yields all IDs', async () => {
+    const payloadPerEvent = bigText(21 * 1024); // ~21 KB
+    const eventCount = 622;
+    const events = Array.from({ length: eventCount }, (_, i) => ({
       eventId: `evt-${i}`,
       timestamp: new Date(Date.now() + i * 1000),
       payloads: [
@@ -175,21 +331,26 @@ describe('AgentCoreMemoryService.getSessionEventsPage', () => {
       ],
     }));
 
+    // Single upstream page (all 622 events, no nextToken).
     const client = makeMockClient(() => makeListEventsResponse(events));
     const svc = new AgentCoreMemoryService(MEMORY_ID, client);
-    const page = await svc.getSessionEventsPage(ACTOR_ID, SESSION_ID, 100);
 
-    // The serialised response must be under the byte budget
-    const serialisedBytes = Buffer.byteLength(JSON.stringify(page.messages), 'utf-8');
-    expect(serialisedBytes).toBeLessThan(SESSION_EVENTS_BYTE_BUDGET);
+    // First page must be under budget.
+    const firstPage = await svc.getSessionEventsPage(ACTOR_ID, SESSION_ID, 100);
+    const firstBytes = Buffer.byteLength(JSON.stringify(firstPage.messages), 'utf-8');
+    expect(firstBytes).toBeLessThan(SESSION_EVENTS_BYTE_BUDGET);
+    expect(firstPage.messages.length).toBeGreaterThan(0);
+    expect(firstPage.messages.length).toBeLessThan(eventCount);
 
-    // At least some messages should have been returned
-    expect(page.messages.length).toBeGreaterThan(0);
-    // Less than all 622 events (budget was hit before exhausting all events)
-    expect(page.messages.length).toBeLessThan(622);
+    // Full traversal must recover ALL event IDs exactly once.
+    const allIds = await traverseAllPages(svc, SESSION_ID, 100);
+    expect(allIds).toHaveLength(eventCount);
+    const expectedIds = events.map((e) => `${e.eventId}:0`).sort();
+    expect(allIds.sort()).toEqual(expectedIds);
   });
 
-  // 7. Single-event overflow → 413
+  // ── D. Single-event overflow ───────────────────────────────────────────────
+
   it('throws PAYLOAD_TOO_LARGE when the first event alone exceeds the byte budget', async () => {
     const oversizedText = bigText(SESSION_EVENTS_BYTE_BUDGET + 1);
     const client = makeMockClient(() =>
@@ -197,65 +358,60 @@ describe('AgentCoreMemoryService.getSessionEventsPage', () => {
         {
           eventId: 'huge',
           timestamp: new Date(),
-          payloads: [
-            {
-              conversational: { role: 'USER', content: { text: oversizedText } },
-            },
-          ],
+          payloads: [{ conversational: { role: 'USER', content: { text: oversizedText } } }],
         },
       ])
     );
     const svc = new AgentCoreMemoryService(MEMORY_ID, client);
-
     await expect(svc.getSessionEventsPage(ACTOR_ID, SESSION_ID, 50)).rejects.toMatchObject({
       code: ErrorCode.PAYLOAD_TOO_LARGE,
     });
   });
 
-  // 8. Empty session → empty page, no cursor
-  it('returns an empty page with no cursor for a session with no events', async () => {
+  // ── E. Upstream error mapping ──────────────────────────────────────────────
+
+  it('maps upstream ValidationException to VALIDATION_ERROR (400)', async () => {
+    const err = Object.assign(new Error('bad param'), { name: 'ValidationException' });
+    const client = makeMockClient(() => {
+      throw err;
+    });
+    const svc = new AgentCoreMemoryService(MEMORY_ID, client);
+    await expect(svc.getSessionEventsPage(ACTOR_ID, SESSION_ID, 50)).rejects.toMatchObject({
+      code: ErrorCode.VALIDATION_ERROR,
+    });
+  });
+
+  it('maps upstream ResourceNotFoundException to NOT_FOUND (404)', async () => {
+    const err = Object.assign(new Error('not found'), { name: 'ResourceNotFoundException' });
+    const client = makeMockClient(() => {
+      throw err;
+    });
+    const svc = new AgentCoreMemoryService(MEMORY_ID, client);
+    await expect(svc.getSessionEventsPage(ACTOR_ID, SESSION_ID, 50)).rejects.toMatchObject({
+      code: ErrorCode.NOT_FOUND,
+    });
+  });
+
+  it('re-throws an AppError directly without additional wrapping', async () => {
+    const cursor = encodeCursorV1('wrong-session', { pageToken: 'x' });
     const client = makeMockClient(() => makeListEventsResponse([]));
     const svc = new AgentCoreMemoryService(MEMORY_ID, client);
-    const page = await svc.getSessionEventsPage(ACTOR_ID, SESSION_ID, 50);
-
-    expect(page.messages).toHaveLength(0);
-    expect(page.hasMore).toBe(false);
-    expect(page.nextCursor).toBeUndefined();
+    let caught: unknown;
+    try {
+      await svc.getSessionEventsPage(ACTOR_ID, SESSION_ID, 50, cursor);
+    } catch (e) {
+      caught = e;
+    }
+    expect(caught).toBeInstanceOf(AppError);
   });
 
-  // 9. Conversational payload decoding
-  it('decodes a conversational USER payload into a user message', async () => {
+  // ── F. Stable per-payload IDs ──────────────────────────────────────────────
+
+  it('emits IDs as `${eventId}:${payloadIdx}` for multi-payload events', async () => {
     const client = makeMockClient(() =>
       makeListEventsResponse([
         {
-          eventId: 'conv-1',
-          timestamp: new Date('2024-06-01T12:00:00Z'),
-          payloads: [
-            {
-              conversational: {
-                role: 'USER',
-                content: { text: 'Hello world' },
-              },
-            },
-          ],
-        },
-      ])
-    );
-    const svc = new AgentCoreMemoryService(MEMORY_ID, client);
-    const page = await svc.getSessionEventsPage(ACTOR_ID, SESSION_ID, 50);
-
-    expect(page.messages).toHaveLength(1);
-    expect(page.messages[0].type).toBe('user');
-    expect(page.messages[0].contents[0]).toEqual({ type: 'text', text: 'Hello world' });
-    expect(page.messages[0].timestamp).toBe('2024-06-01T12:00:00.000Z');
-  });
-
-  // 10. Multiple payload items within one event share the eventId
-  it('emits multiple messages for an event with multiple payloads, all sharing the eventId', async () => {
-    const client = makeMockClient(() =>
-      makeListEventsResponse([
-        {
-          eventId: 'multi-payload',
+          eventId: 'multi',
           timestamp: new Date(),
           payloads: [
             { conversational: { role: 'USER', content: { text: 'first' } } },
@@ -268,64 +424,70 @@ describe('AgentCoreMemoryService.getSessionEventsPage', () => {
     const page = await svc.getSessionEventsPage(ACTOR_ID, SESSION_ID, 50);
 
     expect(page.messages).toHaveLength(2);
-    expect(page.messages[0].id).toBe('multi-payload');
-    expect(page.messages[1].id).toBe('multi-payload');
+    expect(page.messages[0].id).toBe('multi:0');
+    expect(page.messages[1].id).toBe('multi:1');
     expect(page.messages[0].type).toBe('user');
     expect(page.messages[1].type).toBe('assistant');
   });
 
-  // 11. AppError is not re-wrapped (thrown as-is)
-  it('re-throws an AppError directly without additional wrapping', async () => {
-    const badCursor = Buffer.from(
-      JSON.stringify({ sessionId: 'wrong', nextToken: 'x' }),
-      'utf-8'
-    ).toString('base64url');
-    const client = makeMockClient(() => makeListEventsResponse([]));
-    const svc = new AgentCoreMemoryService(MEMORY_ID, client);
-
-    let caught: unknown;
-    try {
-      await svc.getSessionEventsPage(ACTOR_ID, SESSION_ID, 50, badCursor);
-    } catch (e) {
-      caught = e;
-    }
-    expect(caught).toBeInstanceOf(AppError);
-  });
-
-  // 12. Cursor with null/array JSON body → 400
-  it('throws VALIDATION_ERROR when cursor decodes to a non-object (e.g. null)', async () => {
-    const nullCursor = Buffer.from('null', 'utf-8').toString('base64url');
-    const client = makeMockClient(() => makeListEventsResponse([]));
-    const svc = new AgentCoreMemoryService(MEMORY_ID, client);
-
-    await expect(
-      svc.getSessionEventsPage(ACTOR_ID, SESSION_ID, 50, nullCursor)
-    ).rejects.toMatchObject({ code: ErrorCode.VALIDATION_ERROR });
-  });
-
-  // 13. Cursor with array body → 400
-  it('throws VALIDATION_ERROR when cursor decodes to an array', async () => {
-    const arrayCursor = Buffer.from('[]', 'utf-8').toString('base64url');
-    const client = makeMockClient(() => makeListEventsResponse([]));
-    const svc = new AgentCoreMemoryService(MEMORY_ID, client);
-
-    await expect(
-      svc.getSessionEventsPage(ACTOR_ID, SESSION_ID, 50, arrayCursor)
-    ).rejects.toMatchObject({ code: ErrorCode.VALIDATION_ERROR });
-  });
-
-  // 14. Order preservation: messages appear in upstream event order
-  it('returns messages in the same order as upstream events', async () => {
+  it('emits ID as `${eventId}:0` for single-payload events', async () => {
     const client = makeMockClient(() =>
       makeListEventsResponse([
+        {
+          eventId: 'single',
+          timestamp: new Date('2024-06-01T12:00:00Z'),
+          payloads: [{ conversational: { role: 'USER', content: { text: 'hello' } } }],
+        },
+      ])
+    );
+    const svc = new AgentCoreMemoryService(MEMORY_ID, client);
+    const page = await svc.getSessionEventsPage(ACTOR_ID, SESSION_ID, 50);
+    expect(page.messages[0].id).toBe('single:0');
+  });
+
+  // ── G. Timestamp sort ─────────────────────────────────────────────────────
+
+  it('returns messages sorted by timestamp regardless of upstream order', async () => {
+    // Feed events in reverse timestamp order to the mock.
+    const client = makeMockClient(() =>
+      makeListEventsResponse([
+        { eventId: 'third', timestamp: new Date('2024-01-01T00:02:00Z') },
         { eventId: 'first', timestamp: new Date('2024-01-01T00:00:00Z') },
         { eventId: 'second', timestamp: new Date('2024-01-01T00:01:00Z') },
-        { eventId: 'third', timestamp: new Date('2024-01-01T00:02:00Z') },
       ])
     );
     const svc = new AgentCoreMemoryService(MEMORY_ID, client);
     const page = await svc.getSessionEventsPage(ACTOR_ID, SESSION_ID, 50);
 
-    expect(page.messages.map((m) => m.id)).toEqual(['first', 'second', 'third']);
+    // Should be sorted oldest → newest regardless of input order.
+    expect(page.messages.map((m) => m.id)).toEqual(['first:0', 'second:0', 'third:0']);
+  });
+
+  // ── H. Edge cases ─────────────────────────────────────────────────────────
+
+  it('returns an empty page with no cursor for a session with no events', async () => {
+    const client = makeMockClient(() => makeListEventsResponse([]));
+    const svc = new AgentCoreMemoryService(MEMORY_ID, client);
+    const page = await svc.getSessionEventsPage(ACTOR_ID, SESSION_ID, 50);
+    expect(page.messages).toHaveLength(0);
+    expect(page.hasMore).toBe(false);
+    expect(page.nextCursor).toBeUndefined();
+  });
+
+  it('decodes a conversational USER payload into a user message with correct timestamp', async () => {
+    const client = makeMockClient(() =>
+      makeListEventsResponse([
+        {
+          eventId: 'conv-1',
+          timestamp: new Date('2024-06-01T12:00:00Z'),
+          payloads: [{ conversational: { role: 'USER', content: { text: 'Hello world' } } }],
+        },
+      ])
+    );
+    const svc = new AgentCoreMemoryService(MEMORY_ID, client);
+    const page = await svc.getSessionEventsPage(ACTOR_ID, SESSION_ID, 50);
+    expect(page.messages[0].type).toBe('user');
+    expect(page.messages[0].contents[0]).toEqual({ type: 'text', text: 'Hello world' });
+    expect(page.messages[0].timestamp).toBe('2024-06-01T12:00:00.000Z');
   });
 });

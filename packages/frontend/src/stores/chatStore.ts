@@ -706,7 +706,7 @@ export const useChatStore = create<ChatStore>()(
       prependSessionHistory: (sessionId: string, olderMessages: ConversationMessage[]) => {
         if (olderMessages.length === 0) return;
 
-        logger.log(`Prepending ${olderMessages.length} older messages to session ${sessionId}`);
+        logger.log(`Merging ${olderMessages.length} history messages into session ${sessionId}`);
 
         // Reuse the same conversion helpers defined in loadSessionHistory.
         const isErrorMessage = (contents: MessageContent[]): boolean =>
@@ -736,7 +736,7 @@ export const useChatStore = create<ChatStore>()(
             return content as MessageContent;
           });
 
-        const prepended: Message[] = olderMessages.map((convMsg) => {
+        const incoming: Message[] = olderMessages.map((convMsg) => {
           const contents = convertContents(convMsg.contents);
           return {
             id: convMsg.id,
@@ -751,25 +751,38 @@ export const useChatStore = create<ChatStore>()(
         const { sessions } = get();
         const existing = getOrCreateSessionState(sessions, sessionId);
 
-        // Deduplicate: drop any prepended message whose id already exists in
-        // the current list to guard against page-boundary overlap.
-        const existingIds = new Set(existing.messages.map((m) => m.id));
-        const deduped = prepended.filter((m) => !existingIds.has(m.id));
+        // Streaming messages must stay at the end and not be reordered.
+        // Separate them before the merge so the sort only touches settled messages.
+        const streamingMessages = existing.messages.filter((m) => m.isStreaming);
+        const settledMessages = existing.messages.filter((m) => !m.isStreaming);
+
+        // Dedup: collect all settled messages, preferring the existing copy if IDs collide
+        // (existing copy may carry richer state such as tool-use progress).
+        const existingIds = new Set(settledMessages.map((m) => m.id));
+        const newMessages = incoming.filter((m) => !existingIds.has(m.id));
+        const dupeCount = incoming.length - newMessages.length;
+
+        // Merge and sort by timestamp ascending; tie-break by id for stability.
+        const merged = [...settledMessages, ...newMessages].sort((a, b) => {
+          const tA = a.timestamp instanceof Date ? a.timestamp.getTime() : 0;
+          const tB = b.timestamp instanceof Date ? b.timestamp.getTime() : 0;
+          if (tA !== tB) return tA - tB;
+          return a.id.localeCompare(b.id);
+        });
 
         set({
           sessions: {
             ...sessions,
             [sessionId]: {
               ...existing,
-              messages: [...deduped, ...existing.messages],
+              // Streaming messages stay at the end, after all settled history.
+              messages: [...merged, ...streamingMessages],
               lastUpdated: new Date(),
             },
           },
         });
 
-        logger.log(
-          `Prepended ${deduped.length} older messages (${prepended.length - deduped.length} dupes dropped)`
-        );
+        logger.log(`Merged ${newMessages.length} new messages (${dupeCount} dupes dropped)`);
       },
     }),
     {

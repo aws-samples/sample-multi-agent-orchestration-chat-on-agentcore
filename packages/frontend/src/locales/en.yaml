@@ -233,9 +233,9 @@ chat:
   bulkDelete: Bulk delete
   bulkDeleteConfirm: 'Are you sure you want to delete {{count}} selected sessions? This action cannot be undone.'
   sessionsDeleted: '{{count}} sessions deleted'
-  loadOlderMessages: Load older messages
-  loadingOlderMessages: Loading older messages...
-  loadOlderError: Failed to load older messages. Please try again.
+  loadOlderMessages: Load more history
+  loadingOlderMessages: Loading more history...
+  loadOlderError: Failed to load more history. Please try again.
 
 # Agent
 agent:

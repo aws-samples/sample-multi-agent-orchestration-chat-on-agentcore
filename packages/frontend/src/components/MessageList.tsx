@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState, useMemo, useCallback } from 'react';
+import React, { useEffect, useLayoutEffect, useRef, useState, useMemo, useCallback } from 'react';
 import { useParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useChatStore } from '../stores/chatStore';
@@ -41,6 +41,19 @@ export const MessageList: React.FC<MessageListProps> = ({
   const containerRef = useRef<HTMLDivElement>(null);
   const [shouldAutoScroll, setShouldAutoScroll] = useState(true);
 
+  /**
+   * `pendingScrollCorrection` is set (to the scrollHeight before new messages
+   * were injected) by `handleLoadOlderMessages`, then consumed by a
+   * `useLayoutEffect` which fires synchronously after React commits the new
+   * DOM nodes. Using `useLayoutEffect` (not `requestAnimationFrame`) ensures
+   * the scrollHeight delta is read after the browser has laid out the new
+   * nodes but before it paints, so there is no visible jump.
+   *
+   * The ref is cleared on session change so stale corrections do not apply
+   * to a different session's scroll container.
+   */
+  const pendingScrollCorrectionRef = useRef<number>(0);
+
   // Monitor scroll position and stop auto-scroll if user scrolls up
   const handleScroll = () => {
     const container = containerRef.current;
@@ -59,29 +72,52 @@ export const MessageList: React.FC<MessageListProps> = ({
   }, [messages, shouldAutoScroll]);
 
   /**
-   * Load older messages and preserve the scroll position so the viewport
-   * does not jump to the top after prepending.
+   * Apply any pending scroll correction synchronously after the browser has
+   * committed the new DOM nodes (useLayoutEffect, not useEffect) but before
+   * the browser paints. This prevents a visible scroll-to-top when history
+   * messages are prepended.
    *
-   * Strategy: record `scrollHeight` BEFORE the prepend, then after React has
-   * applied the new DOM, set `scrollTop` to `newScrollHeight - oldScrollHeight`
-   * so the visible content stays in place.
+   * Only fires when sessionId is set (no-op during route changes so we never
+   * touch scroll position of a container that's being unmounted).
    */
-  const handleLoadOlderMessages = useCallback(async () => {
-    if (!sessionId || isLoadingOlderEvents || !eventsHasMore) return;
-
+  useLayoutEffect(() => {
+    if (!sessionId || pendingScrollCorrectionRef.current === 0) return;
     const container = containerRef.current;
-    const scrollHeightBefore = container?.scrollHeight ?? 0;
-
-    await loadOlderEvents(sessionId);
-
-    // After state update and React re-render, adjust scroll so content stays stable.
-    requestAnimationFrame(() => {
-      if (container) {
-        const added = container.scrollHeight - scrollHeightBefore;
+    if (container) {
+      const added = container.scrollHeight - pendingScrollCorrectionRef.current;
+      if (added > 0) {
         container.scrollTop += added;
       }
-    });
-  }, [sessionId, isLoadingOlderEvents, eventsHasMore, loadOlderEvents]);
+    }
+    pendingScrollCorrectionRef.current = 0;
+  });
+
+  // Reset pending scroll correction on session/route change so stale values
+  // from a previous session don't apply to the new one.
+  useEffect(() => {
+    pendingScrollCorrectionRef.current = 0;
+  }, [sessionId]);
+
+  /**
+   * Load more history and preserve the scroll position so the viewport does
+   * not jump after new messages are injected above the visible area.
+   *
+   * Strategy:
+   *   1. Record `scrollHeight` BEFORE the state update.
+   *   2. Trigger `loadOlderEvents` (async; updates store → React re-render).
+   *   3. A `useLayoutEffect` (above) reads the new scrollHeight after commit
+   *      and adjusts `scrollTop` so visible content stays in place.
+   */
+  const handleLoadOlderMessages = useCallback(async () => {
+    if (!sessionId || isLoadingOlderEvents) return;
+    // Allow the call even when eventsHasMore is false so the button can be
+    // shown for empty pages — the sessionStore no-op guard handles that.
+    const container = containerRef.current;
+    if (container) {
+      pendingScrollCorrectionRef.current = container.scrollHeight;
+    }
+    await loadOlderEvents(sessionId);
+  }, [sessionId, isLoadingOlderEvents, loadOlderEvents]);
 
   return (
     <div
@@ -163,9 +199,10 @@ export const MessageList: React.FC<MessageListProps> = ({
             </div>
           )}
 
-        {/* "Load older messages" banner — shown when there is more history to load */}
+        {/* "Load more history" banner — shown whenever there are more pages to fetch,
+            even if the current page has no messages (e.g. the first page was empty due
+            to the byte budget being hit before any event converted to a message). */}
         {!isLoadingEvents &&
-          messages.length > 0 &&
           sessionId &&
           (eventsHasMore || isLoadingOlderEvents || olderEventsError) && (
             <div className="flex flex-col items-center gap-2 mb-4">
