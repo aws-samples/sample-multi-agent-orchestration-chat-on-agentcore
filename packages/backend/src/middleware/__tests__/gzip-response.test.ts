@@ -10,7 +10,7 @@
  *     d. Content-Encoding absent on 406/413 error bodies
  *  3. Integration: real Express app + Node.js http client
  *     a. large body with real router (gzip middleware wired as in sessions.ts)
- *     b. LWA BUFFERED binary-detection simulation (UTF-8 round-trip → base64)
+ *     b. LWA BUFFERED binary-encoding simulation (Content-Encoding → base64)
  *     c. Node.js built-in fetch auto-decompression equivalence
  *     d. small body
  *  4. Integration: actual sessions router with mocked repository + memory
@@ -20,8 +20,9 @@
  *  6. Boundary regression: double-JSON escape inflates identity body size
  *
  * NOTE: Live E2E (real Lambda / API Gateway / browser auto-decompression)
- * was NOT performed.  The LWA binary-detection mechanism is exercised by the
- * simulation test in §3b.  Section §3c shows that Node.js built-in fetch
+ * was NOT performed.  §3b simulates the LWA binary-encoding path
+ * (Content-Encoding header presence → convert_to_binary → isBase64Encoded=true,
+ * per lambda_http 1.1.1 response.rs:322).  §3c shows that Node.js built-in fetch
  * auto-decompresses gzip responses, equivalent to browser behaviour.
  */
 
@@ -243,6 +244,27 @@ describe('negotiateEncoding', () => {
 
   it('returns gzip when only identity has invalid q>1 (identity treated as refused)', () => {
     expect(negotiateEncoding('gzip;q=0.9, identity;q=1.1')).toBe('gzip');
+  });
+
+  // Invalid q syntax regressions – must be treated as q=0 (refused), not q=1
+  it('q=wat: non-numeric q value → treated as refused', () => {
+    expect(negotiateEncoding('gzip;q=wat')).toBe('identity');
+  });
+
+  it('q=-1: negative q value → treated as refused', () => {
+    expect(negotiateEncoding('gzip;q=-1')).toBe('identity');
+  });
+
+  it('q=NaN: literal NaN string → treated as refused', () => {
+    expect(negotiateEncoding('gzip;q=NaN')).toBe('identity');
+  });
+
+  it('q=wat with identity;q=0: both refused → 406', () => {
+    expect(negotiateEncoding('gzip;q=wat, identity;q=0')).toBeNull();
+  });
+
+  it('duplicate q=: conservative → treated as refused', () => {
+    expect(negotiateEncoding('gzip;q=0.9;q=0.8')).toBe('identity');
   });
 });
 
@@ -561,25 +583,24 @@ describe('sessionHistoryGzipMiddleware (integration through real Express)', () =
     expect(reported).toBe(body.length);
   });
 
-  // §3b: LWA BUFFERED binary-detection simulation
-  // LWA v1.0.0 BUFFERED mode: attempts UTF-8 round-trip on the response body.
-  // Gzip bytes (\x1f\x8b ...) are not valid UTF-8, so the round-trip changes
-  // the bytes → LWA sets isBase64Encoded=true and base64-encodes the body.
-  // Source: https://github.com/awslabs/aws-lambda-web-adapter (BUFFERED mode handler)
-  it('§3b: LWA binary-detection: gzip body bytes fail UTF-8 round-trip → base64 path', async () => {
+  // §3b: LWA BUFFERED binary-encoding simulation
+  // LWA v1.0.0 (lambda_http 1.1.1) response.rs:322:
+  //   if headers.get(CONTENT_ENCODING).is_some() { return convert_to_binary(self); }
+  // Presence of Content-Encoding is sufficient – LWA sets isBase64Encoded=true
+  // and base64-encodes the body in the Lambda proxy response JSON.
+  // Source: https://docs.rs/crate/lambda_http/1.1.1/source/src/response.rs
+  //         LWA v1.0.0 Cargo.lock (lambda_http 1.1.1)
+  it('§3b: LWA binary-encoding: Content-Encoding header present → base64 path simulation', async () => {
     const { body, headers } = await httpGet(port, '/sessions/test/events', {
       'Accept-Encoding': 'gzip',
     });
+    // Middleware sets Content-Encoding: gzip – this alone triggers LWA binary path.
     expect(headers['content-encoding']).toBe('gzip');
 
-    // Simulate LWA UTF-8 round-trip check
-    const utf8RoundTrip = Buffer.from(body.toString('utf-8'), 'utf-8');
-    const roundTripChanged = !body.equals(utf8RoundTrip);
-    expect(roundTripChanged).toBe(true); // gzip bytes fail → LWA will base64-encode
-
-    // Simulate LWA base64 encode → API Gateway decode → browser gunzip
+    // Simulate: LWA sees Content-Encoding → convert_to_binary → base64-encode.
     const b64 = body.toString('base64');
     const lambdaProxy = { statusCode: 200, body: b64, isBase64Encoded: true };
+    // API Gateway v2 base64-decodes before forwarding gzip bytes to the client.
     const decoded = Buffer.from(lambdaProxy.body, 'base64');
     expect(decoded.equals(body)).toBe(true); // lossless round-trip
 

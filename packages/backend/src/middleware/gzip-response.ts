@@ -11,13 +11,17 @@
  * cap is already hit inside the runtime.
  *
  * # How it works (LWA BUFFERED mode binary encoding)
- * LWA BUFFERED mode collects the full HTTP response body from Express into a
- * byte buffer, then attempts a UTF-8 round-trip (decode → re-encode).  If the
- * round-trip changes the bytes it sets `isBase64Encoded: true` and base64-encodes
- * the body in the Lambda proxy response JSON.  Gzip output always starts with the
- * magic bytes \x1f\x8b, which are not valid UTF-8 lead bytes, so the round-trip
- * will always differ and LWA will always base64-encode a gzip body.
- * Source: https://github.com/awslabs/aws-lambda-web-adapter (BUFFERED handler)
+ * LWA BUFFERED mode (v1.0.0, lambda_http 1.1.1) inspects response headers after
+ * Express writes them.  The relevant logic in
+ * https://docs.rs/crate/lambda_http/1.1.1/source/src/response.rs (line 322) is:
+ *
+ *   if headers.get(CONTENT_ENCODING).is_some() { return convert_to_binary(self); }
+ *
+ * Setting `Content-Encoding: gzip` is therefore sufficient — LWA will call
+ * `convert_to_binary`, set `isBase64Encoded: true`, and base64-encode the body
+ * in the Lambda proxy response JSON regardless of the body bytes themselves.
+ * Source: https://docs.rs/crate/lambda_http/1.1.1/source/src/response.rs
+ *         LWA v1.0.0 Cargo.lock (lambda_http 1.1.1)
  *
  * API Gateway v2 (payload format 2.0, used here – see BackendApiConstruct) sees
  * `isBase64Encoded: true`, base64-decodes the body back to the original gzip
@@ -139,13 +143,26 @@ function parseAcceptEncoding(header: string | undefined): EncodingPreference[] {
       const segments = part.trim().split(';');
       const encoding = (segments[0] ?? '').trim().toLowerCase();
       let q = 1.0;
+      let qSeen = false;
       for (const seg of segments.slice(1)) {
-        const m = seg.trim().match(/^q\s*=\s*([0-9]*\.?[0-9]+)$/i);
-        if (m) {
-          const parsed = parseFloat(m[1]!);
-          // RFC 7231 §5.3.1: weight MUST be in [0,1]. Out-of-range → refuse.
-          q = isNaN(parsed) || parsed > 1.0 ? 0 : parsed;
+        const trimmed = seg.trim();
+        // Detect any q= parameter (case-insensitive, optional whitespace).
+        if (!/^q\s*=/i.test(trimmed)) continue;
+        // Duplicate q= in the same token → refuse conservatively.
+        if (qSeen) {
+          q = 0;
           break;
+        }
+        qSeen = true;
+        // RFC 7231 §5.3.1: weight = 1*3DIGIT [ "." 1*3DIGIT ]
+        // Only digits and a single decimal point, value in [0, 1].
+        // Anything else (letters, negative sign, "NaN", extra dots) → q=0.
+        const m = trimmed.match(/^q\s*=\s*(0(?:\.\d{1,3})?|1(?:\.0{1,3})?)$/i);
+        if (!m) {
+          q = 0;
+        } else {
+          const parsed = parseFloat(m[1]!);
+          q = isNaN(parsed) || parsed > 1.0 || parsed < 0 ? 0 : parsed;
         }
       }
       return { encoding, q };
@@ -341,19 +358,21 @@ async function handleGzip(
 
       // Size check passed – send the gzip-compressed body.
       //
-      // LWA BUFFERED mode (v1.0.0) reads the full response body bytes and
-      // attempts a UTF-8 round-trip.  Gzip magic bytes \x1f\x8b are not valid
-      // UTF-8 so the round-trip always differs → LWA sets isBase64Encoded=true
-      // and base64-encodes the body in the Lambda proxy response JSON.
-      // API Gateway v2 (payload format 2.0) then decodes the base64 body
-      // before forwarding to the client.
-      // Source: https://github.com/awslabs/aws-lambda-web-adapter (BUFFERED mode handler)
+      // LWA BUFFERED mode (v1.0.0, lambda_http 1.1.1) checks for the presence
+      // of the Content-Encoding response header (response.rs:322):
+      //   if headers.get(CONTENT_ENCODING).is_some() { return convert_to_binary(self); }
+      // Setting Content-Encoding: gzip is therefore sufficient for LWA to set
+      // isBase64Encoded=true and base64-encode the body in the Lambda proxy
+      // response JSON.  API Gateway v2 (payload format 2.0) then decodes the
+      // base64 body before forwarding gzip bytes to the client.
+      // Source: https://docs.rs/crate/lambda_http/1.1.1/source/src/response.rs
+      //         LWA v1.0.0 Cargo.lock (lambda_http 1.1.1)
       //
-      // NOTE: This LWA binary-detection path is NOT verified by live Lambda
-      // invocation in this test suite.  The local integration tests confirm
-      // correct gzip bytes, headers, and round-trip JSON equality through a
-      // real Express/Node.js HTTP server.  The LWA base64 step is verified by
-      // a separate simulation test (see gzip-response.test.ts §5b).
+      // NOTE: This LWA path is NOT verified by live Lambda invocation in this
+      // test suite.  The local integration tests confirm correct gzip bytes,
+      // headers, and round-trip JSON equality through a real Express/Node.js
+      // HTTP server.  The LWA base64 step is verified by a separate simulation
+      // test (see gzip-response.test.ts §3b).
       res.setHeader('Content-Encoding', 'gzip');
       res.setHeader('Content-Type', 'application/json');
       res.setHeader('Content-Length', String(compressed.length));
