@@ -13,6 +13,7 @@ import { z } from 'zod';
 import { type AuthenticatedRequest } from '../middleware/auth.js';
 import { asyncHandler } from '../middleware/async-handler.js';
 import { validate } from '../middleware/validate.js';
+import { sessionHistoryGzipMiddleware } from '../middleware/gzip-response.js';
 import { createAgentCoreMemoryServiceForRequest } from '../services/agentcore-memory.js';
 import { getSessionsRepository } from '../repositories/sessions/sessions-repository.factory.js';
 import { config } from '../config/index.js';
@@ -80,10 +81,16 @@ router.get(
 /**
  * Session conversation history retrieval endpoint
  * GET /sessions/:sessionId/events
+ *
+ * sessionHistoryGzipMiddleware runs before the async handler and intercepts
+ * res.json() to gzip-compress the response body when the client accepts it.
+ * This keeps the Lambda proxy payload inside the 6 MiB hard limit for large
+ * conversation histories.  See middleware/gzip-response.ts for full details.
  */
 router.get(
   '/:sessionId/events',
   validate({ params: sessionIdParams }),
+  sessionHistoryGzipMiddleware,
   asyncHandler(async (req: AuthenticatedRequest<{ sessionId: string }>, res) => {
     const actorId = req.identityId!;
     const sessionId = req.params.sessionId;
