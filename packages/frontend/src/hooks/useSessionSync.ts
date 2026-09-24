@@ -75,6 +75,7 @@ export function useSessionSync(): UseSessionSyncReturn {
   const {
     activeSessionId,
     sessionEvents,
+    isLoadingEvents,
     isCreatingSession,
     selectSession,
     clearActiveSession,
@@ -189,10 +190,10 @@ export function useSessionSync(): UseSessionSyncReturn {
   ]);
 
   /**
-   * Initial hydrate: load sessionEvents into chatStore the FIRST time they
-   * arrive for the current session.
+   * Initial hydrate: load sessionEvents into chatStore the FIRST time the
+   * initial events page finishes loading for the current session.
    *
-   * This effect calls `loadSessionHistory` exactly once per session (guarded
+   * This effect calls `loadSessionHistory` at most once per session (guarded
    * by `hydratedForRef`). All subsequent additions to `sessionEvents` (via
    * `loadOlderEvents` / cursor pagination) are handled by the incremental
    * merge effect below, which calls `prependSessionHistory` instead.
@@ -201,14 +202,37 @@ export function useSessionSync(): UseSessionSyncReturn {
    * `loadSessionHistory` REPLACES all chatStore messages for the session.
    * Re-running it after `loadOlderEvents` would destroy any in-flight
    * streaming message that arrived between the two calls.
+   *
+   * WHY check isLoadingEvents:
+   * `selectSession` now clears `sessionEvents` immediately so that stale
+   * events from a previous session cannot trigger hydration for the new one.
+   * However, because `isLoadingEvents` is set to `true` at the same time,
+   * we must wait until it becomes `false` (initial load complete) before
+   * hydrating. Without this guard, the effect might see an empty
+   * `sessionEvents` array and attempt to hydrate with zero events, which
+   * would be a no-op — but then when the real events arrive, the condition
+   * `hydratedForRef.current === urlSessionId` would block the INCREMENTAL
+   * merge, leaving events invisible.
+   *
+   * WHY hydrate even on an empty first page (sessionEvents.length === 0):
+   * An empty first page is a valid terminal state (no history yet, or all
+   * events have been fetched). Marking `hydratedForRef` as done ensures
+   * that future `loadOlderEvents` calls go through the incremental merge
+   * path (`prependSessionHistory`) rather than the full-replace path
+   * (`loadSessionHistory`), which would destroy in-flight streaming messages.
    */
   useEffect(() => {
-    if (!urlSessionId || activeSessionId !== urlSessionId || sessionEvents.length === 0) return;
-    if (hydratedForRef.current === urlSessionId) return; // already done for this session
+    if (!urlSessionId || activeSessionId !== urlSessionId) return;
+    if (isLoadingEvents) return; // Wait for initial load to complete
+    if (hydratedForRef.current === urlSessionId) return; // Already hydrated
     hydratedForRef.current = urlSessionId;
-    logger.log(`Initial hydrate to ChatStore: ${urlSessionId} (${sessionEvents.length} events)`);
-    loadSessionHistory(urlSessionId, sessionEvents);
-  }, [urlSessionId, activeSessionId, sessionEvents, loadSessionHistory]);
+    if (sessionEvents.length > 0) {
+      logger.log(`Initial hydrate to ChatStore: ${urlSessionId} (${sessionEvents.length} events)`);
+      loadSessionHistory(urlSessionId, sessionEvents);
+    } else {
+      logger.log(`Initial hydrate to ChatStore: ${urlSessionId} (empty first page, no-op)`);
+    }
+  }, [urlSessionId, activeSessionId, isLoadingEvents, sessionEvents, loadSessionHistory]);
 
   /**
    * Incremental merge: when `loadOlderEvents` adds more events to

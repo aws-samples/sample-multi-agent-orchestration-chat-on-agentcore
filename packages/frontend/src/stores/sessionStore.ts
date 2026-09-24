@@ -245,6 +245,10 @@ export const useSessionStore = create<SessionStore>()(
             isLoadingEvents: true,
             eventsError: null,
             activeSessionId: sessionId,
+            // Clear any stale events from a previous session immediately so
+            // useSessionSync does not hydrate with the wrong session's data
+            // before the new session's events arrive.
+            sessionEvents: [],
             eventsLoadGeneration: generation,
             // Reset pagination state for the new session.
             eventsNextCursor: null,
@@ -350,7 +354,13 @@ export const useSessionStore = create<SessionStore>()(
       },
 
       loadOlderEvents: async (sessionId: string) => {
-        const { eventsNextCursor, eventsHasMore, isLoadingOlderEvents, activeSessionId } = get();
+        const {
+          eventsNextCursor,
+          eventsHasMore,
+          isLoadingOlderEvents,
+          activeSessionId,
+          eventsLoadGeneration,
+        } = get();
 
         // Guard: only load if there is more data, not already loading, and
         // the session hasn't changed since the request was initiated.
@@ -369,17 +379,29 @@ export const useSessionStore = create<SessionStore>()(
           return;
         }
 
+        // Capture the current generation so that stale responses (A→B→A, or
+        // clearActiveSession while in-flight) can be detected after the await.
+        const capturedGeneration = eventsLoadGeneration;
+
         set({ isLoadingOlderEvents: true, olderEventsError: null });
 
         try {
           logger.log(`Loading older events for session: ${sessionId}`);
           const result = await fetchSessionEventsPage(sessionId, { cursor: eventsNextCursor });
 
-          // Race guard: if the user switched sessions while the request was
-          // in-flight, discard the result to prevent prepending stale events.
-          if (get().activeSessionId !== sessionId) {
-            logger.log(`Session switched while loading older events for ${sessionId}, discarding`);
-            set({ isLoadingOlderEvents: false });
+          // Generation guard: if the user switched sessions (or cleared the
+          // session) while this request was in-flight, discard the result
+          // entirely — do not set isLoadingOlderEvents: false here either,
+          // because the current load may have already replaced it with its
+          // own in-flight state.
+          const after = get();
+          if (
+            after.activeSessionId !== sessionId ||
+            after.eventsLoadGeneration !== capturedGeneration
+          ) {
+            logger.log(
+              `Stale loadOlderEvents response for ${sessionId} (gen ${capturedGeneration} vs ${after.eventsLoadGeneration}), discarding`
+            );
             return;
           }
 
@@ -398,6 +420,18 @@ export const useSessionStore = create<SessionStore>()(
             `Older events loaded: ${result.events.length} items, hasMore=${result.hasMore}`
           );
         } catch (error) {
+          // Same generation guard for errors: a stale error must not overwrite
+          // the loading state that belongs to a newer, active request.
+          const after = get();
+          if (
+            after.activeSessionId !== sessionId ||
+            after.eventsLoadGeneration !== capturedGeneration
+          ) {
+            logger.log(
+              `Stale loadOlderEvents error for ${sessionId} (gen ${capturedGeneration}), discarding`
+            );
+            return;
+          }
           const errorMessage = extractErrorMessage(error, 'Failed to load older events');
           logger.error('Load older events error:', error);
           set({ isLoadingOlderEvents: false, olderEventsError: errorMessage });
@@ -424,6 +458,7 @@ export const useSessionStore = create<SessionStore>()(
             eventsHasMore: false,
             isLoadingOlderEvents: false,
             olderEventsError: null,
+            eventsLoadGeneration: get().eventsLoadGeneration + 1,
           });
         }
 
@@ -526,6 +561,7 @@ export const useSessionStore = create<SessionStore>()(
           eventsHasMore: false,
           isLoadingOlderEvents: false,
           olderEventsError: null,
+          eventsLoadGeneration: get().eventsLoadGeneration + 1,
         });
         logger.log(`Set new session as active: ${sessionId}`);
       },
@@ -540,6 +576,7 @@ export const useSessionStore = create<SessionStore>()(
           eventsHasMore: false,
           isLoadingOlderEvents: false,
           olderEventsError: null,
+          eventsLoadGeneration: get().eventsLoadGeneration + 1,
         });
         logger.log('Cleared active session');
       },
@@ -578,6 +615,7 @@ export const useSessionStore = create<SessionStore>()(
           isLoadingOlderEvents: false,
           olderEventsError: null,
           isCreatingSession: true,
+          eventsLoadGeneration: get().eventsLoadGeneration + 1,
         });
         logger.log(`Created new session: ${newSessionId}`);
         return newSessionId;

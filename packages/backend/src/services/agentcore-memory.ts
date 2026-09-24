@@ -104,20 +104,26 @@ export interface ConversationMessage {
  * Paginated events result type definition.
  *
  * `nextCursor` is an opaque base64url token that encodes the upstream
- * continuation token, the originating `sessionId`, and optionally an
- * intra-page offset. The sessionId is validated on decode so a cursor issued
- * for session A cannot be replayed against session B (→ 400).
+ * continuation token, the originating `sessionId`, the page size used for
+ * the upstream fetch, and optionally an intra-page offset. The sessionId is
+ * validated on decode so a cursor issued for session A cannot be replayed
+ * against session B (→ 400).
  *
  * Cursor schema (version 1):
- *   { v: 1, sessionId: string, pageToken?: string, offset?: number }
- *   - pageToken: the upstream nextToken that was supplied to the ListEvents
- *     call that produced this page (NOT the nextToken returned by it). When
+ *   { v: 1, sessionId: string, pageToken?: string, offset?: number, pageSize?: number }
+ *   - pageToken: the upstream nextToken supplied to the ListEvents call that
+ *     produced this page (NOT the nextToken returned by it). When
  *     absent/undefined the cursor means "first page".
  *   - offset: number of events at the start of the upstream page that have
  *     already been delivered. Absent/undefined means 0. Used when the byte
  *     budget cuts mid-page — the consumer re-fetches the same page and skips
  *     the first `offset` events. This prevents events between the cut-off
  *     point and the upstream page boundary from being silently dropped.
+ *   - pageSize: the maxResults value used for the ListEvents call that
+ *     created this cursor. Must be used for the resume call so that the
+ *     upstream page composition is identical and the `offset` index is
+ *     valid. Absent for cursors created before this field was introduced
+ *     (graceful degradation: client's limit is used instead).
  *
  * `truncated` is always false in successful responses. When a single event
  * would alone exceed the byte budget the request fails with a 413 AppError
@@ -152,6 +158,16 @@ interface PageCursorV1 {
   /** Events at the start of the pageToken page that have already been
    *  delivered. Zero / absent → start from the beginning of the page. */
   offset?: number;
+  /**
+   * The `maxResults` value used for the ListEvents call that created this
+   * cursor. Stored so that a resume call re-fetches the same upstream page
+   * with an identical page composition, keeping the `offset` index valid.
+   *
+   * When absent (cursors created before this field was introduced), the
+   * caller's `limit` parameter is used as a fallback — behaviour is
+   * equivalent to the pre-pageSize implementation.
+   */
+  pageSize?: number;
 }
 
 /**
@@ -454,6 +470,7 @@ export class AgentCoreMemoryService {
     // -------------------------------------------------------------------------
     let upstreamPageToken: string | undefined; // token we send TO the API
     let skipCount = 0; // events to skip at the start of this page
+    let cursorPageSize: number | undefined; // upstream maxResults stored in cursor
 
     if (cursor) {
       let decoded: unknown;
@@ -485,22 +502,57 @@ export class AgentCoreMemoryService {
           'Invalid cursor: pageToken must be a string'
         );
       }
-      // offset must be a non-negative integer or absent.
+      // offset must be a non-negative safe integer or absent.
       if (c.offset !== undefined) {
-        if (!Number.isInteger(c.offset) || (c.offset as number) < 0) {
+        if (
+          !Number.isInteger(c.offset) ||
+          (c.offset as number) < 0 ||
+          !Number.isSafeInteger(c.offset as number)
+        ) {
           throw new AppError(
             ErrorCode.VALIDATION_ERROR,
-            'Invalid cursor: offset must be a non-negative integer'
+            'Invalid cursor: offset must be a non-negative safe integer'
           );
         }
+      }
+      // pageSize must be a positive integer ≤ SESSION_EVENTS_MAX_LIMIT or absent.
+      if (c.pageSize !== undefined) {
+        if (
+          !Number.isInteger(c.pageSize) ||
+          (c.pageSize as number) < 1 ||
+          (c.pageSize as number) > SESSION_EVENTS_MAX_LIMIT
+        ) {
+          throw new AppError(
+            ErrorCode.VALIDATION_ERROR,
+            `Invalid cursor: pageSize must be an integer between 1 and ${SESSION_EVENTS_MAX_LIMIT}`
+          );
+        }
+      }
+      // Cross-field: if both offset and pageSize are present, offset < pageSize.
+      if (
+        c.offset !== undefined &&
+        c.pageSize !== undefined &&
+        (c.offset as number) >= (c.pageSize as number)
+      ) {
+        throw new AppError(
+          ErrorCode.VALIDATION_ERROR,
+          'Invalid cursor: offset must be less than pageSize'
+        );
       }
 
       upstreamPageToken = c.pageToken as string | undefined;
       skipCount = (c.offset as number | undefined) ?? 0;
+      cursorPageSize = c.pageSize as number | undefined;
     }
 
+    // When a cursor carries a stored pageSize, use it for the upstream fetch
+    // so the page composition is identical to when the cursor was created and
+    // the `offset` index remains valid. Fall back to the caller's `limit` for
+    // cursors created before this field was introduced.
+    const limitUsed = cursorPageSize ?? limit;
+
     log.info(
-      `Retrieving events page: sessionId=${sessionId}, limit=${limit}, hasCursor=${!!cursor}, skip=${skipCount}`
+      `Retrieving events page: sessionId=${sessionId}, limit=${limit}, limitUsed=${limitUsed}, hasCursor=${!!cursor}, skip=${skipCount}`
     );
 
     // -------------------------------------------------------------------------
@@ -517,7 +569,7 @@ export class AgentCoreMemoryService {
           actorId,
           sessionId,
           includePayloads: true,
-          maxResults: limit,
+          maxResults: limitUsed,
           nextToken: upstreamPageToken,
         })
       );
@@ -552,7 +604,16 @@ export class AgentCoreMemoryService {
 
     // -------------------------------------------------------------------------
     // 4. Apply intra-page offset (events already delivered in a previous call).
+    //    Guard: if skipCount ≥ rawEvents.length the cursor is stale (the page
+    //    shrunk — e.g. events were deleted). Surface as a 400 rather than
+    //    returning an empty success that looks like "no more history".
     // -------------------------------------------------------------------------
+    if (skipCount > 0 && skipCount >= rawEvents.length && rawEvents.length > 0) {
+      throw new AppError(
+        ErrorCode.VALIDATION_ERROR,
+        'Cursor offset exceeds page size; the session may have changed — please reload'
+      );
+    }
     const pageEvents = skipCount > 0 ? rawEvents.slice(skipCount) : rawEvents;
 
     // -------------------------------------------------------------------------
@@ -605,12 +666,20 @@ export class AgentCoreMemoryService {
       const eventJson = JSON.stringify(eventMessages);
       const eventBytes = Buffer.byteLength(eventJson, 'utf-8') + 2 * eventMessages.length;
 
-      if (
-        messages.length === 0 &&
-        eventsConsumed === 0 &&
-        eventBytes > SESSION_EVENTS_BYTE_BUDGET
-      ) {
-        // First event on first page exceeds budget → explicit error.
+      // 413 guard: if this would be the very FIRST message output and it
+      // alone exceeds the budget, there is no way to ever deliver it — return
+      // an explicit error instead of an empty page (which would create an
+      // endless cursor loop if the caller kept retrying).
+      //
+      // Note: we check `messages.length === 0` (no messages output yet) rather
+      // than `eventsConsumed === 0` (no events processed yet). Empty events
+      // (no payload / unrecognised payload format) increment `eventsConsumed`
+      // without producing messages; using `eventsConsumed === 0` as the guard
+      // would incorrectly allow the budget break-and-cursor path when empty
+      // events precede a giant event, producing an empty page with hasMore=true
+      // and an infinite continuation cursor.
+      if (messages.length === 0 && eventBytes > SESSION_EVENTS_BYTE_BUDGET) {
+        // First meaningful event on this page exceeds budget → explicit error.
         throw new AppError(
           ErrorCode.PAYLOAD_TOO_LARGE,
           'Single event exceeds response byte budget',
@@ -633,12 +702,13 @@ export class AgentCoreMemoryService {
             sessionId,
             pageToken: upstreamPageToken, // re-fetch THIS page
             offset: newSkip,
+            pageSize: limitUsed, // store page size so resume uses same maxResults
           } satisfies PageCursorV1),
           'utf-8'
         ).toString('base64url');
 
         log.info(
-          `Byte budget reached at ${bytesSoFar} bytes; mid-page cursor at offset ${newSkip}`
+          `Byte budget reached at ${bytesSoFar} bytes; mid-page cursor at offset ${newSkip} (pageSize=${limitUsed})`
         );
 
         return { messages, nextCursor, hasMore: true, truncated: false };
@@ -653,7 +723,8 @@ export class AgentCoreMemoryService {
     // 6. Build next-page cursor when the upstream returned a continuation token.
     //    At this point we've consumed all of pageEvents without hitting the
     //    budget, so if the upstream has more pages we advance to the next one
-    //    (offset = 0).
+    //    (offset = 0). Store `pageSize` in the cursor so the next call uses
+    //    the same maxResults value.
     // -------------------------------------------------------------------------
     const nextCursor = upstreamNextToken
       ? Buffer.from(
@@ -662,6 +733,7 @@ export class AgentCoreMemoryService {
             sessionId,
             pageToken: upstreamNextToken, // advance to next upstream page
             // offset absent → 0 (start from beginning of next page)
+            pageSize: limitUsed,
           } satisfies PageCursorV1),
           'utf-8'
         ).toString('base64url')
