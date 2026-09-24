@@ -4,8 +4,31 @@
  * manual E2E per project convention (no .tsx/testing-library tests).
  */
 
-import { REASONING_DEPTHS, EFFORT_ORDER, isReasoningCapable, getMaxReasoningDepth } from '@moca/core';
+import {
+  REASONING_DEPTHS,
+  EFFORT_ORDER,
+  isReasoningCapable,
+  isReasoningAlwaysOn,
+  getMaxReasoningDepth,
+} from '@moca/core';
 import type { ReasoningDepth } from '@moca/core';
+
+const DEPTH_LABEL_KEY: Record<ReasoningDepth, string> = {
+  off: 'common.reasoningDepthOff',
+  low: 'common.reasoningDepthLow',
+  high: 'common.reasoningDepthHigh',
+  max: 'common.reasoningDepthMax',
+};
+
+export function reasoningDepthLabelKey(modelId: string, depth: ReasoningDepth): string {
+  return depth === 'off' && isReasoningAlwaysOn(modelId)
+    ? 'common.reasoningDepthModelDefault'
+    : DEPTH_LABEL_KEY[depth];
+}
+
+export function showReasoningBadge(modelId: string, depth: ReasoningDepth): boolean {
+  return isReasoningCapable(modelId) && (depth !== 'off' || isReasoningAlwaysOn(modelId));
+}
 
 /**
  * Compact label for the selector trigger: drop the "Claude " brand prefix so

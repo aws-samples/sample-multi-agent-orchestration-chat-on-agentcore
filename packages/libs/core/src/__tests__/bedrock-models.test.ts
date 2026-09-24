@@ -12,6 +12,38 @@ import {
   type ReasoningDepth,
 } from '../bedrock-models.js';
 
+describe('Claude Opus 5.5', () => {
+  it('is opt-in immediately after Opus 5 without changing the default', () => {
+    expect(BEDROCK_MODEL_DEFINITIONS[0].id).toBe('global.anthropic.claude-opus-5');
+    expect(BEDROCK_MODEL_DEFINITIONS[1]).toMatchObject({
+      id: 'global.anthropic.claude-opus-5-5',
+      name: 'Claude Opus 5.5',
+      provider: 'Anthropic',
+      reasoningAlwaysOn: true,
+    });
+  });
+
+  it.each(['', 'global.', 'us.', 'eu.', 'au.', 'jp.'])(
+    'resolves metadata and effort for the %s profile prefix',
+    (prefix) => {
+      const modelId = `${prefix}anthropic.claude-opus-5-5`;
+      expect(isReasoningCapable(modelId)).toBe(true);
+      expect(getMaxOutputTokens(modelId)).toBe(128000);
+      expect(getModelRegion(modelId)).toBeUndefined();
+      expect(getBedrockEndpoint(modelId)).toBeUndefined();
+      expect(getMaxReasoningDepth(modelId)).toBe('max');
+      for (const effort of ['low', 'high', 'max'] as const) {
+        expect(getReasoningConfig(modelId, effort)).toEqual({
+          thinking: { type: 'adaptive', display: 'summarized' },
+          output_config: { effort },
+        });
+      }
+      const storedOff: ReasoningDepth = 'off';
+      expect(getReasoningConfig(modelId, storedOff)).toBeUndefined();
+    }
+  );
+});
+
 describe('getMaxOutputTokens', () => {
   it('returns the limit for a bare In-Region Qwen id', () => {
     expect(getMaxOutputTokens('qwen.qwen3-coder-next')).toBe(16384);
@@ -287,7 +319,9 @@ describe('getReasoningConfig', () => {
     expect(
       getReasoningConfig('global.anthropic.claude-opus-4-8', 'medium' as ReasoningDepth)
     ).toBeUndefined();
-    expect(getReasoningConfig('global.anthropic.claude-opus-4-8', '' as ReasoningDepth)).toBeUndefined();
+    expect(
+      getReasoningConfig('global.anthropic.claude-opus-4-8', '' as ReasoningDepth)
+    ).toBeUndefined();
   });
 });
 

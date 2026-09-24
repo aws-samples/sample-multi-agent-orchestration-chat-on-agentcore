@@ -121,6 +121,30 @@ describe('createBedrockModel reasoning (extended thinking)', () => {
   });
 });
 
+describe('createBedrockModel Opus 5.5', () => {
+  it.each(['global.', 'us.', 'eu.', 'au.', 'jp.'])(
+    'normalizes saved off to the same request as omitted effort for %s',
+    (prefix) => {
+      const modelId = `${prefix}anthropic.claude-opus-5-5`;
+      createBedrockModel({ modelId, reasoningEffort: 'off' });
+      createBedrockModel({ modelId });
+      expect(constructorCalls[0]).toEqual(constructorCalls[1]);
+      expect(constructorCalls[0].additionalRequestFields).toBeUndefined();
+      expect(constructorCalls[0].maxTokens).toBe(128000);
+      expect(constructorCalls[0].region).toBe('ap-northeast-1');
+      expect(openaiConstructorCalls).toHaveLength(0);
+    }
+  );
+
+  it.each(['low', 'high', 'max'] as const)('forwards effort %s unchanged', (effort) => {
+    createBedrockModel({ modelId: 'global.anthropic.claude-opus-5-5', reasoningEffort: effort });
+    expect(constructorCalls[0].additionalRequestFields).toEqual({
+      thinking: { type: 'adaptive', display: 'summarized' },
+      output_config: { effort },
+    });
+  });
+});
+
 describe('createBedrockModel OpenAI routing — gpt-oss (bedrock-openai endpoint)', () => {
   it('builds an OpenAIModel (not a BedrockModel) for a gpt-oss id', () => {
     const model = createBedrockModel({ modelId: 'openai.gpt-oss-120b-1:0' });

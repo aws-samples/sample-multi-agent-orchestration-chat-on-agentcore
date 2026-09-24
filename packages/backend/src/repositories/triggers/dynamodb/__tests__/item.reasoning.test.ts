@@ -10,7 +10,7 @@
 import { describe, it, expect } from '@jest/globals';
 import { fromItem, buildUpdateExpression } from '../item.js';
 import type { Trigger } from '../../types.js';
-import type { UserId, TriggerId } from '@moca/core';
+import { getReasoningConfig, type UserId, type TriggerId } from '@moca/core';
 
 const existing: Trigger = {
   id: 't1' as TriggerId,
@@ -46,6 +46,17 @@ describe('fromItem — reasoningEffort allowlist', () => {
     expect('PK' in trigger).toBe(false);
     expect('SK' in trigger).toBe(false);
   });
+
+  it.each(['global.', 'us.'])(
+    'restores Opus 5.5 saved off without requesting disabled thinking for %s',
+    (prefix) => {
+      const modelId = `${prefix}anthropic.claude-opus-5-5`;
+      const trigger = fromItem({ ...existing, modelId, reasoningEffort: 'off' });
+      expect(trigger.modelId).toBe(modelId);
+      expect(trigger.reasoningEffort).toBe('off');
+      expect(getReasoningConfig(trigger.modelId!, trigger.reasoningEffort!)).toBeUndefined();
+    }
+  );
 
   it('leaves reasoningEffort undefined when the row has none', () => {
     const trigger = fromItem({

@@ -24,14 +24,12 @@ import { useTranslation } from 'react-i18next';
 import { isReasoningCapable, type ReasoningDepth } from '@moca/core';
 import { AVAILABLE_MODELS, getModelById } from '../../../config/models';
 import { useSettingsStore } from '../../../stores/settingsStore';
-import { shortModelName, availableDepthsFor } from './helpers';
-
-const DEPTH_LABEL_KEY: Record<ReasoningDepth, string> = {
-  off: 'common.reasoningDepthOff',
-  low: 'common.reasoningDepthLow',
-  high: 'common.reasoningDepthHigh',
-  max: 'common.reasoningDepthMax',
-};
+import {
+  shortModelName,
+  availableDepthsFor,
+  reasoningDepthLabelKey,
+  showReasoningBadge,
+} from './helpers';
 
 export interface ModelReasoningSelectorProps {
   /** Controlled mode: model id owned by the caller (trigger form). */
@@ -130,7 +128,7 @@ export const ModelReasoningSelector: React.FC<ModelReasoningSelectorProps> = (pr
 
   return (
     <div ref={dropdownRef} className="relative inline-block">
-      {/* Trigger button: compact model name + depth badge (no badge when off). */}
+      {/* Trigger button: compact model name + model-aware depth badge. */}
       <button
         type="button"
         onClick={() => !disabled && open()}
@@ -140,9 +138,9 @@ export const ModelReasoningSelector: React.FC<ModelReasoningSelectorProps> = (pr
         aria-expanded={isOpen}
       >
         <span className="font-medium">{triggerLabel}</span>
-        {capable && currentDepth !== 'off' && (
+        {showReasoningBadge(effectiveModelId, currentDepth) && (
           <span className="px-1.5 py-0.5 rounded text-xs bg-surface-secondary text-fg-secondary">
-            {t(DEPTH_LABEL_KEY[currentDepth])}
+            {t(reasoningDepthLabelKey(effectiveModelId, currentDepth))}
           </span>
         )}
         <ChevronDown
@@ -189,7 +187,7 @@ export const ModelReasoningSelector: React.FC<ModelReasoningSelectorProps> = (pr
                   >
                     <span className="text-fg-default">{t('common.reasoningDepth')}</span>
                     <span className="flex items-center gap-1 text-fg-muted">
-                      {t(DEPTH_LABEL_KEY[currentDepth])}
+                      {t(reasoningDepthLabelKey(effectiveModelId, currentDepth))}
                       <ChevronRight className="w-4 h-4 text-fg-disabled" />
                     </span>
                   </button>
@@ -218,7 +216,9 @@ export const ModelReasoningSelector: React.FC<ModelReasoningSelectorProps> = (pr
                   }`}
                 >
                   <div className="flex items-center justify-between gap-2">
-                    <span className="text-fg-default">{t(DEPTH_LABEL_KEY[depth])}</span>
+                    <span className="text-fg-default">
+                      {t(reasoningDepthLabelKey(effectiveModelId, depth))}
+                    </span>
                     {depth === currentDepth && (
                       <Check className="w-4 h-4 text-action-primary shrink-0" />
                     )}
