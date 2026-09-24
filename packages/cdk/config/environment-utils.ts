@@ -177,6 +177,23 @@ const DEFAULT_CONFIG = {
       provider: 'OpenAI',
     },
     {
+      // OpenAI GPT-6 Sol (GA 2026-09-22). Converse on bedrock-runtime like Astra,
+      // NOT Mantle — so no `endpoint` and no CallWithBearerToken grant. Global
+      // CRIS id → deriveBedrockIamResources() grants the inference-profile ARN
+      // (deploy region) plus the foundation-model ARN. No region pin: the Global
+      // CRIS profile is ACTIVE in the deploy region.
+      id: 'global.openai.gpt-6-sol',
+      name: 'GPT-6 Sol',
+      provider: 'OpenAI',
+    },
+    {
+      // OpenAI GPT-6 Luna (GA 2026-09-22). Same Converse path and IAM shape as
+      // GPT-6 Sol above.
+      id: 'global.openai.gpt-6-luna',
+      name: 'GPT-6 Luna',
+      provider: 'OpenAI',
+    },
+    {
       // OpenAI GPT-5.5 via Bedrock Mantle (OpenAI-compatible Responses API).
       // Region pin us-east-1: only region hosting gpt-5.5 (404 elsewhere). MUST
       // match BEDROCK_MODEL_DEFINITIONS so the Mantle base URL and this grant

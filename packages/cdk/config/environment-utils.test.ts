@@ -26,6 +26,38 @@ describe('Opus 5.5 default model configuration', () => {
   });
 });
 
+describe('GPT-6 Sol / Luna default model configuration', () => {
+  // Sol and Luna speak Converse on bedrock-runtime (verified live), so they must
+  // stay on the plain Converse shape: no `endpoint`, no `region` pin. An
+  // accidental `endpoint: 'mantle'` here would flip the stack's IAM to the
+  // bedrock-mantle service and break invocation with AccessDenied.
+  const CONVERSE_GPT6 = [
+    { id: 'global.openai.gpt-6-sol', name: 'GPT-6 Sol', provider: 'OpenAI' },
+    { id: 'global.openai.gpt-6-luna', name: 'GPT-6 Luna', provider: 'OpenAI' },
+  ];
+
+  it('registers both models on the Converse path right after GPT-6 Astra', () => {
+    const { bedrockModels } = getEnvironmentConfig('default');
+    const astra = bedrockModels.findIndex((m) => m.id === 'global.openai.gpt-6-astra');
+    expect(astra).toBeGreaterThanOrEqual(0);
+    expect(bedrockModels.slice(astra + 1, astra + 3)).toEqual(CONVERSE_GPT6);
+  });
+
+  it('does not pull the Mantle IAM statement into a Converse-only deployment', () => {
+    expect(hasMantleModel(CONVERSE_GPT6)).toBe(false);
+    expect(hasBedrockOpenAiModel(CONVERSE_GPT6)).toBe(false);
+  });
+
+  it('derives an inference-profile ARN (deploy region) plus a foundation-model ARN', () => {
+    expect(deriveBedrockIamResources(CONVERSE_GPT6, REGION, ACCOUNT)).toEqual([
+      `arn:aws:bedrock:${REGION}:${ACCOUNT}:inference-profile/global.openai.gpt-6-sol`,
+      'arn:aws:bedrock:*::foundation-model/openai.gpt-6-sol*',
+      `arn:aws:bedrock:${REGION}:${ACCOUNT}:inference-profile/global.openai.gpt-6-luna`,
+      'arn:aws:bedrock:*::foundation-model/openai.gpt-6-luna*',
+    ]);
+  });
+});
+
 describe('deriveBedrockIamResources', () => {
   // ── ARN format helpers ──────────────────────────────────────────────────────
 

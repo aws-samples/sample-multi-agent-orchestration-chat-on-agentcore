@@ -241,6 +241,23 @@ describe('BEDROCK_MODEL_DEFINITIONS invariants', () => {
     // No depth selector surfaced for this model.
     expect(isReasoningCapable('global.openai.gpt-6-astra')).toBe(false);
   });
+
+  it('registers GPT-6 Sol and Luna on the Converse path with the 131072 Bedrock ceiling', () => {
+    // GPT-6 Sol / Luna (GA 2026-09-22) support Converse on bedrock-runtime
+    // (verified live), so — like Astra and unlike the GPT-5.x Mantle models —
+    // they carry no endpoint override. Their Global CRIS profiles are ACTIVE in
+    // the deploy region, so no region pin. Bedrock reports a 131072 output
+    // ceiling for both (200000 → "exceeds the model limit of 131072"), so this
+    // guard fails if the registry is ever bumped past what Bedrock accepts.
+    for (const id of ['global.openai.gpt-6-sol', 'global.openai.gpt-6-luna']) {
+      expect(getMaxOutputTokens(id)).toBe(131072);
+      expect(getModelRegion(id)).toBeUndefined();
+      expect(getBedrockEndpoint(id)).toBeUndefined();
+      // Anthropic-native thinking shape is rejected by these models over
+      // Converse (unknown_parameter 'output_config'), so no depth selector.
+      expect(isReasoningCapable(id)).toBe(false);
+    }
+  });
 });
 
 describe('isReasoningCapable', () => {

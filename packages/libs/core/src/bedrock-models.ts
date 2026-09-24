@@ -330,6 +330,39 @@ export const BEDROCK_MODEL_DEFINITIONS = [
     maxOutputTokens: 128000, // 128k (AWS Bedrock model card, 2026-09-08)
   },
   {
+    // OpenAI GPT-6 Sol on Bedrock. GA 2026-09-22. Same transport as GPT-6 Astra,
+    // NOT the GPT-5.x Mantle path: Converse on bedrock-runtime is supported
+    // (verified live in ap-northeast-1 — text + toolUse both returned), so no
+    // `endpoint` override. The Global CRIS profile is ACTIVE in the default
+    // deploy region (ap-northeast-1), so no region pin; in-Region invocation of
+    // the bare `openai.gpt-6-sol` id is rejected ("on-demand throughput isn't
+    // supported"), so the global. prefix is mandatory.
+    //
+    // reasoning: Sol reasons internally with adjustable effort via the OpenAI
+    // Responses API, but `reasoningCapable` is deliberately omitted — the same
+    // reason as Astra. getReasoningConfig() emits the Anthropic-native
+    // `thinking: { type: 'adaptive' } + output_config.effort` shape, which this
+    // model rejects over Converse (verified live: unknown_parameter
+    // 'output_config'). Exposing an OpenAI-shaped effort field is a follow-up.
+    id: 'global.openai.gpt-6-sol',
+    name: 'GPT-6 Sol',
+    provider: 'OpenAI',
+    // 131072 — the limit Bedrock itself reports: maxTokens 131072 succeeds,
+    // 200000 fails with "exceeds the model limit of 131072" (verified live).
+    maxOutputTokens: 131072,
+  },
+  {
+    // OpenAI GPT-6 Luna on Bedrock. GA 2026-09-22. Cheaper/faster sibling of Sol
+    // for high-volume work (summarization, classification, extraction, routing).
+    // Identical transport and constraints to GPT-6 Sol above — Converse on
+    // bedrock-runtime via the Global CRIS profile, no endpoint, no region pin,
+    // reasoningCapable omitted (Anthropic-native thinking shape rejected).
+    id: 'global.openai.gpt-6-luna',
+    name: 'GPT-6 Luna',
+    provider: 'OpenAI',
+    maxOutputTokens: 131072, // same 131072 Bedrock ceiling as Sol (verified live)
+  },
+  {
     // OpenAI GPT-5.5 on Bedrock (Mantle). Invoked via the Bedrock Mantle
     // endpoint (bedrock-mantle.{region}.api.aws/openai/v1) using the Responses
     // API — NOT Converse and NOT Chat Completions (both rejected live). See
