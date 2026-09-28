@@ -8,9 +8,63 @@ import {
   getMaxReasoningDepth,
   isReasoningCapable,
   isReasoningDepth,
+  isReasoningAlwaysOn,
+  getOffThinkingMode,
+  shouldStripPriorReasoning,
   getBedrockEndpoint,
   type ReasoningDepth,
 } from '../bedrock-models.js';
+
+describe('Claude Sonnet 5.5', () => {
+  const ID = 'global.anthropic.claude-sonnet-5-5';
+
+  it('is registered directly above Sonnet 5 without changing the default', () => {
+    expect(BEDROCK_MODEL_DEFINITIONS[0].id).toBe('global.anthropic.claude-opus-5');
+    const i = BEDROCK_MODEL_DEFINITIONS.findIndex((m) => m.id === ID);
+    expect(i).toBeGreaterThan(0);
+    expect(BEDROCK_MODEL_DEFINITIONS[i + 1].id).toBe('global.anthropic.claude-sonnet-5');
+    expect(BEDROCK_MODEL_DEFINITIONS[i]).toMatchObject({
+      name: 'Claude Sonnet 5.5',
+      provider: 'Anthropic',
+      reasoningAlwaysOn: true,
+      offThinkingMode: 'between_tools',
+      stripPriorReasoning: true,
+    });
+  });
+
+  it.each(['', 'global.'])('resolves metadata for the %s profile prefix', (prefix) => {
+    const modelId = `${prefix}anthropic.claude-sonnet-5-5`;
+    expect(isReasoningCapable(modelId)).toBe(true);
+    expect(isReasoningAlwaysOn(modelId)).toBe(true);
+    expect(getMaxOutputTokens(modelId)).toBe(128000);
+    expect(getModelRegion(modelId)).toBeUndefined();
+    expect(getBedrockEndpoint(modelId)).toBeUndefined();
+    expect(getMaxReasoningDepth(modelId)).toBe('max');
+    expect(getOffThinkingMode(modelId)).toBe('between_tools');
+    expect(shouldStripPriorReasoning(modelId)).toBe(true);
+  });
+
+  it('maps depth off to between_tools with no other thinking or effort field', () => {
+    expect(getReasoningConfig(ID, 'off')).toStrictEqual({ thinking: { type: 'between_tools' } });
+  });
+
+  it('sends adaptive + summarized for low/high/max without clamping', () => {
+    for (const effort of ['low', 'high', 'max'] as const) {
+      expect(getReasoningConfig(ID, effort)).toEqual({
+        thinking: { type: 'adaptive', display: 'summarized' },
+        output_config: { effort },
+      });
+    }
+  });
+
+  it('leaves off unchanged for every model without offThinkingMode', () => {
+    for (const m of BEDROCK_MODEL_DEFINITIONS) {
+      if (m.offThinkingMode) continue;
+      expect(getReasoningConfig(m.id, 'off')).toBeUndefined();
+      expect(shouldStripPriorReasoning(m.id)).toBe(false);
+    }
+  });
+});
 
 describe('Claude Opus 5.5', () => {
   it('is opt-in immediately after Opus 5 without changing the default', () => {

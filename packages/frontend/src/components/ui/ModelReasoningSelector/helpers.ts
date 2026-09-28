@@ -9,6 +9,7 @@ import {
   EFFORT_ORDER,
   isReasoningCapable,
   isReasoningAlwaysOn,
+  getOffThinkingMode,
   getMaxReasoningDepth,
 } from '@moca/core';
 import type { ReasoningDepth } from '@moca/core';
@@ -21,6 +22,9 @@ const DEPTH_LABEL_KEY: Record<ReasoningDepth, string> = {
 };
 
 export function reasoningDepthLabelKey(modelId: string, depth: ReasoningDepth): string {
+  if (depth === 'off' && getOffThinkingMode(modelId) === 'between_tools') {
+    return 'common.reasoningDepthBetweenTools';
+  }
   return depth === 'off' && isReasoningAlwaysOn(modelId)
     ? 'common.reasoningDepthModelDefault'
     : DEPTH_LABEL_KEY[depth];
