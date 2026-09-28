@@ -144,6 +144,13 @@ const DEFAULT_CONFIG = {
       provider: 'Anthropic',
     },
     {
+      // Thinking is on by default; `off` maps to `between_tools`. See the
+      // registry note in packages/libs/core/src/bedrock-models.ts.
+      id: 'global.anthropic.claude-sonnet-5-5',
+      name: 'Claude Sonnet 5.5',
+      provider: 'Anthropic',
+    },
+    {
       id: 'global.anthropic.claude-sonnet-5',
       name: 'Claude Sonnet 5',
       provider: 'Anthropic',

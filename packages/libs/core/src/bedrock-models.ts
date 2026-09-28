@@ -58,6 +58,20 @@ export interface BedrockModelDefinition {
   /** Omitting effort does not disable reasoning; the model uses its default. */
   readonly reasoningAlwaysOn?: boolean;
   /**
+   * Thinking payload sent for depth `off` on a model that rejects
+   * `thinking.type: 'disabled'`. `'between_tools'` turns off up-front thinking
+   * while keeping the short progress notes the model writes between tool calls
+   * (returned as reasoning blocks). Omit to send no thinking field for `off`.
+   */
+  readonly offThinkingMode?: 'between_tools';
+  /**
+   * Drop reasoning blocks from completed prior turns before each invocation.
+   * Set for models whose thinking blocks are bound to the request prefix
+   * (system / tools / earlier messages): replaying one after the prefix changed
+   * is rejected with a 400. See ReasoningHistoryStripHook in packages/agent.
+   */
+  readonly stripPriorReasoning?: boolean;
+  /**
    * Highest selectable depth for this model. Only meaningful when
    * `reasoningCapable`. Defaults to `'max'` when omitted. Set to `'high'` for
    * non-Opus models (e.g. Sonnet 4.6) because Bedrock rejects
@@ -261,6 +275,35 @@ export const BEDROCK_MODEL_DEFINITIONS = [
     provider: 'Anthropic',
     maxOutputTokens: 128000, // 128k
     reasoningCapable: true, // max OK (Opus-tier)
+  },
+  {
+    // GA on Bedrock 2026-09-28. 1M context window, 128k max output. Global CRIS
+    // only (no Geo profile). Standard bedrock-runtime Converse/ConverseStream
+    // path, no endpoint override. Profile verified ACTIVE in ap-northeast-1.
+    // Source: AWS Bedrock model card + Anthropic "What's new in Sonnet 5.5".
+    //
+    // Adaptive thinking is ON by default (default effort: high) and
+    // `thinking.type: 'disabled'` is rejected with a 400, so depth `off` maps to
+    // `thinking: { type: 'between_tools' }` (no up-front thinking). Text written
+    // between tool calls comes back as reasoning blocks; `between_tools` and the
+    // `display: 'summarized'` sent at low/high/max keep that text visible.
+    //
+    // Thinking blocks are prefix-bound: replaying one after the system prompt,
+    // tools or earlier messages change returns a 400 on newer accounts. Moca's
+    // system prompt changes hourly (<current_time>) and with memories, so prior
+    // reasoning is stripped before each invocation (stripPriorReasoning).
+    //
+    // Unlike Sonnet 5 / 4.6 the model card lists effort up to `max`, so no
+    // reasoningMaxEffort cap. Forced tool_choice and non-default temperature are
+    // rejected — do not add this model to image_to_text VISION_MODELS as-is.
+    id: 'global.anthropic.claude-sonnet-5-5',
+    name: 'Claude Sonnet 5.5',
+    provider: 'Anthropic',
+    maxOutputTokens: 128000,
+    reasoningCapable: true,
+    reasoningAlwaysOn: true,
+    offThinkingMode: 'between_tools',
+    stripPriorReasoning: true,
   },
   {
     // GA on Bedrock 2026-06-25. 1M context window, 128k max output (2× Sonnet 4.6).
@@ -499,6 +542,16 @@ export function isReasoningAlwaysOn(modelId: string): boolean {
   return findModel(modelId)?.reasoningAlwaysOn === true;
 }
 
+/** The thinking mode sent for depth `off`, if the model defines one. */
+export function getOffThinkingMode(modelId: string): 'between_tools' | undefined {
+  return findModel(modelId)?.offThinkingMode;
+}
+
+/** Whether reasoning blocks from prior turns must be dropped before invoking. */
+export function shouldStripPriorReasoning(modelId: string): boolean {
+  return findModel(modelId)?.stripPriorReasoning === true;
+}
+
 /**
  * The non-Converse Bedrock endpoint (transport) for a model, or `undefined` for
  * Converse-API models (the common case) and unknown ids. Prefix-insensitive
@@ -522,7 +575,7 @@ export function getBedrockEndpoint(modelId: string): BedrockEndpoint | undefined
  * (reasoning-depth.integration.test.ts). If Bedrock changes the accepted shape,
  * fix it here and the integration test will confirm.
  */
-export interface ReasoningRequestConfig {
+export interface AdaptiveReasoningRequestConfig {
   readonly thinking: {
     readonly type: 'adaptive';
     /**
@@ -536,6 +589,22 @@ export interface ReasoningRequestConfig {
     readonly effort: Exclude<ReasoningDepth, 'off'>;
   };
 }
+
+/**
+ * `between_tools` form sent for depth `off` on models that reject
+ * `thinking.type: 'disabled'` (e.g. Sonnet 5.5). It takes no other field:
+ * `display`, `budget_tokens` or `block_binding` alongside it returns a 400,
+ * and no `output_config.effort` is sent (the model default applies).
+ */
+export interface BetweenToolsReasoningRequestConfig {
+  readonly thinking: {
+    readonly type: 'between_tools';
+  };
+}
+
+export type ReasoningRequestConfig =
+  | AdaptiveReasoningRequestConfig
+  | BetweenToolsReasoningRequestConfig;
 
 /**
  * Highest selectable reasoning depth for a model (defaults to `'max'`).
@@ -557,7 +626,8 @@ export function getMaxReasoningDepth(modelId: string): Exclude<ReasoningDepth, '
  * `undefined` when no thinking field should be sent.
  *
  * Returns `undefined` when the model is unknown, not reasoning-capable, or the
- * depth is `off`. Otherwise returns the adaptive-thinking + effort payload to
+ * depth is `off` (except models with `offThinkingMode`, which get
+ * `{ thinking: { type: 'between_tools' } }` for `off`). Otherwise returns the adaptive-thinking + effort payload to
  * spread into `additionalRequestFields`, clamping the effort to the model's
  * `reasoningMaxEffort` (so e.g. `max` on Sonnet 4.6 is sent as `high`).
  */
@@ -568,12 +638,17 @@ export function getReasoningConfig(
   // Defend the SSoT helper itself: an unknown depth (e.g. a string that bypassed
   // the type via `as`) must resolve to "no thinking field", not fall through the
   // EFFORT_ORDER.indexOf(-1) clamp and reach Bedrock verbatim → ValidationException.
-  if (depth === 'off' || !isReasoningDepth(depth)) {
+  if (!isReasoningDepth(depth)) {
     return undefined;
   }
   const match = findModel(modelId);
   if (!match?.reasoningCapable) {
     return undefined;
+  }
+  if (depth === 'off') {
+    return match.offThinkingMode === 'between_tools'
+      ? { thinking: { type: 'between_tools' } }
+      : undefined;
   }
   // Clamp to the model's ceiling (Opus → max, Sonnet → high).
   const cap = match.reasoningMaxEffort ?? 'max';

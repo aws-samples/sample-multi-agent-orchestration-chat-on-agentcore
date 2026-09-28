@@ -79,7 +79,8 @@ export function createBedrockModel(options?: BedrockModelOptions): Model {
 
   // Resolve the reasoning depth into a Bedrock `thinking` request field. Returns
   // undefined for off / non-capable models, in which case no thinking field is
-  // sent. The SDK strips `thinking` automatically when toolChoice forces a tool
+  // sent — except models with an `offThinkingMode` (Sonnet 5.5), which get
+  // `thinking: { type: 'between_tools' }` for off. The SDK strips `thinking` automatically when toolChoice forces a tool
   // (Bedrock disallows thinking + forced tool_use), so this is safe with tools.
   const reasoningConfig = getReasoningConfig(modelId, options?.reasoningEffort ?? 'off');
 
@@ -91,7 +92,11 @@ export function createBedrockModel(options?: BedrockModelOptions): Model {
       reasoningEffort: options?.reasoningEffort ?? 'off',
       // The effort actually sent (may be clamped below the requested depth, e.g.
       // Sonnet 4.6 'max' → 'high'). undefined when no thinking field is sent.
-      reasoningEffortSent: reasoningConfig?.output_config.effort,
+      reasoningEffortSent:
+        reasoningConfig && 'output_config' in reasoningConfig
+          ? reasoningConfig.output_config.effort
+          : undefined,
+      thinkingTypeSent: reasoningConfig?.thinking.type,
     },
     'Creating BedrockModel:'
   );

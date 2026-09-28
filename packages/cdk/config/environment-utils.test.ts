@@ -26,6 +26,27 @@ describe('Opus 5.5 default model configuration', () => {
   });
 });
 
+describe('Sonnet 5.5 default model configuration', () => {
+  it('adds Sonnet 5.5 directly above Sonnet 5 on the Converse path', () => {
+    const { bedrockModels } = getEnvironmentConfig('default');
+    expect(bedrockModels[0].id).toBe('global.anthropic.claude-opus-5');
+    const i = bedrockModels.findIndex((m) => m.id === 'global.anthropic.claude-sonnet-5-5');
+    expect(i).toBeGreaterThan(0);
+    expect(bedrockModels[i]).toEqual({
+      id: 'global.anthropic.claude-sonnet-5-5',
+      name: 'Claude Sonnet 5.5',
+      provider: 'Anthropic',
+    });
+    expect(bedrockModels[i + 1].id).toBe('global.anthropic.claude-sonnet-5');
+  });
+
+  it('grants the Sonnet 5.5 global inference profile ARN', () => {
+    const { bedrockModels } = getEnvironmentConfig('default');
+    const resources = JSON.stringify(deriveBedrockIamResources(bedrockModels, REGION, ACCOUNT));
+    expect(resources).toContain('inference-profile/global.anthropic.claude-sonnet-5-5');
+  });
+});
+
 describe('GPT-6 Sol / Luna default model configuration', () => {
   // Sol and Luna speak Converse on bedrock-runtime (verified live), so they must
   // stay on the plain Converse shape: no `endpoint`, no `region` pin. An
