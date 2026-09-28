@@ -15,6 +15,7 @@ import {
   buildInputContent,
 } from '../libs/utils/index.js';
 import { getCurrentContext, getContextMetadata } from '../libs/context/request-context.js';
+import { registerAgent, unregisterAgent } from '../libs/health/agent-cancel-registry.js';
 import type { SessionStorage, SessionConfig } from '../services/session/types.js';
 import type { AgentMetadata } from '../runtime/agent/types.js';
 import type { StreamTerminationRetryStrategy } from '../runtime/agent/stream-termination-retry-strategy.js';
@@ -51,12 +52,22 @@ function setStreamingHeaders(res: Response): void {
 
 /**
  * Send a completion event with metadata.
+ *
+ * `type` is `serverCancelledEvent` when the turn was interrupted (client
+ * disconnect / `agent.cancel()`), else `serverCompletionEvent`. Both carry the
+ * same metadata shape so the frontend can settle the streaming message
+ * identically; only the discriminator differs.
  */
-function sendCompletionEvent(res: Response, agent: Agent, options: StreamOptions): void {
+function sendCompletionEvent(
+  res: Response,
+  agent: Agent,
+  options: StreamOptions,
+  cancelled = false
+): void {
   const context = getCurrentContext();
   const contextMeta = getContextMetadata();
   const completionEvent = {
-    type: 'serverCompletionEvent',
+    type: cancelled ? 'serverCancelledEvent' : 'serverCompletionEvent',
     metadata: {
       requestId: context?.requestId,
       duration: contextMeta.duration,
@@ -141,6 +152,12 @@ async function handleStreamError(
   res.end();
 }
 
+/** Outcome of a streamed turn, returned to the handler for post-turn orchestration. */
+export interface StreamResult {
+  /** True when the turn stopped early via cancellation (client disconnect / cancel). */
+  cancelled: boolean;
+}
+
 /**
  * Stream the agent response as NDJSON events.
  *
@@ -149,6 +166,10 @@ async function handleStreamError(
  * 2. Stream events from agent
  * 3. Send completion metadata
  * 4. Handle errors (save to session + notify client)
+ *
+ * Returns a {@link StreamResult} so the caller can react to a cancelled turn
+ * (e.g. propagate the cancel to sub-agent tasks) without this module needing to
+ * know about that machinery.
  */
 export async function streamAgentResponse(
   agent: Agent,
@@ -156,9 +177,27 @@ export async function streamAgentResponse(
   images: ImageData[] | undefined,
   res: Response,
   options: StreamOptions
-): Promise<void> {
-  const requestId = getCurrentContext()?.requestId;
+): Promise<StreamResult> {
+  const context = getCurrentContext();
+  const requestId = context?.requestId;
+  const sessionId = context?.sessionId;
   setStreamingHeaders(res);
+
+  // Register this turn's Agent so an out-of-band stop command can cancel it.
+  //
+  // WHY not client-disconnect: AgentCore Runtime does NOT propagate a client
+  // fetch abort to the container (verified in production — no `res` 'close'
+  // fires, the turn runs to completion). So cancellation is driven by a second
+  // `{ action: 'stop' }` invocation that AgentCore's session-sticky routing
+  // delivers to THIS microVM; stopDispatchMiddleware looks the Agent up in the
+  // registry and calls `agent.cancel()`. That cooperatively stops the Strands
+  // loop at its next checkpoint and the stream returns `stopReason: 'cancelled'`.
+  //
+  // Sessionless invocations (no sessionId) can't be targeted by a stop command,
+  // so registration is skipped for them.
+  if (sessionId) {
+    registerAgent(sessionId, agent);
+  }
 
   try {
     logger.info({ requestId }, 'Agent streaming started:');
@@ -182,11 +221,37 @@ export async function streamAgentResponse(
     // aggregator only works when the canonical
     // `POST → invoke_agent → execute_event_loop_cycle → chat` hierarchy
     // is preserved.
-    for await (const event of agent.stream(agentInput)) {
-      const safeEvents = serializeStreamEvent(event);
+    // Manual iteration (not `for await`) so we can read the generator's RETURN
+    // value — the `AgentResult` carrying `stopReason`. `for await` discards it.
+    // Cancellation is driven by `agent.cancel()` (from the stop command via the
+    // registry), which fires the agent's own internal signal — no external
+    // cancelSignal needed here.
+    const stream = agent.stream(agentInput);
+    let streamResult = await stream.next();
+    while (!streamResult.done) {
+      const safeEvents = serializeStreamEvent(streamResult.value);
       for (const safeEvent of safeEvents) {
         res.write(`${JSON.stringify(safeEvent)}\n`);
       }
+      streamResult = await stream.next();
+    }
+    const agentResult = streamResult.value;
+    const cancelled = agentResult?.stopReason === 'cancelled';
+
+    // A cancelled turn is a normal, expected outcome — NOT an error. The SDK has
+    // already left `agent.messages` in a reinvokable state (synthetic assistant /
+    // tool-result blocks) and the SessionPersistenceHook's AfterInvocationEvent
+    // has persisted it, so we neither write a serverErrorEvent nor save an error
+    // message here. We just tell the client the turn stopped early.
+    if (cancelled) {
+      logger.info({ requestId }, 'Agent turn cancelled:');
+      sendCompletionEvent(res, agent, options, true);
+      res.end();
+      // Signal the caller (handleInvocation) so it can propagate the cancel to
+      // any sub-agent tasks this turn spawned. Sub-agent orchestration lives in
+      // the handler, not here — keeping stream-handler free of that dependency
+      // chain (and unit-testable in isolation).
+      return { cancelled: true };
     }
 
     logger.info({ requestId }, 'Agent streaming completed:');
@@ -211,7 +276,16 @@ export async function streamAgentResponse(
 
     sendCompletionEvent(res, agent, options);
     res.end();
+    return { cancelled: false };
   } catch (streamError) {
     await handleStreamError(streamError, res, options);
+    return { cancelled: false };
+  } finally {
+    // Always remove this turn's registration. Pass `agent` so we only evict our
+    // own entry — a follow-up turn for the same session may have already
+    // re-registered by the time this finally runs.
+    if (sessionId) {
+      unregisterAgent(sessionId, agent);
+    }
   }
 }

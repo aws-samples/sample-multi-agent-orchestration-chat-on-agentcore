@@ -26,6 +26,13 @@ interface StreamingCallbacks {
   onToolResult?: (toolResult: ToolResult) => void;
   onComplete?: (metadata: Record<string, unknown>) => void;
   onError?: (error: Error) => void;
+  /**
+   * Called when the turn stopped early by user request rather than finishing or
+   * erroring — either the client aborted the fetch (AbortError) or the server
+   * emitted a serverCancelledEvent. Distinct from onError so the UI can settle
+   * the streaming message quietly instead of showing an error bubble.
+   */
+  onCancel?: (metadata?: Record<string, unknown>) => void;
 }
 
 /**
@@ -75,7 +82,8 @@ export const streamAgentResponse = async (
   prompt: string,
   sessionId: string | undefined,
   callbacks: StreamingCallbacks,
-  agentConfig?: AgentConfig
+  agentConfig?: AgentConfig,
+  signal?: AbortSignal
 ): Promise<void> => {
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
@@ -93,6 +101,11 @@ export const streamAgentResponse = async (
       method: 'POST',
       headers,
       body,
+      // Aborting this signal tears down the CLIENT fetch (stops reading the
+      // stream) so the UI settles immediately. It does NOT stop the server —
+      // AgentCore keeps the turn running after a client disconnect. The actual
+      // server-side stop is done out-of-band by `stopAgentTurn` below.
+      signal,
     });
 
     if (!response.ok) {
@@ -160,11 +173,48 @@ export const streamAgentResponse = async (
       reader.releaseLock();
     }
   } catch (error) {
+    // A user-initiated abort surfaces as a DOMException named 'AbortError' (from
+    // fetch or the stream reader). That's a graceful stop, not a failure — route
+    // it to onCancel so the UI settles quietly instead of showing an error.
+    if (error instanceof DOMException && error.name === 'AbortError') {
+      callbacks.onCancel?.();
+      return;
+    }
     if (callbacks.onError) {
       callbacks.onError(error instanceof Error ? error : new Error('Agent API error'));
     } else {
       throw error;
     }
+  }
+};
+
+/**
+ * Stop a running agent turn out-of-band.
+ *
+ * AgentCore keeps the server-side turn running after a client fetch abort, so
+ * stopping requires an explicit command. This sends a second POST to the same
+ * endpoint with the SAME session id header, carrying `{ action: 'stop' }`.
+ * AgentCore's session-sticky routing delivers it to the same microVM, where the
+ * agent looks up the in-flight turn and cancels it. The original streaming
+ * request then ends with a serverCancelledEvent.
+ *
+ * Best-effort and fast: resolves true on a 2xx ack, false otherwise. Never
+ * throws — a failed stop must not surface as a chat error.
+ */
+export const stopAgentTurn = async (sessionId: string): Promise<boolean> => {
+  try {
+    const response = await agentClient.invoke({
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Amzn-Bedrock-AgentCore-Runtime-Session-Id': sessionId,
+      },
+      body: JSON.stringify({ action: 'stop' }),
+    });
+    return response.ok;
+  } catch (error) {
+    logger.warn('stopAgentTurn failed:', error);
+    return false;
   }
 };
 
@@ -298,6 +348,14 @@ const handleStreamEvent = (event: AgentStreamEvent, callbacks: StreamingCallback
       if (callbacks.onComplete) {
         callbacks.onComplete(completionEvent.metadata);
       }
+      break;
+    }
+
+    case 'serverCancelledEvent': {
+      // The server stopped the turn early (client disconnect / cancel). Settle
+      // via onCancel — same metadata shape as completion, but not a full finish.
+      const cancelledEvent = event as { metadata?: Record<string, unknown> };
+      callbacks.onCancel?.(cancelledEvent.metadata);
       break;
     }
 

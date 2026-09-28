@@ -29,6 +29,7 @@ import cors from 'cors';
 import {
   corsOptions,
   requestContextMiddleware,
+  stopDispatchMiddleware,
   asyncHandler,
   validateInvocationMiddleware,
   authResolverMiddleware,
@@ -58,6 +59,7 @@ export function createApp(): Express {
   //
   //   trackInFlight      → mark container busy so /ping reports HealthyBusy
   //   requestContext     → AsyncLocalStorage ctx + JWT parse + session headers
+  //   stopDispatch       → { action: 'stop' } → cancel in-flight turn + ack (short-circuit)
   //   validateInvocation → prompt / images → 400 on failure
   //   authResolver       → resolves branded UserId, enriches ctx.userId
   //   identityResolver   → exchanges UserId → IdentityId, caches on ctx
@@ -65,11 +67,17 @@ export function createApp(): Express {
   //
   // `trackInFlight` runs first so the busy window covers the WHOLE request —
   // including auth/validation and any error response — and is released on the
-  // response's 'finish'/'close', which also catches a client abort mid-stream.
+  // response's 'finish'/'close'.
+  //
+  // `stopDispatch` runs after requestContext (it needs the authenticated
+  // sessionId) but before validateInvocation (a stop carries no prompt, so it
+  // must not be 400'd for that). It handles the out-of-band cancel command that
+  // AgentCore's session-sticky routing delivers to this same microVM.
   app.post(
     '/invocations',
     trackInFlightMiddleware,
     requestContextMiddleware,
+    stopDispatchMiddleware,
     validateInvocationMiddleware,
     authResolverMiddleware,
     identityResolverMiddleware,
