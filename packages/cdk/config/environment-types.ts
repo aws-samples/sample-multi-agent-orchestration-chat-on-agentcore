@@ -205,6 +205,21 @@ export interface EnvironmentConfig {
   microsoftGraphOAuthSecretArn?: string;
 
   /**
+   * GitHub App used for the user-delegated (3LO / Authorization Code) GitHub MCP
+   * Gateway target (optional). When set, the target is deployed and each user
+   * consents with their own GitHub account. See docs/guides/github-3lo.md.
+   */
+  githubOAuth?: {
+    /** GitHub App Client ID (e.g. 'Iv23li...') */
+    clientId: string;
+    /**
+     * Secrets Manager secret name holding `{"clientSecret": "..."}`.
+     * Naming convention: agentcore/{env}/github-oauth
+     */
+    clientSecretName: string;
+  };
+
+  /**
    * GitHub Webhook Secret Name (Secrets Manager)
    * Used for verifying GitHub webhook HMAC-SHA256 signatures
    * NOTE: This is a secret NAME/ID reference, not the actual secret value

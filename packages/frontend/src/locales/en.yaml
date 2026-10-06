@@ -1206,3 +1206,16 @@ defaultAgents:
       monitoring:
         title: Page Status Check
         prompt: "Please visit the following URL and check the current page status with screenshots. Verify whether the page displays correctly and check for any errors.\n\nURL: https://example.com"
+oauth:
+  prompt:
+    title: "Connect {{service}}"
+    description: The agent needs your permission to use {{service}} with your account. After connecting, ask again.
+    connect: "Connect {{service}}"
+    dismiss: Dismiss
+  callback:
+    title: Connect external service
+    processing: Completing the connection...
+    success: Connected. Go back to the chat and ask again.
+    failed: Could not complete the connection. Please start again from the chat.
+    missingSession: Connection details are missing. Please start again from the chat.
+    backToChat: Back to chat

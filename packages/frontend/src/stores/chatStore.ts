@@ -12,6 +12,7 @@ import type {
 } from '../types/index';
 import { streamAgentResponse } from '../api/agent';
 import type { ConversationMessage } from '../api/sessions';
+import type { AuthorizationPrompt } from '../lib/oauth-authorization';
 import { useAgentStore } from './agentStore';
 import { useStorageStore } from './storageStore';
 import { useSessionStore } from './sessionStore';
@@ -126,6 +127,9 @@ interface ChatActions {
   setError: (sessionId: string, error: string | null) => void;
   clearError: (sessionId: string) => void;
   loadSessionHistory: (sessionId: string, conversationMessages: ConversationMessage[]) => void;
+  addAuthorizationPrompt: (sessionId: string, prompt: AuthorizationPrompt) => void;
+  /** Remove prompts for one target in a session, or for every session when omitted */
+  dismissAuthorizationPrompts: (targetName: string, sessionId?: string) => void;
 }
 
 type ChatStore = ChatState & ChatActions;
@@ -477,6 +481,9 @@ export const useChatStore = create<ChatStore>()(
                   // (see appendStreamingDelta).
                 }
               },
+              onAuthorizationRequired: (prompt) => {
+                get().addAuthorizationPrompt(sessionId, prompt);
+              },
               onComplete: () => {
                 updateMessage(sessionId, assistantMessageId, {
                   isStreaming: false,
@@ -566,6 +573,37 @@ export const useChatStore = create<ChatStore>()(
             },
           });
         }
+      },
+
+      addAuthorizationPrompt: (sessionId: string, prompt: AuthorizationPrompt) => {
+        const { sessions } = get();
+        const sessionState = getOrCreateSessionState(sessions, sessionId);
+        // One prompt per target: a newer URL supersedes the old one (10 min validity).
+        const others = (sessionState.pendingAuthorizations ?? []).filter(
+          (p) => p.targetName !== prompt.targetName
+        );
+        set({
+          sessions: {
+            ...sessions,
+            [sessionId]: { ...sessionState, pendingAuthorizations: [...others, prompt] },
+          },
+        });
+      },
+
+      dismissAuthorizationPrompts: (targetName: string, sessionId?: string) => {
+        const { sessions } = get();
+        const next = { ...sessions };
+        for (const [id, state] of Object.entries(sessions)) {
+          if (sessionId && id !== sessionId) continue;
+          if (!state.pendingAuthorizations?.length) continue;
+          next[id] = {
+            ...state,
+            pendingAuthorizations: state.pendingAuthorizations.filter(
+              (p) => p.targetName !== targetName
+            ),
+          };
+        }
+        set({ sessions: next });
       },
 
       clearSession: (sessionId: string) => {
@@ -684,6 +722,8 @@ export const useChatStore = create<ChatStore>()(
               isLoading: false,
               error: null,
               lastUpdated: new Date(),
+              // Not part of persisted history; must survive history re-syncs.
+              pendingAuthorizations: sessions[sessionId]?.pendingAuthorizations,
             },
           },
         });

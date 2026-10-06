@@ -83,6 +83,8 @@ export interface SessionChatState {
   isLoading: boolean;
   error: string | null;
   lastUpdated: Date;
+  /** Gateway 3LO prompts waiting for the user to connect an external account */
+  pendingAuthorizations?: AuthorizationPrompt[];
 }
 
 // Chat types
@@ -202,6 +204,18 @@ export interface ServerCompletionEvent extends AgentStreamEvent {
     sessionId: string;
     conversationLength: number;
   };
+}
+
+/** Authorization prompt raised by a Gateway 3LO tool (serverAuthorizationRequiredEvent). */
+export interface AuthorizationPrompt {
+  url: string;
+  elicitationId: string;
+  /** Gateway target name, e.g. "github" */
+  targetName: string;
+}
+
+export interface ServerAuthorizationRequiredEvent extends AgentStreamEvent, AuthorizationPrompt {
+  type: 'serverAuthorizationRequiredEvent';
 }
 
 export interface ServerErrorEvent extends AgentStreamEvent {

@@ -270,9 +270,41 @@ async function resolveIdentityId(userId: string, idToken: string): Promise<strin
 }
 
 /**
+ * Gateway composes tool names as `{targetName}___{toolName}`.
+ */
+const TARGET_TOOL_SEPARATOR = '___';
+
+/**
+ * Targets that call third-party services with a per-user OAuth token
+ * (Authorization Code / 3LO), from the comma-separated USER_DELEGATED_TARGETS.
+ */
+function getUserDelegatedTargets(): string[] {
+  return (process.env.USER_DELEGATED_TARGETS ?? '')
+    .split(',')
+    .map((name) => name.trim())
+    .filter(Boolean);
+}
+
+export function isUserDelegatedTool(toolName: unknown, targets: string[]): boolean {
+  return (
+    typeof toolName === 'string' &&
+    targets.some((target) => toolName.startsWith(`${target}${TARGET_TOOL_SEPARATOR}`))
+  );
+}
+
+/**
+ * Client Credentials tokens carry no username claim and `sub === client_id`.
+ */
+export function isMachineUserPayload(payload: JwtPayload): boolean {
+  const hasUsername = !!(payload.username || payload['cognito:username']);
+  return !hasUsername && !!payload.sub && payload.sub === payload.client_id;
+}
+
+/**
  * Lambda handler for Gateway REQUEST interceptor.
  *
- * For tools/call: injects _context into arguments.
+ * For tools/call: injects _context into arguments, except for user-delegated
+ * (3LO) targets, which receive the arguments untouched and refuse machine users.
  * For all other methods: passes through unchanged.
  */
 export const handler = async (event: InterceptorEvent): Promise<InterceptorResponse> => {
@@ -299,6 +331,46 @@ export const handler = async (event: InterceptorEvent): Promise<InterceptorRespo
   const mcpMethod: string = requestBody.method ?? 'unknown';
 
   console.info(`REQUEST interceptor: method=${mcpMethod}`);
+
+  if (
+    mcpMethod === 'tools/call' &&
+    isUserDelegatedTool(requestBody.params?.name, getUserDelegatedTargets())
+  ) {
+    // `_context` must not reach a third-party server: it would leak internal
+    // identifiers and may fail the remote schema validation.
+    const jwtToken = extractJwtFromHeaders(headers);
+    const jwtPayload = jwtToken ? decodeJwtPayload(jwtToken) : null;
+    // A machine user is one identity shared by every user's triggers, so a
+    // token stored under it in the Token Vault would be usable by all of them.
+    if (!jwtPayload || isMachineUserPayload(jwtPayload)) {
+      console.warn(`Rejected user-delegated tool for non-user caller: ${requestBody.params?.name}`);
+      return {
+        interceptorOutputVersion: '1.0',
+        mcp: {
+          transformedGatewayResponse: {
+            statusCode: 200,
+            body: {
+              jsonrpc: '2.0',
+              id: requestBody.id,
+              result: {
+                content: [
+                  {
+                    type: 'text',
+                    text: 'This tool requires an interactive user who has connected their own account. It is not available to event-driven (trigger) executions.',
+                  },
+                ],
+                isError: true,
+              },
+            },
+          },
+        },
+      };
+    }
+    return {
+      interceptorOutputVersion: '1.0',
+      mcp: { transformedGatewayRequest: { body: requestBody } },
+    };
+  }
 
   // Only inject context for tools/call
   if (mcpMethod === 'tools/call') {

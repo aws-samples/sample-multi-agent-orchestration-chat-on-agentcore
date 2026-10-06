@@ -138,6 +138,28 @@ describe('streamAgentResponse', () => {
       expect(res.write).toHaveBeenCalledTimes(3);
     });
 
+    it('should emit queued 3LO authorization prompts as a separate event', async () => {
+      const context = {
+        requestId: 'test-request-id',
+        pendingAuthorizations: [
+          { url: 'https://auth.example/x', elicitationId: 'e-1', targetName: 'github' },
+        ],
+      };
+      mockGetCurrentContext.mockReturnValue(context);
+      const agent = createMockAgent([{ type: 'toolResult' }]);
+
+      await streamAgentResponse(agent, 'test', undefined, res, defaultOptions);
+
+      const lines = res.write.mock.calls.map((call: [string]) => JSON.parse(call[0]));
+      expect(lines[1]).toEqual({
+        type: 'serverAuthorizationRequiredEvent',
+        url: 'https://auth.example/x',
+        elicitationId: 'e-1',
+        targetName: 'github',
+      });
+      expect(context.pendingAuthorizations).toBeUndefined();
+    });
+
     it('should send completion event after streaming', async () => {
       const agent = createMockAgent([{ type: 'text', data: 'Hi' }]);
 

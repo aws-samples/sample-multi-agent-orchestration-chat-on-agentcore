@@ -9,6 +9,7 @@ import { useUIStore } from '../stores/uiStore';
 import { useStorageStore } from '../stores/storageStore';
 import * as storageApi from '../api/storage';
 import { StoragePathDisplay } from './StoragePathDisplay';
+import { AuthorizationPrompts } from './AuthorizationPrompts';
 import { StorageManagementModal } from './StorageManagementModal';
 import { ModelReasoningSelector } from './ui/ModelReasoningSelector';
 import { ImagePreview } from './ImagePreview';
@@ -449,6 +450,11 @@ export const MessageInput: React.FC<MessageInputProps> = ({
       className="sticky bottom-0 left-0 right-0 z-30 bg-surface-primary p-4"
       style={{ paddingBottom: 'max(1rem, env(safe-area-inset-bottom))' }}
     >
+      <AuthorizationPrompts
+        sessionId={sessionId}
+        className={`${isWideView ? 'max-w-full px-4' : 'max-w-4xl'} mx-auto mb-2`}
+      />
+
       {/* Storage path display */}
       <div
         className={`${isWideView ? 'max-w-full px-4' : 'max-w-4xl'} mx-auto mb-2 transition-[max-width,padding] duration-300 ease-in-out`}
