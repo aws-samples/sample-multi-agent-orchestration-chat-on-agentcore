@@ -47,6 +47,50 @@ describe('Sonnet 5.5 default model configuration', () => {
   });
 });
 
+describe('Haiku 5.5 default model configuration', () => {
+  it('adds Haiku 5.5 after Sonnet 4.6 without promoting it', () => {
+    const { bedrockModels } = getEnvironmentConfig('default');
+    expect(bedrockModels[0].id).toBe('global.anthropic.claude-opus-5');
+    const i = bedrockModels.findIndex((m) => m.id === 'global.anthropic.claude-haiku-5-5');
+    expect(bedrockModels[i]).toEqual({
+      id: 'global.anthropic.claude-haiku-5-5',
+      name: 'Claude Haiku 5.5',
+      provider: 'Anthropic',
+    });
+    expect(bedrockModels[i - 1].id).toBe('global.anthropic.claude-sonnet-4-6');
+    expect(bedrockModels[i + 1].id).toBe('global.amazon.nova-2-lite-v1:0');
+  });
+
+  it('grants the Haiku 5.5 global inference profile and foundation-model ARNs', () => {
+    const { bedrockModels } = getEnvironmentConfig('default');
+    const resources = deriveBedrockIamResources(bedrockModels, REGION, ACCOUNT);
+    expect(resources).toContain(
+      `arn:aws:bedrock:${REGION}:${ACCOUNT}:inference-profile/global.anthropic.claude-haiku-5-5`
+    );
+    expect(resources).toContain('arn:aws:bedrock:*::foundation-model/anthropic.claude-haiku-5-5*');
+  });
+
+  it('scopes a jp. override pinned to ap-northeast-1 to that region', () => {
+    const resources = deriveBedrockIamResources(
+      [
+        {
+          id: 'jp.anthropic.claude-haiku-5-5',
+          name: 'Claude Haiku 5.5 (JP)',
+          provider: 'Anthropic',
+          region: 'ap-northeast-1',
+        },
+      ],
+      REGION,
+      ACCOUNT
+    );
+    expect(resources).toContain(
+      `arn:aws:bedrock:ap-northeast-1:${ACCOUNT}:inference-profile/jp.anthropic.claude-haiku-5-5`
+    );
+    expect(resources).toContain('arn:aws:bedrock:*::foundation-model/anthropic.claude-haiku-5-5*');
+    expect(resources.some((r) => r.includes(`${REGION}:${ACCOUNT}:inference-profile`))).toBe(false);
+  });
+});
+
 describe('GPT-6 Sol / Luna default model configuration', () => {
   // Sol and Luna speak Converse on bedrock-runtime (verified live), so they must
   // stay on the plain Converse shape: no `endpoint`, no `region` pin. An

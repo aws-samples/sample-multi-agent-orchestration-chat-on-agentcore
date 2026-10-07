@@ -65,7 +65,9 @@ export const ModelReasoningSelector: React.FC<ModelReasoningSelectorProps> = (pr
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   const effectiveModelId = controlled ? (props.modelId ?? '') : storeModelId;
-  const currentDepth: ReasoningDepth = controlled ? (props.reasoningEffort ?? 'off') : storeDepth;
+  // Controlled mode keeps an unset depth as undefined: it runs with the model
+  // default, which differs from `off` on models with an offThinkingMode.
+  const currentDepth: ReasoningDepth | undefined = controlled ? props.reasoningEffort : storeDepth;
 
   // Close on outside click / Escape; reset to the model view whenever closed.
   useEffect(() => {

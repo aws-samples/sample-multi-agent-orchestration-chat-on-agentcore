@@ -132,8 +132,9 @@ export async function createAgent(options?: CreateAgentOptions): Promise<CreateA
     //     (Mythos-class, adaptive thinking) emits, which the SDK formatter would
     //     otherwise reject on the next turn (see empty-reasoning-block-hook.ts).
     //   - ReasoningHistoryStripHook drops prior-turn reasoning blocks for models
-    //     with prefix-bound thinking (Sonnet 5.5), which would otherwise 400
-    //     once the system prompt changes (see reasoning-history-strip-hook.ts).
+    //     with prefix-bound thinking (Sonnet 5.5 / Haiku 5.5), which would
+    //     otherwise 400 once the system prompt changes
+    //     (see reasoning-history-strip-hook.ts).
     // The skills plugin (when present) injects `<available_skills>` into the
     // system prompt; it sits after the sanitizers and before caller plugins.
     plugins: [

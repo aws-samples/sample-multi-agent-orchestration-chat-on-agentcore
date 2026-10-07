@@ -21,7 +21,19 @@ const DEPTH_LABEL_KEY: Record<ReasoningDepth, string> = {
   max: 'common.reasoningDepthMax',
 };
 
-export function reasoningDepthLabelKey(modelId: string, depth: ReasoningDepth): string {
+/**
+ * Label for a depth. `undefined` is an unset depth (e.g. a trigger saved via the
+ * API or manage_trigger), which runs with the model default: on models whose
+ * `off` differs from that default (an `offThinkingMode`) it gets its own label
+ * instead of borrowing the `off` one.
+ */
+export function reasoningDepthLabelKey(modelId: string, depth: ReasoningDepth | undefined): string {
+  if (depth === undefined) {
+    if (!getOffThinkingMode(modelId)) return reasoningDepthLabelKey(modelId, 'off');
+    return isReasoningAlwaysOn(modelId)
+      ? 'common.reasoningDepthModelDefault'
+      : 'common.reasoningDepthUnset';
+  }
   if (depth === 'off' && getOffThinkingMode(modelId) === 'between_tools') {
     return 'common.reasoningDepthBetweenTools';
   }
@@ -30,7 +42,10 @@ export function reasoningDepthLabelKey(modelId: string, depth: ReasoningDepth): 
     : DEPTH_LABEL_KEY[depth];
 }
 
-export function showReasoningBadge(modelId: string, depth: ReasoningDepth): boolean {
+export function showReasoningBadge(modelId: string, depth: ReasoningDepth | undefined): boolean {
+  if (depth === undefined) {
+    return getOffThinkingMode(modelId) ? true : showReasoningBadge(modelId, 'off');
+  }
   return isReasoningCapable(modelId) && (depth !== 'off' || isReasoningAlwaysOn(modelId));
 }
 

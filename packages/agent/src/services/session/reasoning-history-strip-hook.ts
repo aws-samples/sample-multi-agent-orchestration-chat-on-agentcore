@@ -5,11 +5,11 @@
  * invocation, for models whose thinking blocks are bound to the request prefix.
  *
  * Why this is needed:
- * Claude Sonnet 5.5 records, in every thinking block, a binding to everything
- * before it — the system prompt, the tools and earlier messages. On accounts
- * created on or after 2026-08-31 (Claude API, Amazon Bedrock, Google Cloud) a
- * request that replays such a block after the prefix changed is rejected with a
- * 400. Moca's prefix is not stable across turns:
+ * Claude Sonnet 5.5 and Haiku 5.5 record, in every thinking block, a binding
+ * to everything before it — the system prompt, the tools and earlier messages.
+ * On accounts created on or after 2026-08-31 (Claude API, Amazon Bedrock,
+ * Google Cloud) a request that replays such a block after the prefix changed is
+ * rejected with a 400. Moca's prefix is not stable across turns:
  *   - the system prompt carries an hourly `<current_time>`
  *   - long-term memories and the enabled tool set can change between turns
  *   - SlidingWindowConversationManager trims earlier messages

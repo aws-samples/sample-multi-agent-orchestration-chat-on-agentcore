@@ -30,6 +30,9 @@ export type ReasoningDepth = 'off' | 'low' | 'high' | 'max';
 /** Ordered list of selectable reasoning depths (UI order + runtime validation). */
 export const REASONING_DEPTHS = ['off', 'low', 'high', 'max'] as const;
 
+/** Thinking payload type sent for depth `off` (see `offThinkingMode`). */
+export type OffThinkingMode = 'between_tools' | 'disabled';
+
 /**
  * Effort levels in increasing order, for per-model capping (see reasoningMaxEffort).
  * Exported as the single source of truth so the frontend's depth-cap UI cannot
@@ -58,12 +61,14 @@ export interface BedrockModelDefinition {
   /** Omitting effort does not disable reasoning; the model uses its default. */
   readonly reasoningAlwaysOn?: boolean;
   /**
-   * Thinking payload sent for depth `off` on a model that rejects
-   * `thinking.type: 'disabled'`. `'between_tools'` turns off up-front thinking
-   * while keeping the short progress notes the model writes between tool calls
-   * (returned as reasoning blocks). Omit to send no thinking field for `off`.
+   * Thinking payload sent for depth `off` on a model whose default (no thinking
+   * field) is thinking ON. `'between_tools'` turns off up-front thinking while
+   * keeping the short progress notes the model writes between tool calls, for
+   * models that reject `thinking.type: 'disabled'` (Sonnet 5.5). `'disabled'`
+   * turns thinking fully off (Haiku 5.5). Omit to send no thinking field for
+   * `off`.
    */
-  readonly offThinkingMode?: 'between_tools';
+  readonly offThinkingMode?: OffThinkingMode;
   /**
    * Drop reasoning blocks from completed prior turns before each invocation.
    * Set for models whose thinking blocks are bound to the request prefix
@@ -330,6 +335,34 @@ export const BEDROCK_MODEL_DEFINITIONS = [
     reasoningMaxEffort: 'high',
   },
   {
+    // GA on Bedrock 2026-10-07. 1M context window, 128k max output. No In-Region
+    // endpoint: invoke via the Global or a Geo (us./eu./au./jp.) profile. Global
+    // and jp. profiles verified ACTIVE in ap-northeast-1. Standard
+    // bedrock-runtime Converse/ConverseStream path, no endpoint override.
+    // Source: AWS Bedrock model card + Anthropic "What's new in Haiku 5.5".
+    //
+    // Adaptive thinking is ON by default (default effort: medium), but unlike
+    // Sonnet 5.5 it can be turned off: depth `off` sends
+    // `thinking: { type: 'disabled' }`. Disabled is only accepted at effort
+    // high or below, so no output_config.effort is sent with it.
+    //
+    // Thinking blocks are prefix-bound (same as Sonnet 5.5), so prior reasoning
+    // is stripped before each invocation (stripPriorReasoning). Non-default
+    // temperature / top_p / top_k are rejected — do not add this model to
+    // image_to_text VISION_MODELS as-is.
+    //
+    // JP data residency: override bedrockModels with
+    // `jp.anthropic.claude-haiku-5-5` (prefix-insensitive lookup reuses this
+    // entry). Outside ap-northeast-1 also pin `region: 'ap-northeast-1'` there.
+    id: 'global.anthropic.claude-haiku-5-5',
+    name: 'Claude Haiku 5.5',
+    provider: 'Anthropic',
+    maxOutputTokens: 128000,
+    reasoningCapable: true,
+    offThinkingMode: 'disabled',
+    stripPriorReasoning: true,
+  },
+  {
     id: 'global.amazon.nova-2-lite-v1:0',
     name: 'Nova Lite 2',
     provider: 'Amazon',
@@ -543,7 +576,7 @@ export function isReasoningAlwaysOn(modelId: string): boolean {
 }
 
 /** The thinking mode sent for depth `off`, if the model defines one. */
-export function getOffThinkingMode(modelId: string): 'between_tools' | undefined {
+export function getOffThinkingMode(modelId: string): OffThinkingMode | undefined {
   return findModel(modelId)?.offThinkingMode;
 }
 
@@ -602,9 +635,22 @@ export interface BetweenToolsReasoningRequestConfig {
   };
 }
 
+/**
+ * `disabled` form sent for depth `off` on models whose thinking is on by
+ * default but can be turned off (e.g. Haiku 5.5). No `output_config.effort` is
+ * sent: Haiku 5.5 rejects `disabled` above effort high, and its default
+ * (medium) is below that.
+ */
+export interface DisabledReasoningRequestConfig {
+  readonly thinking: {
+    readonly type: 'disabled';
+  };
+}
+
 export type ReasoningRequestConfig =
   | AdaptiveReasoningRequestConfig
-  | BetweenToolsReasoningRequestConfig;
+  | BetweenToolsReasoningRequestConfig
+  | DisabledReasoningRequestConfig;
 
 /**
  * Highest selectable reasoning depth for a model (defaults to `'max'`).
@@ -623,17 +669,20 @@ export function getMaxReasoningDepth(modelId: string): Exclude<ReasoningDepth, '
 
 /**
  * Resolve the Bedrock reasoning request config for a model + depth, or
- * `undefined` when no thinking field should be sent.
+ * `undefined` when no thinking field should be sent (the model default).
  *
- * Returns `undefined` when the model is unknown, not reasoning-capable, or the
- * depth is `off` (except models with `offThinkingMode`, which get
- * `{ thinking: { type: 'between_tools' } }` for `off`). Otherwise returns the adaptive-thinking + effort payload to
- * spread into `additionalRequestFields`, clamping the effort to the model's
- * `reasoningMaxEffort` (so e.g. `max` on Sonnet 4.6 is sent as `high`).
+ * - unset (`undefined`) or unknown depth → `undefined`. Unset is NOT `off`: on
+ *   Haiku 5.5 `off` disables thinking, while unset keeps the model default.
+ * - `off` → the model's `offThinkingMode` payload
+ *   (`{ thinking: { type: 'between_tools' | 'disabled' } }`), else `undefined`.
+ * - low/high/max → adaptive thinking + effort, clamped to the model's
+ *   `reasoningMaxEffort` (so e.g. `max` on Sonnet 4.6 is sent as `high`).
+ *
+ * Also `undefined` for unknown or non-reasoning-capable models.
  */
 export function getReasoningConfig(
   modelId: string,
-  depth: ReasoningDepth
+  depth: ReasoningDepth | undefined
 ): ReasoningRequestConfig | undefined {
   // Defend the SSoT helper itself: an unknown depth (e.g. a string that bypassed
   // the type via `as`) must resolve to "no thinking field", not fall through the
@@ -646,9 +695,14 @@ export function getReasoningConfig(
     return undefined;
   }
   if (depth === 'off') {
-    return match.offThinkingMode === 'between_tools'
-      ? { thinking: { type: 'between_tools' } }
-      : undefined;
+    switch (match.offThinkingMode) {
+      case 'between_tools':
+        return { thinking: { type: 'between_tools' } };
+      case 'disabled':
+        return { thinking: { type: 'disabled' } };
+      default:
+        return undefined;
+    }
   }
   // Clamp to the model's ceiling (Opus → max, Sonnet → high).
   const cap = match.reasoningMaxEffort ?? 'max';
@@ -659,4 +713,33 @@ export function getReasoningConfig(
 /** Runtime type guard for an externally-supplied reasoning depth value. */
 export function isReasoningDepth(value: unknown): value is ReasoningDepth {
   return typeof value === 'string' && (REASONING_DEPTHS as readonly string[]).includes(value);
+}
+
+/** Result of {@link normalizeReasoningEffort}. */
+export interface NormalizedReasoningEffort {
+  /** Depth to request, or `undefined` to send no thinking field (model default). */
+  readonly depth: ReasoningDepth | undefined;
+  /** A value was supplied but is not a known depth; the caller should warn. */
+  readonly invalid: boolean;
+}
+
+/**
+ * Normalize an externally-supplied reasoning depth (HTTP body, stored trigger).
+ *
+ * - `undefined` / `null` / `''` → unset (model default).
+ * - a known depth, matched case-insensitively (`'OFF'` → `'off'`) → that depth.
+ * - anything else (`'medium'`, `'xhigh'`, typos, non-strings) → unset, `invalid`.
+ *
+ * Invalid values are not clamped to `off`: on Haiku 5.5 `off` disables
+ * thinking, so a request for more thinking (`'xhigh'`) would get none.
+ */
+export function normalizeReasoningEffort(value: unknown): NormalizedReasoningEffort {
+  if (value === undefined || value === null || value === '') {
+    return { depth: undefined, invalid: false };
+  }
+  const lowered = typeof value === 'string' ? value.toLowerCase() : value;
+  if (isReasoningDepth(lowered)) {
+    return { depth: lowered, invalid: false };
+  }
+  return { depth: undefined, invalid: true };
 }

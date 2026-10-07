@@ -58,6 +58,39 @@ describe('fromItem — reasoningEffort allowlist', () => {
     }
   );
 
+  it.each([
+    ['global.anthropic.claude-haiku-5-5', 'off', { thinking: { type: 'disabled' } }],
+    ['global.anthropic.claude-haiku-5-5', undefined, undefined],
+    ['global.anthropic.claude-sonnet-5-5', 'off', { thinking: { type: 'between_tools' } }],
+    ['global.anthropic.claude-sonnet-5-5', undefined, undefined],
+    ['global.anthropic.claude-opus-5-5', 'off', undefined],
+    ['global.anthropic.claude-opus-5-5', undefined, undefined],
+  ] as const)('restores %s with stored effort %p as %p', (modelId, reasoningEffort, expected) => {
+    const trigger = fromItem({ ...existing, modelId, reasoningEffort });
+    expect(trigger.reasoningEffort).toBe(reasoningEffort);
+    expect(getReasoningConfig(modelId, trigger.reasoningEffort)).toEqual(expected);
+  });
+
+  it('switching a stored off trigger from Opus 5.5 to Haiku 5.5 disables thinking', () => {
+    const stored: Trigger = {
+      ...existing,
+      modelId: 'global.anthropic.claude-opus-5-5',
+      reasoningEffort: 'off',
+    };
+    const { attributeValues } = buildUpdateExpression(
+      existing.userId,
+      existing.id,
+      { modelId: 'global.anthropic.claude-haiku-5-5' },
+      stored,
+      '2026-02-02T00:00:00Z'
+    );
+    const trigger = fromItem({ ...stored, modelId: attributeValues[':modelId'] });
+    expect(trigger.reasoningEffort).toBe('off');
+    expect(getReasoningConfig(trigger.modelId!, trigger.reasoningEffort)).toEqual({
+      thinking: { type: 'disabled' },
+    });
+  });
+
   it('leaves reasoningEffort undefined when the row has none', () => {
     const trigger = fromItem({
       id: 't1',

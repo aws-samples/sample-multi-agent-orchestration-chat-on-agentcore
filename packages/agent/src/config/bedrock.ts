@@ -24,8 +24,9 @@ export interface BedrockModelOptions {
   maxTokens?: number;
   /**
    * Reasoning (extended thinking) depth selected for this request.
-   * Resolved against the model registry into a `thinking` request field; a
-   * non-capable model or `off` (or omitted) yields no thinking field.
+   * Resolved against the model registry into a `thinking` request field.
+   * Omitted → no thinking field (model default). `off` → the model's
+   * `offThinkingMode` payload, or no thinking field. Non-capable → none.
    */
   reasoningEffort?: ReasoningDepth;
 }
@@ -77,19 +78,19 @@ export function createBedrockModel(options?: BedrockModelOptions): Model {
     });
   }
 
-  // Resolve the reasoning depth into a Bedrock `thinking` request field. Returns
-  // undefined for off / non-capable models, in which case no thinking field is
-  // sent — except models with an `offThinkingMode` (Sonnet 5.5), which get
-  // `thinking: { type: 'between_tools' }` for off. The SDK strips `thinking` automatically when toolChoice forces a tool
-  // (Bedrock disallows thinking + forced tool_use), so this is safe with tools.
-  const reasoningConfig = getReasoningConfig(modelId, options?.reasoningEffort ?? 'off');
+  // Resolve the reasoning depth into a Bedrock `thinking` request field. An
+  // omitted depth is NOT coerced to 'off': sub-agents and triggers without a
+  // saved depth get the model default, while 'off' on Haiku 5.5 disables
+  // thinking. The SDK strips `thinking` when toolChoice forces a tool (Bedrock
+  // disallows thinking + forced tool_use), so this is safe with tools.
+  const reasoningConfig = getReasoningConfig(modelId, options?.reasoningEffort);
 
   logger.debug(
     {
       modelId,
       region,
       promptCachingEnabled: config.ENABLE_PROMPT_CACHING,
-      reasoningEffort: options?.reasoningEffort ?? 'off',
+      reasoningEffort: options?.reasoningEffort ?? 'unset',
       // The effort actually sent (may be clamped below the requested depth, e.g.
       // Sonnet 4.6 'max' → 'high'). undefined when no thinking field is sent.
       reasoningEffortSent:

@@ -66,8 +66,12 @@ function history(): Message[] {
 }
 
 describe('ReasoningHistoryStripHook', () => {
-  it('strips prior-turn reasoning for Sonnet 5.5', () => {
-    const handler = register(new ReasoningHistoryStripHook('global.anthropic.claude-sonnet-5-5'));
+  it.each([
+    'global.anthropic.claude-sonnet-5-5',
+    'global.anthropic.claude-haiku-5-5',
+    'jp.anthropic.claude-haiku-5-5',
+  ])('strips prior-turn reasoning for %s', (modelId) => {
+    const handler = register(new ReasoningHistoryStripHook(modelId));
     expect(handler).toBeDefined();
     const messages = history();
     fire(handler!, messages);
