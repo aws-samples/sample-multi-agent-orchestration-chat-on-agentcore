@@ -7,8 +7,8 @@
  * real invoke lands on an already-warm microVM.
  *
  * When `storagePath` is present, the workspace S3 pull is started in the
- * background and claimed by the next invocation (see `prefetchWorkspaceSync`) —
- * the pull dominates per-invocation latency once the microVM is warm.
+ * background on the cached sync the next invocation reuses (see
+ * `prefetchWorkspaceSync`) — the pull dominates latency once the microVM is warm.
  *
  * Mounted AFTER `identityResolverMiddleware` (the prefetch needs the resolved
  * user / Identity Pool credentials) and BEFORE `validateInvocationMiddleware`
@@ -32,12 +32,10 @@ export function warmupMiddleware(req: Request, res: Response, next: NextFunction
   if (body.storagePath) {
     try {
       const prefetch = prefetchWorkspaceSync(requireUserId(), body.storagePath);
-      if (prefetch) {
-        // Keep /ping HealthyBusy while the pull outlives this response, so the
-        // microVM isn't treated as idle mid-download.
-        beginInvocation();
-        void prefetch.finally(endInvocation);
-      }
+      // Keep /ping HealthyBusy while the pull outlives this response, so the
+      // microVM isn't treated as idle mid-download.
+      beginInvocation();
+      void prefetch.finally(endInvocation);
     } catch (error) {
       // Warmup is best-effort; the real invoke validates and syncs on its own.
       logger.warn({ error, storagePath: body.storagePath }, 'Workspace prefetch skipped');

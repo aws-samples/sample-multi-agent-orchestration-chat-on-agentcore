@@ -53,7 +53,7 @@ function createMockS3Client(initialObjects: MockS3Object[] = []) {
         Body: body.toString(),
         ContentType: input.ContentType as string,
       });
-      return {};
+      return { ETag: `"${body.toString('base64')}"` };
     }
 
     throw new Error(`Unmocked S3 command: ${name}`);
@@ -168,6 +168,25 @@ describe('S3WorkspaceSync', () => {
       expect(fetched).toEqual(['prefix/edit.txt', 'prefix/new.txt']);
       expect(fs.readFileSync(path.join(tmpDir, 'edit.txt'), 'utf-8')).toBe('v2');
       expect(fs.existsSync(path.join(tmpDir, 'gone.txt'))).toBe(false);
+    });
+
+    it('repeat pull does not re-download a file this instance just pushed', async () => {
+      const mockClient = createMockS3Client([{ Key: 'prefix/a.txt', Body: 'v1' }]);
+      const sync = new S3WorkspaceSync({
+        bucket: 'my-bucket',
+        prefix: 'prefix/',
+        workspaceDir: tmpDir,
+        s3Client: mockClient as unknown as import('@aws-sdk/client-s3').S3Client,
+        logger: createSilentLogger(),
+      });
+      await sync.pull();
+      fs.writeFileSync(path.join(tmpDir, 'a.txt'), 'agent edit');
+      await sync.push();
+
+      const result = await sync.pull();
+
+      expect(result.downloadedFiles).toBe(0);
+      expect(fs.readFileSync(path.join(tmpDir, 'a.txt'), 'utf-8')).toBe('agent edit');
     });
 
     it('repeat pull restores a local file modified since the last pull', async () => {

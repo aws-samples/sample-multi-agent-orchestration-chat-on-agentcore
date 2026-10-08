@@ -4,7 +4,7 @@
 
 import { describe, it, expect, jest, beforeEach } from '@jest/globals';
 
-const prefetchWorkspaceSync = jest.fn<(...args: unknown[]) => Promise<void> | undefined>();
+const prefetchWorkspaceSync = jest.fn<(...args: unknown[]) => Promise<void>>();
 const beginInvocation = jest.fn();
 const endInvocation = jest.fn();
 
@@ -66,15 +66,6 @@ describe('warmupMiddleware', () => {
     finishPrefetch();
     await new Promise((r) => setImmediate(r));
     expect(endInvocation).toHaveBeenCalledTimes(1);
-  });
-
-  it('does not mark busy when a prefetch is already pending', () => {
-    prefetchWorkspaceSync.mockReturnValue(undefined);
-
-    warmupMiddleware({ body: { warmup: true, storagePath: '/project' } } as any, res, next as any);
-
-    expect(beginInvocation).not.toHaveBeenCalled();
-    expect(res.json).toHaveBeenCalledWith({ status: 'warm' });
   });
 
   it('still answers warm when the prefetch throws', () => {

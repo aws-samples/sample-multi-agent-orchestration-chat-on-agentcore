@@ -20,76 +20,72 @@ export interface WorkspaceSyncResult {
 // Re-export for backward compatibility
 export { validateStoragePath };
 
-// Warmup-started syncs awaiting the next invocation. A microVM serves a single
-// runtime session, so this holds at most a handful of entries — no TTL needed:
-// the claiming invocation re-pulls (diff-only) to pick up anything changed in S3
-// since the warmup, e.g. a file attached after the first keystroke.
-const prefetchedSyncs = new Map<string, WorkspaceSync>();
+/**
+ * Max lifetime of a cached WorkspaceSync. Its S3 client holds static Identity
+ * Pool credentials (~1h), so it is rebuilt well before they expire — leaving
+ * headroom for a long invocation that started near the limit.
+ */
+const SYNC_MAX_AGE_MS = 30 * 60 * 1000;
 
-function prefetchKey(userId: UserId, storagePath: string): string {
+// One WorkspaceSync per (user, storagePath) for the microVM's lifetime, so each
+// invocation (and the warmup) only re-pulls what changed in S3 — a fresh
+// instance re-downloads the whole workspace and shared skills. A microVM serves
+// a single runtime session, so this holds a handful of entries at most.
+const workspaceSyncs = new Map<string, { workspaceSync: WorkspaceSync; createdAt: number }>();
+
+function syncKey(userId: UserId, storagePath: string): string {
   return `${userId}\0${storagePath.replace(/^\/+|\/+$/g, '')}`;
 }
 
-function startSync(userId: UserId, storagePath: string): WorkspaceSync {
+/**
+ * Return the cached sync for (user, storagePath) — or a new one — and start a
+ * background (diff-only when cached) pull on it.
+ */
+function acquireWorkspaceSync(userId: UserId, storagePath: string): WorkspaceSync {
+  const key = syncKey(userId, storagePath);
+  const now = Date.now();
+  const cached = workspaceSyncs.get(key);
+  if (cached && now - cached.createdAt < SYNC_MAX_AGE_MS) {
+    cached.workspaceSync.startInitialSync();
+    return cached.workspaceSync;
+  }
+
   const workspaceSync = new WorkspaceSync(userId, storagePath);
   workspaceSync.startInitialSync();
+  const entry = { workspaceSync, createdAt: now };
+  workspaceSyncs.set(key, entry);
+  // Don't keep an instance whose credential setup failed; the next call retries.
+  workspaceSync.waitForInitialSync().catch(() => {
+    if (workspaceSyncs.get(key) === entry) {
+      workspaceSyncs.delete(key);
+    }
+  });
   return workspaceSync;
 }
 
 /**
- * Start pulling the workspace (and shared skills) ahead of the first invocation.
- * Called from the warmup request so the S3 pull overlaps with the user typing.
- * At most one pending prefetch per (user, storagePath).
+ * Start pulling the workspace (and shared skills) ahead of the next invocation.
+ * Called from the warmup request so the S3 pull overlaps with the user typing;
+ * the invocation then reuses the same cached sync.
  *
- * @returns Settles when the prefetch pull finishes (never rejects), or
- *          undefined when a prefetch for this key is already pending.
+ * @returns Settles (never rejects) when both pulls have finished.
  */
-export function prefetchWorkspaceSync(
-  userId: UserId,
-  storagePath: string
-): Promise<void> | undefined {
+export function prefetchWorkspaceSync(userId: UserId, storagePath: string): Promise<void> {
   validateStoragePath(storagePath);
 
-  const key = prefetchKey(userId, storagePath);
-  if (prefetchedSyncs.has(key)) {
-    return undefined;
-  }
-
-  const workspaceSync = startSync(userId, storagePath);
-  prefetchedSyncs.set(key, workspaceSync);
+  const workspaceSync = acquireWorkspaceSync(userId, storagePath);
   logger.info({ userId, storagePath }, 'Workspace sync prefetch started');
 
-  void workspaceSync.waitForSharedSkillsSync().catch((error: unknown) => {
-    logger.warn({ error, storagePath }, 'Shared skills prefetch failed');
-  });
-
-  return workspaceSync.waitForInitialSync().catch((error: unknown) => {
-    // Don't hand a sync whose credential setup failed to the invocation;
-    // a fresh one retries from scratch.
-    if (prefetchedSyncs.get(key) === workspaceSync) {
-      prefetchedSyncs.delete(key);
+  return Promise.allSettled([
+    workspaceSync.waitForInitialSync(),
+    workspaceSync.waitForSharedSkillsSync(),
+  ]).then((results) => {
+    for (const result of results) {
+      if (result.status === 'rejected') {
+        logger.warn({ error: result.reason, storagePath }, 'Workspace sync prefetch failed');
+      }
     }
-    logger.warn({ error, storagePath }, 'Workspace sync prefetch failed');
   });
-}
-
-/**
- * Claim (one-shot) a warmup-started sync for this (user, storagePath) and queue
- * a catch-up pull behind it so the invocation sees the current S3 state.
- */
-function takePrefetchedWorkspaceSync(
-  userId: UserId,
-  storagePath: string
-): WorkspaceSync | undefined {
-  const key = prefetchKey(userId, storagePath);
-  const workspaceSync = prefetchedSyncs.get(key);
-  if (!workspaceSync) {
-    return undefined;
-  }
-  prefetchedSyncs.delete(key);
-  workspaceSync.startInitialSync();
-  logger.info({ userId, storagePath }, 'Reusing prefetched workspace sync');
-  return workspaceSync;
 }
 
 /**
@@ -117,10 +113,7 @@ export function initializeWorkspaceSync(
   // Validate storage path for security
   validateStoragePath(storagePath);
 
-  // Reuse a sync already started by a warmup request; a fresh instance would
-  // re-download the whole workspace (only repeat pulls on one instance are diff-based).
-  const workspaceSync =
-    takePrefetchedWorkspaceSync(userId, storagePath) ?? startSync(userId, storagePath);
+  const workspaceSync = acquireWorkspaceSync(userId, storagePath);
 
   // Set WorkspaceSync in context (accessible from tools)
   if (context) {

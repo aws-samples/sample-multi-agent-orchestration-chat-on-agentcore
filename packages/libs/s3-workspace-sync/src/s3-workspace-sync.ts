@@ -424,7 +424,13 @@ export class S3WorkspaceSync extends EventEmitter {
         const uploadPromises = uploadTasks.map((task) =>
           limit(async () => {
             try {
-              await this.uploadFile(task.localPath, task.s3Key);
+              const etag = await this.uploadFile(task.localPath, task.s3Key);
+              // Track our own upload so the next pull doesn't re-download it.
+              if (etag) {
+                this.remoteEtags.set(task.relativePath, etag);
+              } else {
+                this.remoteEtags.delete(task.relativePath);
+              }
 
               this.fileSnapshot.set(task.relativePath, task.currentInfo);
               uploadedFiles++;
@@ -464,6 +470,7 @@ export class S3WorkspaceSync extends EventEmitter {
                 new DeleteObjectCommand({ Bucket: this.bucket, Key: task.s3Key })
               );
               this.fileSnapshot.delete(task.relativePath);
+              this.remoteEtags.delete(task.relativePath);
               deletedFiles++;
               this.logger.debug(`Deleted from S3: ${task.relativePath}`);
             } catch (error) {
@@ -604,7 +611,8 @@ export class S3WorkspaceSync extends EventEmitter {
     await pipeline(response.Body as NodeJS.ReadableStream, writeStream);
   }
 
-  private async uploadFile(localPath: string, s3Key: string): Promise<void> {
+  /** @returns ETag of the uploaded object, when S3 reports one. */
+  private async uploadFile(localPath: string, s3Key: string): Promise<string | undefined> {
     const fileContent = fs.readFileSync(localPath);
     const contentType = this.contentTypeResolver(path.basename(localPath));
 
@@ -615,7 +623,8 @@ export class S3WorkspaceSync extends EventEmitter {
       ContentType: contentType,
     });
 
-    await this.s3Client.send(command);
+    const response = await this.s3Client.send(command);
+    return response.ETag;
   }
 
   private async scanWorkspaceFiles(): Promise<Map<string, FileInfo>> {

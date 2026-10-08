@@ -1,8 +1,8 @@
 /**
- * Unit tests for warmup-time workspace sync prefetch
+ * Unit tests for the per-(user, storagePath) WorkspaceSync cache and warmup prefetch
  */
 
-import { jest, describe, it, expect, beforeEach } from '@jest/globals';
+import { jest, describe, it, expect, beforeEach, afterEach } from '@jest/globals';
 import type { UserId } from '@moca/core';
 
 interface FakeSync {
@@ -47,60 +47,55 @@ const { prefetchWorkspaceSync, initializeWorkspaceSync } =
 const USER = 'user-1' as UserId;
 const OTHER_USER = 'user-2' as UserId;
 
-// Each test uses its own storagePath so leftover prefetches never leak across tests.
+// Each test uses its own storagePath so cached syncs never leak across tests.
 let n = 0;
 const uniquePath = () => `/project-${++n}`;
 
-describe('prefetchWorkspaceSync', () => {
+describe('workspace sync cache', () => {
+  let now = 1_000_000;
+
   beforeEach(() => {
     instances.length = 0;
+    jest.spyOn(Date, 'now').mockImplementation(() => now);
   });
 
-  it('lets the next invocation reuse the prefetched sync and queue a catch-up pull', async () => {
+  afterEach(() => {
+    jest.restoreAllMocks();
+  });
+
+  it('reuses one sync across warmup and invocations, re-pulling each time', async () => {
     const p = uniquePath();
     await prefetchWorkspaceSync(USER, p);
-    expect(instances).toHaveLength(1);
-    expect(instances[0].startInitialSync).toHaveBeenCalledTimes(1);
-
-    const { workspaceSync } = initializeWorkspaceSync(USER, `${p}/`);
-
-    expect(workspaceSync).toBe(instances[0]);
-    expect(instances).toHaveLength(1);
-    // Second pull picks up S3 changes made after the warmup (e.g. attached files).
-    expect(instances[0].startInitialSync).toHaveBeenCalledTimes(2);
-  });
-
-  it('is claimable only once', () => {
-    const p = uniquePath();
-    void prefetchWorkspaceSync(USER, p);
-    initializeWorkspaceSync(USER, p);
+    const first = initializeWorkspaceSync(USER, `${p}/`);
     const second = initializeWorkspaceSync(USER, p);
 
-    expect(instances).toHaveLength(2);
-    expect(second.workspaceSync).toBe(instances[1]);
-  });
-
-  it('dedupes prefetches for the same user and path', () => {
-    const p = uniquePath();
-    const first = prefetchWorkspaceSync(USER, p);
-    const second = prefetchWorkspaceSync(USER, p);
-
-    expect(first).toBeInstanceOf(Promise);
-    expect(second).toBeUndefined();
     expect(instances).toHaveLength(1);
+    expect(first.workspaceSync).toBe(instances[0]);
+    expect(second.workspaceSync).toBe(instances[0]);
+    // Every acquisition triggers a (diff-only) pull to pick up S3 changes.
+    expect(instances[0].startInitialSync).toHaveBeenCalledTimes(3);
   });
 
-  it('is not reused for another user or storagePath', () => {
+  it('is not shared across users or storage paths', () => {
     const p = uniquePath();
-    void prefetchWorkspaceSync(USER, p);
-
+    initializeWorkspaceSync(USER, p);
     initializeWorkspaceSync(OTHER_USER, p);
     initializeWorkspaceSync(USER, uniquePath());
 
     expect(instances).toHaveLength(3);
   });
 
-  it('drops a prefetch whose initialization failed so the invocation starts fresh', async () => {
+  it('rebuilds the sync once it is older than the credential-safe max age', () => {
+    const p = uniquePath();
+    initializeWorkspaceSync(USER, p);
+    now += 30 * 60 * 1000;
+
+    const { workspaceSync } = initializeWorkspaceSync(USER, p);
+
+    expect(workspaceSync).toBe(instances[1]);
+  });
+
+  it('drops a sync whose initialization failed so the next call starts fresh', async () => {
     const p = uniquePath();
     nextInitFails = true;
 
@@ -110,7 +105,7 @@ describe('prefetchWorkspaceSync', () => {
     expect(workspaceSync).toBe(instances[1]);
   });
 
-  it('rejects invalid storage paths', () => {
+  it('prefetch rejects invalid storage paths', () => {
     expect(() => prefetchWorkspaceSync(USER, '../escape')).toThrow();
     expect(instances).toHaveLength(0);
   });
