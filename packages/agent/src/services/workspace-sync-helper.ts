@@ -21,6 +21,74 @@ export interface WorkspaceSyncResult {
 export { validateStoragePath };
 
 /**
+ * Max lifetime of a cached WorkspaceSync. Its S3 client holds static Identity
+ * Pool credentials (~1h), so it is rebuilt well before they expire — leaving
+ * headroom for a long invocation that started near the limit.
+ */
+const SYNC_MAX_AGE_MS = 30 * 60 * 1000;
+
+// One WorkspaceSync per (user, storagePath) for the microVM's lifetime, so each
+// invocation (and the warmup) only re-pulls what changed in S3 — a fresh
+// instance re-downloads the whole workspace and shared skills. A microVM serves
+// a single runtime session, so this holds a handful of entries at most.
+const workspaceSyncs = new Map<string, { workspaceSync: WorkspaceSync; createdAt: number }>();
+
+function syncKey(userId: UserId, storagePath: string): string {
+  return `${userId}\0${storagePath.replace(/^\/+|\/+$/g, '')}`;
+}
+
+/**
+ * Return the cached sync for (user, storagePath) — or a new one — and start a
+ * background (diff-only when cached) pull on it.
+ */
+function acquireWorkspaceSync(userId: UserId, storagePath: string): WorkspaceSync {
+  const key = syncKey(userId, storagePath);
+  const now = Date.now();
+  const cached = workspaceSyncs.get(key);
+  if (cached && now - cached.createdAt < SYNC_MAX_AGE_MS) {
+    cached.workspaceSync.startInitialSync();
+    return cached.workspaceSync;
+  }
+
+  const workspaceSync = new WorkspaceSync(userId, storagePath);
+  workspaceSync.startInitialSync();
+  const entry = { workspaceSync, createdAt: now };
+  workspaceSyncs.set(key, entry);
+  // Don't keep an instance whose credential setup failed; the next call retries.
+  workspaceSync.waitForInitialSync().catch(() => {
+    if (workspaceSyncs.get(key) === entry) {
+      workspaceSyncs.delete(key);
+    }
+  });
+  return workspaceSync;
+}
+
+/**
+ * Start pulling the workspace (and shared skills) ahead of the next invocation.
+ * Called from the warmup request so the S3 pull overlaps with the user typing;
+ * the invocation then reuses the same cached sync.
+ *
+ * @returns Settles (never rejects) when both pulls have finished.
+ */
+export function prefetchWorkspaceSync(userId: UserId, storagePath: string): Promise<void> {
+  validateStoragePath(storagePath);
+
+  const workspaceSync = acquireWorkspaceSync(userId, storagePath);
+  logger.info({ userId, storagePath }, 'Workspace sync prefetch started');
+
+  return Promise.allSettled([
+    workspaceSync.waitForInitialSync(),
+    workspaceSync.waitForSharedSkillsSync(),
+  ]).then((results) => {
+    for (const result of results) {
+      if (result.status === 'rejected') {
+        logger.warn({ error: result.reason, storagePath }, 'Workspace sync prefetch failed');
+      }
+    }
+  });
+}
+
+/**
  * Initialize workspace sync for the given storage path.
  *
  * Callers pass a branded `UserId` resolved upstream by
@@ -45,10 +113,7 @@ export function initializeWorkspaceSync(
   // Validate storage path for security
   validateStoragePath(storagePath);
 
-  const workspaceSync = new WorkspaceSync(userId, storagePath);
-
-  // Start initial sync asynchronously (don't await)
-  workspaceSync.startInitialSync();
+  const workspaceSync = acquireWorkspaceSync(userId, storagePath);
 
   // Set WorkspaceSync in context (accessible from tools)
   if (context) {
@@ -81,9 +146,7 @@ export function initializeWorkspaceSync(
  * bundled path needs no wait. Pass `null`/`undefined` when no workspace sync is
  * active to get just the bundled path.
  */
-export async function resolveSkillsPaths(
-  workspaceSync?: WorkspaceSync | null
-): Promise<string[]> {
+export async function resolveSkillsPaths(workspaceSync?: WorkspaceSync | null): Promise<string[]> {
   if (!workspaceSync) return [BUNDLED_SKILLS_DIRECTORY];
 
   const synced = await Promise.all([

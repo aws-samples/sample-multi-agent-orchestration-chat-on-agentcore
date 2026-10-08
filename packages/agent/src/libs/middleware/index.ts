@@ -10,3 +10,4 @@ export { authResolverMiddleware } from './auth-resolver.js';
 export { identityResolverMiddleware } from './identity-resolver.js';
 export { errorHandlerMiddleware, notFoundMiddleware } from './error-handler.js';
 export { trackInFlightMiddleware } from './track-in-flight.js';
+export { warmupMiddleware } from './warmup.js';

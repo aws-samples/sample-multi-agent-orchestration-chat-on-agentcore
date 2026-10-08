@@ -48,6 +48,8 @@ export class WorkspaceSync {
   private resolvedStorageKey!: string;
 
   private initPromise: Promise<void>;
+  private sharedSkillsPromise?: Promise<string | null>;
+  private sharedSkillsSync?: S3WorkspaceSync;
 
   constructor(userId: string, storagePath: string) {
     this.bucketName = config.USER_STORAGE_BUCKET_NAME ?? '';
@@ -122,13 +124,23 @@ export class WorkspaceSync {
   }
 
   /**
-   * Start initial sync in the background (non-blocking).
-   * Waits for scoped client initialization first.
+   * Start the workspace + shared-skills pulls in the background (non-blocking).
+   * Waits for scoped client initialization first. Calling it again on the same
+   * instance re-runs both pulls after any in-flight one, downloading only what
+   * changed in S3 since the previous run.
    */
   startInitialSync(): void {
-    this.initPromise.then(() => {
-      this.inner.startBackgroundPull();
-    });
+    this.startSharedSkillsPull();
+    this.initPromise.then(
+      () => {
+        this.inner.startBackgroundPull();
+      },
+      // Surfaced to callers via waitFor*(); swallowed here so a credential
+      // failure isn't an unhandled rejection (which would crash the process).
+      (error: unknown) => {
+        logger.error({ error }, 'Workspace sync initialization failed');
+      }
+    );
   }
 
   /**
@@ -177,13 +189,28 @@ export class WorkspaceSync {
    * sync's prefix already IS `users/{id}/`, so its `.agents/skills/` is the root
    * `.agents/skills/` — pulling it again here would be a duplicate.
    */
-  async waitForSharedSkillsSync(): Promise<string | null> {
+  waitForSharedSkillsSync(): Promise<string | null> {
+    return this.sharedSkillsPromise ?? this.startSharedSkillsPull();
+  }
+
+  private startSharedSkillsPull(): Promise<string | null> {
+    // Chained so re-runs never write SHARED_SKILLS_DIRECTORY concurrently.
+    const previous = this.sharedSkillsPromise?.catch(() => null) ?? Promise.resolve(null);
+    const current = previous.then(() => this.pullSharedSkills());
+    // Callers observe failures via waitForSharedSkillsSync(); never unhandled.
+    current.catch(() => undefined);
+    this.sharedSkillsPromise = current;
+    return current;
+  }
+
+  private async pullSharedSkills(): Promise<string | null> {
     await this.initPromise;
 
     // Root storagePath: main sync already covers users/{id}/.agents/skills/.
     if (!this.normalizedStoragePath) return null;
 
-    const rootSync = new S3WorkspaceSync({
+    // Kept across runs so repeat pulls only fetch changed objects.
+    this.sharedSkillsSync ??= new S3WorkspaceSync({
       bucket: this.bucketName,
       prefix: `users/${this.resolvedStorageKey}/${SKILLS_DIR_NAME}/`,
       workspaceDir: SHARED_SKILLS_DIRECTORY,
@@ -192,9 +219,13 @@ export class WorkspaceSync {
       logger,
     });
 
-    const result = await rootSync.pull();
+    await this.sharedSkillsSync.pull();
 
-    if (!fs.existsSync(SHARED_SKILLS_DIRECTORY) || result.downloadedFiles === 0) {
+    // Judge by what is on disk: a diff-only re-pull downloads nothing.
+    if (
+      !fs.existsSync(SHARED_SKILLS_DIRECTORY) ||
+      fs.readdirSync(SHARED_SKILLS_DIRECTORY).length === 0
+    ) {
       return null;
     }
     return SHARED_SKILLS_DIRECTORY;

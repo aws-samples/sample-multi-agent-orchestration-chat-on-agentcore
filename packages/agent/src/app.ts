@@ -9,9 +9,10 @@
  *
  *   cors → json
  *     → requestContextMiddleware   (AsyncLocalStorage-backed ctx)
- *     → validateInvocationMiddleware
  *     → authResolverMiddleware     (enrich ctx.userId / storagePath)
  *     → identityResolverMiddleware (UserId → IdentityId exchange)
+ *     → warmupMiddleware           (`{ warmup: true }` → 200 + workspace prefetch, no agent work)
+ *     → validateInvocationMiddleware
  *     → handleInvocation           (business logic, wrapped in asyncHandler)
  *
  * Tracing is left to the Strands SDK's own `invoke_agent` span (with
@@ -36,6 +37,7 @@ import {
   errorHandlerMiddleware,
   notFoundMiddleware,
   trackInFlightMiddleware,
+  warmupMiddleware,
 } from './libs/middleware/index.js';
 import { handleInvocation, handlePing, handleRoot } from './handlers/index.js';
 
@@ -58,9 +60,10 @@ export function createApp(): Express {
   //
   //   trackInFlight      → mark container busy so /ping reports HealthyBusy
   //   requestContext     → AsyncLocalStorage ctx + JWT parse + session headers
-  //   validateInvocation → prompt / images → 400 on failure
   //   authResolver       → resolves branded UserId, enriches ctx.userId
   //   identityResolver   → exchanges UserId → IdentityId, caches on ctx
+  //   warmup             → `{ warmup: true }` → 200 { status: 'warm' } (+ workspace prefetch)
+  //   validateInvocation → prompt / images → 400 on failure
   //   handleInvocation   → business logic (reads ctx via require* helpers)
   //
   // `trackInFlight` runs first so the busy window covers the WHOLE request —
@@ -70,9 +73,10 @@ export function createApp(): Express {
     '/invocations',
     trackInFlightMiddleware,
     requestContextMiddleware,
-    validateInvocationMiddleware,
     authResolverMiddleware,
     identityResolverMiddleware,
+    warmupMiddleware,
+    validateInvocationMiddleware,
     asyncHandler(handleInvocation)
   );
 
