@@ -45,7 +45,7 @@
     "@aws-sdk/util-dynamodb": "^3.996.8",
     "@moca/core": "*",
     "@moca/tool-definitions": "*",
-    "@modelcontextprotocol/sdk": "^1.30.0",
+    "@modelcontextprotocol/sdk": "^1.31.0",
     "@strands-agents/sdk": "^1.12.0",
     "aws-jwt-verify": "^5.2.1",
     "cors": "^2.8.5",
