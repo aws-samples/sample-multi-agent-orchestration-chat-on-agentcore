@@ -38,6 +38,15 @@ describe('warmupAgentRuntime', () => {
     expect(cancel).toHaveBeenCalledTimes(1);
   });
 
+  it('includes storagePath so the runtime can prefetch the workspace', async () => {
+    invoke.mockResolvedValueOnce({ body: null });
+
+    await mod.warmupAgentRuntime(SESSION_ID, '/project');
+
+    const options = invoke.mock.calls[0][0] as RequestInit;
+    expect(JSON.parse(options.body as string)).toEqual({ warmup: true, storagePath: '/project' });
+  });
+
   it('warms each session at most once', async () => {
     invoke.mockResolvedValue({ body: null });
 

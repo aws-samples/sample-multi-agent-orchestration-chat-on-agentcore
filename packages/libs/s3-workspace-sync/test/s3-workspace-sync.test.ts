@@ -32,6 +32,7 @@ function createMockS3Client(initialObjects: MockS3Object[] = []) {
           Key: obj.Key,
           Size: obj.Body.length,
           LastModified: new Date(),
+          ETag: `"${Buffer.from(obj.Body).toString('base64')}"`,
         }));
       return { Contents: contents, IsTruncated: false };
     }
@@ -136,6 +137,57 @@ describe('S3WorkspaceSync', () => {
   });
 
   describe('pull()', () => {
+    it('repeat pull on the same instance only downloads objects changed in S3', async () => {
+      const mockClient = createMockS3Client([
+        { Key: 'prefix/keep.txt', Body: 'same' },
+        { Key: 'prefix/edit.txt', Body: 'v1' },
+        { Key: 'prefix/gone.txt', Body: 'bye' },
+      ]);
+      const sync = new S3WorkspaceSync({
+        bucket: 'my-bucket',
+        prefix: 'prefix/',
+        workspaceDir: tmpDir,
+        s3Client: mockClient as unknown as import('@aws-sdk/client-s3').S3Client,
+        logger: createSilentLogger(),
+      });
+      await sync.pull();
+
+      mockClient._store.set('prefix/edit.txt', { Key: 'prefix/edit.txt', Body: 'v2' });
+      mockClient._store.set('prefix/new.txt', { Key: 'prefix/new.txt', Body: 'hi' });
+      mockClient._store.delete('prefix/gone.txt');
+      mockClient.send.mockClear();
+
+      const result = await sync.pull();
+
+      expect(result.downloadedFiles).toBe(2);
+      expect(result.deletedFiles).toBe(1);
+      const fetched = mockClient.send.mock.calls
+        .filter(([c]) => c.constructor.name === 'GetObjectCommand')
+        .map(([c]) => (c.input as { Key: string }).Key)
+        .sort();
+      expect(fetched).toEqual(['prefix/edit.txt', 'prefix/new.txt']);
+      expect(fs.readFileSync(path.join(tmpDir, 'edit.txt'), 'utf-8')).toBe('v2');
+      expect(fs.existsSync(path.join(tmpDir, 'gone.txt'))).toBe(false);
+    });
+
+    it('repeat pull restores a local file modified since the last pull', async () => {
+      const mockClient = createMockS3Client([{ Key: 'prefix/a.txt', Body: 'original' }]);
+      const sync = new S3WorkspaceSync({
+        bucket: 'my-bucket',
+        prefix: 'prefix/',
+        workspaceDir: tmpDir,
+        s3Client: mockClient as unknown as import('@aws-sdk/client-s3').S3Client,
+        logger: createSilentLogger(),
+      });
+      await sync.pull();
+      fs.writeFileSync(path.join(tmpDir, 'a.txt'), 'local edit');
+
+      const result = await sync.pull();
+
+      expect(result.downloadedFiles).toBe(1);
+      expect(fs.readFileSync(path.join(tmpDir, 'a.txt'), 'utf-8')).toBe('original');
+    });
+
     it('downloads files from S3 to local workspace', async () => {
       const mockClient = createMockS3Client([
         { Key: 'prefix/hello.txt', Body: 'Hello World' },
@@ -372,6 +424,27 @@ describe('S3WorkspaceSync', () => {
 
       expect(sync.isPullComplete()).toBe(true);
       expect(fs.readFileSync(path.join(tmpDir, 'file.txt'), 'utf-8')).toBe('content');
+    });
+
+    it('a second startBackgroundPull runs after the first and re-arms waitForPull', async () => {
+      const mockClient = createMockS3Client([{ Key: 'prefix/file.txt', Body: 'v1' }]);
+      const sync = new S3WorkspaceSync({
+        bucket: 'my-bucket',
+        prefix: 'prefix/',
+        workspaceDir: tmpDir,
+        s3Client: mockClient as unknown as import('@aws-sdk/client-s3').S3Client,
+        logger: createSilentLogger(),
+      });
+
+      sync.startBackgroundPull();
+      await sync.waitForPull();
+      mockClient._store.set('prefix/file.txt', { Key: 'prefix/file.txt', Body: 'v2' });
+
+      sync.startBackgroundPull();
+      expect(sync.isPullComplete()).toBe(false);
+      await sync.waitForPull();
+
+      expect(fs.readFileSync(path.join(tmpDir, 'file.txt'), 'utf-8')).toBe('v2');
     });
 
     it('waitForPull resolves immediately if already complete', async () => {

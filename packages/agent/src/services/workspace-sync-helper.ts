@@ -20,6 +20,78 @@ export interface WorkspaceSyncResult {
 // Re-export for backward compatibility
 export { validateStoragePath };
 
+// Warmup-started syncs awaiting the next invocation. A microVM serves a single
+// runtime session, so this holds at most a handful of entries — no TTL needed:
+// the claiming invocation re-pulls (diff-only) to pick up anything changed in S3
+// since the warmup, e.g. a file attached after the first keystroke.
+const prefetchedSyncs = new Map<string, WorkspaceSync>();
+
+function prefetchKey(userId: UserId, storagePath: string): string {
+  return `${userId}\0${storagePath.replace(/^\/+|\/+$/g, '')}`;
+}
+
+function startSync(userId: UserId, storagePath: string): WorkspaceSync {
+  const workspaceSync = new WorkspaceSync(userId, storagePath);
+  workspaceSync.startInitialSync();
+  return workspaceSync;
+}
+
+/**
+ * Start pulling the workspace (and shared skills) ahead of the first invocation.
+ * Called from the warmup request so the S3 pull overlaps with the user typing.
+ * At most one pending prefetch per (user, storagePath).
+ *
+ * @returns Settles when the prefetch pull finishes (never rejects), or
+ *          undefined when a prefetch for this key is already pending.
+ */
+export function prefetchWorkspaceSync(
+  userId: UserId,
+  storagePath: string
+): Promise<void> | undefined {
+  validateStoragePath(storagePath);
+
+  const key = prefetchKey(userId, storagePath);
+  if (prefetchedSyncs.has(key)) {
+    return undefined;
+  }
+
+  const workspaceSync = startSync(userId, storagePath);
+  prefetchedSyncs.set(key, workspaceSync);
+  logger.info({ userId, storagePath }, 'Workspace sync prefetch started');
+
+  void workspaceSync.waitForSharedSkillsSync().catch((error: unknown) => {
+    logger.warn({ error, storagePath }, 'Shared skills prefetch failed');
+  });
+
+  return workspaceSync.waitForInitialSync().catch((error: unknown) => {
+    // Don't hand a sync whose credential setup failed to the invocation;
+    // a fresh one retries from scratch.
+    if (prefetchedSyncs.get(key) === workspaceSync) {
+      prefetchedSyncs.delete(key);
+    }
+    logger.warn({ error, storagePath }, 'Workspace sync prefetch failed');
+  });
+}
+
+/**
+ * Claim (one-shot) a warmup-started sync for this (user, storagePath) and queue
+ * a catch-up pull behind it so the invocation sees the current S3 state.
+ */
+function takePrefetchedWorkspaceSync(
+  userId: UserId,
+  storagePath: string
+): WorkspaceSync | undefined {
+  const key = prefetchKey(userId, storagePath);
+  const workspaceSync = prefetchedSyncs.get(key);
+  if (!workspaceSync) {
+    return undefined;
+  }
+  prefetchedSyncs.delete(key);
+  workspaceSync.startInitialSync();
+  logger.info({ userId, storagePath }, 'Reusing prefetched workspace sync');
+  return workspaceSync;
+}
+
 /**
  * Initialize workspace sync for the given storage path.
  *
@@ -45,10 +117,10 @@ export function initializeWorkspaceSync(
   // Validate storage path for security
   validateStoragePath(storagePath);
 
-  const workspaceSync = new WorkspaceSync(userId, storagePath);
-
-  // Start initial sync asynchronously (don't await)
-  workspaceSync.startInitialSync();
+  // Reuse a sync already started by a warmup request; a fresh instance would
+  // re-download the whole workspace (only repeat pulls on one instance are diff-based).
+  const workspaceSync =
+    takePrefetchedWorkspaceSync(userId, storagePath) ?? startSync(userId, storagePath);
 
   // Set WorkspaceSync in context (accessible from tools)
   if (context) {
@@ -81,9 +153,7 @@ export function initializeWorkspaceSync(
  * bundled path needs no wait. Pass `null`/`undefined` when no workspace sync is
  * active to get just the bundled path.
  */
-export async function resolveSkillsPaths(
-  workspaceSync?: WorkspaceSync | null
-): Promise<string[]> {
+export async function resolveSkillsPaths(workspaceSync?: WorkspaceSync | null): Promise<string[]> {
   if (!workspaceSync) return [BUNDLED_SKILLS_DIRECTORY];
 
   const synced = await Promise.all([

@@ -181,9 +181,14 @@ export const isRuntimeWarmupEnabled = (): boolean =>
  *
  * Sends `{ warmup: true }` with the same session-id header as the real invoke so
  * microVM stickiness routes the first prompt to the already-started microVM.
+ * `storagePath` lets the runtime start the workspace S3 pull ahead of the prompt;
+ * it must match the storagePath of the real invoke for the pull to be reused.
  * At most once per sessionId; errors are swallowed.
  */
-export const warmupAgentRuntime = async (sessionId: string): Promise<void> => {
+export const warmupAgentRuntime = async (
+  sessionId: string,
+  storagePath?: string
+): Promise<void> => {
   if (!isRuntimeWarmupEnabled() || warmedSessionIds.has(sessionId)) {
     return;
   }
@@ -196,7 +201,7 @@ export const warmupAgentRuntime = async (sessionId: string): Promise<void> => {
         'Content-Type': 'application/json',
         'X-Amzn-Bedrock-AgentCore-Runtime-Session-Id': sessionId,
       },
-      body: JSON.stringify({ warmup: true }),
+      body: JSON.stringify({ warmup: true, storagePath }),
     });
     await response.body?.cancel();
   } catch (error) {

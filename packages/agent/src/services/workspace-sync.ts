@@ -48,6 +48,7 @@ export class WorkspaceSync {
   private resolvedStorageKey!: string;
 
   private initPromise: Promise<void>;
+  private sharedSkillsPromise?: Promise<string | null>;
 
   constructor(userId: string, storagePath: string) {
     this.bucketName = config.USER_STORAGE_BUCKET_NAME ?? '';
@@ -126,9 +127,16 @@ export class WorkspaceSync {
    * Waits for scoped client initialization first.
    */
   startInitialSync(): void {
-    this.initPromise.then(() => {
-      this.inner.startBackgroundPull();
-    });
+    this.initPromise.then(
+      () => {
+        this.inner.startBackgroundPull();
+      },
+      // Surfaced to callers via waitFor*(); swallowed here so a credential
+      // failure isn't an unhandled rejection (which would crash the process).
+      (error: unknown) => {
+        logger.error({ error }, 'Workspace sync initialization failed');
+      }
+    );
   }
 
   /**
@@ -177,7 +185,12 @@ export class WorkspaceSync {
    * sync's prefix already IS `users/{id}/`, so its `.agents/skills/` is the root
    * `.agents/skills/` — pulling it again here would be a duplicate.
    */
-  async waitForSharedSkillsSync(): Promise<string | null> {
+  waitForSharedSkillsSync(): Promise<string | null> {
+    // Memoized so a warmup prefetch and the invocation share one pull.
+    return (this.sharedSkillsPromise ??= this.pullSharedSkills());
+  }
+
+  private async pullSharedSkills(): Promise<string | null> {
     await this.initPromise;
 
     // Root storagePath: main sync already covers users/{id}/.agents/skills/.

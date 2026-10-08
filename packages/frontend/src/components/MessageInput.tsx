@@ -386,7 +386,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({
     // new chat without an id yet, reserve the id now and reuse it on submit.
     if (!input && value && isRuntimeWarmupEnabled()) {
       const warmupSessionId = sessionId ?? (pendingSessionIdRef.current ??= generateSessionId());
-      void warmupAgentRuntime(warmupSessionId);
+      void warmupAgentRuntime(warmupSessionId, useStorageStore.getState().agentWorkingDirectory);
     }
     setInput(value);
     // Clear only if error exists (prevent unnecessary re-renders)

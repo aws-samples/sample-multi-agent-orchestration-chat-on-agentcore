@@ -77,6 +77,9 @@ export class S3WorkspaceSync extends EventEmitter {
   private readonly priorityPrefix?: string;
 
   private fileSnapshot: Map<string, FileInfo> = new Map();
+  // ETag of each object as of its last successful download, so a repeated
+  // pull() on the same instance only fetches objects that changed in S3.
+  private remoteEtags: Map<string, string> = new Map();
   private pullPromise: Promise<void> | null = null;
   private pullComplete = false;
 
@@ -132,6 +135,22 @@ export class S3WorkspaceSync extends EventEmitter {
     );
   }
 
+  /**
+   * Whether the local copy still matches what the last pull downloaded for this
+   * key: same S3 ETag and the local file untouched since (size + mtime).
+   */
+  private isUnchangedSinceLastPull(
+    relativePath: string,
+    localPath: string,
+    etag: string | undefined
+  ): boolean {
+    if (!etag || this.remoteEtags.get(relativePath) !== etag) return false;
+    const snapshot = this.fileSnapshot.get(relativePath);
+    if (!snapshot || !fs.existsSync(localPath)) return false;
+    const stats = fs.statSync(localPath);
+    return stats.size === snapshot.size && stats.mtimeMs === snapshot.mtime;
+  }
+
   /** Resolve the priority-pull promise exactly once (idempotent). */
   private resolvePriorityPull(): void {
     if (this.priorityPullResolve) {
@@ -163,8 +182,10 @@ export class S3WorkspaceSync extends EventEmitter {
         s3Key: string;
         relativePath: string;
         localPath: string;
+        etag?: string;
       }
       const downloadTasks: DownloadTask[] = [];
+      let unchangedFiles = 0;
       let continuationToken: string | undefined;
 
       do {
@@ -191,11 +212,18 @@ export class S3WorkspaceSync extends EventEmitter {
             }
 
             s3FilePaths.add(relativePath);
+            const localPath = path.join(this.workspaceDir, relativePath);
+
+            if (this.isUnchangedSinceLastPull(relativePath, localPath, item.ETag)) {
+              unchangedFiles++;
+              continue;
+            }
 
             downloadTasks.push({
               s3Key: item.Key,
               relativePath,
-              localPath: path.join(this.workspaceDir, relativePath),
+              localPath,
+              etag: item.ETag,
             });
           }
         }
@@ -204,7 +232,7 @@ export class S3WorkspaceSync extends EventEmitter {
       } while (continuationToken);
 
       this.logger.info(
-        `Found ${downloadTasks.length} files to download (concurrency: ${this.downloadConcurrency})`
+        `Found ${downloadTasks.length} files to download (${unchangedFiles} unchanged, concurrency: ${this.downloadConcurrency})`
       );
 
       // Phase 2: Parallel download.
@@ -231,6 +259,9 @@ export class S3WorkspaceSync extends EventEmitter {
               mtime: stats.mtimeMs,
               hash,
             });
+            if (task.etag) {
+              this.remoteEtags.set(task.relativePath, task.etag);
+            }
 
             downloadedFiles++;
             completedCount++;
@@ -280,6 +311,11 @@ export class S3WorkspaceSync extends EventEmitter {
 
       // Phase 3: Delete local-only files
       const deletedFiles = this.cleanupLocalOnlyFiles(s3FilePaths);
+      for (const relativePath of this.remoteEtags.keys()) {
+        if (!s3FilePaths.has(relativePath)) {
+          this.remoteEtags.delete(relativePath);
+        }
+      }
 
       // Phase 4: Load custom .syncignore from workspace (if present)
       this.ignoreFilter.loadFromWorkspace(this.workspaceDir);
@@ -471,7 +507,18 @@ export class S3WorkspaceSync extends EventEmitter {
   startBackgroundPull(): void {
     this.logger.debug('Starting background pull...');
 
-    this.pullPromise = this.pull()
+    // A repeated call re-arms the waiters and runs after the in-flight pull, so
+    // two pulls never write the same directory concurrently.
+    const previous = this.pullPromise ?? Promise.resolve();
+    this.pullComplete = false;
+    if (this.priorityPrefix && !this.priorityPullResolve) {
+      this.priorityPullPromise = new Promise((resolve) => {
+        this.priorityPullResolve = resolve;
+      });
+    }
+
+    this.pullPromise = previous
+      .then(() => this.pull())
       .then(() => {
         this.pullComplete = true;
         // No log here: `Pull complete: N downloaded ...` is emitted by
