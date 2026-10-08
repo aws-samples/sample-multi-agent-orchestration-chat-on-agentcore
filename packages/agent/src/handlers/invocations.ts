@@ -28,7 +28,7 @@
  */
 
 import type { Request, Response } from 'express';
-import { isReasoningDepth } from '@moca/core';
+import { normalizeReasoningEffort } from '@moca/core';
 import type { InvocationRequest } from '../types/index.js';
 import { createAgent } from '../agent.js';
 import {
@@ -65,6 +65,15 @@ export async function handleInvocation(req: Request, res: Response): Promise<voi
     },
     'Request received:'
   );
+
+  // Unset/unknown depth → model default (no thinking field), never 'off'.
+  const { depth: reasoningEffort, invalid } = normalizeReasoningEffort(body.reasoningEffort);
+  if (invalid) {
+    logger.warn(
+      { requestId, modelId: body.modelId, reasoningEffort: body.reasoningEffort },
+      'Ignoring unknown reasoningEffort; using the model default'
+    );
+  }
 
   // 1. Initialize workspace sync only when a storagePath is provided.
   //    Keeping the storagePath branch at the call site (rather than inside
@@ -105,8 +114,7 @@ export async function handleInvocation(req: Request, res: Response): Promise<voi
       ...(workspaceSyncResult ? [workspaceSyncResult.hook] : []),
     ],
     modelId: body.modelId,
-    // Clamp an unknown/absent reasoning depth to 'off' (no thinking field).
-    reasoningEffort: isReasoningDepth(body.reasoningEffort) ? body.reasoningEffort : 'off',
+    reasoningEffort,
     enabledTools: body.enabledTools,
     systemPrompt: body.systemPrompt,
     memoryEnabled: body.memoryEnabled,

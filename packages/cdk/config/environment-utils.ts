@@ -144,6 +144,13 @@ const DEFAULT_CONFIG = {
       provider: 'Anthropic',
     },
     {
+      // Thinking is on by default; `off` maps to `between_tools`. See the
+      // registry note in packages/libs/core/src/bedrock-models.ts.
+      id: 'global.anthropic.claude-sonnet-5-5',
+      name: 'Claude Sonnet 5.5',
+      provider: 'Anthropic',
+    },
+    {
       id: 'global.anthropic.claude-sonnet-5',
       name: 'Claude Sonnet 5',
       provider: 'Anthropic',
@@ -151,6 +158,14 @@ const DEFAULT_CONFIG = {
     {
       id: 'global.anthropic.claude-sonnet-4-6',
       name: 'Claude Sonnet 4.6',
+      provider: 'Anthropic',
+    },
+    {
+      // Thinking is on by default; `off` maps to `disabled`. For JP data
+      // residency override with `jp.anthropic.claude-haiku-5-5`. See the
+      // registry note in packages/libs/core/src/bedrock-models.ts.
+      id: 'global.anthropic.claude-haiku-5-5',
+      name: 'Claude Haiku 5.5',
       provider: 'Anthropic',
     },
     {

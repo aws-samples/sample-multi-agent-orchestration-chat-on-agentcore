@@ -29,6 +29,8 @@ common:
   reasoningDepth: Reasoning
   reasoningDepthOff: 'Off'
   reasoningDepthModelDefault: 'Model default (always on)'
+  reasoningDepthUnset: 'Model default'
+  reasoningDepthBetweenTools: 'Minimal (between tools only)'
   reasoningDepthLow: Low
   reasoningDepthHigh: High
   reasoningDepthMax: Max

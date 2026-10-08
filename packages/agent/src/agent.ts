@@ -36,6 +36,7 @@ import { buildSkillsPlugin } from './runtime/agent/skills-plugin-builder.js';
 import { StreamTerminationRetryStrategy } from './runtime/agent/stream-termination-retry-strategy.js';
 import { EmptyTextBlockHook } from './services/session/empty-text-block-hook.js';
 import { EmptyReasoningBlockHook } from './services/session/empty-reasoning-block-hook.js';
+import { ReasoningHistoryStripHook } from './services/session/reasoning-history-strip-hook.js';
 
 import type { CreateAgentOptions, CreateAgentResult } from './runtime/agent/types.js';
 
@@ -130,11 +131,16 @@ export async function createAgent(options?: CreateAgentOptions): Promise<CreateA
     //   - EmptyReasoningBlockHook strips the empty-text reasoning block Fable 5
     //     (Mythos-class, adaptive thinking) emits, which the SDK formatter would
     //     otherwise reject on the next turn (see empty-reasoning-block-hook.ts).
+    //   - ReasoningHistoryStripHook drops prior-turn reasoning blocks for models
+    //     with prefix-bound thinking (Sonnet 5.5 / Haiku 5.5), which would
+    //     otherwise 400 once the system prompt changes
+    //     (see reasoning-history-strip-hook.ts).
     // The skills plugin (when present) injects `<available_skills>` into the
     // system prompt; it sits after the sanitizers and before caller plugins.
     plugins: [
       new EmptyTextBlockHook(),
       new EmptyReasoningBlockHook(),
+      new ReasoningHistoryStripHook(options?.modelId || config.BEDROCK_MODEL_ID),
       ...(skillsPlugin ? [skillsPlugin] : []),
       ...(options?.plugins ?? []),
     ],

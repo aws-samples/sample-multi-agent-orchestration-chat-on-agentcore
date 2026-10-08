@@ -145,6 +145,43 @@ describe('createBedrockModel Opus 5.5', () => {
   });
 });
 
+describe('createBedrockModel Haiku 5.5', () => {
+  const HAIKU = 'global.anthropic.claude-haiku-5-5';
+
+  it('sends thinking disabled for explicit off', () => {
+    createBedrockModel({ modelId: HAIKU, reasoningEffort: 'off' });
+    expect(constructorCalls[0].additionalRequestFields).toStrictEqual({
+      thinking: { type: 'disabled' },
+    });
+    expect(constructorCalls[0].maxTokens).toBe(128000);
+  });
+
+  it.each(['global.', 'jp.'])(
+    'sends no thinking field when effort is omitted (sub-agents) for %s',
+    (prefix) => {
+      createBedrockModel({ modelId: `${prefix}anthropic.claude-haiku-5-5` });
+      expect(constructorCalls[0].additionalRequestFields).toBeUndefined();
+    }
+  );
+
+  it.each(['low', 'high', 'max'] as const)('forwards effort %s unchanged', (effort) => {
+    createBedrockModel({ modelId: HAIKU, reasoningEffort: effort });
+    expect(constructorCalls[0].additionalRequestFields).toEqual({
+      thinking: { type: 'adaptive', display: 'summarized' },
+      output_config: { effort },
+    });
+  });
+
+  it('keeps Sonnet 5.5 off as between_tools and omitted as model default', () => {
+    createBedrockModel({ modelId: 'global.anthropic.claude-sonnet-5-5', reasoningEffort: 'off' });
+    createBedrockModel({ modelId: 'global.anthropic.claude-sonnet-5-5' });
+    expect(constructorCalls[0].additionalRequestFields).toStrictEqual({
+      thinking: { type: 'between_tools' },
+    });
+    expect(constructorCalls[1].additionalRequestFields).toBeUndefined();
+  });
+});
+
 describe('createBedrockModel OpenAI routing — gpt-oss (bedrock-openai endpoint)', () => {
   it('builds an OpenAIModel (not a BedrockModel) for a gpt-oss id', () => {
     const model = createBedrockModel({ modelId: 'openai.gpt-oss-120b-1:0' });

@@ -8,9 +8,158 @@ import {
   getMaxReasoningDepth,
   isReasoningCapable,
   isReasoningDepth,
+  normalizeReasoningEffort,
+  isReasoningAlwaysOn,
+  getOffThinkingMode,
+  shouldStripPriorReasoning,
   getBedrockEndpoint,
   type ReasoningDepth,
 } from '../bedrock-models.js';
+
+describe('Claude Sonnet 5.5', () => {
+  const ID = 'global.anthropic.claude-sonnet-5-5';
+
+  it('is registered directly above Sonnet 5 without changing the default', () => {
+    expect(BEDROCK_MODEL_DEFINITIONS[0].id).toBe('global.anthropic.claude-opus-5');
+    const i = BEDROCK_MODEL_DEFINITIONS.findIndex((m) => m.id === ID);
+    expect(i).toBeGreaterThan(0);
+    expect(BEDROCK_MODEL_DEFINITIONS[i + 1].id).toBe('global.anthropic.claude-sonnet-5');
+    expect(BEDROCK_MODEL_DEFINITIONS[i]).toMatchObject({
+      name: 'Claude Sonnet 5.5',
+      provider: 'Anthropic',
+      reasoningAlwaysOn: true,
+      offThinkingMode: 'between_tools',
+      stripPriorReasoning: true,
+    });
+  });
+
+  it.each(['', 'global.'])('resolves metadata for the %s profile prefix', (prefix) => {
+    const modelId = `${prefix}anthropic.claude-sonnet-5-5`;
+    expect(isReasoningCapable(modelId)).toBe(true);
+    expect(isReasoningAlwaysOn(modelId)).toBe(true);
+    expect(getMaxOutputTokens(modelId)).toBe(128000);
+    expect(getModelRegion(modelId)).toBeUndefined();
+    expect(getBedrockEndpoint(modelId)).toBeUndefined();
+    expect(getMaxReasoningDepth(modelId)).toBe('max');
+    expect(getOffThinkingMode(modelId)).toBe('between_tools');
+    expect(shouldStripPriorReasoning(modelId)).toBe(true);
+  });
+
+  it('maps depth off to between_tools with no other thinking or effort field', () => {
+    expect(getReasoningConfig(ID, 'off')).toStrictEqual({ thinking: { type: 'between_tools' } });
+  });
+
+  it('sends adaptive + summarized for low/high/max without clamping', () => {
+    for (const effort of ['low', 'high', 'max'] as const) {
+      expect(getReasoningConfig(ID, effort)).toEqual({
+        thinking: { type: 'adaptive', display: 'summarized' },
+        output_config: { effort },
+      });
+    }
+  });
+
+  it('leaves off unchanged for every model without offThinkingMode', () => {
+    for (const m of BEDROCK_MODEL_DEFINITIONS) {
+      if (m.offThinkingMode) continue;
+      expect(getReasoningConfig(m.id, 'off')).toBeUndefined();
+      expect(shouldStripPriorReasoning(m.id)).toBe(false);
+    }
+  });
+});
+
+describe('Claude Haiku 5.5', () => {
+  const ID = 'global.anthropic.claude-haiku-5-5';
+
+  it('is opt-in after Sonnet 4.6 without changing the default', () => {
+    expect(BEDROCK_MODEL_DEFINITIONS[0].id).toBe('global.anthropic.claude-opus-5');
+    const i = BEDROCK_MODEL_DEFINITIONS.findIndex((m) => m.id === ID);
+    expect(BEDROCK_MODEL_DEFINITIONS[i - 1].id).toBe('global.anthropic.claude-sonnet-4-6');
+    expect(BEDROCK_MODEL_DEFINITIONS[i + 1].id).toBe('global.amazon.nova-2-lite-v1:0');
+    expect(BEDROCK_MODEL_DEFINITIONS[i]).toMatchObject({
+      name: 'Claude Haiku 5.5',
+      provider: 'Anthropic',
+      offThinkingMode: 'disabled',
+      stripPriorReasoning: true,
+    });
+    expect(BEDROCK_MODEL_DEFINITIONS[i].reasoningAlwaysOn).toBeUndefined();
+  });
+
+  it.each(['', 'global.', 'us.', 'eu.', 'au.', 'jp.'])(
+    'resolves metadata for the %s profile prefix',
+    (prefix) => {
+      const modelId = `${prefix}anthropic.claude-haiku-5-5`;
+      expect(isReasoningCapable(modelId)).toBe(true);
+      expect(isReasoningAlwaysOn(modelId)).toBe(false);
+      expect(getMaxOutputTokens(modelId)).toBe(128000);
+      expect(getModelRegion(modelId)).toBeUndefined();
+      expect(getBedrockEndpoint(modelId)).toBeUndefined();
+      expect(getMaxReasoningDepth(modelId)).toBe('max');
+      expect(getOffThinkingMode(modelId)).toBe('disabled');
+      expect(shouldStripPriorReasoning(modelId)).toBe(true);
+    }
+  );
+
+  it('maps depth off to disabled with no effort or display field', () => {
+    expect(getReasoningConfig(ID, 'off')).toStrictEqual({ thinking: { type: 'disabled' } });
+  });
+
+  it('sends adaptive + summarized for low/high/max without clamping', () => {
+    for (const effort of ['low', 'high', 'max'] as const) {
+      expect(getReasoningConfig(ID, effort)).toEqual({
+        thinking: { type: 'adaptive', display: 'summarized' },
+        output_config: { effort },
+      });
+    }
+  });
+});
+
+describe('reasoning value semantics (unset / invalid / off)', () => {
+  const HAIKU = 'global.anthropic.claude-haiku-5-5';
+  const SONNET_55 = 'global.anthropic.claude-sonnet-5-5';
+
+  it.each([
+    ['unset', undefined],
+    ['unknown', 'medium' as ReasoningDepth],
+    ['unknown', 'xhigh' as ReasoningDepth],
+  ])('sends no thinking field for an %s depth on every model', (_label, depth) => {
+    for (const m of BEDROCK_MODEL_DEFINITIONS) {
+      expect(getReasoningConfig(m.id, depth)).toBeUndefined();
+    }
+  });
+
+  it('only off on an offThinkingMode model differs from unset', () => {
+    expect(getReasoningConfig(HAIKU, 'off')).toStrictEqual({ thinking: { type: 'disabled' } });
+    expect(getReasoningConfig(SONNET_55, 'off')).toStrictEqual({
+      thinking: { type: 'between_tools' },
+    });
+    for (const m of BEDROCK_MODEL_DEFINITIONS) {
+      if (m.offThinkingMode) continue;
+      expect(getReasoningConfig(m.id, 'off')).toBe(getReasoningConfig(m.id, undefined));
+    }
+  });
+});
+
+describe('normalizeReasoningEffort', () => {
+  it.each([undefined, null, ''])('treats %p as unset', (value) => {
+    expect(normalizeReasoningEffort(value)).toEqual({ depth: undefined, invalid: false });
+  });
+
+  it.each(REASONING_DEPTHS)('passes %s through', (depth) => {
+    expect(normalizeReasoningEffort(depth)).toEqual({ depth, invalid: false });
+  });
+
+  it('matches known depths case-insensitively', () => {
+    expect(normalizeReasoningEffort('OFF')).toEqual({ depth: 'off', invalid: false });
+    expect(normalizeReasoningEffort('High')).toEqual({ depth: 'high', invalid: false });
+  });
+
+  it.each(['medium', 'xhigh', 'none', ' off', 2, true, {}])(
+    'flags %p as invalid and leaves it unset (never off)',
+    (value) => {
+      expect(normalizeReasoningEffort(value)).toEqual({ depth: undefined, invalid: true });
+    }
+  );
+});
 
 describe('Claude Opus 5.5', () => {
   it('is opt-in immediately after Opus 5 without changing the default', () => {
