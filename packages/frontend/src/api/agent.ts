@@ -168,6 +168,42 @@ export const streamAgentResponse = async (
   }
 };
 
+const warmedSessionIds = new Set<string>();
+
+/**
+ * Whether speculative runtime warmup is enabled (VITE_ENABLE_RUNTIME_WARMUP=true)
+ */
+export const isRuntimeWarmupEnabled = (): boolean =>
+  import.meta.env.VITE_ENABLE_RUNTIME_WARMUP === 'true';
+
+/**
+ * Pre-warm the AgentCore Runtime microVM for a session (fire-and-forget).
+ *
+ * Sends `{ warmup: true }` with the same session-id header as the real invoke so
+ * microVM stickiness routes the first prompt to the already-started microVM.
+ * At most once per sessionId; errors are swallowed.
+ */
+export const warmupAgentRuntime = async (sessionId: string): Promise<void> => {
+  if (!isRuntimeWarmupEnabled() || warmedSessionIds.has(sessionId)) {
+    return;
+  }
+  warmedSessionIds.add(sessionId);
+
+  try {
+    const response = await agentClient.invoke({
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Amzn-Bedrock-AgentCore-Runtime-Session-Id': sessionId,
+      },
+      body: JSON.stringify({ warmup: true }),
+    });
+    await response.body?.cancel();
+  } catch (error) {
+    logger.warn('Runtime warmup failed:', error);
+  }
+};
+
 /**
  * Handle a single streaming event
  */

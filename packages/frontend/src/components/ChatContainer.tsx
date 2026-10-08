@@ -14,7 +14,7 @@ import { translateIfKey } from '../utils/agent-translation';
 
 interface ChatContainerProps {
   sessionId: string | null;
-  onCreateSession: () => string;
+  onCreateSession: (sessionId?: string) => string;
   onAgentSelect?: (agent: Agent | null) => void;
   /** Whether the agent selection from URL has been resolved. Used to suppress welcome-screen flash. */
   isAgentResolved?: boolean;

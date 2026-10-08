@@ -111,6 +111,12 @@ export interface FrontendProps {
    * @default false
    */
   selfSignUpEnabled?: boolean;
+
+  /**
+   * Whether the frontend pre-warms the AgentCore Runtime on first keystroke (optional)
+   * @default false
+   */
+  runtimeWarmupEnabled?: boolean;
 }
 
 export class Frontend extends Construct {
@@ -339,6 +345,7 @@ export class Frontend extends Construct {
         VITE_APPSYNC_EVENTS_ENDPOINT: props.appsyncEventsEndpoint || '',
         VITE_BEDROCK_MODELS: JSON.stringify(props.bedrockModels ?? []),
         VITE_SELF_SIGN_UP_ENABLED: String(props.selfSignUpEnabled ?? false),
+        VITE_ENABLE_RUNTIME_WARMUP: String(props.runtimeWarmupEnabled ?? false),
         // Identity Pool ID for GetCredentialsForIdentity calls from the browser
         VITE_IDENTITY_POOL_ID: props.identityPoolId || '',
       },

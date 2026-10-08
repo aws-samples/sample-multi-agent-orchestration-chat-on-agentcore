@@ -64,7 +64,7 @@ interface SessionActions {
   setEventsError: (error: string | null) => void;
   clearErrors: () => void;
   refreshSessions: () => Promise<void>;
-  createNewSession: () => string;
+  createNewSession: (sessionId?: string) => string;
   finalizeNewSession: () => void;
   addOptimisticSession: (
     sessionId: string,
@@ -423,8 +423,8 @@ export const useSessionStore = create<SessionStore>()(
         await loadSessions();
       },
 
-      createNewSession: () => {
-        const newSessionId = generateSessionId();
+      createNewSession: (sessionId?: string) => {
+        const newSessionId = sessionId ?? generateSessionId();
         set({
           activeSessionId: newSessionId,
           sessionEvents: [],

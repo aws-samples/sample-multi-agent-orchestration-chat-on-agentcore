@@ -9,6 +9,7 @@
  *
  *   cors → json
  *     → requestContextMiddleware   (AsyncLocalStorage-backed ctx)
+ *     → warmupMiddleware           (`{ warmup: true }` → 200, no agent work)
  *     → validateInvocationMiddleware
  *     → authResolverMiddleware     (enrich ctx.userId / storagePath)
  *     → identityResolverMiddleware (UserId → IdentityId exchange)
@@ -36,6 +37,7 @@ import {
   errorHandlerMiddleware,
   notFoundMiddleware,
   trackInFlightMiddleware,
+  warmupMiddleware,
 } from './libs/middleware/index.js';
 import { handleInvocation, handlePing, handleRoot } from './handlers/index.js';
 
@@ -58,6 +60,7 @@ export function createApp(): Express {
   //
   //   trackInFlight      → mark container busy so /ping reports HealthyBusy
   //   requestContext     → AsyncLocalStorage ctx + JWT parse + session headers
+  //   warmup             → `{ warmup: true }` → 200 { status: 'warm' } (authenticated only)
   //   validateInvocation → prompt / images → 400 on failure
   //   authResolver       → resolves branded UserId, enriches ctx.userId
   //   identityResolver   → exchanges UserId → IdentityId, caches on ctx
@@ -70,6 +73,7 @@ export function createApp(): Express {
     '/invocations',
     trackInFlightMiddleware,
     requestContextMiddleware,
+    warmupMiddleware,
     validateInvocationMiddleware,
     authResolverMiddleware,
     identityResolverMiddleware,

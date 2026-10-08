@@ -8,6 +8,8 @@ import { useSettingsStore } from '../stores/settingsStore';
 import { useUIStore } from '../stores/uiStore';
 import { useStorageStore } from '../stores/storageStore';
 import * as storageApi from '../api/storage';
+import { isRuntimeWarmupEnabled, warmupAgentRuntime } from '../api/agent';
+import { generateSessionId } from '../utils/sessionId';
 import { StoragePathDisplay } from './StoragePathDisplay';
 import { StorageManagementModal } from './StorageManagementModal';
 import { ModelReasoningSelector } from './ui/ModelReasoningSelector';
@@ -18,7 +20,7 @@ import { logger } from '../utils/logger';
 
 interface MessageInputProps {
   sessionId: string | null;
-  onCreateSession: () => string;
+  onCreateSession: (sessionId?: string) => string;
   getScenarioPrompt?: () => string | null;
 }
 
@@ -38,6 +40,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({
   const isWideView = useUIStore((state) => state.isWideView);
   const agentWorkingDirectory = useStorageStore((state) => state.agentWorkingDirectory);
   const [input, setInput] = useState('');
+  const pendingSessionIdRef = useRef<string | null>(null);
   const [attachedImages, setAttachedImages] = useState<ImageAttachment[]>([]);
   const [isStorageModalOpen, setIsStorageModalOpen] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
@@ -378,7 +381,14 @@ export const MessageInput: React.FC<MessageInputProps> = ({
   }, [getScenarioPrompt]);
 
   const handleChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-    setInput(e.target.value);
+    const value = e.target.value;
+    // Pre-warm the runtime on the first keystroke (empty → non-empty). For a
+    // new chat without an id yet, reserve the id now and reuse it on submit.
+    if (!input && value && isRuntimeWarmupEnabled()) {
+      const warmupSessionId = sessionId ?? (pendingSessionIdRef.current ??= generateSessionId());
+      void warmupAgentRuntime(warmupSessionId);
+    }
+    setInput(value);
     // Clear only if error exists (prevent unnecessary re-renders)
     // Error cleared on send or new message, so delete here
   };
@@ -406,7 +416,8 @@ export const MessageInput: React.FC<MessageInputProps> = ({
       // Create session first for new session
       let targetSessionId = sessionId;
       if (!targetSessionId) {
-        targetSessionId = onCreateSession();
+        targetSessionId = onCreateSession(pendingSessionIdRef.current ?? undefined);
+        pendingSessionIdRef.current = null;
       }
 
       // Send message (continue asynchronously)
