@@ -8,3 +8,4 @@ export { AgentCoreLambdaTarget, AgentCoreLambdaTargetProps } from './agentcore-l
 export { AgentCoreMemory, AgentCoreMemoryProps } from './agentcore-memory';
 export { AgentCoreRuntime, AgentCoreRuntimeProps } from './agentcore-runtime';
 export { GitHubTokenBroker, GitHubTokenBrokerProps } from './github-token-broker';
+export { GithubMcpTarget, GithubMcpTargetProps, GITHUB_MCP_TARGET_NAME } from './github-mcp-target';

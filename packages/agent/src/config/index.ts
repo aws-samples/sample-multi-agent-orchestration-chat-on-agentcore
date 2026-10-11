@@ -19,6 +19,17 @@ const envSchema = z.object({
 
   // AgentCore Gateway Configuration
   AGENTCORE_GATEWAY_ENDPOINT: z.url(),
+  // Comma-separated Gateway target names that use per-user OAuth (3LO).
+  // Their tools are hidden from machine-user invocations.
+  USER_DELEGATED_GATEWAY_TARGETS: z
+    .string()
+    .default('')
+    .transform((value) =>
+      value
+        .split(',')
+        .map((name) => name.trim())
+        .filter(Boolean)
+    ),
 
   // Bedrock Configuration
   BEDROCK_MODEL_ID: z.string().default('global.anthropic.claude-sonnet-4-6'),

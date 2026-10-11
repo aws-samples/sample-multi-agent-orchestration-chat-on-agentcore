@@ -7,7 +7,7 @@
  * Uses jest.unstable_mockModule + dynamic import for ESM compatibility.
  */
 
-import { describe, it, expect, jest, beforeEach } from '@jest/globals';
+import { describe, it, expect, jest, beforeEach, afterAll } from '@jest/globals';
 
 // ── Mock definitions ───────────────────────────────────────────────────
 
@@ -55,6 +55,11 @@ jest.unstable_mockModule('../../../libs/mcp/client.js', () => ({
 // ── Dynamic imports ────────────────────────────────────────────────────
 
 const { selectEnabledTools, buildToolSet } = await import('../tools-builder.js');
+const { config: mockConfig } = (await import('../../../config/index.js')) as unknown as {
+  config: Record<string, unknown>;
+};
+const { createRequestContext, runWithContext } =
+  await import('../../../libs/context/request-context.js');
 
 describe('selectEnabledTools', () => {
   const tools = [
@@ -167,5 +172,32 @@ describe('buildToolSet', () => {
     mockListTools.mockRejectedValue(new Error('Gateway unavailable'));
 
     await expect(buildToolSet([], [])).rejects.toThrow('Gateway unavailable');
+  });
+});
+
+describe('buildToolSet user-delegated (3LO) tools', () => {
+  const tools = [{ name: 'github___get_me' }, { name: 'utility-tools___echo' }];
+
+  beforeEach(() => {
+    mockListTools.mockResolvedValue(tools);
+    mockConfig.USER_DELEGATED_GATEWAY_TARGETS = ['github'];
+  });
+
+  afterAll(() => {
+    delete mockConfig.USER_DELEGATED_GATEWAY_TARGETS;
+  });
+
+  it('hides them from machine users', async () => {
+    const context = { ...createRequestContext(), isMachineUser: true };
+    const result = await runWithContext(context, () => buildToolSet([], []));
+    expect(result.gatewayMCPTools.map((t) => t.name)).toEqual(['utility-tools___echo']);
+  });
+
+  it('keeps them for regular users', async () => {
+    const result = await runWithContext(createRequestContext(), () => buildToolSet([], []));
+    expect(result.gatewayMCPTools.map((t) => t.name)).toEqual([
+      'github___get_me',
+      'utility-tools___echo',
+    ]);
   });
 });

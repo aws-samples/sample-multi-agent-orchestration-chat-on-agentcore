@@ -10,6 +10,7 @@ import { MainLayout } from './layouts/MainLayout';
 import { HomePage } from './pages/HomePage';
 import { ChatPage } from './pages/ChatPage';
 import { ToolsPage } from './pages/ToolsPage';
+import { OAuthCallbackPage } from './pages/OAuthCallbackPage';
 import { AgentDirectoryPage } from './pages/AgentDirectoryPage';
 import { SearchChatPage } from './pages/SearchChatPage';
 import { EventsPage } from './pages/EventsPage';
@@ -175,6 +176,7 @@ function App() {
                 <Route path="/tools" element={<ToolsPage />} />
                 <Route path="/events" element={<EventsPage />} />
                 <Route path="/settings" element={<SettingsPage />} />
+                <Route path="/oauth/callback" element={<OAuthCallbackPage />} />
               </Route>
               <Route path="*" element={<Navigate to="/chat" replace />} />
             </Routes>

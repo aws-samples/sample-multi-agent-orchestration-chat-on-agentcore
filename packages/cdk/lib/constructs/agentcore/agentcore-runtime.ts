@@ -97,6 +97,12 @@ export interface AgentCoreRuntimeProps {
   readonly githubTokenBrokerLambdaArn?: string;
 
   /**
+   * Gateway target names that use per-user OAuth (3LO). Their tools are hidden
+   * from machine-user (trigger) invocations.
+   */
+  readonly userDelegatedGatewayTargets?: string[];
+
+  /**
    * User Storage bucket name (optional)
    * Required for using S3 storage tools
    */
@@ -272,6 +278,11 @@ export class AgentCoreRuntime extends Construct {
     // execution role does NOT carry `secretsmanager:GetSecretValue`.
     if (props.githubTokenBrokerLambdaArn) {
       environmentVariables.GITHUB_TOKEN_BROKER_LAMBDA_ARN = props.githubTokenBrokerLambdaArn;
+    }
+
+    if (props.userDelegatedGatewayTargets?.length) {
+      environmentVariables.USER_DELEGATED_GATEWAY_TARGETS =
+        props.userDelegatedGatewayTargets.join(',');
     }
 
     // Set User Storage bucket name

@@ -1221,3 +1221,16 @@ defaultAgents:
       monitoring:
         title: ページ状態の確認
         prompt: "以下のURLにアクセスし、現在のページ状態をスクリーンショットで確認してください。ページが正常に表示されているか、エラーがないかをチェックしてください。\n\nURL: https://example.com"
+oauth:
+  prompt:
+    title: "{{service}} との連携が必要です"
+    description: エージェントが {{service}} をあなたのアカウントで利用するには、許可が必要です。連携が終わったら、もう一度依頼してください。
+    connect: "{{service}} と連携する"
+    dismiss: 閉じる
+  callback:
+    title: 外部サービスとの連携
+    processing: 連携を完了しています...
+    success: 連携が完了しました。元のチャットに戻り、もう一度依頼してください。
+    failed: 連携を完了できませんでした。チャットからもう一度やり直してください。
+    missingSession: 連携情報が見つかりません。チャットからもう一度やり直してください。
+    backToChat: チャットに戻る

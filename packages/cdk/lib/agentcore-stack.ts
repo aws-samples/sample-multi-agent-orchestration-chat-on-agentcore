@@ -7,6 +7,7 @@ import {
   AgentCoreMemory,
   AgentCoreRuntime,
   GitHubTokenBroker,
+  GITHUB_MCP_TARGET_NAME,
 } from './constructs/agentcore';
 import { AgentsTable, SessionsTable, TriggersTable, UserStorage } from './constructs/storage';
 import { TriggerLambda, TriggerEventSources, SessionStreamHandler } from './constructs/triggers';
@@ -204,6 +205,10 @@ export class AgentCoreStack extends cdk.Stack {
       developerProviderName,
     });
 
+    // Gateway targets (defined in AgentCoreGatewayTargetStack) that use per-user
+    // OAuth (3LO). The interceptor and the agent treat them specially.
+    const userDelegatedTargetNames = envConfig.githubOAuth ? [GITHUB_MCP_TARGET_NAME] : [];
+
     // 3. Create AgentCore Gateway
     this.gateway = new AgentCoreGateway(this, 'AgentCoreGateway', {
       gatewayName: resourcePrefix,
@@ -214,6 +219,7 @@ export class AgentCoreStack extends cdk.Stack {
       enableInterceptor: true, // Enable JWT context injection for Lambda tools
       identityPoolId: cognitoIdentityPool.identityPoolId,
       userPoolId: this.cognitoAuth.userPoolId,
+      userDelegatedTargetNames,
       mcpConfig: {
         instructions:
           'Use this Gateway to integrate AgentCore tools with external services. Utility tools (Echo/Ping, etc.) are available.',
@@ -595,12 +601,42 @@ export class AgentCoreStack extends cdk.Stack {
       })
     );
 
+    // Backend completes the 3LO session binding (POST /oauth/complete) with the
+    // caller's own JWT; AgentCore Identity rejects a user mismatch.
+    if (userDelegatedTargetNames.length > 0) {
+      this.backendApi.lambdaFunction.addToRolePolicy(
+        new cdk.aws_iam.PolicyStatement({
+          sid: 'AgentCoreIdentityCompleteResourceTokenAuth',
+          actions: ['bedrock-agentcore:CompleteResourceTokenAuth'],
+          resources: [
+            `arn:aws:bedrock-agentcore:${this.region}:${this.account}:token-vault/default`,
+            `arn:aws:bedrock-agentcore:${this.region}:${this.account}:token-vault/default/oauth2credentialprovider/*`,
+            `arn:aws:bedrock-agentcore:${this.region}:${this.account}:workload-identity-directory/default`,
+            `arn:aws:bedrock-agentcore:${this.region}:${this.account}:workload-identity-directory/default/workload-identity/${resourcePrefix}-*`,
+          ],
+        })
+      );
+      // The code-for-token exchange inside CompleteResourceTokenAuth runs with the
+      // caller's credentials and reads the provider's Identity-managed client
+      // secret. Scoped to the `{resourcePrefix}-{target}` providers (see
+      // GithubMcpTarget); user tokens stay in the Token Vault, not here.
+      this.backendApi.lambdaFunction.addToRolePolicy(
+        new cdk.aws_iam.PolicyStatement({
+          sid: 'AgentCoreIdentityProviderClientSecret',
+          actions: ['secretsmanager:GetSecretValue'],
+          resources: userDelegatedTargetNames.map(
+            (name) =>
+              `arn:aws:secretsmanager:${this.region}:${this.account}:secret:bedrock-agentcore-identity!default/oauth2/${resourcePrefix}-${name}-*`
+          ),
+        })
+      );
+    }
+
     // 8.5. Create GitHub Token Broker Lambda (before Runtime so we can pass
     // its ARN to the Runtime's environment). The broker is the SOLE caller
     // of `secretsmanager:GetSecretValue` on the GitHub PAT; the Runtime
     // execution role is restricted to `lambda:InvokeFunction` on this ARN.
-    const githubTokenSecretName =
-      props?.githubTokenSecretName || envConfig.githubTokenSecretName;
+    const githubTokenSecretName = props?.githubTokenSecretName || envConfig.githubTokenSecretName;
     const githubTokenBroker = githubTokenSecretName
       ? new GitHubTokenBroker(this, 'GitHubTokenBroker', {
           resourcePrefix,
@@ -628,6 +664,7 @@ export class AgentCoreStack extends cdk.Stack {
       // Broker ARN (not the secret name) is the only GitHub-related value the
       // Runtime sees. startup.sh unsets this env var after boot.
       githubTokenBrokerLambdaArn: githubTokenBroker?.functionArn,
+      userDelegatedGatewayTargets: userDelegatedTargetNames,
       userStorageBucketName: this.userStorage.bucketName, // Pass User Storage bucket name
       sessionsTableName: this.sessionsTable.tableName, // Pass Sessions Table name
       identityPoolId: cognitoIdentityPool.identityPoolId, // Identity Pool for user-scoped credentials
@@ -1085,7 +1122,7 @@ export class AgentCoreStack extends cdk.Stack {
         {
           id: 'AwsSolutions-IAM5',
           reason:
-            'DynamoDB index/* is required because CDK grantReadWrite automatically adds GSI index/* to allow Query operations on all global secondary indexes of the table. SSM parameter/agents/* is required to scope per-agent parameters. Scheduler schedule/default/* scopes to the default group only. Secrets Manager suffix wildcard is unavoidable due to auto-generated 6-char suffix appended by AWS.',
+            'DynamoDB index/* is required because CDK grantReadWrite automatically adds GSI index/* to allow Query operations on all global secondary indexes of the table. SSM parameter/agents/* is required to scope per-agent parameters. Scheduler schedule/default/* scopes to the default group only. Secrets Manager suffix wildcard is unavoidable due to auto-generated 6-char suffix appended by AWS (also the AgentCore Identity-managed OAuth provider secrets, whose names carry a service-generated hash).',
         },
       ]
     );
