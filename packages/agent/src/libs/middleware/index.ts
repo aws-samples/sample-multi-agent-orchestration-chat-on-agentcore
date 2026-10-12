@@ -3,6 +3,7 @@
  */
 
 export { requestContextMiddleware } from './request-context.js';
+export { stopDispatchMiddleware } from './stop-dispatch.js';
 export { corsOptions } from './cors.js';
 export { asyncHandler } from './async-handler.js';
 export { validateInvocationMiddleware } from './validate-invocation.js';
