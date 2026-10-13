@@ -57,6 +57,15 @@ Describes or extracts text from an image via Bedrock. `imagePath` accepts a loca
 path or an `s3://` URI (**not** a presigned URL), optional `prompt`, optional
 vision `modelId` (defaults to Nova Lite 2). Good for OCR and visual understanding.
 
+## video_to_text — analyze workspace videos
+
+Enable `pegasus-tools___video_to_text` on the agent to summarize videos, answer
+questions, or extract timestamped segments with TwelveLabs Pegasus 1.5. Upload
+the video to the workspace first. Pass its workspace-relative path or S3 URI;
+the Gateway Lambda cannot read unsynced agent-container files. Workspace paths
+use base64 and are limited to 25 MiB; use the workspace's S3 URI for larger files.
+See [deployment prerequisites](../../../../../docs/guides/pegasus-video-analysis.md).
+
 ## todo — track multi-step progress
 
 `init` creates/replaces a checklist (`items[]`); `update` changes item `status`
