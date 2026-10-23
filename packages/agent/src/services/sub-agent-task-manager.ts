@@ -19,9 +19,9 @@ import {
   createUserScopedBedrockAgentCoreClient,
 } from '../libs/utils/scoped-credentials.js';
 
-import { generateSessionId, parseSessionId } from '@moca/core';
+import { generateSessionId, parseSessionId, normalizeReasoningEffort } from '@moca/core';
 import { RUNTIME_TOOL_NAMES } from '@moca/tool-definitions';
-import type { SessionId, UserId } from '@moca/core';
+import type { ReasoningDepth, SessionId, UserId } from '@moca/core';
 import type { Plugin } from '@strands-agents/sdk';
 import type { CreateAgentOptions } from '../types/agent-types.js';
 
@@ -38,6 +38,7 @@ export interface SubAgentTask {
   agentId: string;
   query: string;
   modelId?: string;
+  reasoningEffort?: ReasoningDepth;
   status: TaskStatus;
   result?: string;
   error?: string;
@@ -84,6 +85,7 @@ class SubAgentTaskManager {
     query: string,
     options: {
       modelId?: string;
+      reasoningEffort?: ReasoningDepth;
       parentSessionId?: string;
       sessionId?: string;
       userId?: UserId;
@@ -104,6 +106,14 @@ class SubAgentTaskManager {
       }
     }
 
+    const { depth: reasoningEffort, invalid } = normalizeReasoningEffort(options.reasoningEffort);
+    if (invalid) {
+      logger.warn(
+        { agentId, modelId: options.modelId, reasoningEffort: options.reasoningEffort },
+        'Ignoring unknown reasoningEffort; using the model default'
+      );
+    }
+
     const taskId = this.generateTaskId();
     // Generate sessionId if not provided (pure alphanumeric, sessionType identifies it as subagent)
     const sessionId = options.sessionId || generateSessionId();
@@ -119,6 +129,7 @@ class SubAgentTaskManager {
       agentId,
       query,
       modelId: options.modelId,
+      reasoningEffort,
       status: 'pending',
       createdAt: Date.now(),
       updatedAt: Date.now(),
@@ -287,6 +298,7 @@ class SubAgentTaskManager {
           (t: string) => t !== RUNTIME_TOOL_NAMES.CALL_AGENT
         ),
         modelId: task.modelId || agentDef.modelId,
+        reasoningEffort: task.reasoningEffort,
         sessionStorage,
         sessionConfig,
         // Wait for synced skill sources before construction (the plugin scans

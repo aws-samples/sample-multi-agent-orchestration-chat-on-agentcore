@@ -37,6 +37,13 @@ export const callAgentSchema = z.object({
         '"openai.gpt-5.5", ' +
         '"openai.gpt-oss-120b-1:0"'
     ),
+  reasoningEffort: z
+    .enum(['off', 'low', 'high', 'max'])
+    .optional()
+    .describe(
+      'Reasoning depth for start_task. Omit to use the model default. ' +
+        'off requests the model-specific off mode; low, high, and max request increasing effort, capped by model support.'
+    ),
   storagePath: z
     .string()
     .optional()
