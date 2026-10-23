@@ -38,6 +38,7 @@ import { describeIfEnv } from '../../../tests/integration-helpers.js';
 
 const GPT_6_SOL = 'global.openai.gpt-6-sol';
 const GPT_6_LUNA = 'global.openai.gpt-6-luna';
+const GPT_6_ASTRA = 'global.openai.gpt-6-astra';
 
 const describeGpt6 = describeIfEnv(
   ['RUN_BEDROCK_GPT6_INTEGRATION'],
@@ -143,6 +144,28 @@ for (const [label, modelId] of [
       expect(called).toBeGreaterThanOrEqual(1);
       const finalText = textOf(agent.messages[agent.messages.length - 1]).toLowerCase();
       expect(finalText).toMatch(/snow|7|seven/);
+    }, 120_000);
+  });
+}
+
+for (const modelId of [GPT_6_SOL, GPT_6_LUNA, GPT_6_ASTRA]) {
+  describeGpt6(`Reasoning summaries (${modelId})`, () => {
+    it('streams a reasoning summary with OpenAI request fields', async () => {
+      const agent = new Agent({
+        model: createBedrockModel({ modelId, reasoningEffort: 'high', maxTokens: 4096 }),
+        tools: [],
+      });
+      await streamAll(
+        agent,
+        'A box contains 12 red and 8 blue balls. Draw three without replacement. ' +
+          'What is the probability of exactly two red balls? Give the fraction in lowest terms.'
+      );
+      const summary = agent.messages
+        .flatMap((message) => message.content)
+        .find((block) => block.type === 'reasoningBlock');
+      expect(summary).toBeDefined();
+      expect((summary as { text?: string }).text?.length).toBeGreaterThan(0);
+      expect(textOf(agent.messages[agent.messages.length - 1]).length).toBeGreaterThan(0);
     }, 120_000);
   });
 }
