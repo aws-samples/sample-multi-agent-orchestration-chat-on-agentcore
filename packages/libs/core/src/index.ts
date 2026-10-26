@@ -58,6 +58,11 @@ export type {
   BedrockEndpoint,
   ReasoningDepth,
   ReasoningRequestConfig,
+  AdaptiveReasoningRequestConfig,
+  BetweenToolsReasoningRequestConfig,
+  DisabledReasoningRequestConfig,
+  OffThinkingMode,
+  NormalizedReasoningEffort,
 } from './bedrock-models.js';
 export {
   BEDROCK_MODEL_DEFINITIONS,
@@ -69,6 +74,9 @@ export {
   getMaxReasoningDepth,
   isReasoningCapable,
   isReasoningAlwaysOn,
+  getOffThinkingMode,
+  shouldStripPriorReasoning,
   isReasoningDepth,
+  normalizeReasoningEffort,
   getBedrockEndpoint,
 } from './bedrock-models.js';

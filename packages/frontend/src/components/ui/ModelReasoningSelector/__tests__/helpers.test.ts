@@ -8,6 +8,54 @@ import {
 } from '../helpers';
 import { useSettingsStore } from '../../../../stores/settingsStore';
 
+describe('Sonnet 5.5 between_tools label', () => {
+  it.each(['', 'global.'])('labels off as between-tools for the %s profile', (prefix) => {
+    const modelId = `${prefix}anthropic.claude-sonnet-5-5`;
+    expect(availableDepthsFor(modelId)).toEqual(['off', 'low', 'high', 'max']);
+    expect(reasoningDepthLabelKey(modelId, 'off')).toBe('common.reasoningDepthBetweenTools');
+    expect(showReasoningBadge(modelId, 'off')).toBe(true);
+    expect(reasoningDepthLabelKey(modelId, 'high')).toBe('common.reasoningDepthHigh');
+  });
+
+  it('keeps the Opus 5.5 model-default label unchanged', () => {
+    expect(reasoningDepthLabelKey('global.anthropic.claude-opus-5-5', 'off')).toBe(
+      'common.reasoningDepthModelDefault'
+    );
+  });
+});
+
+describe('Haiku 5.5 labels', () => {
+  it.each(['global.', 'jp.'])('labels off as Off and offers every depth for %s', (prefix) => {
+    const modelId = `${prefix}anthropic.claude-haiku-5-5`;
+    expect(availableDepthsFor(modelId)).toEqual(['off', 'low', 'high', 'max']);
+    expect(reasoningDepthLabelKey(modelId, 'off')).toBe('common.reasoningDepthOff');
+    expect(showReasoningBadge(modelId, 'off')).toBe(false);
+    expect(reasoningDepthLabelKey(modelId, 'high')).toBe('common.reasoningDepthHigh');
+  });
+});
+
+describe('unset depth labels', () => {
+  it('labels unset as model default (thinking on) where off differs from it', () => {
+    expect(reasoningDepthLabelKey('global.anthropic.claude-haiku-5-5', undefined)).toBe(
+      'common.reasoningDepthUnset'
+    );
+    expect(showReasoningBadge('global.anthropic.claude-haiku-5-5', undefined)).toBe(true);
+    expect(reasoningDepthLabelKey('global.anthropic.claude-sonnet-5-5', undefined)).toBe(
+      'common.reasoningDepthModelDefault'
+    );
+    expect(showReasoningBadge('global.anthropic.claude-sonnet-5-5', undefined)).toBe(true);
+  });
+
+  it.each([
+    'global.anthropic.claude-opus-5-5',
+    'global.anthropic.claude-opus-5',
+    'global.amazon.nova-2-lite-v1:0',
+  ])('labels unset the same as off on %s', (modelId) => {
+    expect(reasoningDepthLabelKey(modelId, undefined)).toBe(reasoningDepthLabelKey(modelId, 'off'));
+    expect(showReasoningBadge(modelId, undefined)).toBe(showReasoningBadge(modelId, 'off'));
+  });
+});
+
 describe('always-on reasoning labels', () => {
   it.each(['', 'global.', 'us.', 'eu.', 'au.', 'jp.'])(
     'labels off as model-managed for the %s Opus 5.5 profile',

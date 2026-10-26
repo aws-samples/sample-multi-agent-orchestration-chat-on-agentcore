@@ -22,7 +22,10 @@ import type { StreamTerminationRetryStrategy } from '../runtime/agent/stream-ter
 export interface CreateAgentOptions {
   plugins?: Plugin[];
   modelId?: string;
-  /** Extended-thinking depth resolved against the model registry in createBedrockModel. */
+  /**
+   * Extended-thinking depth resolved against the model registry in
+   * createBedrockModel. Omit for the model default (not the same as `off`).
+   */
   reasoningEffort?: ReasoningDepth;
   enabledTools?: string[];
   systemPrompt?: string;

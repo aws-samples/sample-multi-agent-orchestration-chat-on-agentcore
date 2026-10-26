@@ -203,6 +203,25 @@ describe('AgentInvoker', () => {
       }
     );
 
+    it.each([
+      ['global.anthropic.claude-haiku-5-5', 'off', { thinking: { type: 'disabled' } }],
+      ['jp.anthropic.claude-haiku-5-5', 'off', { thinking: { type: 'disabled' } }],
+      ['global.anthropic.claude-haiku-5-5', undefined, undefined],
+      ['global.anthropic.claude-sonnet-5-5', 'off', { thinking: { type: 'between_tools' } }],
+      ['global.anthropic.claude-opus-5-5', 'off', undefined],
+    ] as const)(
+      'forwards %s effort %p unchanged so it resolves to %p',
+      async (modelId, reasoningEffort, expected) => {
+        const service = makeAgentsService();
+        fetchMock.mockResolvedValue(new Response(null, { status: 200 }));
+        const invoker = new AgentInvoker('https://api.example.com/invocations', service);
+        await invoker.invokeAsync(makePayload({ modelId, reasoningEffort }), 'token');
+        const body = JSON.parse(fetchMock.mock.calls[0][1]!.body as string);
+        expect(body.reasoningEffort).toBe(reasoningEffort);
+        expect(getReasoningConfig(body.modelId, body.reasoningEffort)).toEqual(expected);
+      }
+    );
+
     it('omits reasoningEffort from the body when the payload has none', async () => {
       const service = makeAgentsService();
       fetchMock.mockResolvedValue(new Response(null, { status: 200 }));

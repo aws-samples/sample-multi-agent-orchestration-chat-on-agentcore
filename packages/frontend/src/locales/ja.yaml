@@ -31,6 +31,8 @@ common:
   reasoningDepth: 思考の深さ
   reasoningDepthOff: オフ
   reasoningDepthModelDefault: モデル既定（思考は常時オン）
+  reasoningDepthUnset: モデル既定
+  reasoningDepthBetweenTools: 最小（ツール間のみ）
   reasoningDepthLow: 低
   reasoningDepthHigh: 高
   reasoningDepthMax: 最大

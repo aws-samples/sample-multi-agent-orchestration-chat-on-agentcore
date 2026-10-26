@@ -43,4 +43,26 @@ describe('ModelReasoningSelector restored trigger settings', () => {
     );
     expect(html).not.toContain('common.reasoningDepth');
   });
+
+  it('shows model default, not Off, for a Haiku 5.5 trigger with no saved depth', () => {
+    const html = renderToStaticMarkup(
+      createElement(ModelReasoningSelector, {
+        modelId: 'global.anthropic.claude-haiku-5-5',
+        onModelChange: vi.fn(),
+      })
+    );
+    expect(html).toContain('common.reasoningDepthUnset');
+    expect(html).not.toContain('common.reasoningDepthOff');
+  });
+
+  it('shows no badge for a Haiku 5.5 trigger saved as off', () => {
+    const html = renderToStaticMarkup(
+      createElement(ModelReasoningSelector, {
+        modelId: 'global.anthropic.claude-haiku-5-5',
+        reasoningEffort: 'off',
+        onModelChange: vi.fn(),
+      })
+    );
+    expect(html).not.toContain('common.reasoningDepth');
+  });
 });

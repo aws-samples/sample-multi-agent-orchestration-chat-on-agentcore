@@ -14,7 +14,9 @@ when unsure. The available catalog (deployment-dependent):
 | Claude Opus 5.5 | Anthropic | yes (up to `max`; thinking **always on** — `off` = model default `medium`, not suppressed) |
 | Claude Opus 4.8, 4.7, 4.6 | Anthropic | yes (up to `max`) |
 | Claude Fable 5.1, Fable 5 | Anthropic | yes (up to `max`; needs data-retention mode in-region) |
+| Claude Sonnet 5.5 | Anthropic | yes (up to `max`; thinking on by default — `off` = `between_tools`: no up-front thinking, short notes between tool calls only) |
 | Claude Sonnet 5, Sonnet 4.6 | Anthropic | yes (capped at `high`) |
+| Claude Haiku 5.5 | Anthropic | yes (up to `max`; thinking on by default — `off` = thinking disabled) |
 | Nova Lite 2 | Amazon | no |
 | Qwen3 Coder Next | Qwen | no |
 | GPT-6 Astra | OpenAI | no |
@@ -23,8 +25,9 @@ when unsure. The available catalog (deployment-dependent):
 | GPT-OSS 120B / 20B | OpenAI | no |
 
 Rough guidance: hardest reasoning/agentic work → an Opus or Fable model; fast/cheap
-or high-volume → Sonnet or Nova Lite; the others for specific needs. Don't promise
-a model the deployment hasn't enabled.
+or high-volume → Sonnet 5.5 (cheaper and stronger than Sonnet 5), Haiku 5.5
+(classification, routing, extraction, sub-agent tasks) or Nova Lite; the
+others for specific needs. Don't promise a model the deployment hasn't enabled.
 
 Opus 5.5 is opt-in, not the default. Before production use, confirm its global
 inference profile is ACTIVE in the deployment region and verify model-specific
@@ -43,6 +46,14 @@ latency and cost.
   thinking remains on at default `medium` effort, including saved `off` values.
   The selector labels this **Model default (always on)**, not **Off**.
   `medium` and `xhigh` are not separately selectable.
+  For Sonnet 5.5, `off` sends `between_tools` (thinking cannot be disabled): no
+  up-front thinking, only short progress notes between tool calls. The selector
+  labels this **Minimal (between tools only)**.
+  For Haiku 5.5, `off` turns thinking off entirely.
+- Not set (e.g. sub-agents, or triggers created without a depth) — no thinking
+  hint is sent and the model default applies. This differs from `off` on
+  Sonnet 5.5 and Haiku 5.5, whose defaults think (Haiku 5.5 at `medium`). The
+  trigger form labels it **Model default**.
 - `low` / `high` — increasing deliberation for progressively harder problems.
 - `max` — deepest. **Sonnet models cap at `high`** — a `max` request is clamped
   down. Opus/Fable support true `max`.
