@@ -17,8 +17,8 @@
  * reasoning-capable model.
  *
  * `off` means "send no thinking field" — model defaults apply; it does not
- * disable always-on reasoning. `low | high | max` map 1:1 onto the Bedrock Anthropic-native
- * `output_config.effort` level (paired with `thinking: { type: 'adaptive' }`).
+ * disable always-on reasoning. `low | high | max` request increasing effort,
+ * mapped to the provider's request shape and capped by the model registry.
  *
  * WHY effort, not budget_tokens: current Anthropic models on Bedrock (Mythos /
  * Opus 4.7+) reject the legacy `thinking: { type: 'enabled', budget_tokens }`
@@ -55,9 +55,11 @@ export interface BedrockModelDefinition {
   /**
    * Whether this model supports Bedrock extended thinking / reasoning.
    * Only reasoning-capable models surface the depth selector in the UI and
-   * accept a `thinking` request field. Omit (falsy) for models that don't.
+   * accept a provider-specific reasoning request. Omit (falsy) for models that don't.
    */
   readonly reasoningCapable?: boolean;
+  /** Defaults to Anthropic's thinking/output_config shape when omitted. */
+  readonly reasoningConfigType?: 'anthropic' | 'openai-converse';
   /** Omitting effort does not disable reasoning; the model uses its default. */
   readonly reasoningAlwaysOn?: boolean;
   /**
@@ -394,16 +396,15 @@ export const BEDROCK_MODEL_DEFINITIONS = [
     // id is mandatory. No special data-retention requirement (per the model card,
     // unlike Fable's Mythos-class constraint).
     //
-    // reasoning: Astra reasons internally, but `reasoningCapable` is deliberately
-    // omitted. getReasoningConfig() emits the Anthropic-native
-    // `thinking: { type: 'adaptive' } + output_config.effort` shape, which an
-    // OpenAI model rejects over Converse — so we do not expose the depth selector
-    // or send an effort hint (same treatment as Nova/Qwen). Exposing an
-    // OpenAI-shaped effort field over Converse is a follow-up pending live verification.
+    // Converse rejects Anthropic's thinking/output_config fields; use the
+    // OpenAI reasoning request shape instead.
     id: 'global.openai.gpt-6-astra',
     name: 'GPT-6 Astra',
     provider: 'OpenAI',
     maxOutputTokens: 128000, // 128k (AWS Bedrock model card, 2026-09-08)
+    reasoningCapable: true,
+    reasoningConfigType: 'openai-converse',
+    reasoningMaxEffort: 'high',
   },
   {
     // OpenAI GPT-6 Sol on Bedrock. GA 2026-09-22. Same transport as GPT-6 Astra,
@@ -414,29 +415,28 @@ export const BEDROCK_MODEL_DEFINITIONS = [
     // the bare `openai.gpt-6-sol` id is rejected ("on-demand throughput isn't
     // supported"), so the global. prefix is mandatory.
     //
-    // reasoning: Sol reasons internally with adjustable effort via the OpenAI
-    // Responses API, but `reasoningCapable` is deliberately omitted — the same
-    // reason as Astra. getReasoningConfig() emits the Anthropic-native
-    // `thinking: { type: 'adaptive' } + output_config.effort` shape, which this
-    // model rejects over Converse (verified live: unknown_parameter
-    // 'output_config'). Exposing an OpenAI-shaped effort field is a follow-up.
     id: 'global.openai.gpt-6-sol',
     name: 'GPT-6 Sol',
     provider: 'OpenAI',
     // 131072 — the limit Bedrock itself reports: maxTokens 131072 succeeds,
     // 200000 fails with "exceeds the model limit of 131072" (verified live).
     maxOutputTokens: 131072,
+    reasoningCapable: true,
+    reasoningConfigType: 'openai-converse',
+    reasoningMaxEffort: 'high',
   },
   {
     // OpenAI GPT-6 Luna on Bedrock. GA 2026-09-22. Cheaper/faster sibling of Sol
     // for high-volume work (summarization, classification, extraction, routing).
     // Identical transport and constraints to GPT-6 Sol above — Converse on
     // bedrock-runtime via the Global CRIS profile, no endpoint, no region pin,
-    // reasoningCapable omitted (Anthropic-native thinking shape rejected).
     id: 'global.openai.gpt-6-luna',
     name: 'GPT-6 Luna',
     provider: 'OpenAI',
     maxOutputTokens: 131072, // same 131072 Bedrock ceiling as Sol (verified live)
+    reasoningCapable: true,
+    reasoningConfigType: 'openai-converse',
+    reasoningMaxEffort: 'high',
   },
   {
     // OpenAI GPT-6.1 Terra on Bedrock. GA 2026-10-26. Context window 1,050,000
@@ -697,10 +697,18 @@ export interface DisabledReasoningRequestConfig {
   };
 }
 
+export interface OpenAIConverseReasoningRequestConfig {
+  readonly reasoning: {
+    readonly effort: 'low' | 'medium' | 'high';
+    readonly summary: 'auto';
+  };
+}
+
 export type ReasoningRequestConfig =
   | AdaptiveReasoningRequestConfig
   | BetweenToolsReasoningRequestConfig
-  | DisabledReasoningRequestConfig;
+  | DisabledReasoningRequestConfig
+  | OpenAIConverseReasoningRequestConfig;
 
 /**
  * Highest selectable reasoning depth for a model (defaults to `'max'`).
@@ -725,7 +733,7 @@ export function getMaxReasoningDepth(modelId: string): Exclude<ReasoningDepth, '
  *   Haiku 5.5 `off` disables thinking, while unset keeps the model default.
  * - `off` → the model's `offThinkingMode` payload
  *   (`{ thinking: { type: 'between_tools' | 'disabled' } }`), else `undefined`.
- * - low/high/max → adaptive thinking + effort, clamped to the model's
+ * - low/high/max → provider-specific reasoning fields, clamped to the model's
  *   `reasoningMaxEffort` (so e.g. `max` on Sonnet 4.6 is sent as `high`).
  *
  * Also `undefined` for unknown or non-reasoning-capable models.
@@ -754,9 +762,12 @@ export function getReasoningConfig(
         return undefined;
     }
   }
-  // Clamp to the model's ceiling (Opus → max, Sonnet → high).
+  // Clamp to the registry's configured ceiling before choosing the provider shape.
   const cap = match.reasoningMaxEffort ?? 'max';
   const effort = EFFORT_ORDER.indexOf(depth) > EFFORT_ORDER.indexOf(cap) ? cap : depth;
+  if (match.reasoningConfigType === 'openai-converse') {
+    return { reasoning: { effort: effort === 'max' ? 'high' : effort, summary: 'auto' } };
+  }
   return { thinking: { type: 'adaptive', display: 'summarized' }, output_config: { effort } };
 }
 

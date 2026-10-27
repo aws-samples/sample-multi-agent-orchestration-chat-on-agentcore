@@ -343,9 +343,11 @@ describe('BEDROCK_MODEL_DEFINITIONS invariants', () => {
     expect(getMaxReasoningDepth('global.anthropic.claude-opus-4-8')).toBe('max');
   });
 
-  it('marks Anthropic claude models reasoning-capable and others not', () => {
+  it('marks Claude and OpenAI Converse models reasoning-capable', () => {
     for (const m of BEDROCK_MODEL_DEFINITIONS) {
-      const expected = m.provider === 'Anthropic' && m.id.includes('claude');
+      const expected =
+        (m.provider === 'Anthropic' && m.id.includes('claude')) ||
+        m.reasoningConfigType === 'openai-converse';
       expect(Boolean(m.reasoningCapable)).toBe(expected);
     }
   });
@@ -376,19 +378,16 @@ describe('BEDROCK_MODEL_DEFINITIONS invariants', () => {
     expect(getBedrockEndpoint('global.anthropic.claude-fable-5-1')).toBeUndefined();
   });
 
-  it('registers GPT-6 Astra on the Converse path (no endpoint), no region pin, non-reasoning', () => {
+  it('registers GPT-6 Astra on the Converse path with reasoning and no region pin', () => {
     // GPT-6 Astra (GA 2026-09-08) is an OpenAI model that — unlike the GPT-5.x
     // Mantle models — supports Converse on bedrock-runtime, so it loads on the
     // standard Converse path with NO endpoint override. Its Global CRIS profile
     // is available in every region (incl. the deploy region), so no region pin.
-    // reasoningCapable is intentionally omitted: getReasoningConfig() would send
-    // the Anthropic-native thinking shape, which OpenAI rejects over Converse.
     expect(getMaxOutputTokens('global.openai.gpt-6-astra')).toBe(128000);
     expect(getModelRegion('global.openai.gpt-6-astra')).toBeUndefined();
     // Converse transport — not Mantle/bedrock-openai.
     expect(getBedrockEndpoint('global.openai.gpt-6-astra')).toBeUndefined();
-    // No depth selector surfaced for this model.
-    expect(isReasoningCapable('global.openai.gpt-6-astra')).toBe(false);
+    expect(isReasoningCapable('global.openai.gpt-6-astra')).toBe(true);
   });
 
   it('registers GPT-6 Sol and Luna on the Converse path with the 131072 Bedrock ceiling', () => {
@@ -402,9 +401,7 @@ describe('BEDROCK_MODEL_DEFINITIONS invariants', () => {
       expect(getMaxOutputTokens(id)).toBe(131072);
       expect(getModelRegion(id)).toBeUndefined();
       expect(getBedrockEndpoint(id)).toBeUndefined();
-      // Anthropic-native thinking shape is rejected by these models over
-      // Converse (unknown_parameter 'output_config'), so no depth selector.
-      expect(isReasoningCapable(id)).toBe(false);
+      expect(isReasoningCapable(id)).toBe(true);
     }
   });
 
