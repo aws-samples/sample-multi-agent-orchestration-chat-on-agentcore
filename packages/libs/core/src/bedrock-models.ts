@@ -439,6 +439,56 @@ export const BEDROCK_MODEL_DEFINITIONS = [
     maxOutputTokens: 131072, // same 131072 Bedrock ceiling as Sol (verified live)
   },
   {
+    // OpenAI GPT-6.1 Terra on Bedrock. GA 2026-10-26. Context window 1,050,000
+    // tokens; max output 128,000 tokens (NOT 131,072 — the model card explicitly
+    // lists 128,000, same as GPT-6 Astra; GPT-6 Sol/Luna are 131,072). Lifecycle
+    // Active, EOL no earlier than 2026-10-27+1y (2027-10-26).
+    //
+    // Transport: standard bedrock-runtime Converse/ConverseStream path — the
+    // model card lists Converse and ConverseStream among supported APIs, so no
+    // `endpoint` override (identical to GPT-6 Astra / Sol / Luna). In-Region
+    // invocation of the bare `openai.gpt-6.1-terra` id is NOT supported; the
+    // Global CRIS profile (`global.openai.gpt-6.1-terra`) is mandatory.
+    //
+    // Regional availability: Global CRIS available from ap-northeast-1 (Tokyo),
+    // ap-northeast-3, most EU/AP regions, US/CA regions. NOT available from
+    // me-south-1 and sa-east-1. No region pin — Global CRIS is available in
+    // the default deploy region (ap-northeast-1).
+    //
+    // Converse content: accepts text and image blocks in user messages; does NOT
+    // accept document content blocks nor an image block inside a toolResult
+    // (ValidationException on Converse). This is a pre-existing limitation
+    // shared by GPT-6 Astra / Sol / Luna — Moca has no model-specific guard
+    // that strips these block types before the Converse call. In practice the
+    // frontend only accepts image file attachments (IMAGE_ATTACHMENT_CONFIG
+    // ACCEPTED_TYPES: png/jpeg/webp/gif in packages/frontend/src/types/index.ts),
+    // so user-supplied documents never reach the Converse payload. A tool whose
+    // output includes an image block inside a toolResult WOULD cause a
+    // ValidationException; that pre-existing gap is out of scope for this PR
+    // (identical treatment to Astra/Sol/Luna, tracked separately).
+    //
+    // reasoning: Reasoning Summaries are supported on Converse/ConverseStream
+    // via `additionalModelRequestFields.reasoning.summary` (per model card), but
+    // `reasoningCapable` is deliberately omitted here. getReasoningConfig()
+    // emits the Anthropic-native `thinking: { type: 'adaptive' } +
+    // output_config.effort` shape, which this OpenAI model would reject over
+    // Converse (same as Astra/Sol/Luna). OpenAI-shaped reasoning effort (PR #151)
+    // is a follow-up — once #151 merges, add Terra to its model set.
+    //
+    // cachePoint: explicit prompt caching is supported via Responses API only
+    // (NOT cachePoint on Converse). No special caching config in this entry;
+    // implicit caching is handled transparently by Bedrock.
+    //
+    // Source: AWS Bedrock model card
+    // https://docs.aws.amazon.com/bedrock/latest/userguide/model-card-openai-gpt-6-1-terra.html
+    // (fetched 2026-10-27). Pricing (Global CRIS, ≤272K input):
+    // $1.00 in / $5.00 out per 1M tokens.
+    id: 'global.openai.gpt-6.1-terra',
+    name: 'GPT-6.1 Terra',
+    provider: 'OpenAI',
+    maxOutputTokens: 128000, // 128k (AWS Bedrock model card, 2026-10-26) — NOT 131072
+  },
+  {
     // OpenAI GPT-5.5 on Bedrock (Mantle). Invoked via the Bedrock Mantle
     // endpoint (bedrock-mantle.{region}.api.aws/openai/v1) using the Responses
     // API — NOT Converse and NOT Chat Completions (both rejected live). See

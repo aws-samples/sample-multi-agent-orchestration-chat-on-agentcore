@@ -123,6 +123,44 @@ describe('GPT-6 Sol / Luna default model configuration', () => {
   });
 });
 
+describe('GPT-6.1 Terra default model configuration', () => {
+  // GPT-6.1 Terra (GA 2026-10-26) speaks Converse on bedrock-runtime (model card
+  // https://docs.aws.amazon.com/bedrock/latest/userguide/model-card-openai-gpt-6-1-terra.html).
+  // Must stay on the plain Converse shape — no `endpoint`, no `region` pin.
+  // maxOutputTokens: 128,000 (NOT 131,072 — model card explicitly lists 128k).
+  const TERRA_ENTRY = { id: 'global.openai.gpt-6.1-terra', name: 'GPT-6.1 Terra', provider: 'OpenAI' };
+
+  it('is registered in the default bedrockModels immediately after GPT-6 Luna', () => {
+    const { bedrockModels } = getEnvironmentConfig('default');
+    const luna = bedrockModels.findIndex((m) => m.id === 'global.openai.gpt-6-luna');
+    expect(luna).toBeGreaterThanOrEqual(0);
+    expect(bedrockModels[luna + 1]).toEqual(TERRA_ENTRY);
+  });
+
+  it('has no endpoint — Converse path, not Mantle or bedrock-openai', () => {
+    const entry = TERRA_ENTRY as { id: string; name: string; provider: string; endpoint?: string };
+    expect(hasMantleModel([entry])).toBe(false);
+    expect(hasBedrockOpenAiModel([entry])).toBe(false);
+  });
+
+  it('derives an inference-profile ARN (deploy region) plus a foundation-model ARN', () => {
+    // The `.1.` in the model name is NOT the inference-profile prefix; only the
+    // leading `global.` is stripped. The ARNs must therefore contain the full
+    // `global.openai.gpt-6.1-terra` and the stripped `openai.gpt-6.1-terra`.
+    expect(deriveBedrockIamResources([TERRA_ENTRY], REGION, ACCOUNT)).toEqual([
+      `arn:aws:bedrock:${REGION}:${ACCOUNT}:inference-profile/global.openai.gpt-6.1-terra`,
+      'arn:aws:bedrock:*::foundation-model/openai.gpt-6.1-terra*',
+    ]);
+  });
+
+  it('does not have a region pin in the default config', () => {
+    const { bedrockModels } = getEnvironmentConfig('default');
+    const terra = bedrockModels.find((m) => m.id === 'global.openai.gpt-6.1-terra');
+    expect(terra).toBeDefined();
+    expect((terra as { region?: string }).region).toBeUndefined();
+  });
+});
+
 describe('deriveBedrockIamResources', () => {
   // ── ARN format helpers ──────────────────────────────────────────────────────
 

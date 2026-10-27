@@ -407,6 +407,26 @@ describe('BEDROCK_MODEL_DEFINITIONS invariants', () => {
       expect(isReasoningCapable(id)).toBe(false);
     }
   });
+
+  it('registers GPT-6.1 Terra on the Converse path with the 128000 output ceiling', () => {
+    // GPT-6.1 Terra (GA 2026-10-26) supports Converse on bedrock-runtime (model
+    // card: https://docs.aws.amazon.com/bedrock/latest/userguide/model-card-openai-gpt-6-1-terra.html).
+    // Same transport as GPT-6 Astra/Sol/Luna: no `endpoint` override, no region
+    // pin. The Global CRIS profile is available from ap-northeast-1 (the default
+    // deploy region). maxOutputTokens is 128,000 — NOT 131,072; the model card
+    // explicitly lists 128k (same as GPT-6 Astra; GPT-6 Sol/Luna are 131,072).
+    const id = 'global.openai.gpt-6.1-terra';
+    expect(getMaxOutputTokens(id)).toBe(128000);
+    expect(getModelRegion(id)).toBeUndefined();
+    expect(getBedrockEndpoint(id)).toBeUndefined();
+    // OpenAI model: Anthropic-native thinking shape (output_config.effort) would
+    // be rejected over Converse, so reasoningCapable is intentionally omitted.
+    // Once PR #151 (OpenAI reasoning summaries) merges, add Terra there.
+    expect(isReasoningCapable(id)).toBe(false);
+    // No offThinkingMode, no stripPriorReasoning — standard Converse model.
+    expect(getOffThinkingMode(id)).toBeUndefined();
+    expect(shouldStripPriorReasoning(id)).toBe(false);
+  });
 });
 
 describe('isReasoningCapable', () => {
@@ -519,5 +539,79 @@ describe('isReasoningDepth', () => {
     expect(isReasoningDepth('')).toBe(false);
     expect(isReasoningDepth(undefined)).toBe(false);
     expect(isReasoningDepth(2)).toBe(false);
+  });
+});
+
+describe('GPT-6.1 Terra', () => {
+  const ID = 'global.openai.gpt-6.1-terra';
+
+  it('is registered in BEDROCK_MODEL_DEFINITIONS with the correct shape', () => {
+    const entry = BEDROCK_MODEL_DEFINITIONS.find((m) => m.id === ID);
+    expect(entry).toBeDefined();
+    expect(entry).toMatchObject({
+      id: 'global.openai.gpt-6.1-terra',
+      name: 'GPT-6.1 Terra',
+      provider: 'OpenAI',
+      maxOutputTokens: 128000,
+    });
+    // Intentionally omitted — must not be set (would cause Anthropic-native
+    // thinking shape to be sent, which OpenAI models reject over Converse).
+    expect(entry?.reasoningCapable).toBeUndefined();
+    // Standard Converse path: no Mantle/bedrock-openai endpoint.
+    expect(entry?.endpoint).toBeUndefined();
+    // No region pin: Global CRIS available from the default deploy region.
+    expect(entry?.region).toBeUndefined();
+    // No caching-related overrides (explicit cachePoint not supported on Converse).
+    expect(entry?.offThinkingMode).toBeUndefined();
+    expect(entry?.stripPriorReasoning).toBeUndefined();
+  });
+
+  it('is positioned immediately after GPT-6 Luna in the registry', () => {
+    const lunaIdx = BEDROCK_MODEL_DEFINITIONS.findIndex((m) => m.id === 'global.openai.gpt-6-luna');
+    const terraIdx = BEDROCK_MODEL_DEFINITIONS.findIndex((m) => m.id === ID);
+    expect(lunaIdx).toBeGreaterThanOrEqual(0);
+    expect(terraIdx).toBe(lunaIdx + 1);
+  });
+
+  it.each([
+    ['global.openai.gpt-6.1-terra', 'full Global CRIS id'],
+    ['openai.gpt-6.1-terra', 'bare (In-Region-style) id'],
+  ])('findModel resolves metadata for %s (%s)', (modelId) => {
+    // PROFILE_PREFIX strips `global.` but leaves the `.1.` in the model name
+    // intact, so both forms must resolve to the same registry entry.
+    expect(getMaxOutputTokens(modelId)).toBe(128000);
+    expect(getModelRegion(modelId)).toBeUndefined();
+    expect(getBedrockEndpoint(modelId)).toBeUndefined();
+    expect(isReasoningCapable(modelId)).toBe(false);
+    expect(getOffThinkingMode(modelId)).toBeUndefined();
+    expect(shouldStripPriorReasoning(modelId)).toBe(false);
+  });
+
+  it('has a unique stripped id in the registry — exactly one entry normalizes to openai.gpt-6.1-terra', () => {
+    // PROFILE_PREFIX strips global./us./eu./apac./au./jp. — the `.1.` in the
+    // model name is NOT a prefix and is left intact. Confirm that no two registry
+    // entries share the same normalized id (which would cause findModel() to
+    // silently return the first match, producing wrong metadata).
+    const normalized = 'openai.gpt-6.1-terra';
+    const matches = BEDROCK_MODEL_DEFINITIONS.filter(
+      (m) => m.id.replace(/^(global|us|eu|apac|au|jp)\./, '') === normalized,
+    );
+    expect(matches).toHaveLength(1);
+    expect(matches[0].id).toBe(ID);
+  });
+
+  it('does not collide with GPT-5.6 Terra (different version number)', () => {
+    // openai.gpt-5.6-terra and openai.gpt-6.1-terra are distinct after prefix
+    // stripping; each resolves to its own registry entry.
+    expect(getMaxOutputTokens('openai.gpt-5.6-terra')).toBe(128000); // Mantle, 128k
+    expect(getBedrockEndpoint('openai.gpt-5.6-terra')).toBe('mantle');
+    expect(getBedrockEndpoint('openai.gpt-6.1-terra')).toBeUndefined(); // Converse
+  });
+
+  it('routes to Converse/bedrock-runtime — not Mantle nor bedrock-openai', () => {
+    // getBedrockEndpoint() returns undefined for Converse models; createBedrockModel()
+    // keys off this to build a BedrockModel (Converse) rather than an OpenAIModel.
+    expect(getBedrockEndpoint(ID)).toBeUndefined();
+    expect(getBedrockEndpoint('openai.gpt-6.1-terra')).toBeUndefined();
   });
 });

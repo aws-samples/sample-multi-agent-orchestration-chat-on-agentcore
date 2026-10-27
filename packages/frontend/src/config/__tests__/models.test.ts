@@ -29,4 +29,16 @@ describe('AVAILABLE_MODELS fallback (derived from @moca/core BEDROCK_MODEL_DEFIN
     // getModelDisplayName drives the selector trigger label.
     expect(getModelDisplayName('openai.gpt-oss-20b-1:0')).toContain('GPT-OSS 20B');
   });
+
+  it('includes GPT-6.1 Terra with the correct provider and display name', () => {
+    // GPT-6.1 Terra (GA 2026-10-26) must appear in the AVAILABLE_MODELS fallback
+    // (derived from BEDROCK_MODEL_DEFINITIONS) so the frontend model selector can
+    // offer it when no VITE_BEDROCK_MODELS env var is set.
+    const model = getModelById('global.openai.gpt-6.1-terra');
+    expect(model).toBeDefined();
+    expect(model?.provider).toBe('OpenAI');
+    expect(model?.name).toBe('GPT-6.1 Terra');
+    expect(getModelDisplayName('global.openai.gpt-6.1-terra')).toContain('GPT-6.1 Terra');
+    expect(getModelDisplayName('global.openai.gpt-6.1-terra')).toContain('OpenAI');
+  });
 });
