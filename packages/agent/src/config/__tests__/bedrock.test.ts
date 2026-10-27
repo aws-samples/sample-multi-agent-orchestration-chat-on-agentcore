@@ -271,3 +271,70 @@ describe('createBedrockModel OpenAI routing — gpt-5.x (mantle endpoint)', () =
     expect(openaiConstructorCalls[0].params).toEqual({ reasoning: { effort: 'none' } });
   });
 });
+
+describe('createBedrockModel GPT-6.1 Terra (global.openai.gpt-6.1-terra)', () => {
+  // global.openai.gpt-6.1-terra is on the standard bedrock-runtime Converse
+  // path — no endpoint override in the registry — so createBedrockModel() must
+  // produce a BedrockModel, NOT an OpenAIModel.
+
+  it('builds a BedrockModel (Converse), not an OpenAIModel', () => {
+    const model = createBedrockModel({ modelId: 'global.openai.gpt-6.1-terra' });
+    expect(model).toBeInstanceOf(MockBedrockModel);
+    expect(openaiConstructorCalls).toHaveLength(0);
+    expect(constructorCalls).toHaveLength(1);
+  });
+
+  it('derives maxTokens = 128000 from the model registry', () => {
+    // Model card (2026-10-26) explicitly lists 128,000 output tokens — NOT
+    // 131,072 (GPT-6 Sol/Luna ceiling). Registry must carry this limit so the
+    // agent never requests more tokens than the model can produce.
+    createBedrockModel({ modelId: 'global.openai.gpt-6.1-terra' });
+    expect(constructorCalls[0].maxTokens).toBe(128000);
+  });
+
+  it('uses the deployment BEDROCK_REGION — no registry region pin', () => {
+    // Global CRIS is available in ap-northeast-1 (the mocked BEDROCK_REGION),
+    // so no region pin is needed. The resolved region must equal BEDROCK_REGION.
+    createBedrockModel({ modelId: 'global.openai.gpt-6.1-terra' });
+    expect(constructorCalls[0].region).toBe('ap-northeast-1');
+  });
+
+  it('also resolves correctly when the bare (In-Region-style) id is passed', () => {
+    // createBedrockModel callers may save either form; both must produce the
+    // same constructor args (prefix stripping happens in @moca/core).
+    createBedrockModel({ modelId: 'openai.gpt-6.1-terra' });
+    expect(constructorCalls[0].maxTokens).toBe(128000);
+    expect(constructorCalls[0].region).toBe('ap-northeast-1');
+    expect(constructorCalls[0].additionalRequestFields).toBeUndefined();
+  });
+
+  it('omits additionalRequestFields even when reasoningEffort is high', () => {
+    // global.openai.gpt-6.1-terra is not marked reasoningCapable in the
+    // registry. getReasoningConfig() returns undefined for non-capable models,
+    // so the Anthropic-native thinking shape is never sent. This prevents the
+    // ValidationException that OpenAI Converse models return when they receive
+    // an unknown thinking field.
+    createBedrockModel({ modelId: 'global.openai.gpt-6.1-terra', reasoningEffort: 'high' });
+    expect(constructorCalls[0].additionalRequestFields).toBeUndefined();
+  });
+
+  it('omits additionalRequestFields for every reasoning depth (low / high / max / off)', () => {
+    for (const effort of ['low', 'high', 'max', 'off'] as const) {
+      createBedrockModel({ modelId: 'global.openai.gpt-6.1-terra', reasoningEffort: effort });
+    }
+    for (const call of constructorCalls) {
+      expect(call.additionalRequestFields).toBeUndefined();
+    }
+  });
+
+  it('passes no cacheConfig when ENABLE_PROMPT_CACHING is false (mocked config)', () => {
+    // The mocked config in this file has ENABLE_PROMPT_CACHING: false, so
+    // createBedrockModel() must not pass cacheConfig to the BedrockModel
+    // constructor. (When ENABLE_PROMPT_CACHING is true, Moca passes
+    // cacheConfig: { strategy: 'auto' }; the SDK's auto strategy then decides
+    // whether to inject cachePoint blocks based on the model id — that
+    // wire-level behaviour is not tested here; see "Not verified" in PR #154.)
+    createBedrockModel({ modelId: 'global.openai.gpt-6.1-terra' });
+    expect(constructorCalls[0].cacheConfig).toBeUndefined();
+  });
+});

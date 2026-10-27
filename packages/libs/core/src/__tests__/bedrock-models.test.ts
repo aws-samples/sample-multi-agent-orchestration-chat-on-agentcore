@@ -587,14 +587,17 @@ describe('GPT-6.1 Terra', () => {
     expect(shouldStripPriorReasoning(modelId)).toBe(false);
   });
 
-  it('does not collide with GPT-6.1 Sol (different model name after stripping prefix)', () => {
-    // Both live in the openai. vendor space and share `.1.` in the name, but
-    // strip to different ids: openai.gpt-6.1-terra vs openai.gpt-6.1-sol.
-    // GPT-6.1 Sol is not yet registered here — this guard ensures Terra does not
-    // accidentally absorb a future gpt-6.1-sol lookup.
-    expect(getMaxOutputTokens('openai.gpt-6.1-terra')).toBe(128000);
-    // Terra must not match a non-existent gpt-6.1-sol entry.
-    expect(getMaxOutputTokens('openai.gpt-6.1-sol')).toBeUndefined();
+  it('has a unique stripped id in the registry — exactly one entry normalizes to openai.gpt-6.1-terra', () => {
+    // PROFILE_PREFIX strips global./us./eu./apac./au./jp. — the `.1.` in the
+    // model name is NOT a prefix and is left intact. Confirm that no two registry
+    // entries share the same normalized id (which would cause findModel() to
+    // silently return the first match, producing wrong metadata).
+    const normalized = 'openai.gpt-6.1-terra';
+    const matches = BEDROCK_MODEL_DEFINITIONS.filter(
+      (m) => m.id.replace(/^(global|us|eu|apac|au|jp)\./, '') === normalized,
+    );
+    expect(matches).toHaveLength(1);
+    expect(matches[0].id).toBe(ID);
   });
 
   it('does not collide with GPT-5.6 Terra (different version number)', () => {
@@ -610,15 +613,5 @@ describe('GPT-6.1 Terra', () => {
     // keys off this to build a BedrockModel (Converse) rather than an OpenAIModel.
     expect(getBedrockEndpoint(ID)).toBeUndefined();
     expect(getBedrockEndpoint('openai.gpt-6.1-terra')).toBeUndefined();
-  });
-
-  it('does not send cachePoint on Converse (no explicit caching config set)', () => {
-    // The model card: explicit prompt caching is supported via Responses API only
-    // (NOT cachePoint on Converse). No special caching field in the registry entry
-    // means the agent will never inject a cachePoint into the Converse request.
-    const entry = BEDROCK_MODEL_DEFINITIONS.find((m) => m.id === ID);
-    // Confirm no caching-related keys that could trigger prompt caching on Converse.
-    expect(entry).not.toHaveProperty('promptCaching');
-    expect(entry).not.toHaveProperty('cachePoint');
   });
 });

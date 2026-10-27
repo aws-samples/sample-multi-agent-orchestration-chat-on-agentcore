@@ -457,9 +457,15 @@ export const BEDROCK_MODEL_DEFINITIONS = [
     //
     // Converse content: accepts text and image blocks in user messages; does NOT
     // accept document content blocks nor an image block inside a toolResult
-    // (ValidationException). Identical to GPT-6 Astra / Sol / Luna — reuse
-    // the same guard/capability flags (no special content-block handling needed
-    // beyond what already applies to the GPT-6 siblings).
+    // (ValidationException on Converse). This is a pre-existing limitation
+    // shared by GPT-6 Astra / Sol / Luna — Moca has no model-specific guard
+    // that strips these block types before the Converse call. In practice the
+    // frontend only accepts image file attachments (IMAGE_ATTACHMENT_CONFIG
+    // ACCEPTED_TYPES: png/jpeg/webp/gif in packages/frontend/src/types/index.ts),
+    // so user-supplied documents never reach the Converse payload. A tool whose
+    // output includes an image block inside a toolResult WOULD cause a
+    // ValidationException; that pre-existing gap is out of scope for this PR
+    // (identical treatment to Astra/Sol/Luna, tracked separately).
     //
     // reasoning: Reasoning Summaries are supported on Converse/ConverseStream
     // via `additionalModelRequestFields.reasoning.summary` (per model card), but
