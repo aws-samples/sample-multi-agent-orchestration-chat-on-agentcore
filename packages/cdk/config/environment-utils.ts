@@ -209,6 +209,19 @@ const DEFAULT_CONFIG = {
       provider: 'OpenAI',
     },
     {
+      // OpenAI GPT-6.1 Terra (GA 2026-10-26). Converse on bedrock-runtime like
+      // the other GPT-6 siblings — NOT Mantle — so no `endpoint` and no
+      // CallWithBearerToken grant. Global CRIS id → deriveBedrockIamResources()
+      // grants the inference-profile ARN (deploy region) plus the
+      // foundation-model ARN. No region pin: the Global CRIS profile is
+      // available in the default deploy region (ap-northeast-1).
+      // maxOutputTokens 128,000 — NOT 131,072 (see BEDROCK_MODEL_DEFINITIONS).
+      // Source: https://docs.aws.amazon.com/bedrock/latest/userguide/model-card-openai-gpt-6-1-terra.html
+      id: 'global.openai.gpt-6.1-terra',
+      name: 'GPT-6.1 Terra',
+      provider: 'OpenAI',
+    },
+    {
       // OpenAI GPT-5.5 via Bedrock Mantle (OpenAI-compatible Responses API).
       // Region pin us-east-1: only region hosting gpt-5.5 (404 elsewhere). MUST
       // match BEDROCK_MODEL_DEFINITIONS so the Mantle base URL and this grant
