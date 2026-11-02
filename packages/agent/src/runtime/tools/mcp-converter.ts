@@ -3,6 +3,11 @@ import { MCPToolDefinition, ToolInput } from '../../types/schemas/types.js';
 import { convertToZodSchema } from '../../types/schemas/zod-converter.js';
 import { mcpClient, MCPToolResult } from '../../libs/mcp/client.js';
 import { logger } from '../../libs/logger/index.js';
+import {
+  AUTHORIZATION_PENDING_TOOL_RESULT,
+  AUTHORIZATION_UNAVAILABLE_TOOL_RESULT,
+  queueAuthorizationRequest,
+} from '../../libs/mcp/authorization.js';
 /**
  * Convert MCP tools to Strands tools
  */
@@ -24,6 +29,12 @@ export function createStrandsToolFromMCP(mcpTool: MCPToolDefinition) {
 
         logger.debug({ originalInput }, `Tool call: ${mcpTool.name}`);
         const result: MCPToolResult = await mcpClient.callTool(mcpTool.name, originalInput);
+
+        if (result.authorization) {
+          return queueAuthorizationRequest(result.authorization)
+            ? AUTHORIZATION_PENDING_TOOL_RESULT
+            : AUTHORIZATION_UNAVAILABLE_TOOL_RESULT;
+        }
 
         if (result.isError) {
           logger.error(result, `Tool execution error: ${mcpTool.name}`);

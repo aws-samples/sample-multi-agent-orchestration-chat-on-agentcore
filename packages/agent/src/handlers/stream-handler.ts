@@ -19,6 +19,7 @@ import type { SessionStorage, SessionConfig } from '../services/session/types.js
 import type { AgentMetadata } from '../runtime/agent/types.js';
 import type { StreamTerminationRetryStrategy } from '../runtime/agent/stream-termination-retry-strategy.js';
 import type { ImageData } from '../types/validation/index.js';
+import { drainAuthorizationRequests } from '../libs/mcp/authorization.js';
 
 /**
  * Streaming-specific options (not duplicating what's in RequestContext)
@@ -157,7 +158,10 @@ export async function streamAgentResponse(
   res: Response,
   options: StreamOptions
 ): Promise<void> {
-  const requestId = getCurrentContext()?.requestId;
+  const context = getCurrentContext();
+  const requestId = context?.requestId;
+  // Authorization prompts queued by tools are drained in the loop below.
+  if (context) context.surfacesAuthorizationPrompts = true;
   setStreamingHeaders(res);
 
   try {
@@ -186,6 +190,11 @@ export async function streamAgentResponse(
       const safeEvents = serializeStreamEvent(event);
       for (const safeEvent of safeEvents) {
         res.write(`${JSON.stringify(safeEvent)}\n`);
+      }
+      // Gateway 3LO prompts are queued by MCP tools and sent out-of-band so the
+      // authorization URL never passes through the model.
+      for (const request of drainAuthorizationRequests()) {
+        res.write(`${JSON.stringify({ type: 'serverAuthorizationRequiredEvent', ...request })}\n`);
       }
     }
 

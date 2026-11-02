@@ -5,6 +5,14 @@ import { config } from '../../config/index.js';
 import { logger } from '../logger/index.js';
 import { getCurrentContext } from '../context/request-context.js';
 import type { MCPToolDefinition } from '../../types/index.js';
+import { parseUrlElicitation, type AuthorizationRequest } from './authorization.js';
+
+/**
+ * Sent on every request. Without it the Gateway treats the stateless call as a
+ * pre-2025-11-25 client and cannot start Authorization Code (3LO) flows; the
+ * header alone is enough — no `initialize` round-trip is needed.
+ */
+const MCP_PROTOCOL_VERSION = '2025-11-25';
 
 /**
  * Basic JSONRPC response type
@@ -52,6 +60,8 @@ export interface MCPToolResult {
     json?: unknown;
   }>;
   isError: boolean;
+  /** Set when a 3LO target needs the user to authorize first */
+  authorization?: AuthorizationRequest;
 }
 
 /**
@@ -270,6 +280,7 @@ export class AgentCoreMCPClient {
       const authHeader = this.getAuthorizationHeader(false);
       const headers: Record<string, string> = {
         'Content-Type': 'application/json',
+        'MCP-Protocol-Version': MCP_PROTOCOL_VERSION,
       };
 
       if (authHeader) {
@@ -356,6 +367,7 @@ export class AgentCoreMCPClient {
       const idToken = context.idToken;
       const headers: Record<string, string> = {
         'Content-Type': 'application/json',
+        'MCP-Protocol-Version': MCP_PROTOCOL_VERSION,
         'x-storage-path': storagePath,
         ...(idToken && {
           'X-Amzn-Bedrock-AgentCore-Runtime-Custom-Id-Token': idToken,
@@ -391,6 +403,14 @@ export class AgentCoreMCPClient {
       }
 
       if (data.error) {
+        const authorization = parseUrlElicitation(data.error, toolName, config.AWS_REGION);
+        if (authorization) {
+          logger.info(
+            { toolName, targetName: authorization.targetName },
+            'Tool requires user authorization'
+          );
+          return { toolUseId: 'authorization', content: [], isError: true, authorization };
+        }
         return {
           toolUseId: 'error',
           content: [{ type: 'text', text: `MCP Error: ${data.error.message}` }],

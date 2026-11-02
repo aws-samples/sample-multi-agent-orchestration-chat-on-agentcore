@@ -5,6 +5,7 @@ import type {
   ModelContentBlockStartEvent,
   ServerCompletionEvent,
   ServerErrorEvent,
+  ServerAuthorizationRequiredEvent,
   MessageAddedEvent,
   BeforeToolsEvent,
   ToolUse,
@@ -12,6 +13,7 @@ import type {
 } from '../types/index';
 import { agentClient } from './client/agent-client';
 import { logger } from '../utils/logger';
+import { isTrustedAuthorizationUrl, type AuthorizationPrompt } from '../lib/oauth-authorization';
 
 /**
  * Streaming callback types
@@ -26,6 +28,7 @@ interface StreamingCallbacks {
   onToolResult?: (toolResult: ToolResult) => void;
   onComplete?: (metadata: Record<string, unknown>) => void;
   onError?: (error: Error) => void;
+  onAuthorizationRequired?: (prompt: AuthorizationPrompt) => void;
 }
 
 /**
@@ -297,6 +300,16 @@ const handleStreamEvent = (event: AgentStreamEvent, callbacks: StreamingCallback
       const completionEvent = event as ServerCompletionEvent;
       if (callbacks.onComplete) {
         callbacks.onComplete(completionEvent.metadata);
+      }
+      break;
+    }
+
+    case 'serverAuthorizationRequiredEvent': {
+      const { url, elicitationId, targetName } = event as ServerAuthorizationRequiredEvent;
+      if (isTrustedAuthorizationUrl(url, import.meta.env.VITE_AWS_REGION || 'us-east-1')) {
+        callbacks.onAuthorizationRequired?.({ url, elicitationId, targetName });
+      } else {
+        logger.warn('Ignored untrusted authorization URL for target %s', targetName);
       }
       break;
     }

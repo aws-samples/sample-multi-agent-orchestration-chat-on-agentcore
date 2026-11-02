@@ -83,6 +83,14 @@ export interface AgentCoreGatewayProps {
    * Used together with identityPoolId to build the Logins key for GetId.
    */
   readonly userPoolId?: string;
+
+  /**
+   * Names of Gateway targets that call third-party services with a per-user
+   * OAuth token (Authorization Code / 3LO). The interceptor does not inject
+   * `_context` into their arguments and rejects machine-user callers.
+   * @default []
+   */
+  readonly userDelegatedTargetNames?: string[];
 }
 
 /**
@@ -130,6 +138,9 @@ export class AgentCoreGateway extends Construct {
       searchType: props.mcpConfig?.searchType || agentcore.McpGatewaySearchType.SEMANTIC,
       supportedVersions: props.mcpConfig?.supportedVersions || [
         agentcore.MCPProtocolVersion.MCP_2025_03_26,
+        // URL elicitation (-32042) for Authorization Code (3LO) targets only works on
+        // 2025-11-25+. aws-cdk-lib has no constant for it yet.
+        agentcore.MCPProtocolVersion.of('2025-11-25'),
       ],
     });
 
@@ -262,6 +273,7 @@ export class AgentCoreGateway extends Construct {
           // identityPoolId is validated above; non-null assertion is safe here.
           IDENTITY_POOL_ID: props.identityPoolId!,
           COGNITO_USER_POOL_ID: props.userPoolId!,
+          USER_DELEGATED_TARGETS: (props.userDelegatedTargetNames ?? []).join(','),
         },
         bundling: {
           minify: true,

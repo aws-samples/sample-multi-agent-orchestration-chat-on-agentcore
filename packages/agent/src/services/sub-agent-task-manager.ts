@@ -58,6 +58,8 @@ export interface SubAgentTask {
   authHeader?: string;
   /** Captured Cognito ID Token from parent request context (for Identity Pool credential exchange in background) */
   idToken?: string;
+  /** Whether the parent was a machine user (trigger); hides user-delegated (3LO) tools */
+  isMachineUser?: boolean;
 }
 
 /**
@@ -113,6 +115,7 @@ class SubAgentTaskManager {
     const parentContext = getCurrentContext();
     const authHeader = parentContext?.authorizationHeader;
     const idToken = parentContext?.idToken;
+    const isMachineUser = parentContext?.isMachineUser ?? false;
 
     const task: SubAgentTask = {
       taskId,
@@ -130,6 +133,7 @@ class SubAgentTaskManager {
       storagePath: options.storagePath,
       authHeader,
       idToken,
+      isMachineUser,
     };
 
     this.tasks.set(taskId, task);
@@ -170,7 +174,7 @@ class SubAgentTaskManager {
     const restoredContext = {
       requestId: `subtask-${taskId}`,
       startTime: new Date(),
-      isMachineUser: false,
+      isMachineUser: task.isMachineUser ?? false,
       userId: task.userId,
       authorizationHeader: task.authHeader,
       idToken: task.idToken,

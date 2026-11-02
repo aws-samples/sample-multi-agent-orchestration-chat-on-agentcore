@@ -87,3 +87,4 @@ Monorepo using npm workspaces. 8 packages.
 - `docs/adr/aws-data-access-control.md` — `userId` vs `identityId` model and per-user S3/DynamoDB isolation. Consult before changing IAM policies, S3 prefixes, DynamoDB partition keys, or AppSync channel paths.
 - `docs/adr/event-driven-identity-pool-credentials.md` — How event-driven agent invocations (Trigger Lambda) resolve to the same `identityId` as frontend sessions. Consult before changing Cognito Developer Authenticated Identities or trigger credential flow.
 - `docs/adr/github-token-broker-lambda.md` — GitHub Token Broker design and the residual-risk discussion for removing `secretsmanager:GetSecretValue` from the Runtime execution role.
+- `docs/adr/gateway-3lo-github.md` — Gateway Authorization Code (3LO) design for the GitHub MCP target: out-of-band authorization URL, return-URL allow-list, machine-user refusal, interceptor `_context` exclusion. Consult before adding another per-user OAuth Gateway target.

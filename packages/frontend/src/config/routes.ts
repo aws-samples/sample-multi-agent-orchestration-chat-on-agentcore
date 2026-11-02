@@ -68,6 +68,11 @@ export const routes = {
     titleKey: 'navigation.settings',
     requiresAuth: true,
   },
+  oauthCallback: {
+    path: '/oauth/callback',
+    titleKey: 'oauth.callback.title',
+    requiresAuth: true,
+  },
 } as const;
 
 /**

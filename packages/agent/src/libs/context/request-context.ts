@@ -8,6 +8,7 @@ import { v7 as uuidv7 } from 'uuid';
 import type { IdentityId, SessionId, UserId } from '@moca/core';
 import type { IWorkspaceSync, SessionType } from '../../types/index.js';
 import type { VerifiedAccessTokenPayload, VerifiedIdTokenPayload } from '../auth/jwt-verifier.js';
+import type { AuthorizationRequest } from '../mcp/authorization.js';
 
 /**
  * Type definition for request context
@@ -79,6 +80,17 @@ export interface RequestContext {
    * Pool and are validated by Cognito Identity Pool instead.
    */
   idTokenPayload?: VerifiedIdTokenPayload;
+  /**
+   * 3LO authorization prompts raised by Gateway tools during this request,
+   * emitted to the client by the stream handler. See libs/mcp/authorization.ts.
+   */
+  pendingAuthorizations?: AuthorizationRequest[];
+  /**
+   * True only while an interactive stream response is open (set by the stream
+   * handler), i.e. a queued authorization prompt will actually reach the user.
+   * Sub-agent and non-streaming contexts leave it unset.
+   */
+  surfacesAuthorizationPrompts?: boolean;
 }
 
 /**

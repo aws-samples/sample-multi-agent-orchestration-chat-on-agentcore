@@ -9,6 +9,9 @@ import type { McpClient, Tool } from '@strands-agents/sdk';
 import { logger } from '../../libs/logger/index.js';
 import { localTools, convertMCPToolsToStrands } from '../tools/index.js';
 import { mcpClient } from '../../libs/mcp/client.js';
+import { isUserDelegatedTool } from '../../libs/mcp/authorization.js';
+import { getCurrentContext } from '../../libs/context/request-context.js';
+import { config } from '../../config/index.js';
 import type { MCPToolDefinition } from '../../types/schemas/types.js';
 
 /**
@@ -64,7 +67,14 @@ export async function buildToolSet(
   userMCPClients: McpClient[] = []
 ): Promise<ToolSetResult> {
   // Fetch Gateway MCP tools
-  const gatewayMCPTools = (await mcpClient.listTools()) as MCPToolDefinition[];
+  const allGatewayMCPTools = (await mcpClient.listTools()) as MCPToolDefinition[];
+
+  // A machine user is one identity shared by every user's triggers; a 3LO token
+  // stored under it would be usable by all of them (the interceptor also refuses).
+  const delegatedTargets = config.USER_DELEGATED_GATEWAY_TARGETS ?? [];
+  const gatewayMCPTools = getCurrentContext()?.isMachineUser
+    ? allGatewayMCPTools.filter((tool) => !isUserDelegatedTool(tool.name, delegatedTargets))
+    : allGatewayMCPTools;
 
   // Convert Gateway MCP tools to Strands format
   const gatewayStrandsTools = convertMCPToolsToStrands(gatewayMCPTools);
