@@ -46,29 +46,64 @@ jest.unstable_mockModule('../../libs/context/request-context.js', () => ({
 
 const { streamAgentResponse } = await import('../stream-handler.js');
 import type { StreamOptions } from '../stream-handler.js';
+// The cancel registry is a dependency-free module singleton; use the real one
+// so we can assert this turn's Agent gets registered / unregistered.
+const { isRegistered, cancelAgent, resetRegistry } = await import(
+  '../../libs/health/agent-cancel-registry.js'
+);
 import type { IdentityId, SessionId } from '@moca/core';
 
-/** Create a mock Express Response */
+/**
+ * Create a mock Express Response.
+ *
+ * Supports `once`/`on`/`emit` so tests can simulate a client disconnect
+ * (`res.emit('close')`). `end()` flips `writableEnded` to mirror Express, so
+ * the handler's "close after finish is benign" guard can be exercised.
+ */
 function createMockResponse() {
+  const listeners: Record<string, () => void> = {};
   const res: any = {
     setHeader: jest.fn(),
     write: jest.fn(),
-    end: jest.fn(),
+    writableEnded: false,
+    end: jest.fn(() => {
+      res.writableEnded = true;
+    }),
+    once: jest.fn((event: string, cb: () => void) => {
+      listeners[event] = cb;
+      return res;
+    }),
+    on: jest.fn((event: string, cb: () => void) => {
+      listeners[event] = cb;
+      return res;
+    }),
+    emit: (event: string) => listeners[event]?.(),
   };
   return res;
 }
 
-/** Create a mock Agent with configurable stream behavior */
-function createMockAgent(events: unknown[] = [{ type: 'text', data: 'Hello' }]) {
+/**
+ * Create a mock Agent with configurable stream behavior.
+ *
+ * `agent.stream()` returns a real async generator whose *return value* is the
+ * `AgentResult` (carrying `stopReason`) — matching the SDK contract that the
+ * handler reads to distinguish a cancelled turn from a completed one.
+ */
+function createMockAgent(
+  events: unknown[] = [{ type: 'text', data: 'Hello' }],
+  result: { stopReason?: string } = { stopReason: 'endTurn' }
+) {
   return {
     messages: [{ role: 'user' }, { role: 'assistant' }],
-    stream: jest.fn().mockReturnValue({
-      async *[Symbol.asyncIterator]() {
+    cancel: jest.fn(),
+    stream: jest.fn().mockImplementation(() =>
+      (async function* () {
         for (const event of events) {
           yield event;
         }
-      },
-    }),
+        return result;
+      })()
+    ),
   } as any;
 }
 
@@ -91,6 +126,7 @@ describe('streamAgentResponse', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
+    resetRegistry();
     res = createMockResponse();
     defaultOptions = {
       metadata: {
@@ -328,6 +364,140 @@ describe('streamAgentResponse', () => {
       const errorEvent = JSON.parse(errorWrite![0]);
       expect(errorEvent.error.message).not.toContain('partial content');
       expect(errorEvent.error.message).not.toContain('embedded quotes');
+    });
+  });
+
+  describe('cancellation', () => {
+    it('registers the agent in the cancel registry while a turn is in flight', async () => {
+      // A stream that parks mid-turn, so we can observe the registration before
+      // the turn settles.
+      let releaseGate: () => void = () => {};
+      const gate = new Promise<void>((resolve) => {
+        releaseGate = resolve;
+      });
+      const agent = {
+        messages: [],
+        cancel: jest.fn(),
+        stream: jest.fn().mockImplementation(() =>
+          (async function* () {
+            yield { type: 'text', data: 'partial' };
+            await gate;
+            return { stopReason: 'endTurn' };
+          })()
+        ),
+      } as any;
+
+      const promise = streamAgentResponse(agent, 'Hello', undefined, res, defaultOptions);
+      await Promise.resolve();
+
+      // The registry now holds this turn's agent, so a stop command targeting
+      // 'test-session' can reach it.
+      expect(isRegistered('test-session')).toBe(true);
+
+      releaseGate();
+      await promise;
+    });
+
+    it('a registry cancel drives the turn to stopReason cancelled', async () => {
+      // Real cancellation path: agent.cancel() (invoked via the registry by the
+      // stop command) makes the parked stream resolve as cancelled.
+      let aborted = false;
+      const agent = {
+        messages: [],
+        cancel: jest.fn(() => {
+          aborted = true;
+        }),
+        stream: jest.fn().mockImplementation(() =>
+          (async function* () {
+            yield { type: 'text', data: 'partial' };
+            // Poll the cancel flag the way the SDK checks its internal signal.
+            while (!aborted) await new Promise((r) => setTimeout(r, 5));
+            return { stopReason: 'cancelled' };
+          })()
+        ),
+      } as any;
+
+      const promise = streamAgentResponse(agent, 'Hello', undefined, res, defaultOptions);
+      await Promise.resolve();
+
+      // Simulate the stop command landing on this microVM.
+      expect(cancelAgent('test-session')).toBe(true);
+      expect(agent.cancel).toHaveBeenCalledTimes(1);
+
+      await promise;
+
+      const writes = res.write.mock.calls.map((c: any[]) => JSON.parse(c[0].trim()));
+      expect(writes.map((w: any) => w.type)).toContain('serverCancelledEvent');
+    });
+
+    it('unregisters the agent after the turn settles', async () => {
+      const agent = createMockAgent([]);
+
+      await streamAgentResponse(agent, 'Hello', undefined, res, defaultOptions);
+
+      expect(isRegistered('test-session')).toBe(false);
+    });
+
+    it('should emit serverCancelledEvent (not completion) when stopReason is cancelled', async () => {
+      const agent = createMockAgent([{ type: 'text', data: 'partial' }], {
+        stopReason: 'cancelled',
+      });
+
+      await streamAgentResponse(agent, 'Hello', undefined, res, defaultOptions);
+
+      const writes = res.write.mock.calls.map((c: any[]) => JSON.parse(c[0].trim()));
+      const types = writes.map((w: any) => w.type);
+      expect(types).toContain('serverCancelledEvent');
+      expect(types).not.toContain('serverCompletionEvent');
+    });
+
+    it('should not treat a cancelled turn as an error', async () => {
+      const mockAppendMessage = jest.fn<any>().mockResolvedValue(undefined);
+      const options: StreamOptions = {
+        ...defaultOptions,
+        sessionStorage: { appendMessage: mockAppendMessage } as any,
+        sessionConfig: {
+          sessionId: 'test-session' as SessionId,
+          actorId: 'test-actor' as IdentityId,
+        },
+      };
+      const agent = createMockAgent([{ type: 'text', data: 'partial' }], {
+        stopReason: 'cancelled',
+      });
+
+      await streamAgentResponse(agent, 'Hello', undefined, res, options);
+
+      const writes = res.write.mock.calls.map((c: any[]) => JSON.parse(c[0].trim()));
+      expect(writes.map((w: any) => w.type)).not.toContain('serverErrorEvent');
+      // Cancellation history integrity is the SDK's responsibility (it appends a
+      // synthetic assistant/tool-result), so the handler must NOT write its own
+      // error message into session history.
+      expect(mockAppendMessage).not.toHaveBeenCalled();
+    });
+
+    it('should end the response after a cancelled turn', async () => {
+      const agent = createMockAgent([{ type: 'text', data: 'partial' }], {
+        stopReason: 'cancelled',
+      });
+
+      await streamAgentResponse(agent, 'Hello', undefined, res, defaultOptions);
+
+      expect(res.end).toHaveBeenCalledTimes(1);
+    });
+
+    it('should still stream events that arrived before cancellation', async () => {
+      const agent = createMockAgent(
+        [
+          { type: 'text', data: 'chunk-1' },
+          { type: 'text', data: 'chunk-2' },
+        ],
+        { stopReason: 'cancelled' }
+      );
+
+      await streamAgentResponse(agent, 'Hello', undefined, res, defaultOptions);
+
+      const writes = res.write.mock.calls.map((c: any[]) => JSON.parse(c[0].trim()));
+      expect(writes.filter((w: any) => w.type === 'text')).toHaveLength(2);
     });
   });
 
