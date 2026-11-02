@@ -11,13 +11,47 @@ import { callAgentDefinition, callAgentSchema } from '../definitions/call-agent'
 const modelId = callAgentSchema.shape.modelId;
 
 describe('Call Agent Tool Definition', () => {
+  describe('reasoningEffort', () => {
+    it.each(['off', 'low', 'high', 'max'])('preserves %s in start_task input', (effort) => {
+      const input = callAgentSchema.parse({
+        action: 'start_task',
+        agentId: 'researcher',
+        query: 'Research this',
+        reasoningEffort: effort,
+      });
+      expect(input).toHaveProperty('reasoningEffort', effort);
+    });
+
+    it('leaves omitted effort unset', () => {
+      expect(callAgentSchema.parse({ action: 'start_task' })).not.toHaveProperty('reasoningEffort');
+    });
+
+    it('advertises the supported optional depths to the model', () => {
+      expect(callAgentDefinition.jsonSchema).toMatchObject({
+        properties: { reasoningEffort: { enum: ['off', 'low', 'high', 'max'] } },
+      });
+      expect(callAgentDefinition.jsonSchema.required).not.toContain('reasoningEffort');
+    });
+
+    it('rejects an unsupported depth at the tool boundary', () => {
+      expect(
+        callAgentSchema.safeParse({ action: 'start_task', reasoningEffort: 'xhigh' }).success
+      ).toBe(false);
+    });
+  });
+
   it('should have correct tool name', () => {
     expect(callAgentDefinition.name).toBe('call_agent');
   });
 
   describe('modelId validation', () => {
     it('accepts OpenAI model ids (gpt-5.x on Mantle, gpt-oss)', () => {
-      for (const id of ['openai.gpt-5.5', 'openai.gpt-5.4', 'openai.gpt-oss-120b-1:0', 'openai.gpt-oss-20b-1:0']) {
+      for (const id of [
+        'openai.gpt-5.5',
+        'openai.gpt-5.4',
+        'openai.gpt-oss-120b-1:0',
+        'openai.gpt-oss-20b-1:0',
+      ]) {
         expect(modelId.safeParse(id).success).toBe(true);
       }
     });

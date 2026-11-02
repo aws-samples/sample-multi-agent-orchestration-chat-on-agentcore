@@ -9,6 +9,7 @@ import { listAgents } from '../../services/agent-registry.js';
 import { logger } from '../../libs/logger/index.js';
 import { getCurrentContext } from '../../libs/context/request-context.js';
 import { callAgentDefinition } from '@moca/tool-definitions';
+import type { ReasoningDepth } from '@moca/core';
 
 /**
  * Sleep utility for polling
@@ -61,6 +62,7 @@ async function handleStartTask(
     agentId?: string;
     query?: string;
     modelId?: string;
+    reasoningEffort?: ReasoningDepth;
     storagePath?: string;
     sessionId?: string;
   },
@@ -103,6 +105,7 @@ async function handleStartTask(
     // Create task
     const taskId = await subAgentTaskManager.createTask(input.agentId, input.query, {
       modelId: input.modelId,
+      reasoningEffort: input.reasoningEffort,
       parentSessionId,
       sessionId: input.sessionId,
       userId,
