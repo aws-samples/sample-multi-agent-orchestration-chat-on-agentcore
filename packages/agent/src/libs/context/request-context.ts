@@ -67,6 +67,14 @@ export interface RequestContext {
    * tokens are renewed through the parent's Runtime session.
    */
   tokenSessionId?: SessionId;
+  /**
+   * Writes an out-of-band event to the client stream of this turn. Set by the
+   * stream handler for the lifetime of the stream; a no-op once the client
+   * has disconnected.
+   */
+  emitClientEvent?: (event: Record<string, unknown>) => void;
+  /** Set once persistence degradation has been surfaced for this turn. */
+  persistenceDegradedReported?: boolean;
   /** Session type (from x-amzn-bedrock-agentcore-runtime-session-type header) */
   sessionType?: SessionType;
   /**

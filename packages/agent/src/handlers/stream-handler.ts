@@ -157,8 +157,15 @@ export async function streamAgentResponse(
   res: Response,
   options: StreamOptions
 ): Promise<void> {
-  const requestId = getCurrentContext()?.requestId;
+  const context = getCurrentContext();
+  const requestId = context?.requestId;
   setStreamingHeaders(res);
+
+  if (context) {
+    context.emitClientEvent = (event) => {
+      if (!res.writableEnded && !res.destroyed) res.write(`${JSON.stringify(event)}\n`);
+    };
+  }
 
   try {
     logger.info({ requestId }, 'Agent streaming started:');
@@ -213,5 +220,7 @@ export async function streamAgentResponse(
     res.end();
   } catch (streamError) {
     await handleStreamError(streamError, res, options);
+  } finally {
+    if (context) context.emitClientEvent = undefined;
   }
 }

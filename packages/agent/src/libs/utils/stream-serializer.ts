@@ -128,9 +128,7 @@ function normalizeDelta(delta: unknown): unknown {
   const bytes = redactedContent as Uint8Array;
   return {
     ...rest,
-    ...(bytes.length > 0
-      ? { redactedContentBase64: Buffer.from(bytes).toString('base64') }
-      : {}),
+    ...(bytes.length > 0 ? { redactedContentBase64: Buffer.from(bytes).toString('base64') } : {}),
   };
 }
 

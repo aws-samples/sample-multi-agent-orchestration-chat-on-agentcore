@@ -123,12 +123,7 @@ export interface WireReasoningBlock {
  * exposes and the read-back path tolerates schema drift.
  */
 export interface WirePassthroughBlock {
-  type:
-    | 'cachePointBlock'
-    | 'guardContentBlock'
-    | 'videoBlock'
-    | 'documentBlock'
-    | 'citationsBlock';
+  type: 'cachePointBlock' | 'guardContentBlock' | 'videoBlock' | 'documentBlock' | 'citationsBlock';
   [key: string]: unknown;
 }
 

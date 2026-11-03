@@ -39,8 +39,12 @@ jest.unstable_mockModule('@aws-sdk/client-cognito-identity', () => ({
   },
 }));
 
-const { createUserScopedS3Client, UserCredentialsExpiredError, resetUserScopedCredentialCache } =
-  await import('../scoped-credentials.js');
+const {
+  createUserScopedS3Client,
+  UserCredentialsExpiredError,
+  resetUserScopedCredentialCache,
+  canObtainUserScopedCredentials,
+} = await import('../scoped-credentials.js');
 const { recordSessionTokens, resetSessionTokenStore } =
   await import('../../auth/session-token-store.js');
 const { createRequestContext, runWithContext } = await import('../../context/request-context.js');
@@ -145,5 +149,18 @@ describe('user-scoped clients refresh credentials during a long turn', () => {
     const callsBefore = sendMock.mock.calls.length;
     await expect(resolve(client)).rejects.toBeInstanceOf(UserCredentialsExpiredError);
     expect(sendMock.mock.calls.length).toBe(callsBefore);
+  });
+});
+
+describe('canObtainUserScopedCredentials', () => {
+  it('is true while credentials or an unexpired ID token exist, false once both are gone', async () => {
+    const ctx = newRequest(fakeJwt(T0 + 60 * MIN));
+    await runWithContext(ctx, async () => resolve(await createUserScopedS3Client('user-sub')));
+
+    jest.setSystemTime(T0 + 55 * MIN);
+    expect(canObtainUserScopedCredentials('user-sub', ctx)).toBe(true); // token still valid
+
+    jest.setSystemTime(T0 + 61 * MIN);
+    expect(canObtainUserScopedCredentials('user-sub', ctx)).toBe(false);
   });
 });

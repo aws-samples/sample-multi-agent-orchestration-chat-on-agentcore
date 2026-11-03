@@ -38,7 +38,10 @@ import { describeIfEnv } from '../../../tests/integration-helpers.js';
 
 const FABLE_5 = 'global.anthropic.claude-fable-5';
 
-const describeFable5 = describeIfEnv(['RUN_BEDROCK_FABLE_INTEGRATION'], 'Fable 5 reasoning integration');
+const describeFable5 = describeIfEnv(
+  ['RUN_BEDROCK_FABLE_INTEGRATION'],
+  'Fable 5 reasoning integration'
+);
 
 /** Extract text from a message's content blocks. */
 function textOf(message: { content: unknown[] }): string {
@@ -89,9 +92,7 @@ describeFable5('Claude Fable 5 reasoning round-trip', () => {
     // Turn 2: re-sends the turn-1 assistant message (incl. the reasoning block)
     // back to Bedrock. Without the fix the SDK throws while formatting the
     // empty-text reasoning block, before the request is sent.
-    await expect(
-      streamAll(agent, 'Now multiply that result by 2.')
-    ).resolves.toBeUndefined();
+    await expect(streamAll(agent, 'Now multiply that result by 2.')).resolves.toBeUndefined();
 
     expect(textOf(agent.messages[agent.messages.length - 1])).toMatch(/782/);
   }, 120_000);

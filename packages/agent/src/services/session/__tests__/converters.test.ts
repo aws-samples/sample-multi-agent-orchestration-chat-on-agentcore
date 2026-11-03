@@ -452,7 +452,9 @@ describe('agentCorePayloadToMessage', () => {
       // Mirrors a real tool-calling turn pair as stored/replayed across requests.
       const assistant = new Message({
         role: 'assistant',
-        content: [new ToolUseBlock({ name: 's3_list_files', toolUseId: 't1', input: { path: '/' } })],
+        content: [
+          new ToolUseBlock({ name: 's3_list_files', toolUseId: 't1', input: { path: '/' } }),
+        ],
       });
       const toolResult = new Message({
         role: 'user',

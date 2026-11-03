@@ -346,6 +346,21 @@ export async function createUserScopedBedrockAgentCoreClient(
 // not need to call any control-plane API.
 
 /**
+ * Whether user-scoped credentials are usable now or can still be re-minted
+ * (an unexpired ID token is known for the session). Lets bulk persistence
+ * (workspace sync) skip work that would fail once per item.
+ */
+export function canObtainUserScopedCredentials(
+  userId: string,
+  context: RequestContext | undefined = getCurrentContext()
+): boolean {
+  const cached = credentialCache.get(userId);
+  if (cached && cached.expiresAt - Date.now() > EXPIRY_MARGIN_MS) return true;
+  const idToken = getCallerIdToken(undefined, context);
+  return !!idToken && (decodeJwtExpiryMs(idToken) ?? Infinity) > Date.now();
+}
+
+/**
  * Get environment variables for a child process that restrict S3 and DynamoDB access
 
 

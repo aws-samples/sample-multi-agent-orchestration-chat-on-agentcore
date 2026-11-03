@@ -184,6 +184,7 @@ shortcuts:
 
 # Chat
 chat:
+  persistenceDegraded: 'Your sign-in expired, so this conversation and its workspace files are no longer being saved. Keep this tab open while the agent runs, or reload and retry.'
   sessionName: Session Name
   sessionNameLabel: Session
   subAgentSessionLabel: Sub Agent

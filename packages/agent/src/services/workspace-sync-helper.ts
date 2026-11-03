@@ -81,9 +81,7 @@ export function initializeWorkspaceSync(
  * bundled path needs no wait. Pass `null`/`undefined` when no workspace sync is
  * active to get just the bundled path.
  */
-export async function resolveSkillsPaths(
-  workspaceSync?: WorkspaceSync | null
-): Promise<string[]> {
+export async function resolveSkillsPaths(workspaceSync?: WorkspaceSync | null): Promise<string[]> {
   if (!workspaceSync) return [BUNDLED_SKILLS_DIRECTORY];
 
   const synced = await Promise.all([

@@ -213,6 +213,18 @@ export interface ServerErrorEvent extends AgentStreamEvent {
   };
 }
 
+export interface ServerWarning {
+  code: 'persistenceDegraded' | (string & {});
+  target?: string;
+  message: string;
+}
+
+/** Out-of-band warning about the running turn (the turn itself continues). */
+export interface ServerWarningEvent extends AgentStreamEvent {
+  type: 'serverWarningEvent';
+  warning: ServerWarning;
+}
+
 // Config types
 export interface AgentConfig {
   endpoint: string;

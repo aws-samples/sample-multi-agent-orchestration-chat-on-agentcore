@@ -20,7 +20,13 @@ import {
   SKILLS_DIR_NAME,
 } from '../config/index.js';
 import { createLogger } from '../libs/logger/index.js';
-import { createUserScopedS3Client, getIdentityId } from '../libs/utils/scoped-credentials.js';
+import {
+  canObtainUserScopedCredentials,
+  createUserScopedS3Client,
+  getIdentityId,
+  UserCredentialsExpiredError,
+} from '../libs/utils/scoped-credentials.js';
+import { isCredentialExpiryError, reportPersistenceFailure } from './session/persistence-health.js';
 
 const logger = createLogger('WorkspaceSync');
 export type { SyncResult };
@@ -49,7 +55,10 @@ export class WorkspaceSync {
 
   private initPromise: Promise<void>;
 
+  private readonly userId: string;
+
   constructor(userId: string, storagePath: string) {
+    this.userId = userId;
     this.bucketName = config.USER_STORAGE_BUCKET_NAME ?? '';
     this.normalizedStoragePath = storagePath.replace(/^\/+|\/+$/g, '');
 
@@ -205,7 +214,17 @@ export class WorkspaceSync {
    */
   async syncToS3(): Promise<SyncResult> {
     await this.initPromise;
-    return this.inner.push();
+
+    // Every upload would fail (and log) individually; report once instead.
+    if (config.IDENTITY_POOL_ID && !canObtainUserScopedCredentials(this.userId)) {
+      reportPersistenceFailure('workspace', new UserCredentialsExpiredError());
+      return { success: false, errors: ['User-scoped credentials expired'] };
+    }
+
+    const result = await this.inner.push();
+    const expiry = result.errors?.find((e) => isCredentialExpiryError(e));
+    if (expiry) reportPersistenceFailure('workspace', expiry);
+    return result;
   }
 
   /**

@@ -153,7 +153,11 @@ export class SessionsService {
     }
     const repo = await this.repositoryForUser(userId);
     // Brand at the composition boundary (see createSession above).
-    return repo.updateSessionAgentAndStorage(sessionId, agentId as AgentId | undefined, storagePath);
+    return repo.updateSessionAgentAndStorage(
+      sessionId,
+      agentId as AgentId | undefined,
+      storagePath
+    );
   }
 
   async updateSessionTitle(userId: string, sessionId: string, title: string): Promise<void> {

@@ -346,4 +346,28 @@ describe('streamAgentResponse', () => {
       expect(res.write).toHaveBeenCalledTimes(eventCount + 1);
     });
   });
+
+  describe('out-of-band client events', () => {
+    it('lets code running inside the turn write events to the client stream', async () => {
+      const ctx: any = { requestId: 'r', sessionId: 's' };
+      mockGetCurrentContext.mockReturnValue(ctx);
+      const agent = {
+        messages: [],
+        stream: jest.fn().mockReturnValue(
+          (async function* () {
+            ctx.emitClientEvent({ type: 'serverWarningEvent', warning: { code: 'x' } });
+            yield { type: 'text', data: 'after' };
+          })()
+        ),
+      } as any;
+
+      await streamAgentResponse(agent, 'Hello', undefined, res, defaultOptions);
+
+      expect(res.write.mock.calls[0][0]).toBe(
+        `${JSON.stringify({ type: 'serverWarningEvent', warning: { code: 'x' } })}\n`
+      );
+      // Detached after the stream so late emitters cannot write to a closed response.
+      expect(ctx.emitClientEvent).toBeUndefined();
+    });
+  });
 });

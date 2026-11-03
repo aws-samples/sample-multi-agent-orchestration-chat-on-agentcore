@@ -61,7 +61,11 @@ function fire(handler: Handler, message: Message): void {
 describe('EmptyTextBlockHook', () => {
   it('strips a leading empty TextBlock that precedes a toolUse block (Qwen3 case)', () => {
     const handler = captureHandler(new EmptyTextBlockHook());
-    const toolUse = new ToolUseBlock({ name: 'list_files', toolUseId: 'tu_1', input: { path: '.' } });
+    const toolUse = new ToolUseBlock({
+      name: 'list_files',
+      toolUseId: 'tu_1',
+      input: { path: '.' },
+    });
     const message = new Message({ role: 'assistant', content: [new TextBlock(''), toolUse] });
 
     fire(handler, message);
@@ -95,7 +99,10 @@ describe('EmptyTextBlockHook', () => {
 
   it('does not empty out a message made up solely of empty TextBlocks', () => {
     const handler = captureHandler(new EmptyTextBlockHook());
-    const message = new Message({ role: 'assistant', content: [new TextBlock(''), new TextBlock('')] });
+    const message = new Message({
+      role: 'assistant',
+      content: [new TextBlock(''), new TextBlock('')],
+    });
 
     fire(handler, message);
 

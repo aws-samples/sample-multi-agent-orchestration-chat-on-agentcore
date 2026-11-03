@@ -18,6 +18,8 @@ import { useSessionStore } from './sessionStore';
 import { useMemoryStore } from './memoryStore';
 import { useSettingsStore } from './settingsStore';
 import { logger } from '../utils/logger';
+import toast from 'react-hot-toast';
+import i18n from '../i18n';
 
 // Helper function: Convert image to Base64
 const convertImageToBase64 = (file: File): Promise<string> => {
@@ -508,6 +510,15 @@ export const useChatStore = create<ChatStore>()(
                 if (isNewSession) {
                   logger.log('New session created, updating session list...');
                   useSessionStore.getState().refreshSessions();
+                }
+              },
+              onWarning: (warning) => {
+                if (warning.code === 'persistenceDegraded') {
+                  // One toast per session even if the runtime reports again.
+                  toast.error(i18n.t('chat.persistenceDegraded'), {
+                    id: `persistence-degraded-${sessionId}`,
+                    duration: 15000,
+                  });
                 }
               },
               onError: (error: Error) => {

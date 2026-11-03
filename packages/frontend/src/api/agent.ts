@@ -5,6 +5,8 @@ import type {
   ModelContentBlockStartEvent,
   ServerCompletionEvent,
   ServerErrorEvent,
+  ServerWarningEvent,
+  ServerWarning,
   MessageAddedEvent,
   BeforeToolsEvent,
   ToolUse,
@@ -27,6 +29,7 @@ interface StreamingCallbacks {
   onToolResult?: (toolResult: ToolResult) => void;
   onComplete?: (metadata: Record<string, unknown>) => void;
   onError?: (error: Error) => void;
+  onWarning?: (warning: ServerWarning) => void;
 }
 
 /**
@@ -312,6 +315,11 @@ const handleStreamEvent = (event: AgentStreamEvent, callbacks: StreamingCallback
       if (callbacks.onError) {
         callbacks.onError(new Error(errorEvent.error.message));
       }
+      break;
+    }
+
+    case 'serverWarningEvent': {
+      callbacks.onWarning?.((event as ServerWarningEvent).warning);
       break;
     }
 
