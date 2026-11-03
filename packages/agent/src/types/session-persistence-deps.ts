@@ -30,6 +30,7 @@ export interface ISessionsService {
   ): Promise<void>;
   updateSessionTimestamp(userId: string, sessionId: string): Promise<void>;
   updateSessionTitle(userId: string, sessionId: string, title: string): Promise<void>;
+  setActiveTurn(userId: string, sessionId: string, startedAt: string | undefined): Promise<void>;
 }
 
 export interface ITitleGenerator {

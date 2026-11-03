@@ -120,6 +120,16 @@ export class SessionsService {
     return repo.updateSessionTimestamp(sessionId);
   }
 
+  async setActiveTurn(
+    userId: string,
+    sessionId: string,
+    startedAt: string | undefined
+  ): Promise<void> {
+    if (!this.isConfigured()) return;
+    const repo = await this.repositoryForUser(userId);
+    return repo.setActiveTurn(sessionId, startedAt);
+  }
+
   async getSession(userId: string, sessionId: string) {
     if (!this.isConfigured()) {
       return null;

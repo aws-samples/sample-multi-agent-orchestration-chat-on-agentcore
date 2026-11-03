@@ -15,7 +15,11 @@ import type { AgentId, UserId } from '@moca/core';
 import { AgentNotFoundError, type Agent } from '../../../types/index.js';
 import { DynamoDBAgentsRepository } from './repository.js';
 import { makeLocalClient } from '../../../tests/integration/client.js';
-import { createAgentsTable, deleteTable, uniqueTableName } from '../../../tests/integration/tables.js';
+import {
+  createAgentsTable,
+  deleteTable,
+  uniqueTableName,
+} from '../../../tests/integration/tables.js';
 
 const USER_A = 'user-aaaa' as UserId;
 const USER_B = 'user-bbbb' as UserId;
@@ -234,9 +238,9 @@ describe('DynamoDBAgentsRepository', () => {
   });
 
   it('update throws AgentNotFoundError when the agent does not exist', async () => {
-    await expect(
-      repo.update(USER_A, 'missing' as AgentId, { name: 'x' })
-    ).rejects.toBeInstanceOf(AgentNotFoundError);
+    await expect(repo.update(USER_A, 'missing' as AgentId, { name: 'x' })).rejects.toBeInstanceOf(
+      AgentNotFoundError
+    );
   });
 
   it('delete is idempotent and removes the row', async () => {

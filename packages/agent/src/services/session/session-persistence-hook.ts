@@ -188,6 +188,13 @@ export class SessionPersistenceHook implements Plugin {
             );
           }
 
+          // After create/update so the row exists for the existence condition.
+          await sessionsService.setActiveTurn(
+            actorId,
+            sessionId,
+            (getCurrentContext()?.startTime ?? new Date()).toISOString()
+          );
+
           this.isFirstUserMessage = false;
         } else {
           // Subsequent messages - just update timestamp
@@ -319,6 +326,20 @@ export class SessionPersistenceHook implements Plugin {
     }
   }
 
+  private async clearActiveTurn(): Promise<void> {
+    const { actorId, sessionId } = this.sessionConfig;
+    const sessionsService = this.deps.getSessionsService();
+    if (!sessionsService.isConfigured()) return;
+    try {
+      await sessionsService.setActiveTurn(actorId, sessionId, undefined);
+    } catch (error) {
+      // A stale marker only delays the UI by its staleness window.
+      if (!reportPersistenceFailure('sessionMetadata', error)) {
+        log.warn({ err: error, sessionId }, 'Failed to clear active-turn marker:');
+      }
+    }
+  }
+
   /**
    * Event handler after Agent execution completes
    * Save conversation history to storage
@@ -326,6 +347,7 @@ export class SessionPersistenceHook implements Plugin {
    */
   private async onAfterInvocation(event: AfterInvocationEvent): Promise<void> {
     const { actorId, sessionId } = this.sessionConfig;
+    await this.clearActiveTurn();
     try {
       const messages = event.agent.messages;
 

@@ -43,12 +43,46 @@ import { createSessionPersistenceDeps } from '../services/session-persistence-de
 import { logger } from '../libs/logger/index.js';
 import { streamAgentResponse } from './stream-handler.js';
 import { stopOwnSession } from '../services/session-terminator.js';
+import { endTurn, getActiveTurn, tryBeginTurn } from '../libs/health/turn-registry.js';
 
 /**
  * Agent invocation endpoint (with streaming support).
  * Creates an Agent per session and persists history.
  */
 export async function handleInvocation(req: Request, res: Response): Promise<void> {
+  const { sessionId, requestId } = getCurrentContext()!;
+  if (!sessionId) {
+    await runTurn(req, res);
+    return;
+  }
+
+  if (!tryBeginTurn(sessionId, requestId)) {
+    const running = getActiveTurn(sessionId);
+    logger.warn(
+      { requestId, sessionId, runningRequestId: running?.requestId },
+      'Rejected prompt: a turn is already in progress for this session'
+    );
+    // A typed stream event, not an HTTP error: the client treats it as
+    // "still running" rather than as a failed prompt.
+    res.setHeader('Content-Type', 'text/plain; charset=utf-8');
+    res.write(
+      `${JSON.stringify({
+        type: 'serverTurnInProgressEvent',
+        turn: { startedAt: running?.startedAt.toISOString() ?? new Date().toISOString() },
+      })}\n`
+    );
+    res.end();
+    return;
+  }
+
+  try {
+    await runTurn(req, res);
+  } finally {
+    endTurn(sessionId, requestId);
+  }
+}
+
+async function runTurn(req: Request, res: Response): Promise<void> {
   const body = req.body as InvocationRequest;
   const context = getCurrentContext()!;
   const userId = requireUserId(); // UserId — populated by authResolverMiddleware

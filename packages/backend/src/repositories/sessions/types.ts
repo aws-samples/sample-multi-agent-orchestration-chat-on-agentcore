@@ -29,6 +29,8 @@ export interface SessionData {
   agentId?: AgentId;
   storagePath?: string;
   sessionType?: SessionType;
+  /** ISO time the currently running turn started (written by the agent); absent when idle. */
+  activeTurnStartedAt?: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -42,6 +44,8 @@ export interface SessionSummary {
   agentId?: AgentId;
   storagePath?: string;
   sessionType?: SessionType;
+  /** ISO time the currently running turn started (written by the agent); absent when idle. */
+  activeTurnStartedAt?: string;
   createdAt: string;
   updatedAt: string;
 }

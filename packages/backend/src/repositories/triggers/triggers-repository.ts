@@ -15,7 +15,13 @@
  */
 
 import type { UserId, AgentId, TriggerId, ReasoningDepth } from '@moca/core';
-import type { Trigger, TriggerType, TriggerExecution, ScheduleTriggerConfig, EventTriggerConfig } from './types.js';
+import type {
+  Trigger,
+  TriggerType,
+  TriggerExecution,
+  ScheduleTriggerConfig,
+  EventTriggerConfig,
+} from './types.js';
 
 // --- Method input/output types ----------------------------------------------
 // These describe how you OPERATE on triggers (the arguments and return shapes

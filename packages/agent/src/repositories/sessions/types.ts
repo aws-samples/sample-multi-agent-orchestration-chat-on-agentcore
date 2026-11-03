@@ -41,6 +41,8 @@ export interface SessionData {
    * so the identityId "REGION:UUID" cannot be used directly).
    */
   channelUserId?: UserId;
+  /** ISO time the currently running turn started; absent when idle. */
+  activeTurnStartedAt?: string;
   createdAt: string;
   updatedAt: string;
 }

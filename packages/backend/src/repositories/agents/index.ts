@@ -7,8 +7,4 @@
  * private to the composition root.
  */
 
-export type {
-  AgentsRepository,
-  UpdateAgentPatch,
-  SharedAgentsPage,
-} from './agents-repository.js';
+export type { AgentsRepository, UpdateAgentPatch, SharedAgentsPage } from './agents-repository.js';

@@ -65,6 +65,7 @@ router.get(
             sessionType: session.sessionType,
             agentId: session.agentId,
             storagePath: session.storagePath,
+            activeTurnStartedAt: session.activeTurnStartedAt,
             createdAt: session.createdAt,
             updatedAt: session.updatedAt,
           })),

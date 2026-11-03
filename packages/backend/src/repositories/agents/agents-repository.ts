@@ -78,8 +78,5 @@ export interface AgentsRepository {
    * One GSI page of shared agents, newest first, starting after
    * `exclusiveStartKey`. Name filtering / cursor encoding are the service's job.
    */
-  listShared(
-    limit: number,
-    exclusiveStartKey?: Record<string, unknown>
-  ): Promise<SharedAgentsPage>;
+  listShared(limit: number, exclusiveStartKey?: Record<string, unknown>): Promise<SharedAgentsPage>;
 }
