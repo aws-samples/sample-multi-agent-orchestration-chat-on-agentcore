@@ -21,4 +21,5 @@ export interface InvocationRequest {
   mcpConfig?: Record<string, unknown>; // Optional: User-defined MCP server configuration
   images?: ImageData[]; // Optional: Array of images for multimodal input
   targetUserId?: string; // Optional: Target user ID for batch processing (machine user only)
+  warmup?: boolean; // Optional: Pre-warm request; short-circuited before validation (no agent work)
 }

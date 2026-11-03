@@ -224,6 +224,15 @@ export interface EnvironmentConfig {
   bedrockModels?: BedrockModelConfig[];
 
   /**
+   * Speculative AgentCore Runtime warmup (optional)
+   * When true, the frontend sends a lightweight `{ warmup: true }` invoke on the
+   * user's first keystroke so the first message lands on an already-started microVM.
+   * Each warmup provisions a microVM billed until idle-reclaimed.
+   * @default false
+   */
+  runtimeWarmupEnabled?: boolean;
+
+  /**
    * CloudFront geo restriction - allowlist of ISO 3166-1 alpha-2 country codes (optional)
    * When set, only requests from these countries are allowed.
    * Example: ['JP', 'US', 'GB']

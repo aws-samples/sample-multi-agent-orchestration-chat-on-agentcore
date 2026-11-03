@@ -599,8 +599,7 @@ export class AgentCoreStack extends cdk.Stack {
     // its ARN to the Runtime's environment). The broker is the SOLE caller
     // of `secretsmanager:GetSecretValue` on the GitHub PAT; the Runtime
     // execution role is restricted to `lambda:InvokeFunction` on this ARN.
-    const githubTokenSecretName =
-      props?.githubTokenSecretName || envConfig.githubTokenSecretName;
+    const githubTokenSecretName = props?.githubTokenSecretName || envConfig.githubTokenSecretName;
     const githubTokenBroker = githubTokenSecretName
       ? new GitHubTokenBroker(this, 'GitHubTokenBroker', {
           resourcePrefix,
@@ -699,6 +698,7 @@ export class AgentCoreStack extends cdk.Stack {
       webAclArn: props.webAclArn, // WAF WebACL ARN from WafStack (us-east-1)
       identityPoolId: cognitoIdentityPool.identityPoolId, // Identity Pool ID for per-user credentials
       selfSignUpEnabled: false,
+      runtimeWarmupEnabled: envConfig.runtimeWarmupEnabled,
     });
 
     // 10. Additional CloudFormation outputs (authentication related)

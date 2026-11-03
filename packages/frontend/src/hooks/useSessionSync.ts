@@ -13,7 +13,7 @@ import { logger } from '../utils/logger';
 export interface UseSessionSyncReturn {
   currentSessionId: string | null;
   isNewChat: boolean;
-  createAndNavigateToNewSession: () => string;
+  createAndNavigateToNewSession: (sessionId?: string) => string;
 }
 
 /**
@@ -172,12 +172,15 @@ export function useSessionSync(): UseSessionSyncReturn {
   }, [urlSessionId, activeSessionId, sessionEvents, loadSessionHistory]);
 
   // Create new session + navigate
-  const createAndNavigateToNewSession = useCallback(() => {
-    const newSessionId = createNewSession();
-    navigate(`/chat/${newSessionId}`, { replace: true });
-    // Note: finalizeNewSession is called in useEffect when URL sync completes
-    return newSessionId;
-  }, [navigate, createNewSession]);
+  const createAndNavigateToNewSession = useCallback(
+    (sessionId?: string) => {
+      const newSessionId = createNewSession(sessionId);
+      navigate(`/chat/${newSessionId}`, { replace: true });
+      // Note: finalizeNewSession is called in useEffect when URL sync completes
+      return newSessionId;
+    },
+    [navigate, createNewSession]
+  );
 
   return {
     currentSessionId: urlSessionId || null,
