@@ -36,6 +36,7 @@ import {
   errorHandlerMiddleware,
   notFoundMiddleware,
   trackInFlightMiddleware,
+  renewTokensMiddleware,
 } from './libs/middleware/index.js';
 import { handleInvocation, handlePing, handleRoot } from './handlers/index.js';
 
@@ -58,6 +59,8 @@ export function createApp(): Express {
   //
   //   trackInFlight      → mark container busy so /ping reports HealthyBusy
   //   requestContext     → AsyncLocalStorage ctx + JWT parse + session headers
+  //                          (+ records the tokens as freshest for the session)
+  //   renewTokens        → `{ action: 'renewTokens' }` side channel; answers here
   //   validateInvocation → prompt / images → 400 on failure
   //   authResolver       → resolves branded UserId, enriches ctx.userId
   //   identityResolver   → exchanges UserId → IdentityId, caches on ctx
@@ -70,6 +73,7 @@ export function createApp(): Express {
     '/invocations',
     trackInFlightMiddleware,
     requestContextMiddleware,
+    renewTokensMiddleware,
     validateInvocationMiddleware,
     authResolverMiddleware,
     identityResolverMiddleware,

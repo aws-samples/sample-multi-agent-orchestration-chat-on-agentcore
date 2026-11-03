@@ -11,6 +11,7 @@ import type {
   ToolResult,
 } from '../types/index';
 import { agentClient } from './client/agent-client';
+import { startAgentTokenRenewal } from './agent-token-renewal';
 import { logger } from '../utils/logger';
 
 /**
@@ -87,6 +88,9 @@ export const streamAgentResponse = async (
   }
 
   const body = buildRequestBody(prompt, agentConfig);
+
+  // Supply the turn with fresh tokens for as long as we are streaming it.
+  const stopTokenRenewal = sessionId ? startAgentTokenRenewal(sessionId) : undefined;
 
   try {
     const response = await agentClient.invoke({
@@ -165,6 +169,8 @@ export const streamAgentResponse = async (
     } else {
       throw error;
     }
+  } finally {
+    stopTokenRenewal?.();
   }
 };
 
