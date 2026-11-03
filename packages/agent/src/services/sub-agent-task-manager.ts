@@ -7,7 +7,12 @@ import { config } from '../config/index.js';
 import { logger } from '../libs/logger/index.js';
 import { createAgent } from '../agent.js';
 import { getAgentDefinition } from './agent-registry.js';
-import { getCurrentContext, runWithContext } from '../libs/context/request-context.js';
+import {
+  getCallerAuthorizationHeader,
+  getCallerIdToken,
+  getCurrentContext,
+  runWithContext,
+} from '../libs/context/request-context.js';
 import { WorkspaceSync } from './workspace-sync.js';
 import { resolveSkillsPaths } from './workspace-sync-helper.js';
 import { WorkspaceSyncHook } from './session/workspace-sync-hook.js';
@@ -58,6 +63,8 @@ export interface SubAgentTask {
   authHeader?: string;
   /** Captured Cognito ID Token from parent request context (for Identity Pool credential exchange in background) */
   idToken?: string;
+  /** Parent Runtime session whose token renewals the task follows */
+  tokenSessionId?: SessionId;
 }
 
 /**
@@ -111,8 +118,11 @@ class SubAgentTaskManager {
     // Capture auth header and ID token from current request context while still in AsyncLocalStorage scope.
     // Background executeTask() runs outside the original context, so we save them here.
     const parentContext = getCurrentContext();
-    const authHeader = parentContext?.authorizationHeader;
-    const idToken = parentContext?.idToken;
+    const authHeader = getCallerAuthorizationHeader(undefined, parentContext);
+    const idToken = getCallerIdToken(undefined, parentContext);
+    // The task may outlive these tokens; follow renewals on the parent's
+    // Runtime session (the sub-agent runs under its own sessionId).
+    const tokenSessionId = parentContext?.tokenSessionId ?? parentContext?.sessionId;
 
     const task: SubAgentTask = {
       taskId,
@@ -130,6 +140,7 @@ class SubAgentTaskManager {
       storagePath: options.storagePath,
       authHeader,
       idToken,
+      tokenSessionId,
     };
 
     this.tasks.set(taskId, task);
@@ -174,6 +185,7 @@ class SubAgentTaskManager {
       userId: task.userId,
       authorizationHeader: task.authHeader,
       idToken: task.idToken,
+      tokenSessionId: task.tokenSessionId,
       storagePath: task.storagePath ?? '/',
     };
 
@@ -191,7 +203,6 @@ class SubAgentTaskManager {
       // Get agent definition from backend API
       // Use captured authHeader and userId from createTask to avoid AsyncLocalStorage context loss
       const agentDef = await getAgentDefinition(task.agentId, {
-        authHeader: task.authHeader,
         userId: task.userId,
       });
       if (!agentDef) {

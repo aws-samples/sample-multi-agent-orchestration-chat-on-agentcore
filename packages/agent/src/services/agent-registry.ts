@@ -5,7 +5,7 @@
 
 import { config } from '../config/index.js';
 import { logger } from '../libs/logger/index.js';
-import { getCurrentContext } from '../libs/context/request-context.js';
+import { getCallerAuthorizationHeader, getCallerIdToken } from '../libs/context/request-context.js';
 
 /**
  * Agent definition structure
@@ -73,9 +73,8 @@ export interface AgentRegistryOptions {
  * the caller's ID Token when invoking Backend APIs from within tools.
  */
 function buildHeaders(options?: AgentRegistryOptions): Record<string, string> {
-  const context = getCurrentContext();
-  const authHeader = options?.authHeader || context?.authorizationHeader;
-  const idToken = options?.idToken || context?.idToken;
+  const authHeader = getCallerAuthorizationHeader(options?.authHeader || undefined);
+  const idToken = getCallerIdToken(options?.idToken || undefined);
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
   };

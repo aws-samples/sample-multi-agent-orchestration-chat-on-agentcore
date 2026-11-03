@@ -6,7 +6,11 @@
 import { tool } from '@strands-agents/sdk';
 import { config } from '../../config/index.js';
 import { logger } from '../../libs/logger/index.js';
-import { getCurrentContext } from '../../libs/context/request-context.js';
+import {
+  getCallerAuthorizationHeader,
+  getCallerIdToken,
+  getCurrentContext,
+} from '../../libs/context/request-context.js';
 import { manageAgentDefinition } from '@moca/tool-definitions';
 
 /**
@@ -25,8 +29,9 @@ function buildRequestHeaders(authHeader: string): Record<string, string> {
     'Content-Type': 'application/json',
   };
   const context = getCurrentContext();
-  if (context?.idToken) {
-    headers['X-Amzn-Bedrock-AgentCore-Runtime-Custom-Id-Token'] = context.idToken;
+  const idToken = getCallerIdToken();
+  if (idToken) {
+    headers['X-Amzn-Bedrock-AgentCore-Runtime-Custom-Id-Token'] = idToken;
   }
   if (context?.userId) {
     headers['X-Target-User-Id'] = context.userId;
@@ -346,7 +351,7 @@ export const manageAgentTool = tool({
     );
 
     // Get auth header from request context
-    const authHeader = getCurrentContext()?.authorizationHeader;
+    const authHeader = getCallerAuthorizationHeader();
     if (!authHeader) {
       return JSON.stringify({
         success: false,

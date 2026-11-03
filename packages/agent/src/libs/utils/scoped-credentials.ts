@@ -45,8 +45,12 @@ import { type IdentityId, parseIdentityId } from '@moca/core';
 
 import { config } from '../../config/index.js';
 import { logger } from '../logger/index.js';
-import { getCurrentContext, type RequestContext } from '../context/request-context.js';
-import { decodeJwtExpiryMs, getFreshestIdToken } from '../auth/session-token-store.js';
+import {
+  getCallerIdToken,
+  getCurrentContext,
+  type RequestContext,
+} from '../context/request-context.js';
+import { decodeJwtExpiryMs } from '../auth/session-token-store.js';
 
 /**
  * No unexpired ID token is known for the session, so user-scoped credentials
@@ -116,7 +120,7 @@ async function assumeUserScopedRole(
 
   // The freshest token known for the session: a long turn's request-start
   // token expires after 1 h, but the frontend renews it via the side channel.
-  const idToken = getFreshestIdToken(context?.sessionId, context?.idToken);
+  const idToken = getCallerIdToken(undefined, context);
 
   if (!idToken) {
     throw new Error(

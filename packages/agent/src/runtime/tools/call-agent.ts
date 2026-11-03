@@ -7,7 +7,11 @@ import { tool, ToolContext } from '@strands-agents/sdk';
 import { subAgentTaskManager } from '../../services/sub-agent-task-manager.js';
 import { listAgents } from '../../services/agent-registry.js';
 import { logger } from '../../libs/logger/index.js';
-import { getCurrentContext } from '../../libs/context/request-context.js';
+import {
+  getCallerAuthorizationHeader,
+  getCallerIdToken,
+  getCurrentContext,
+} from '../../libs/context/request-context.js';
 import { callAgentDefinition } from '@moca/tool-definitions';
 
 /**
@@ -27,11 +31,11 @@ async function handleListAgents(): Promise<Record<string, unknown>> {
     // requires the X-Amzn-Bedrock-AgentCore-Runtime-Custom-Id-Token header
     // to resolve the Identity Pool identityId on every request.
     const currentContext = getCurrentContext();
-    const authHeader = currentContext?.authorizationHeader;
+    const authHeader = getCallerAuthorizationHeader();
     const agents = await listAgents({
       authHeader,
       userId: currentContext?.userId,
-      idToken: currentContext?.idToken,
+      idToken: getCallerIdToken(),
     });
 
     return {
