@@ -6,6 +6,7 @@ import type {
   ServerCompletionEvent,
   ServerErrorEvent,
   ServerWarningEvent,
+  ServerTurnInProgressEvent,
   ServerWarning,
   MessageAddedEvent,
   BeforeToolsEvent,
@@ -30,6 +31,7 @@ interface StreamingCallbacks {
   onComplete?: (metadata: Record<string, unknown>) => void;
   onError?: (error: Error) => void;
   onWarning?: (warning: ServerWarning) => void;
+  onTurnInProgress?: (turn: { startedAt: string }) => void;
 }
 
 /**
@@ -315,6 +317,11 @@ const handleStreamEvent = (event: AgentStreamEvent, callbacks: StreamingCallback
       if (callbacks.onError) {
         callbacks.onError(new Error(errorEvent.error.message));
       }
+      break;
+    }
+
+    case 'serverTurnInProgressEvent': {
+      callbacks.onTurnInProgress?.((event as ServerTurnInProgressEvent).turn);
       break;
     }
 

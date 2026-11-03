@@ -225,6 +225,12 @@ export interface ServerWarningEvent extends AgentStreamEvent {
   warning: ServerWarning;
 }
 
+/** The session already has a turn running; this prompt was not processed. */
+export interface ServerTurnInProgressEvent extends AgentStreamEvent {
+  type: 'serverTurnInProgressEvent';
+  turn: { startedAt: string };
+}
+
 // Config types
 export interface AgentConfig {
   endpoint: string;

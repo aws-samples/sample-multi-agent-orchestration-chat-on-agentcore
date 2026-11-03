@@ -34,3 +34,20 @@ describe('streamAgentResponse warning events', () => {
     );
   });
 });
+
+describe('streamAgentResponse turn-in-progress', () => {
+  it('forwards serverTurnInProgressEvent to onTurnInProgress instead of onError', async () => {
+    vi.mocked(agentClient.invoke).mockResolvedValue(
+      ndjsonResponse([
+        { type: 'serverTurnInProgressEvent', turn: { startedAt: '2026-11-01T00:00:00.000Z' } },
+      ])
+    );
+    const onTurnInProgress = vi.fn();
+    const onError = vi.fn();
+
+    await streamAgentResponse('continue', 'S'.repeat(33), { onTurnInProgress, onError });
+
+    expect(onTurnInProgress).toHaveBeenCalledWith({ startedAt: '2026-11-01T00:00:00.000Z' });
+    expect(onError).not.toHaveBeenCalled();
+  });
+});

@@ -28,6 +28,8 @@ export interface SessionSummary {
   /** Agent associated with this session, branded to match other layers. */
   agentId?: AgentId;
   storagePath?: string;
+  /** ISO start of the turn running server-side; absent when idle. */
+  activeTurnStartedAt?: string;
 }
 
 /**

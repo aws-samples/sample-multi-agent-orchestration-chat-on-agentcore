@@ -125,6 +125,11 @@ interface ChatActions {
   sendPrompt: (prompt: string, sessionId: string, images?: ImageAttachment[]) => Promise<void>;
   clearSession: (sessionId: string) => void;
   setLoading: (sessionId: string, loading: boolean) => void;
+  /**
+   * Reflect a turn running server-side that this tab is not streaming (e.g.
+   * after a reload). Never ends the loading state of a turn this tab streams.
+   */
+  setRemoteTurnRunning: (sessionId: string, running: boolean) => void;
   setError: (sessionId: string, error: string | null) => void;
   clearError: (sessionId: string) => void;
   loadSessionHistory: (sessionId: string, conversationMessages: ConversationMessage[]) => void;
@@ -283,7 +288,7 @@ export const useChatStore = create<ChatStore>()(
           }
 
           // Add user message
-          addMessage(sessionId, {
+          const userMessageId = addMessage(sessionId, {
             type: 'user',
             contents: userContents,
           });
@@ -512,6 +517,31 @@ export const useChatStore = create<ChatStore>()(
                   useSessionStore.getState().refreshSessions();
                 }
               },
+              onTurnInProgress: (turn) => {
+                // The runtime refused this prompt: a turn started elsewhere
+                // (or before a reload) is still running. Drop the optimistic
+                // messages and show that turn as running; it renders through
+                // AppSync and AGENT_COMPLETE ends the loading state.
+                const { sessions } = get();
+                const currentState = sessions[sessionId];
+                if (!currentState) return;
+                set({
+                  sessions: {
+                    ...sessions,
+                    [sessionId]: {
+                      ...currentState,
+                      messages: currentState.messages.filter(
+                        (msg) => msg.id !== userMessageId && msg.id !== assistantMessageId
+                      ),
+                      isLoading: true,
+                    },
+                  },
+                });
+                useSessionStore
+                  .getState()
+                  .updateSessionActiveTurn(sessionId, turn.startedAt, new Date().toISOString());
+                toast(i18n.t('chat.turnInProgress'), { id: `turn-in-progress-${sessionId}` });
+              },
               onWarning: (warning) => {
                 if (warning.code === 'persistenceDegraded') {
                   // One toast per session even if the runtime reports again.
@@ -586,6 +616,15 @@ export const useChatStore = create<ChatStore>()(
 
         set({ sessions: newSessions });
         logger.log(`Session cleared: ${sessionId}`);
+      },
+
+      setRemoteTurnRunning: (sessionId: string, running: boolean) => {
+        const { sessions } = get();
+        const sessionState = getOrCreateSessionState(sessions, sessionId);
+        const streamingHere = sessionState.messages.some((msg) => msg.isStreaming);
+        if (!running && streamingHere) return;
+        if (sessionState.isLoading === running && sessions[sessionId]) return;
+        set({ sessions: { ...sessions, [sessionId]: { ...sessionState, isLoading: running } } });
       },
 
       setLoading: (sessionId: string, loading: boolean) => {

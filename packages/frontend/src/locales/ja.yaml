@@ -183,6 +183,7 @@ shortcuts:
 
 # チャット
 chat:
+  turnInProgress: 'このセッションでは前の指示をまだ実行中です。完了するまでお待ちください。'
   persistenceDegraded: 'サインインの有効期限が切れたため、この会話と作業ファイルを保存できなくなりました。エージェントの実行中はこのタブを開いたままにするか、再読み込みしてやり直してください。'
   sessionName: セッション名
   sessionNameLabel: セッション名
