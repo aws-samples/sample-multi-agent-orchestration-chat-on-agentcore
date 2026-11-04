@@ -214,8 +214,10 @@ export interface ServerErrorEvent extends AgentStreamEvent {
 }
 
 export interface ServerWarning {
-  code: 'persistenceDegraded' | (string & {});
+  code: 'persistenceDegraded' | 'modelStopped' | (string & {});
   target?: string;
+  /** For `modelStopped`: the model's stop reason (e.g. contentFiltered). */
+  stopReason?: string;
   message: string;
 }
 

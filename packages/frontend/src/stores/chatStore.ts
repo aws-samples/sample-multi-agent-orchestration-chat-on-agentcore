@@ -543,6 +543,25 @@ export const useChatStore = create<ChatStore>()(
                 toast(i18n.t('chat.turnInProgress'), { id: `turn-in-progress-${sessionId}` });
               },
               onWarning: (warning) => {
+                if (warning.code === 'modelStopped') {
+                  // The turn ends without an answer or an error; say why.
+                  const current = get().sessions[sessionId]?.messages.find(
+                    (msg) => msg.id === assistantMessageId
+                  );
+                  updateMessage(sessionId, assistantMessageId, {
+                    contents: [
+                      ...(current?.contents ?? []),
+                      {
+                        type: 'text',
+                        text: i18n.t('chat.modelStopped', {
+                          stopReason: warning.stopReason ?? 'unknown',
+                        }),
+                      },
+                    ],
+                    isError: true,
+                  });
+                  return;
+                }
                 if (warning.code === 'persistenceDegraded') {
                   // One toast per session even if the runtime reports again.
                   toast.error(i18n.t('chat.persistenceDegraded'), {
@@ -574,11 +593,15 @@ export const useChatStore = create<ChatStore>()(
                   isError: true,
                 });
 
-                const currentState = sessions[sessionId] || createDefaultSessionState();
+                // Re-read: `sessions` above predates updateMessage, and spreading
+                // it would revert the message to isStreaming=true — the tab then
+                // never reattaches to a turn that keeps running server-side.
+                const latest = get().sessions;
+                const currentState = latest[sessionId] || createDefaultSessionState();
 
                 set({
                   sessions: {
-                    ...sessions,
+                    ...latest,
                     [sessionId]: {
                       ...currentState,
                       isLoading: false,
@@ -586,6 +609,10 @@ export const useChatStore = create<ChatStore>()(
                     },
                   },
                 });
+
+                // A dropped stream does not stop the server-side turn; pick up
+                // its running marker without waiting for an AppSync event.
+                void useSessionStore.getState().refreshSessions();
               },
             },
             agentConfig

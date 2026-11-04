@@ -41,6 +41,8 @@ export function useInFlightTurn(sessionId: string | null): void {
     useChatStore.getState().setRemoteTurnRunning(sessionId, running);
     // The streaming tab renews tokens itself (streamAgentResponse).
     if (!running) return;
-    return startAgentTokenRenewal(sessionId);
+    // Immediately: after a reload or a dropped stream nothing may have renewed
+    // the turn's tokens for a while.
+    return startAgentTokenRenewal(sessionId, { immediate: true });
   }, [sessionId, running, streamingHere]);
 }

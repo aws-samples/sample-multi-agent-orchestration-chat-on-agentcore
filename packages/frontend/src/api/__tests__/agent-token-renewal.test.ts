@@ -13,6 +13,7 @@ import {
   renewAgentTokens,
   startAgentTokenRenewal,
   TOKEN_RENEWAL_INTERVAL_MS,
+  MIN_RENEWAL_GAP_MS,
 } from '../agent-token-renewal';
 
 vi.mock('../client/agent-client', () => ({ agentClient: { invoke: vi.fn() } }));
@@ -75,5 +76,65 @@ describe('startAgentTokenRenewal', () => {
     await vi.advanceTimersByTimeAsync(TOKEN_RENEWAL_INTERVAL_MS * 2);
     expect(agentClient.invoke).toHaveBeenCalledTimes(2);
     stop();
+  });
+});
+
+describe('startAgentTokenRenewal wake-up triggers', () => {
+  // iOS PWAs stop JS timers in the background, and a reload drops the
+  // streaming fetch with its timer, so the interval alone can miss the whole
+  // token lifetime.
+  let visible = true;
+  let doc: EventTarget;
+  let win: EventTarget;
+  const wake = () => ({ document: doc, window: win, isVisible: () => visible });
+
+  beforeEach(() => {
+    visible = true;
+    doc = new EventTarget();
+    win = new EventTarget();
+  });
+
+  it('renews right away when asked to (reattach after reload / dropped stream)', async () => {
+    const stop = startAgentTokenRenewal(SESSION, { immediate: true, wake: wake() });
+    await vi.advanceTimersByTimeAsync(0);
+    expect(agentClient.invoke).toHaveBeenCalledTimes(1);
+    stop();
+  });
+
+  it.each([
+    ['visibilitychange', 'document'],
+    ['pageshow', 'window'],
+    ['online', 'window'],
+  ] as const)('renews when the page wakes up (%s)', async (eventName, on) => {
+    const stop = startAgentTokenRenewal(SESSION, { wake: wake() });
+    await vi.advanceTimersByTimeAsync(MIN_RENEWAL_GAP_MS + 1);
+    (on === 'document' ? doc : win).dispatchEvent(new Event(eventName));
+    await vi.advanceTimersByTimeAsync(0);
+    expect(agentClient.invoke).toHaveBeenCalledTimes(1);
+    stop();
+  });
+
+  it('ignores becoming hidden and throttles bursts of wake-ups', async () => {
+    const stop = startAgentTokenRenewal(SESSION, { immediate: true, wake: wake() });
+    await vi.advanceTimersByTimeAsync(0);
+
+    visible = false;
+    doc.dispatchEvent(new Event('visibilitychange'));
+    visible = true;
+    win.dispatchEvent(new Event('pageshow'));
+    win.dispatchEvent(new Event('online'));
+    await vi.advanceTimersByTimeAsync(0);
+
+    expect(agentClient.invoke).toHaveBeenCalledTimes(1);
+    stop();
+  });
+
+  it('stops listening once stopped', async () => {
+    const stop = startAgentTokenRenewal(SESSION, { wake: wake() });
+    stop();
+    await vi.advanceTimersByTimeAsync(MIN_RENEWAL_GAP_MS + 1);
+    win.dispatchEvent(new Event('online'));
+    await vi.advanceTimersByTimeAsync(0);
+    expect(agentClient.invoke).not.toHaveBeenCalled();
   });
 });
