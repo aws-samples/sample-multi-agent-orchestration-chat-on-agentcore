@@ -40,6 +40,21 @@ export interface StreamOptions {
 }
 
 /**
+ * A tool call can run for minutes without a single stream event. Some hop
+ * between the browser and the Runtime drops such an idle response (observed
+ * as `network error` during a 5-min `sleep`), while the turn keeps running
+ * server-side. A periodic no-op event keeps bytes flowing.
+ */
+export const HEARTBEAT_INTERVAL_MS = 30_000;
+
+/**
+ * Stop reasons that end the turn without an answer and without an error. The
+ * SDK finishes the loop silently, so the user would otherwise only see a
+ * truncated reasoning block.
+ */
+const USER_VISIBLE_STOP_REASONS = new Set(['contentFiltered', 'guardrailIntervened', 'refusal']);
+
+/**
  * Set streaming response headers on the Express response.
  */
 function setStreamingHeaders(res: Response): void {
@@ -161,11 +176,14 @@ export async function streamAgentResponse(
   const requestId = context?.requestId;
   setStreamingHeaders(res);
 
-  if (context) {
-    context.emitClientEvent = (event) => {
-      if (!res.writableEnded && !res.destroyed) res.write(`${JSON.stringify(event)}\n`);
-    };
-  }
+  const writeEvent = (event: Record<string, unknown>): void => {
+    if (!res.writableEnded && !res.destroyed) res.write(`${JSON.stringify(event)}\n`);
+  };
+  if (context) context.emitClientEvent = writeEvent;
+  const heartbeat = setInterval(
+    () => writeEvent({ type: 'serverHeartbeatEvent' }),
+    HEARTBEAT_INTERVAL_MS
+  );
 
   try {
     logger.info({ requestId }, 'Agent streaming started:');
@@ -190,6 +208,21 @@ export async function streamAgentResponse(
     // `POST → invoke_agent → execute_event_loop_cycle → chat` hierarchy
     // is preserved.
     for await (const event of agent.stream(agentInput)) {
+      const stopReason =
+        (event as { type?: string; result?: { stopReason?: string } }).type === 'agentResultEvent'
+          ? (event as { result?: { stopReason?: string } }).result?.stopReason
+          : undefined;
+      if (stopReason && USER_VISIBLE_STOP_REASONS.has(stopReason)) {
+        logger.warn({ requestId, stopReason }, 'Turn ended by the model without an answer');
+        writeEvent({
+          type: 'serverWarningEvent',
+          warning: {
+            code: 'modelStopped',
+            stopReason,
+            message: 'The model stopped this response (e.g. a safety filter).',
+          },
+        });
+      }
       const safeEvents = serializeStreamEvent(event);
       for (const safeEvent of safeEvents) {
         res.write(`${JSON.stringify(safeEvent)}\n`);
@@ -221,6 +254,7 @@ export async function streamAgentResponse(
   } catch (streamError) {
     await handleStreamError(streamError, res, options);
   } finally {
+    clearInterval(heartbeat);
     if (context) context.emitClientEvent = undefined;
   }
 }

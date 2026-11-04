@@ -164,3 +164,36 @@ describe('canObtainUserScopedCredentials', () => {
     expect(canObtainUserScopedCredentials('user-sub', ctx)).toBe(false);
   });
 });
+
+describe('early re-mint before the ID token expires (no renewal arrives)', () => {
+  it('re-mints while the token is still valid, so credentials outlive the token by ~1 h', async () => {
+    // Token issued 7 min before the turn: it expires before the first credentials do.
+    const ctx = newRequest(fakeJwt(T0 + 53 * MIN));
+    const client = await runWithContext(ctx, () => createUserScopedS3Client('user-sub'));
+    const first = await resolve(client);
+
+    // The SDK must be told to refresh while the token can still mint.
+    expect(first.expiration!.getTime()).toBeLessThanOrEqual(T0 + 53 * MIN);
+
+    jest.setSystemTime(T0 + 49 * MIN); // 4 min of token validity left
+    const second = await resolve(client);
+    expect(second.accessKeyId).toBe('AKIA2');
+    expect(second.expiration!.getTime()).toBe(T0 + 109 * MIN);
+
+    // Long after the token expired, the early-minted credentials still work.
+    jest.setSystemTime(T0 + 100 * MIN);
+    expect((await resolve(client)).accessKeyId).toBe('AKIA2');
+    expect(credentialCalls()).toHaveLength(2);
+  });
+
+  it('does not re-mint repeatedly with the same token once credentials outlive it', async () => {
+    const ctx = newRequest(fakeJwt(T0 + 120 * MIN));
+    const client = await runWithContext(ctx, () => createUserScopedS3Client('user-sub'));
+    const first = await resolve(client);
+
+    expect(first.expiration!.getTime()).toBe(T0 + 60 * MIN);
+    jest.setSystemTime(T0 + 30 * MIN);
+    await resolve(client);
+    expect(credentialCalls()).toHaveLength(1);
+  });
+});

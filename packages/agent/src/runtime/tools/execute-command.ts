@@ -193,45 +193,67 @@ ${stderr ? `Standard Error:\n${stderr}` : ''}`.trim();
       logger.info(`Command execution succeeded: ${command} (${duration}ms)`);
       return output;
     } catch (error: unknown) {
-      // Error handling
-      const execError = error as ExecError;
-      const effectiveWorkingDirectory = workingDirectory || activeDir;
-
-      let errorOutput = `Execution Error:
-Command: ${command}
-Working Directory: ${effectiveWorkingDirectory}
-`;
-
-      if (execError.code !== undefined) {
-        errorOutput += `Exit Code: ${execError.code}\n`;
-      }
-
-      if (execError.signal) {
-        errorOutput += `Signal: ${execError.signal}\n`;
-      }
-
-      if (execError.stdout) {
-        errorOutput += `\nStandard Output:\n${truncateOutput(execError.stdout, maxOutputLength)}`;
-      }
-
-      if (execError.stderr) {
-        errorOutput += `\nStandard Error:\n${truncateOutput(execError.stderr, maxOutputLength)}`;
-      }
-
-      // Special handling for timeout errors
-      const isTimeout =
-        execError.signal === 'SIGTERM' ||
-        execError.message?.includes('timeout') ||
-        execError.message?.includes('ETIMEDOUT');
-      if (isTimeout) {
-        errorOutput += `\n⏰ Timeout: Execution interrupted after ${timeout}ms`;
-      }
-
-      logger.error(
-        { command, errMessage: execError.message || 'Unknown error' },
-        'Command execution error'
-      );
-      return errorOutput;
+      return formatExecutionError(error, {
+        command,
+        workingDirectory: workingDirectory || activeDir,
+        timeout,
+        maxOutputLength,
+      });
     }
   },
 });
+
+/**
+ * Format a failure for the model. Exported for tests.
+ */
+export function formatExecutionError(
+  error: unknown,
+  opts: { command: string; workingDirectory: string; timeout?: number; maxOutputLength?: number }
+): string {
+  const execError = error as ExecError;
+  const { command, workingDirectory, timeout, maxOutputLength } = opts;
+
+  let errorOutput = `Execution Error:
+Command: ${command}
+Working Directory: ${workingDirectory}
+`;
+
+  if (execError.code !== undefined) {
+    errorOutput += `Exit Code: ${execError.code}\n`;
+  }
+
+  if (execError.signal) {
+    errorOutput += `Signal: ${execError.signal}\n`;
+  }
+
+  if (execError.stdout) {
+    errorOutput += `\nStandard Output:\n${truncateOutput(execError.stdout, maxOutputLength)}`;
+  }
+
+  if (execError.stderr) {
+    errorOutput += `\nStandard Error:\n${truncateOutput(execError.stderr, maxOutputLength)}`;
+  }
+
+  // Failed before (or without) a child process — e.g. scoped credentials could
+  // not be obtained. Without this the model sees an error with no cause.
+  const isProcessFailure =
+    execError.code !== undefined || !!execError.signal || !!execError.stdout || !!execError.stderr;
+  if (!isProcessFailure) {
+    errorOutput += `Reason: ${execError.name || 'Error'}: ${execError.message || String(error)}\n`;
+  }
+
+  // Special handling for timeout errors
+  const isTimeout =
+    execError.signal === 'SIGTERM' ||
+    execError.message?.includes('timeout') ||
+    execError.message?.includes('ETIMEDOUT');
+  if (isTimeout) {
+    errorOutput += `\n⏰ Timeout: Execution interrupted after ${timeout}ms`;
+  }
+
+  logger.error(
+    { command, errMessage: execError.message || 'Unknown error' },
+    'Command execution error'
+  );
+  return errorOutput;
+}

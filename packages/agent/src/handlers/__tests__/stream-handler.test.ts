@@ -44,7 +44,7 @@ jest.unstable_mockModule('../../libs/context/request-context.js', () => ({
 
 // ── Dynamic imports (after mock registration) ──────────────────────
 
-const { streamAgentResponse } = await import('../stream-handler.js');
+const { streamAgentResponse, HEARTBEAT_INTERVAL_MS } = await import('../stream-handler.js');
 import type { StreamOptions } from '../stream-handler.js';
 import type { IdentityId, SessionId } from '@moca/core';
 
@@ -368,6 +368,68 @@ describe('streamAgentResponse', () => {
       );
       // Detached after the stream so late emitters cannot write to a closed response.
       expect(ctx.emitClientEvent).toBeUndefined();
+    });
+  });
+
+  describe('heartbeat during silent stretches', () => {
+    it('writes a heartbeat while no events flow (long tool call) and stops after the stream', async () => {
+      jest.useFakeTimers({ doNotFake: ['nextTick', 'setImmediate', 'queueMicrotask'] });
+      try {
+        let release: () => void = () => {};
+        const agent = {
+          messages: [],
+          stream: jest.fn().mockReturnValue(
+            (async function* () {
+              await new Promise<void>((resolve) => (release = resolve));
+              yield { type: 'text', data: 'done' };
+            })()
+          ),
+        } as any;
+
+        const running = streamAgentResponse(agent, 'Hello', undefined, res, defaultOptions);
+        await jest.advanceTimersByTimeAsync(HEARTBEAT_INTERVAL_MS * 2 + 10);
+        const heartbeats = () =>
+          res.write.mock.calls.filter((c: unknown[]) =>
+            String(c[0]).includes('serverHeartbeatEvent')
+          ).length;
+        expect(heartbeats()).toBe(2);
+
+        release();
+        await running;
+        await jest.advanceTimersByTimeAsync(HEARTBEAT_INTERVAL_MS * 2);
+        expect(heartbeats()).toBe(2);
+      } finally {
+        jest.useRealTimers();
+      }
+    });
+  });
+
+  describe('model stop reasons the user must see', () => {
+    it.each(['contentFiltered', 'guardrailIntervened', 'refusal'])(
+      'emits a modelStopped warning when the turn ends with %s',
+      async (stopReason) => {
+        const agent = createMockAgent([{ type: 'agentResultEvent', result: { stopReason } }]);
+
+        await streamAgentResponse(agent, 'Hello', undefined, res, defaultOptions);
+
+        const warning = res.write.mock.calls
+          .map((c: unknown[]) => JSON.parse(String(c[0])))
+          .find((e: { type: string }) => e.type === 'serverWarningEvent');
+        expect(warning).toEqual({
+          type: 'serverWarningEvent',
+          warning: expect.objectContaining({ code: 'modelStopped', stopReason }),
+        });
+      }
+    );
+
+    it('stays silent for a normal end of turn', async () => {
+      const agent = createMockAgent([
+        { type: 'agentResultEvent', result: { stopReason: 'endTurn' } },
+      ]);
+      await streamAgentResponse(agent, 'Hello', undefined, res, defaultOptions);
+      expect(
+        res.write.mock.calls.some((c: unknown[]) => String(c[0]).includes('serverWarningEvent'))
+      ).toBe(false);
     });
   });
 });

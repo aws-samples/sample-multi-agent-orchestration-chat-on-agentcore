@@ -87,6 +87,30 @@ const credentialCache = new Map<string, CachedEntry>();
  */
 const EXPIRY_MARGIN_MS = 10 * 60 * 1000;
 
+/**
+ * When the ID token has this little validity left, mint once more with it even
+ * if cached credentials are still valid: Identity Pool credentials live 1 h
+ * from minting, so a turn whose client never renews the token (closed tab,
+ * backgrounded iOS PWA) keeps persisting for ~1 h past the token's expiry
+ * instead of stopping when the first credentials run out.
+ */
+const EARLY_REMINT_WINDOW_MS = 10 * 60 * 1000;
+
+/** Credentials outliving the token by at least this much need no early re-mint. */
+const EARLY_REMINT_TARGET_MS = 50 * 60 * 1000;
+
+function canStillExtendWithToken(
+  credentialsExpireAt: number,
+  idTokenExpiresAt: number | undefined,
+  now: number
+): idTokenExpiresAt is number {
+  return (
+    idTokenExpiresAt !== undefined &&
+    idTokenExpiresAt > now &&
+    credentialsExpireAt - idTokenExpiresAt < EARLY_REMINT_TARGET_MS
+  );
+}
+
 /** Intended for unit tests only. */
 export function resetUserScopedCredentialCache(): void {
   credentialCache.clear();
@@ -131,7 +155,13 @@ async function assumeUserScopedRole(
 
   // Check cache — reuse if still valid
   const cached = credentialCache.get(userId);
-  if (cached && cached.expiresAt - Date.now() > EXPIRY_MARGIN_MS) {
+  const now = Date.now();
+  const idTokenExpiresAt = decodeJwtExpiryMs(idToken);
+  const remintEarly =
+    !!cached &&
+    canStillExtendWithToken(cached.expiresAt, idTokenExpiresAt, now) &&
+    idTokenExpiresAt - now <= EARLY_REMINT_WINDOW_MS;
+  if (cached && cached.expiresAt - now > EXPIRY_MARGIN_MS && !remintEarly) {
     logger.debug(`Using cached Identity Pool credentials for user=${userId}`);
     // Ensure identityId is populated in context
     if (context && !context.identityId) {
@@ -140,7 +170,7 @@ async function assumeUserScopedRole(
     return cached;
   }
 
-  if ((decodeJwtExpiryMs(idToken) ?? Infinity) <= Date.now()) {
+  if ((idTokenExpiresAt ?? Infinity) <= now) {
     throw new UserCredentialsExpiredError();
   }
 
@@ -278,11 +308,17 @@ function userScopedCredentialProvider(
 ): UserScopedIdentityProvider {
   return async (): Promise<UserScopedIdentity> => {
     const { credentials, expiresAt } = await assumeUserScopedRole(userId, context);
+    // Ask the SDK to come back while the token can still mint (see
+    // EARLY_REMINT_WINDOW_MS); otherwise it would wait for the credentials.
+    const idTokenExpiresAt = decodeJwtExpiryMs(getCallerIdToken(undefined, context));
+    const refreshBy = canStillExtendWithToken(expiresAt, idTokenExpiresAt, Date.now())
+      ? Math.min(expiresAt, idTokenExpiresAt)
+      : expiresAt;
     return {
       accessKeyId: credentials.AccessKeyId!,
       secretAccessKey: credentials.SecretKey!,
       sessionToken: credentials.SessionToken,
-      expiration: new Date(expiresAt),
+      expiration: new Date(refreshBy),
     };
   };
 }
