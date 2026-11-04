@@ -24,10 +24,18 @@ silently stopped saving history and workspace files.
    `{ action: 'renewTokens' }` on the same Runtime session. AgentCore routes it
    to the same microVM; it is answered before `validateInvocation` and never
    starts a turn.
-4. Event-driven turns have no client, so the Trigger Lambda requests an 8 h
+   The frontend also renews immediately when the page wakes up
+   (`visibilitychange`, `pageshow`, `online`) and when it reattaches: iOS PWAs
+   stop timers in the background, so the interval alone can miss the token's
+   whole lifetime.
+4. While the ID token still has <10 min left, credentials are re-minted once
+   more with it and the SDK is told to refresh by then. Identity Pool
+   credentials live 1 h from minting, so a turn that never receives a renewal
+   keeps persisting ~1 h past the token instead of stopping with it.
+5. Event-driven turns have no client, so the Trigger Lambda requests an 8 h
    developer-auth token instead (see
    `event-driven-identity-pool-credentials.md`, Attack 4).
-5. One turn per session per process (`turn-registry`). A second prompt gets a
+6. One turn per session per process (`turn-registry`). A second prompt gets a
    `serverTurnInProgressEvent`; the session row carries `activeTurnStartedAt`
    so a reloaded UI shows the running turn.
 
@@ -51,7 +59,9 @@ silently stopped saving history and workspace files.
   `requestContextMiddleware` (JWKS + token-confusion check), so a session can
   never pick up another user's token.
 - If the tab that streams the turn is closed and no other tab reattaches,
-  nothing renews the tokens. The turn keeps running and, once credentials
-  cannot be re-minted, reports `persistenceDegraded` once (log + client event).
+  nothing renews the tokens. The turn keeps persisting until ~1 h after the
+  token expired (decision 4), then reports `persistenceDegraded` once
+  (log + client event). Messages that fail to save after that are lost;
+  buffering them for a later flush was deferred.
 - Trigger turns still forward a 1 h machine-user access token to the Backend
   and Gateway; their calls after 1 h are not covered by this decision.
