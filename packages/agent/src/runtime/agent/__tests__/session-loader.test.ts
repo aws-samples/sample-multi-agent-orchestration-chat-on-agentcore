@@ -23,8 +23,13 @@ jest.unstable_mockModule('../../../config/index.js', () => ({
   config: {},
 }));
 
-const { loadSessionHistory, applyWindowTruncation, repairToolPairing } =
-  await import('../session-loader.js');
+const {
+  loadSessionHistory,
+  applyWindowTruncation,
+  repairToolPairing,
+  repairRoleAlternation,
+  INTERRUPTED_TURN_PLACEHOLDER,
+} = await import('../session-loader.js');
 
 /** Create a minimal mock message object for testing (avoids importing ESM SDK) */
 function createMockMessage(role: string, text: string) {
@@ -411,6 +416,13 @@ function expectToolPairingInvariant(messages: unknown[]): void {
   });
 }
 
+/** Converse accepts it, and the SDK's appended user prompt keeps it alternating. */
+function expectRoleAlternation(messages: unknown[]): void {
+  const roles = (messages as AnyMessage[]).map((m) => m.role);
+  roles.forEach((role, i) => expect(role).toBe(i % 2 === 0 ? 'user' : 'assistant'));
+  expect(roles.at(-1)).toBe('assistant');
+}
+
 function longHistoryEndingWithToolChain(pairs: number, completeLastPair: boolean): unknown[] {
   const history: unknown[] = [];
   for (let i = 0; i < 30; i++) {
@@ -516,5 +528,52 @@ describe('tool pairing invariant', () => {
     );
 
     expectToolPairingInvariant(result);
+    expectRoleAlternation(result);
+  });
+});
+
+describe('role alternation', () => {
+  function storageWith(history: unknown[]): SessionStorage {
+    return {
+      loadMessages: jest.fn<() => Promise<unknown[]>>().mockResolvedValue(history),
+    } as unknown as SessionStorage;
+  }
+  const config = { sessionId: 's' as SessionId, actorId: 'a' as IdentityId };
+
+  it('keeps a trailing toolResult and closes it with an assistant placeholder', async () => {
+    const result = (await loadSessionHistory(
+      storageWith(longHistoryEndingWithToolChain(5, true)),
+      config,
+      40
+    )) as unknown as AnyMessage[];
+
+    expectToolPairingInvariant(result);
+    expectRoleAlternation(result);
+    expect(toolResultIds(result.at(-2))).toEqual(['t4']);
+    expect(result.at(-1)!.content[0].text).toBe(INTERRUPTED_TURN_PLACEHOLDER);
+  });
+
+  it('separates two user prompts left by a turn that failed before replying', async () => {
+    const result = (await loadSessionHistory(
+      storageWith([
+        createMockMessage('user', 'q1'),
+        createMockMessage('user', 'q2'),
+        createMockMessage('assistant', 'a2'),
+      ]),
+      config
+    )) as unknown as AnyMessage[];
+
+    expectRoleAlternation(result);
+    expect(result.map((m) => m.content[0].text)).toEqual([
+      'q1',
+      INTERRUPTED_TURN_PLACEHOLDER,
+      'q2',
+      'a2',
+    ]);
+  });
+
+  it('returns the same array when the history already alternates', () => {
+    const messages = [createMockMessage('user', 'q'), createMockMessage('assistant', 'a')];
+    expect(repairRoleAlternation(messages as never)).toBe(messages);
   });
 });

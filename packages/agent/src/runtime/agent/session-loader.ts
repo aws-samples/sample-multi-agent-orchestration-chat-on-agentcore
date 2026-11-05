@@ -13,6 +13,9 @@ import type { SessionStorage, SessionConfig } from '../../services/session/types
  */
 export const TOOL_PAIRING_PLACEHOLDER = '[tool call interrupted]';
 
+/** Stands in for the reply an interrupted turn never produced. */
+export const INTERRUPTED_TURN_PLACEHOLDER = '[response interrupted]';
+
 function idsOf(
   message: Message | undefined,
   type: 'toolUseBlock' | 'toolResultBlock'
@@ -58,6 +61,50 @@ export function repairToolPairing(messages: Message[]): Message[] {
 
   if (!changed) return messages;
   logger.warn(`Session history: repaired unpaired tool blocks in ${messages.length} messages`);
+  return repaired;
+}
+
+/**
+ * Enforce the Converse role invariant on restored history: starts with `user`,
+ * strictly alternates, and ends with `assistant` (the SDK appends the next
+ * prompt as a new user message without merging).
+ *
+ * Interrupted turns break it in storage: a turn cut off after its toolResult
+ * (or right after the prompt) persists a trailing user message, and a turn
+ * that failed before replying leaves two user prompts in a row. A placeholder
+ * is inserted rather than dropping the message, because the user's prompt and
+ * the tool output are context the model should keep.
+ *
+ * Must run after {@link repairToolPairing}: a placeholder only ever sits
+ * between two messages of the same role, so it never separates a toolUse from
+ * its toolResult.
+ *
+ * @returns The original array when nothing needed repair.
+ */
+export function repairRoleAlternation(messages: Message[]): Message[] {
+  if (messages.length === 0) return messages;
+
+  const placeholder = (role: 'user' | 'assistant') =>
+    new Message({
+      role,
+      content: [
+        new TextBlock(role === 'user' ? TOOL_PAIRING_PLACEHOLDER : INTERRUPTED_TURN_PLACEHOLDER),
+      ],
+    });
+
+  const repaired: Message[] = [];
+  for (const message of messages) {
+    const expected =
+      repaired.length === 0 || repaired.at(-1)!.role === 'assistant' ? 'user' : 'assistant';
+    if (message.role !== expected) repaired.push(placeholder(expected));
+    repaired.push(message);
+  }
+  if (repaired.at(-1)!.role === 'user') repaired.push(placeholder('assistant'));
+
+  if (repaired.length === messages.length) return messages;
+  logger.warn(
+    `Session history: inserted ${repaired.length - messages.length} placeholder(s) to restore role alternation`
+  );
   return repaired;
 }
 
@@ -159,7 +206,7 @@ export async function loadSessionHistory(
   const windowed =
     windowSize !== undefined ? applyWindowTruncation(messages, windowSize) : messages;
   // Last step on every path (within window, truncated, fallback): a turn that
-  // was cut off between toolUse and toolResult persists an orphan, and the
-  // next prompt would otherwise be rejected by Bedrock.
-  return repairToolPairing(windowed);
+  // was cut off mid-way persists an orphan toolUse or a trailing user message,
+  // and the next prompt would otherwise be rejected by Bedrock.
+  return repairRoleAlternation(repairToolPairing(windowed));
 }
