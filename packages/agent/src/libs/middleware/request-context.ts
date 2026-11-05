@@ -232,11 +232,15 @@ export function requestContextMiddleware(req: Request, res: Response, next: Next
 
       // Tokens are verified at this point, so they may replace the copies a
       // still-running turn on this session captured at its own start.
+      requestContext.tokenOwner = accessPayload.sub;
       if (requestContext.sessionId) {
-        recordSessionTokens(requestContext.sessionId, {
-          idToken: idTokenRaw,
-          authorizationHeader: authHeader,
-        });
+        recordSessionTokens(
+          { owner: accessPayload.sub, sessionId: requestContext.sessionId },
+          {
+            idToken: idTokenRaw,
+            authorizationHeader: authHeader,
+          }
+        );
       }
 
       logger.info(

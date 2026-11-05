@@ -23,6 +23,7 @@ const { createRequestContext, runWithContext } =
   await import('../../libs/context/request-context.js');
 
 const SESSION = 'S'.repeat(33);
+const OWNER = 'owner-sub';
 const nowSec = () => Math.floor(Date.now() / 1000);
 
 function jwt(exp: number, tag: string): string {
@@ -53,7 +54,11 @@ describe('agent-registry uses renewed tokens', () => {
     const ctx = createRequestContext(oldAccess);
     ctx.idToken = oldId;
     ctx.sessionId = SESSION as never;
-    recordSessionTokens(SESSION, { authorizationHeader: newAccess, idToken: newId });
+    ctx.tokenOwner = OWNER;
+    recordSessionTokens(
+      { owner: OWNER, sessionId: SESSION },
+      { authorizationHeader: newAccess, idToken: newId }
+    );
 
     // Callers pass the request-start tokens explicitly today.
     await runWithContext(ctx, () => listAgents({ authHeader: oldAccess, idToken: oldId }));
@@ -66,10 +71,33 @@ describe('agent-registry uses renewed tokens', () => {
     const ctx = createRequestContext(oldAccess);
     ctx.idToken = oldId;
     ctx.tokenSessionId = SESSION as never; // sub-agent: own sessionId differs
-    recordSessionTokens(SESSION, { authorizationHeader: newAccess, idToken: newId });
+    ctx.tokenOwner = OWNER;
+    recordSessionTokens(
+      { owner: OWNER, sessionId: SESSION },
+      { authorizationHeader: newAccess, idToken: newId }
+    );
 
     await runWithContext(ctx, () => listAgents());
 
     expect(sentHeaders()['Authorization']).toBe(newAccess);
+  });
+
+  it('ignores tokens another caller recorded on the same session id', async () => {
+    const ctx = createRequestContext(oldAccess);
+    ctx.idToken = oldId;
+    ctx.sessionId = SESSION as never;
+    ctx.tokenOwner = OWNER;
+    recordSessionTokens(
+      { owner: 'other-user', sessionId: SESSION },
+      {
+        authorizationHeader: newAccess,
+        idToken: newId,
+      }
+    );
+
+    await runWithContext(ctx, () => listAgents());
+
+    expect(sentHeaders()['Authorization']).toBe(oldAccess);
+    expect(sentHeaders()['X-Amzn-Bedrock-AgentCore-Runtime-Custom-Id-Token']).toBe(oldId);
   });
 });

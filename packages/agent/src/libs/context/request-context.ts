@@ -8,7 +8,11 @@ import { v7 as uuidv7 } from 'uuid';
 import type { IdentityId, SessionId, UserId } from '@moca/core';
 import type { IWorkspaceSync, SessionType } from '../../types/index.js';
 import type { VerifiedAccessTokenPayload, VerifiedIdTokenPayload } from '../auth/jwt-verifier.js';
-import { getFreshestAuthorizationHeader, getFreshestIdToken } from '../auth/session-token-store.js';
+import {
+  getFreshestAuthorizationHeader,
+  getFreshestIdToken,
+  type TokenScope,
+} from '../auth/session-token-store.js';
 
 /**
  * Type definition for request context
@@ -67,6 +71,12 @@ export interface RequestContext {
    * tokens are renewed through the parent's Runtime session.
    */
   tokenSessionId?: SessionId;
+  /**
+   * Verified access-token `sub` of the caller whose tokens this context may
+   * renew. Carried separately from `accessTokenPayload` because contexts
+   * restored outside the request (sub-agent tasks) do not keep the payload.
+   */
+  tokenOwner?: string;
   /**
    * Writes an out-of-band event to the client stream of this turn. Set by the
    * stream handler for the lifetime of the stream; a no-op once the client
@@ -202,8 +212,8 @@ export function getContextMetadata(): ContextMetadata {
   };
 }
 
-function tokenSessionKey(ctx: RequestContext | undefined): string | undefined {
-  return ctx?.tokenSessionId ?? ctx?.sessionId;
+function tokenScope(ctx: RequestContext | undefined): TokenScope {
+  return { owner: ctx?.tokenOwner, sessionId: ctx?.tokenSessionId ?? ctx?.sessionId };
 }
 
 /**
@@ -215,7 +225,7 @@ export function getCallerAuthorizationHeader(
   explicit?: string,
   ctx: RequestContext | undefined = getCurrentContext()
 ): string | undefined {
-  return getFreshestAuthorizationHeader(tokenSessionKey(ctx), explicit ?? ctx?.authorizationHeader);
+  return getFreshestAuthorizationHeader(tokenScope(ctx), explicit ?? ctx?.authorizationHeader);
 }
 
 /** ID token counterpart of {@link getCallerAuthorizationHeader}. */
@@ -223,5 +233,5 @@ export function getCallerIdToken(
   explicit?: string,
   ctx: RequestContext | undefined = getCurrentContext()
 ): string | undefined {
-  return getFreshestIdToken(tokenSessionKey(ctx), explicit ?? ctx?.idToken);
+  return getFreshestIdToken(tokenScope(ctx), explicit ?? ctx?.idToken);
 }

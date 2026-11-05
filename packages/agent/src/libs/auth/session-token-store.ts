@@ -8,10 +8,11 @@
  * long-lived consumers (credential refresh, Backend API calls) read the
  * freshest one instead of the request-start copy.
  *
- * Only tokens that already passed `requestContextMiddleware` (JWKS + token
- * confusion checks) are recorded, so a session can never pick up another
- * user's token. Process-global scope is correct because AgentCore pins one
- * session to one microVM.
+ * Entries are keyed by the verified access-token `sub` as well as the session
+ * id. The session id is client-chosen and visible in the frontend URL, so
+ * keying by it alone would let any authenticated caller plant their tokens
+ * into another user's running turn. Process-global scope is correct because
+ * AgentCore pins one session to one microVM.
  */
 
 interface StoredToken {
@@ -24,7 +25,19 @@ interface SessionTokens {
   authorizationHeader?: StoredToken;
 }
 
+/** Whose tokens, on which Runtime session. Both are required to hit the store. */
+export interface TokenScope {
+  /** Verified access-token `sub` of the caller. */
+  owner?: string;
+  sessionId?: string;
+}
+
 const store = new Map<string, SessionTokens>();
+
+function storeKey({ owner, sessionId }: TokenScope): string | undefined {
+  // JSON keeps the key injective without assuming a separator never occurs.
+  return owner && sessionId ? JSON.stringify([owner, sessionId]) : undefined;
+}
 
 /** Decode the `exp` claim (ms). Signature is NOT checked — see module doc. */
 export function decodeJwtExpiryMs(token: string | undefined): number | undefined {
@@ -58,12 +71,14 @@ function pruneExpired(now: number): void {
 }
 
 export function recordSessionTokens(
-  sessionId: string,
+  scope: TokenScope,
   tokens: { idToken?: string; authorizationHeader?: string }
 ): void {
+  const key = storeKey(scope);
+  if (!key) return;
   pruneExpired(Date.now());
-  const current = store.get(sessionId) ?? {};
-  store.set(sessionId, {
+  const current = store.get(key) ?? {};
+  store.set(key, {
     idToken: fresher(current.idToken, tokens.idToken),
     authorizationHeader: fresher(current.authorizationHeader, tokens.authorizationHeader),
   });
@@ -71,18 +86,20 @@ export function recordSessionTokens(
 
 /** The freshest of the stored token and `candidate` (usually the request-start token). */
 export function getFreshestIdToken(
-  sessionId: string | undefined,
+  scope: TokenScope,
   candidate: string | undefined
 ): string | undefined {
-  const stored = sessionId ? store.get(sessionId)?.idToken : undefined;
+  const key = storeKey(scope);
+  const stored = key ? store.get(key)?.idToken : undefined;
   return fresher(stored, candidate)?.token;
 }
 
 export function getFreshestAuthorizationHeader(
-  sessionId: string | undefined,
+  scope: TokenScope,
   candidate: string | undefined
 ): string | undefined {
-  const stored = sessionId ? store.get(sessionId)?.authorizationHeader : undefined;
+  const key = storeKey(scope);
+  const stored = key ? store.get(key)?.authorizationHeader : undefined;
   return fresher(stored, candidate)?.token;
 }
 

@@ -294,7 +294,10 @@ describe('requestContextMiddleware', () => {
       requestContextMiddleware(req, createResponse(), resolve as unknown as NextFunction);
     });
 
-    expect(getFreshestIdToken(sessionId, undefined)).toBe('renewed-id');
-    expect(getFreshestAuthorizationHeader(sessionId, undefined)).toBe('Bearer renewed-at');
+    const scope = { owner: USER_SUB, sessionId };
+    expect(getFreshestIdToken(scope, undefined)).toBe('renewed-id');
+    expect(getFreshestAuthorizationHeader(scope, undefined)).toBe('Bearer renewed-at');
+    // A caller naming someone else's session id must not reach that user's turn.
+    expect(getFreshestIdToken({ owner: 'victim-sub', sessionId }, undefined)).toBeUndefined();
   });
 });

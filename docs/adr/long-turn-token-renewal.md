@@ -17,7 +17,8 @@ silently stopped saving history and workspace files.
 1. User-scoped SDK clients get a credential **provider**, not static keys, so
    the SDK re-mints before expiry.
 2. Every verified request records its tokens as the **freshest for its Runtime
-   session** (`session-token-store`). Credential re-minting and all outbound
+   session and caller** (`session-token-store`, keyed by access-token `sub` ×
+   session id). Credential re-minting and all outbound
    calls read the freshest token (`getCallerIdToken` /
    `getCallerAuthorizationHeader`), never the request-start copy.
 3. While a turn runs, the frontend re-sends refreshed tokens every 10 min with
@@ -56,8 +57,13 @@ silently stopped saving history and workspace files.
 ## Consequences
 
 - The `renewTokens` side channel trusts only tokens that passed
-  `requestContextMiddleware` (JWKS + token-confusion check), so a session can
-  never pick up another user's token.
+  `requestContextMiddleware` (JWKS + token-confusion check). Verification alone
+  does not stop a cross-user plant: the session id is client-chosen and visible
+  in the `/chat/{sessionId}` URL, so any signed-in user could name another
+  user's session. Keying the store by the verified `sub` as well means a turn
+  only ever reads tokens of its own caller. Rejected: binding the session to
+  the first `sub` seen — it adds an ordering dependency (warmup, trigger
+  sessions continued from the UI) for no extra isolation.
 - If the tab that streams the turn is closed and no other tab reattaches,
   nothing renews the tokens. The turn keeps persisting until ~1 h after the
   token expired (decision 4), then reports `persistenceDegraded` once

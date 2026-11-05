@@ -65,6 +65,7 @@ export interface SubAgentTask {
   idToken?: string;
   /** Parent Runtime session whose token renewals the task follows */
   tokenSessionId?: SessionId;
+  tokenOwner?: string;
 }
 
 /**
@@ -123,6 +124,7 @@ class SubAgentTaskManager {
     // The task may outlive these tokens; follow renewals on the parent's
     // Runtime session (the sub-agent runs under its own sessionId).
     const tokenSessionId = parentContext?.tokenSessionId ?? parentContext?.sessionId;
+    const tokenOwner = parentContext?.tokenOwner;
 
     const task: SubAgentTask = {
       taskId,
@@ -141,6 +143,7 @@ class SubAgentTaskManager {
       authHeader,
       idToken,
       tokenSessionId,
+      tokenOwner,
     };
 
     this.tasks.set(taskId, task);
@@ -186,6 +189,7 @@ class SubAgentTaskManager {
       authorizationHeader: task.authHeader,
       idToken: task.idToken,
       tokenSessionId: task.tokenSessionId,
+      tokenOwner: task.tokenOwner,
       storagePath: task.storagePath ?? '/',
     };
 

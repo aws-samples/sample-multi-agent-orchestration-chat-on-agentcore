@@ -67,6 +67,7 @@ function newRequest(idToken: string, sessionId = 'session-0000000000000000000000
   const ctx = createRequestContext('Bearer access');
   ctx.idToken = idToken;
   ctx.sessionId = sessionId as never;
+  ctx.tokenOwner = 'user-sub';
   return ctx;
 }
 
@@ -131,7 +132,7 @@ describe('user-scoped clients refresh credentials during a long turn', () => {
 
     jest.setSystemTime(T0 + 50 * MIN);
     const renewed = fakeJwt(T0 + 110 * MIN);
-    recordSessionTokens(ctx.sessionId!, { idToken: renewed });
+    recordSessionTokens({ owner: ctx.tokenOwner, sessionId: ctx.sessionId }, { idToken: renewed });
 
     jest.setSystemTime(T0 + 61 * MIN);
     await resolve(client);
