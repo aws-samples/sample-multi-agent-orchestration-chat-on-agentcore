@@ -25,15 +25,13 @@ const SUMMARY_FIELDS: readonly (keyof SessionSummary)[] = [
   'agentId',
   'storagePath',
   'sessionType',
+  'activeTurnStartedAt',
   'createdAt',
   'updatedAt',
 ];
 
 /** The single source of truth for a session's primary key. */
-export function sessionKey(
-  userId: IdentityId,
-  sessionId: string
-): Record<string, AttributeValue> {
+export function sessionKey(userId: IdentityId, sessionId: string): Record<string, AttributeValue> {
   return marshall({ userId, sessionId });
 }
 

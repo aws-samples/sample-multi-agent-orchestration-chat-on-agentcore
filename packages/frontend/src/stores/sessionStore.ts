@@ -64,7 +64,7 @@ interface SessionActions {
   setEventsError: (error: string | null) => void;
   clearErrors: () => void;
   refreshSessions: () => Promise<void>;
-  createNewSession: () => string;
+  createNewSession: (sessionId?: string) => string;
   finalizeNewSession: () => void;
   addOptimisticSession: (
     sessionId: string,
@@ -75,6 +75,11 @@ interface SessionActions {
   updateSessionTitle: (sessionId: string, title: string) => void;
   updateSessionType: (sessionId: string, sessionType: SessionType) => void;
   updateSessionAgentId: (sessionId: string, agentId: string) => void;
+  updateSessionActiveTurn: (
+    sessionId: string,
+    activeTurnStartedAt: string | undefined,
+    updatedAt?: string
+  ) => void;
 }
 
 /**
@@ -423,8 +428,8 @@ export const useSessionStore = create<SessionStore>()(
         await loadSessions();
       },
 
-      createNewSession: () => {
-        const newSessionId = generateSessionId();
+      createNewSession: (sessionId?: string) => {
+        const newSessionId = sessionId ?? generateSessionId();
         set({
           activeSessionId: newSessionId,
           sessionEvents: [],
@@ -517,6 +522,20 @@ export const useSessionStore = create<SessionStore>()(
 
         set({ sessions: updatedSessions });
         logger.log(`Updated session type: ${sessionId} - "${sessionType}"`);
+      },
+
+      updateSessionActiveTurn: (
+        sessionId: string,
+        activeTurnStartedAt: string | undefined,
+        updatedAt?: string
+      ) => {
+        set({
+          sessions: get().sessions.map((session) =>
+            session.sessionId === sessionId
+              ? { ...session, activeTurnStartedAt, updatedAt: updatedAt ?? session.updatedAt }
+              : session
+          ),
+        });
       },
 
       updateSessionAgentId: (sessionId: string, agentId: string) => {

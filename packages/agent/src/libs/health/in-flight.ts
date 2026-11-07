@@ -25,6 +25,8 @@
  * per-request context plumbing required.
  */
 
+import { hasActiveTurns } from './turn-registry.js';
+
 /** Number of invocations currently being processed by this container. */
 let inFlight = 0;
 
@@ -51,9 +53,13 @@ export function getInFlightCount(): number {
   return inFlight;
 }
 
-/** True while at least one invocation is being processed. */
+/**
+ * True while at least one invocation is being processed, or a turn is still
+ * running after its client disconnected (the counter is released on response
+ * close, but the agent loop keeps going server-side).
+ */
 export function isBusy(): boolean {
-  return inFlight > 0;
+  return inFlight > 0 || hasActiveTurns();
 }
 
 /** Reset the counter to zero. Intended for unit tests only. */

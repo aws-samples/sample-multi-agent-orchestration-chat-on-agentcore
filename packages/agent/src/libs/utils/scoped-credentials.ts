@@ -45,7 +45,24 @@ import { type IdentityId, parseIdentityId } from '@moca/core';
 
 import { config } from '../../config/index.js';
 import { logger } from '../logger/index.js';
-import { getCurrentContext } from '../context/request-context.js';
+import {
+  getCallerIdToken,
+  getCurrentContext,
+  type RequestContext,
+} from '../context/request-context.js';
+import { decodeJwtExpiryMs } from '../auth/session-token-store.js';
+
+/**
+ * No unexpired ID token is known for the session, so user-scoped credentials
+ * cannot be (re-)minted. Typed so persistence callers can surface it once per
+ * turn instead of logging one warning per message / file.
+ */
+export class UserCredentialsExpiredError extends Error {
+  constructor(message = 'User-scoped credentials expired and no unexpired ID token is available') {
+    super(message);
+    this.name = 'UserCredentialsExpiredError';
+  }
+}
 
 /**
  * Cached credentials entry with expiration tracking
@@ -63,8 +80,41 @@ interface CachedEntry {
  */
 const credentialCache = new Map<string, CachedEntry>();
 
-/** Safety margin before credential expiry (5 minutes) */
-const EXPIRY_MARGIN_MS = 5 * 60 * 1000;
+/**
+ * Safety margin before credential expiry. Must exceed the SDK's own 5-minute
+ * refresh window: with an equal margin the provider could hand the SDK
+ * credentials it already considers expired.
+ */
+const EXPIRY_MARGIN_MS = 10 * 60 * 1000;
+
+/**
+ * When the ID token has this little validity left, mint once more with it even
+ * if cached credentials are still valid: Identity Pool credentials live 1 h
+ * from minting, so a turn whose client never renews the token (closed tab,
+ * backgrounded iOS PWA) keeps persisting for ~1 h past the token's expiry
+ * instead of stopping when the first credentials run out.
+ */
+const EARLY_REMINT_WINDOW_MS = 10 * 60 * 1000;
+
+/** Credentials outliving the token by at least this much need no early re-mint. */
+const EARLY_REMINT_TARGET_MS = 50 * 60 * 1000;
+
+function canStillExtendWithToken(
+  credentialsExpireAt: number,
+  idTokenExpiresAt: number | undefined,
+  now: number
+): idTokenExpiresAt is number {
+  return (
+    idTokenExpiresAt !== undefined &&
+    idTokenExpiresAt > now &&
+    credentialsExpireAt - idTokenExpiresAt < EARLY_REMINT_TARGET_MS
+  );
+}
+
+/** Intended for unit tests only. */
+export function resetUserScopedCredentialCache(): void {
+  credentialCache.clear();
+}
 
 /**
  * Obtain per-user temporary credentials by exchanging the Cognito ID Token
@@ -79,8 +129,9 @@ const EXPIRY_MARGIN_MS = 5 * 60 * 1000;
  * @returns Temporary AWS credentials and the resolved identityId.
  */
 async function assumeUserScopedRole(
-  userId: string
-): Promise<{ credentials: CognitoCredentials; identityId: IdentityId }> {
+  userId: string,
+  context: RequestContext | undefined = getCurrentContext()
+): Promise<{ credentials: CognitoCredentials; identityId: IdentityId; expiresAt: number }> {
   const identityPoolId = config.IDENTITY_POOL_ID;
   const userPoolId = config.COGNITO_USER_POOL_ID;
   const region = config.AWS_REGION;
@@ -91,9 +142,9 @@ async function assumeUserScopedRole(
     );
   }
 
-  // Retrieve the ID Token from the current request context
-  const context = getCurrentContext();
-  const idToken = context?.idToken;
+  // The freshest token known for the session: a long turn's request-start
+  // token expires after 1 h, but the frontend renews it via the side channel.
+  const idToken = getCallerIdToken(undefined, context);
 
   if (!idToken) {
     throw new Error(
@@ -104,13 +155,23 @@ async function assumeUserScopedRole(
 
   // Check cache — reuse if still valid
   const cached = credentialCache.get(userId);
-  if (cached && cached.expiresAt - Date.now() > EXPIRY_MARGIN_MS) {
+  const now = Date.now();
+  const idTokenExpiresAt = decodeJwtExpiryMs(idToken);
+  const remintEarly =
+    !!cached &&
+    canStillExtendWithToken(cached.expiresAt, idTokenExpiresAt, now) &&
+    idTokenExpiresAt - now <= EARLY_REMINT_WINDOW_MS;
+  if (cached && cached.expiresAt - now > EXPIRY_MARGIN_MS && !remintEarly) {
     logger.debug(`Using cached Identity Pool credentials for user=${userId}`);
     // Ensure identityId is populated in context
     if (context && !context.identityId) {
       context.identityId = cached.identityId;
     }
-    return { credentials: cached.credentials, identityId: cached.identityId };
+    return cached;
+  }
+
+  if ((idTokenExpiresAt ?? Infinity) <= now) {
+    throw new UserCredentialsExpiredError();
   }
 
   logger.debug(`Obtaining Identity Pool credentials for user=${userId}`);
@@ -223,7 +284,50 @@ async function assumeUserScopedRole(
   // developer providers in `Logins`, which Cognito rejects with
   // `InvalidParameterException`.
 
-  return { credentials, identityId };
+  return entry;
+}
+
+/** Structurally the SDK's AwsCredentialIdentity (avoids a direct @smithy/types dependency). */
+interface UserScopedIdentity {
+  accessKeyId: string;
+  secretAccessKey: string;
+  sessionToken?: string;
+  expiration: Date;
+}
+type UserScopedIdentityProvider = () => Promise<UserScopedIdentity>;
+
+/**
+ * A provider (not static keys) so the SDK re-invokes it when fewer than
+ * 5 minutes of validity remain. The request context is captured at client
+ * creation because the SDK may resolve credentials outside the original
+ * AsyncLocalStorage scope.
+ */
+function userScopedCredentialProvider(
+  userId: string,
+  context: RequestContext | undefined
+): UserScopedIdentityProvider {
+  return async (): Promise<UserScopedIdentity> => {
+    const { credentials, expiresAt } = await assumeUserScopedRole(userId, context);
+    // Ask the SDK to come back while the token can still mint (see
+    // EARLY_REMINT_WINDOW_MS); otherwise it would wait for the credentials.
+    const idTokenExpiresAt = decodeJwtExpiryMs(getCallerIdToken(undefined, context));
+    const refreshBy = canStillExtendWithToken(expiresAt, idTokenExpiresAt, Date.now())
+      ? Math.min(expiresAt, idTokenExpiresAt)
+      : expiresAt;
+    return {
+      accessKeyId: credentials.AccessKeyId!,
+      secretAccessKey: credentials.SecretKey!,
+      sessionToken: credentials.SessionToken,
+      expiration: new Date(refreshBy),
+    };
+  };
+}
+
+/** Resolve once eagerly so identityId lands in the context, then hand out a refreshing provider. */
+async function resolveProvider(userId: string): Promise<UserScopedIdentityProvider> {
+  const context = getCurrentContext();
+  await assumeUserScopedRole(userId, context);
+  return userScopedCredentialProvider(userId, context);
 }
 
 /**
@@ -233,15 +337,9 @@ async function assumeUserScopedRole(
  * @returns S3Client that can only access `users/{identityId}/` in the storage bucket.
  */
 export async function createUserScopedS3Client(userId: string): Promise<S3Client> {
-  const { credentials } = await assumeUserScopedRole(userId);
-
   return new S3Client({
     region: config.AWS_REGION,
-    credentials: {
-      accessKeyId: credentials.AccessKeyId!,
-      secretAccessKey: credentials.SecretKey!,
-      sessionToken: credentials.SessionToken,
-    },
+    credentials: await resolveProvider(userId),
   });
 }
 
@@ -252,15 +350,9 @@ export async function createUserScopedS3Client(userId: string): Promise<S3Client
  * @returns DynamoDBClient scoped to the user's DynamoDB partition key (identityId).
  */
 export async function createUserScopedDynamoDBClient(userId: string): Promise<DynamoDBClient> {
-  const { credentials } = await assumeUserScopedRole(userId);
-
   return new DynamoDBClient({
     region: config.AWS_REGION,
-    credentials: {
-      accessKeyId: credentials.AccessKeyId!,
-      secretAccessKey: credentials.SecretKey!,
-      sessionToken: credentials.SessionToken,
-    },
+    credentials: await resolveProvider(userId),
   });
 }
 
@@ -277,15 +369,9 @@ export async function createUserScopedDynamoDBClient(userId: string): Promise<Dy
 export async function createUserScopedBedrockAgentCoreClient(
   userId: string
 ): Promise<BedrockAgentCoreClient> {
-  const { credentials } = await assumeUserScopedRole(userId);
-
   return new BedrockAgentCoreClient({
     region: config.AWS_REGION,
-    credentials: {
-      accessKeyId: credentials.AccessKeyId!,
-      secretAccessKey: credentials.SecretKey!,
-      sessionToken: credentials.SessionToken,
-    },
+    credentials: await resolveProvider(userId),
   });
 }
 
@@ -294,6 +380,21 @@ export async function createUserScopedBedrockAgentCoreClient(
 // (via an AwsCustomResource that calls `GetMemory`) and supplied to the
 // runtime via the `AGENTCORE_SEMANTIC_STRATEGY_ID` env var. The runtime does
 // not need to call any control-plane API.
+
+/**
+ * Whether user-scoped credentials are usable now or can still be re-minted
+ * (an unexpired ID token is known for the session). Lets bulk persistence
+ * (workspace sync) skip work that would fail once per item.
+ */
+export function canObtainUserScopedCredentials(
+  userId: string,
+  context: RequestContext | undefined = getCurrentContext()
+): boolean {
+  const cached = credentialCache.get(userId);
+  if (cached && cached.expiresAt - Date.now() > EXPIRY_MARGIN_MS) return true;
+  const idToken = getCallerIdToken(undefined, context);
+  return !!idToken && (decodeJwtExpiryMs(idToken) ?? Infinity) > Date.now();
+}
 
 /**
  * Get environment variables for a child process that restrict S3 and DynamoDB access

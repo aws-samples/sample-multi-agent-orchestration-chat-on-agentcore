@@ -12,6 +12,7 @@ import { SessionConfig, SessionStorage } from './types.js';
 import type { SessionPersistenceDeps } from '../../types/session-persistence-deps.js';
 import { createLogger } from '../../libs/logger/index.js';
 import { getCurrentContext } from '../../libs/context/request-context.js';
+import { reportPersistenceFailure } from './persistence-health.js';
 import { contentBlockToWire } from '../../libs/codec/content-block-codec.js';
 
 const log = createLogger('SessionPersistenceHook');
@@ -118,14 +119,15 @@ export class SessionPersistenceHook implements Plugin {
       );
     } catch (error) {
       // Non-blocking: AfterInvocationEvent fallback will attempt to save all unsaved messages
-      log.warn(
-        {
-          sessionId,
-          role: message.role,
-          error,
-        },
-        'Real-time message save failed (non-blocking):'
-      );
+      if (!reportPersistenceFailure('conversation', error))
+        log.warn(
+          {
+            sessionId,
+            role: message.role,
+            error,
+          },
+          'Real-time message save failed (non-blocking):'
+        );
     }
 
     // DynamoDB session metadata management
@@ -186,6 +188,13 @@ export class SessionPersistenceHook implements Plugin {
             );
           }
 
+          // After create/update so the row exists for the existence condition.
+          await sessionsService.setActiveTurn(
+            actorId,
+            sessionId,
+            (getCurrentContext()?.startTime ?? new Date()).toISOString()
+          );
+
           this.isFirstUserMessage = false;
         } else {
           // Subsequent messages - just update timestamp
@@ -199,14 +208,16 @@ export class SessionPersistenceHook implements Plugin {
           );
         }
       } catch (error) {
-        log.warn(
-          {
-            userId: actorId,
-            sessionId,
-            error,
-          },
-          'DynamoDB operation failed:'
-        );
+        if (!reportPersistenceFailure('sessionMetadata', error)) {
+          log.warn(
+            {
+              userId: actorId,
+              sessionId,
+              error,
+            },
+            'DynamoDB operation failed:'
+          );
+        }
       }
       // Publish after DynamoDB session creation/update completes
       this.publishMessage(actorId, sessionId, message);
@@ -315,6 +326,20 @@ export class SessionPersistenceHook implements Plugin {
     }
   }
 
+  private async clearActiveTurn(): Promise<void> {
+    const { actorId, sessionId } = this.sessionConfig;
+    const sessionsService = this.deps.getSessionsService();
+    if (!sessionsService.isConfigured()) return;
+    try {
+      await sessionsService.setActiveTurn(actorId, sessionId, undefined);
+    } catch (error) {
+      // A stale marker only delays the UI by its staleness window.
+      if (!reportPersistenceFailure('sessionMetadata', error)) {
+        log.warn({ err: error, sessionId }, 'Failed to clear active-turn marker:');
+      }
+    }
+  }
+
   /**
    * Event handler after Agent execution completes
    * Save conversation history to storage
@@ -322,6 +347,7 @@ export class SessionPersistenceHook implements Plugin {
    */
   private async onAfterInvocation(event: AfterInvocationEvent): Promise<void> {
     const { actorId, sessionId } = this.sessionConfig;
+    await this.clearActiveTurn();
     try {
       const messages = event.agent.messages;
 
@@ -338,7 +364,9 @@ export class SessionPersistenceHook implements Plugin {
       );
     } catch (error) {
       // Log at warning level to not stop Agent execution even if error occurs
-      log.warn({ err: error }, `Session history auto-save failed: ${actorId}/${sessionId}`);
+      if (!reportPersistenceFailure('conversation', error)) {
+        log.warn({ err: error }, `Session history auto-save failed: ${actorId}/${sessionId}`);
+      }
     } finally {
       // Notify frontend that the agent has finished processing.
       // Use context.userId (User Pool sub, UUID) for the AppSync channel — not actorId

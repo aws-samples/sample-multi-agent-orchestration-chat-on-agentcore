@@ -120,6 +120,16 @@ export class SessionsService {
     return repo.updateSessionTimestamp(sessionId);
   }
 
+  async setActiveTurn(
+    userId: string,
+    sessionId: string,
+    startedAt: string | undefined
+  ): Promise<void> {
+    if (!this.isConfigured()) return;
+    const repo = await this.repositoryForUser(userId);
+    return repo.setActiveTurn(sessionId, startedAt);
+  }
+
   async getSession(userId: string, sessionId: string) {
     if (!this.isConfigured()) {
       return null;
@@ -153,7 +163,11 @@ export class SessionsService {
     }
     const repo = await this.repositoryForUser(userId);
     // Brand at the composition boundary (see createSession above).
-    return repo.updateSessionAgentAndStorage(sessionId, agentId as AgentId | undefined, storagePath);
+    return repo.updateSessionAgentAndStorage(
+      sessionId,
+      agentId as AgentId | undefined,
+      storagePath
+    );
   }
 
   async updateSessionTitle(userId: string, sessionId: string, title: string): Promise<void> {

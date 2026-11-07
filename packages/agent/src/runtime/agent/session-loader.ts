@@ -4,9 +4,109 @@
  * Loads saved messages from session storage for conversation continuity.
  */
 
-import type { Message } from '@strands-agents/sdk';
+import { Message, TextBlock, type ContentBlock } from '@strands-agents/sdk';
 import { logger } from '../../libs/logger/index.js';
 import type { SessionStorage, SessionConfig } from '../../services/session/types.js';
+
+/**
+ * Not whitespace-only: some providers reject blank text blocks.
+ */
+export const TOOL_PAIRING_PLACEHOLDER = '[tool call interrupted]';
+
+/** Stands in for the reply an interrupted turn never produced. */
+export const INTERRUPTED_TURN_PLACEHOLDER = '[response interrupted]';
+
+function idsOf(
+  message: Message | undefined,
+  type: 'toolUseBlock' | 'toolResultBlock'
+): Set<string> {
+  const ids = new Set<string>();
+  for (const block of message?.content ?? []) {
+    if (block.type === type) ids.add((block as { toolUseId: string }).toolUseId);
+  }
+  return ids;
+}
+
+/**
+ * Enforce the Bedrock tool-pairing invariant: every toolUse is answered by a
+ * toolResult (same toolUseId) in the immediately following message, and every
+ * toolResult answers a toolUse in the immediately preceding message.
+ *
+ * Unpaired blocks are removed. A message left empty is replaced with a text
+ * placeholder instead of being dropped, so user/assistant alternation survives.
+ *
+ * @returns The original array when nothing needed repair.
+ */
+export function repairToolPairing(messages: Message[]): Message[] {
+  let changed = false;
+  const repaired = messages.map((message, i) => {
+    const answeredIds = idsOf(messages[i + 1], 'toolResultBlock');
+    const requestedIds = idsOf(messages[i - 1], 'toolUseBlock');
+    const kept = message.content.filter((block) => {
+      if (block.type === 'toolUseBlock') {
+        return answeredIds.has((block as { toolUseId: string }).toolUseId);
+      }
+      if (block.type === 'toolResultBlock') {
+        return requestedIds.has((block as { toolUseId: string }).toolUseId);
+      }
+      return true;
+    });
+    if (kept.length === message.content.length) return message;
+
+    changed = true;
+    const content: ContentBlock[] =
+      kept.length > 0 ? kept : [new TextBlock(TOOL_PAIRING_PLACEHOLDER)];
+    return new Message({ ...message, content });
+  });
+
+  if (!changed) return messages;
+  logger.warn(`Session history: repaired unpaired tool blocks in ${messages.length} messages`);
+  return repaired;
+}
+
+/**
+ * Enforce the Converse role invariant on restored history: starts with `user`,
+ * strictly alternates, and ends with `assistant` (the SDK appends the next
+ * prompt as a new user message without merging).
+ *
+ * Interrupted turns break it in storage: a turn cut off after its toolResult
+ * (or right after the prompt) persists a trailing user message, and a turn
+ * that failed before replying leaves two user prompts in a row. A placeholder
+ * is inserted rather than dropping the message, because the user's prompt and
+ * the tool output are context the model should keep.
+ *
+ * Must run after {@link repairToolPairing}: a placeholder only ever sits
+ * between two messages of the same role, so it never separates a toolUse from
+ * its toolResult.
+ *
+ * @returns The original array when nothing needed repair.
+ */
+export function repairRoleAlternation(messages: Message[]): Message[] {
+  if (messages.length === 0) return messages;
+
+  const placeholder = (role: 'user' | 'assistant') =>
+    new Message({
+      role,
+      content: [
+        new TextBlock(role === 'user' ? TOOL_PAIRING_PLACEHOLDER : INTERRUPTED_TURN_PLACEHOLDER),
+      ],
+    });
+
+  const repaired: Message[] = [];
+  for (const message of messages) {
+    const expected =
+      repaired.length === 0 || repaired.at(-1)!.role === 'assistant' ? 'user' : 'assistant';
+    if (message.role !== expected) repaired.push(placeholder(expected));
+    repaired.push(message);
+  }
+  if (repaired.at(-1)!.role === 'user') repaired.push(placeholder('assistant'));
+
+  if (repaired.length === messages.length) return messages;
+  logger.warn(
+    `Session history: inserted ${repaired.length - messages.length} placeholder(s) to restore role alternation`
+  );
+  return repaired;
+}
 
 /**
  * Apply a sliding window truncation to a messages array.
@@ -75,45 +175,9 @@ export function applyWindowTruncation(messages: Message[], windowSize: number): 
     return messages;
   }
 
-  // Trim the tail: if the last message is an orphaned toolUseBlock (no following toolResultBlock),
-  // it must be removed — Bedrock rejects a toolUse at the end of history that has no paired result.
-  // Walk backward from the end and remove any trailing orphaned toolUse / unexpected toolResult.
-  let endIndex = messages.length; // exclusive upper bound for slice
-  while (endIndex > trimIndex) {
-    const lastMsg = messages[endIndex - 1];
-    if (!lastMsg) break;
-
-    // Trailing toolResultBlock with no preceding toolUseBlock in the window — invalid.
-    const lastHasToolResult = lastMsg.content.some((b) => b.type === 'toolResultBlock');
-    if (lastHasToolResult) {
-      endIndex--;
-      continue;
-    }
-
-    // Trailing toolUseBlock with no following toolResultBlock — orphaned, must remove.
-    const lastHasToolUse = lastMsg.content.some((b) => b.type === 'toolUseBlock');
-    if (lastHasToolUse) {
-      const followingMsg = messages[endIndex]; // the message that would follow lastMsg
-      const followingHasToolResult = followingMsg?.content.some(
-        (b) => b.type === 'toolResultBlock'
-      );
-      if (!followingHasToolResult) {
-        // Orphaned toolUse at the end — remove it.
-        endIndex--;
-        continue;
-      }
-    }
-
-    break; // valid tail
-  }
-
-  if (endIndex <= trimIndex) {
-    // All candidate messages were invalid (e.g. entire window is orphaned tool calls).
-    logger.warn(`Session history: no valid tail found after trimming — returning full history`);
-    return messages;
-  }
-
-  const truncated = messages.slice(trimIndex, endIndex);
+  // The tail is not trimmed here: a window cut can leave unpaired tool blocks
+  // at either end, and repairToolPairing() handles both by toolUseId.
+  const truncated = repairToolPairing(messages.slice(trimIndex));
   logger.info(
     `Session history truncated: ${messages.length} → ${truncated.length} messages (windowSize: ${windowSize})`
   );
@@ -139,9 +203,10 @@ export async function loadSessionHistory(
   const messages = await sessionStorage.loadMessages(sessionConfig);
   logger.info(`Session history restored: ${messages.length} messages`);
 
-  if (windowSize !== undefined) {
-    return applyWindowTruncation(messages, windowSize);
-  }
-
-  return messages;
+  const windowed =
+    windowSize !== undefined ? applyWindowTruncation(messages, windowSize) : messages;
+  // Last step on every path (within window, truncated, fallback): a turn that
+  // was cut off mid-way persists an orphan toolUse or a trailing user message,
+  // and the next prompt would otherwise be rejected by Bedrock.
+  return repairRoleAlternation(repairToolPairing(windowed));
 }

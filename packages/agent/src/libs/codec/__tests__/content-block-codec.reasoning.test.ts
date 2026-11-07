@@ -57,7 +57,11 @@ describe('reasoningBlock codec round-trip', () => {
 
   it('round-trips a block that carries both text/signature and redactedContent', () => {
     const bytes = new Uint8Array([9, 8, 7]);
-    const block = new ReasoningBlock({ text: 'reasoned', signature: 'sig', redactedContent: bytes });
+    const block = new ReasoningBlock({
+      text: 'reasoned',
+      signature: 'sig',
+      redactedContent: bytes,
+    });
 
     const restored = wireToContentBlock(
       JSON.parse(JSON.stringify(contentBlockToWire(block)))

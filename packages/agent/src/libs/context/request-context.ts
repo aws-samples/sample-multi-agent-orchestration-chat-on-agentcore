@@ -8,6 +8,11 @@ import { v7 as uuidv7 } from 'uuid';
 import type { IdentityId, SessionId, UserId } from '@moca/core';
 import type { IWorkspaceSync, SessionType } from '../../types/index.js';
 import type { VerifiedAccessTokenPayload, VerifiedIdTokenPayload } from '../auth/jwt-verifier.js';
+import {
+  getFreshestAuthorizationHeader,
+  getFreshestIdToken,
+  type TokenScope,
+} from '../auth/session-token-store.js';
 
 /**
  * Type definition for request context
@@ -60,6 +65,26 @@ export interface RequestContext {
   identityId?: IdentityId;
   /** Session ID (from x-amzn-bedrock-agentcore-runtime-session-id header) — validated Branded type */
   sessionId?: SessionId;
+  /**
+   * Runtime session whose renewed tokens this context may use, when it is not
+   * `sessionId` — e.g. a sub-agent task runs under its own sessionId but its
+   * tokens are renewed through the parent's Runtime session.
+   */
+  tokenSessionId?: SessionId;
+  /**
+   * Verified access-token `sub` of the caller whose tokens this context may
+   * renew. Carried separately from `accessTokenPayload` because contexts
+   * restored outside the request (sub-agent tasks) do not keep the payload.
+   */
+  tokenOwner?: string;
+  /**
+   * Writes an out-of-band event to the client stream of this turn. Set by the
+   * stream handler for the lifetime of the stream; a no-op once the client
+   * has disconnected.
+   */
+  emitClientEvent?: (event: Record<string, unknown>) => void;
+  /** Set once persistence degradation has been surfaced for this turn. */
+  persistenceDegradedReported?: boolean;
   /** Session type (from x-amzn-bedrock-agentcore-runtime-session-type header) */
   sessionType?: SessionType;
   /**
@@ -185,4 +210,28 @@ export function getContextMetadata(): ContextMetadata {
     hasAuth: !!context.authorizationHeader,
     duration: Date.now() - context.startTime.getTime(),
   };
+}
+
+function tokenScope(ctx: RequestContext | undefined): TokenScope {
+  return { owner: ctx?.tokenOwner, sessionId: ctx?.tokenSessionId ?? ctx?.sessionId };
+}
+
+/**
+ * Authorization header for outbound calls on the caller's behalf. Prefer this
+ * over `authorizationHeader`: a long turn outlives the request-start JWT, and
+ * the frontend renews it through the session (see session-token-store).
+ */
+export function getCallerAuthorizationHeader(
+  explicit?: string,
+  ctx: RequestContext | undefined = getCurrentContext()
+): string | undefined {
+  return getFreshestAuthorizationHeader(tokenScope(ctx), explicit ?? ctx?.authorizationHeader);
+}
+
+/** ID token counterpart of {@link getCallerAuthorizationHeader}. */
+export function getCallerIdToken(
+  explicit?: string,
+  ctx: RequestContext | undefined = getCurrentContext()
+): string | undefined {
+  return getFreshestIdToken(tokenScope(ctx), explicit ?? ctx?.idToken);
 }

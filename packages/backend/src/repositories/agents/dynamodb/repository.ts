@@ -24,17 +24,8 @@ import { marshall, unmarshall } from '@aws-sdk/util-dynamodb';
 import type { UserId, AgentId } from '@moca/core';
 import { logger } from '../../../libs/logger/index.js';
 import { AgentNotFoundError, type Agent } from '../../../types/index.js';
-import type {
-  AgentsRepository,
-  UpdateAgentPatch,
-  SharedAgentsPage,
-} from '../agents-repository.js';
-import {
-  agentKeyAttr,
-  toItemAttr,
-  fromItemAttr,
-  buildAgentUpdateExpression,
-} from './item.js';
+import type { AgentsRepository, UpdateAgentPatch, SharedAgentsPage } from '../agents-repository.js';
+import { agentKeyAttr, toItemAttr, fromItemAttr, buildAgentUpdateExpression } from './item.js';
 
 const SHARED_INDEX = 'isShared-createdAt-index';
 
@@ -91,24 +82,26 @@ export class DynamoDBAgentsRepository implements AgentsRepository {
       now
     );
 
-    const response = await this.client.send(
-      new UpdateItemCommand({
-        TableName: this.tableName,
-        Key: agentKeyAttr(userId, agentId),
-        UpdateExpression: updateExpression,
-        ExpressionAttributeNames: attributeNames,
-        ExpressionAttributeValues: marshall(attributeValues, { removeUndefinedValues: true }),
-        // Only update an agent that exists — otherwise UpdateItem would upsert a
-        // partial row. A failed condition surfaces as AgentNotFoundError below.
-        ConditionExpression: 'attribute_exists(userId) AND attribute_exists(agentId)',
-        ReturnValues: 'ALL_NEW',
-      })
-    ).catch((error: unknown) => {
-      if (error instanceof Error && error.name === 'ConditionalCheckFailedException') {
-        throw new AgentNotFoundError();
-      }
-      throw error;
-    });
+    const response = await this.client
+      .send(
+        new UpdateItemCommand({
+          TableName: this.tableName,
+          Key: agentKeyAttr(userId, agentId),
+          UpdateExpression: updateExpression,
+          ExpressionAttributeNames: attributeNames,
+          ExpressionAttributeValues: marshall(attributeValues, { removeUndefinedValues: true }),
+          // Only update an agent that exists — otherwise UpdateItem would upsert a
+          // partial row. A failed condition surfaces as AgentNotFoundError below.
+          ConditionExpression: 'attribute_exists(userId) AND attribute_exists(agentId)',
+          ReturnValues: 'ALL_NEW',
+        })
+      )
+      .catch((error: unknown) => {
+        if (error instanceof Error && error.name === 'ConditionalCheckFailedException') {
+          throw new AgentNotFoundError();
+        }
+        throw error;
+      });
 
     if (!response.Attributes) {
       throw new Error('Failed to retrieve updated agent');
@@ -124,29 +117,31 @@ export class DynamoDBAgentsRepository implements AgentsRepository {
     }
 
     const now = new Date().toISOString();
-    const response = await this.client.send(
-      new UpdateItemCommand({
-        TableName: this.tableName,
-        Key: agentKeyAttr(userId, agentId),
-        UpdateExpression: 'SET #isShared = :isShared, #updatedAt = :updatedAt',
-        ExpressionAttributeNames: { '#isShared': 'isShared', '#updatedAt': 'updatedAt' },
-        // isShared is stored as a string for the GSI key (see item.ts).
-        ExpressionAttributeValues: marshall({
-          ':isShared': existing.isShared ? 'false' : 'true',
-          ':updatedAt': now,
-        }),
-        // Guard against the get→update TOCTOU window: if the row was deleted
-        // after the read above, an unconditional UpdateItem would upsert a
-        // partial row back into existence. Mirror update()'s existence check.
-        ConditionExpression: 'attribute_exists(userId) AND attribute_exists(agentId)',
-        ReturnValues: 'ALL_NEW',
-      })
-    ).catch((error: unknown) => {
-      if (error instanceof Error && error.name === 'ConditionalCheckFailedException') {
-        throw new AgentNotFoundError();
-      }
-      throw error;
-    });
+    const response = await this.client
+      .send(
+        new UpdateItemCommand({
+          TableName: this.tableName,
+          Key: agentKeyAttr(userId, agentId),
+          UpdateExpression: 'SET #isShared = :isShared, #updatedAt = :updatedAt',
+          ExpressionAttributeNames: { '#isShared': 'isShared', '#updatedAt': 'updatedAt' },
+          // isShared is stored as a string for the GSI key (see item.ts).
+          ExpressionAttributeValues: marshall({
+            ':isShared': existing.isShared ? 'false' : 'true',
+            ':updatedAt': now,
+          }),
+          // Guard against the get→update TOCTOU window: if the row was deleted
+          // after the read above, an unconditional UpdateItem would upsert a
+          // partial row back into existence. Mirror update()'s existence check.
+          ConditionExpression: 'attribute_exists(userId) AND attribute_exists(agentId)',
+          ReturnValues: 'ALL_NEW',
+        })
+      )
+      .catch((error: unknown) => {
+        if (error instanceof Error && error.name === 'ConditionalCheckFailedException') {
+          throw new AgentNotFoundError();
+        }
+        throw error;
+      });
 
     if (!response.Attributes) {
       throw new Error('Failed to retrieve updated agent');
@@ -181,7 +176,9 @@ export class DynamoDBAgentsRepository implements AgentsRepository {
 
     return {
       agents: response.Items ? response.Items.map(fromItemAttr) : [],
-      lastEvaluatedKey: response.LastEvaluatedKey ? unmarshall(response.LastEvaluatedKey) : undefined,
+      lastEvaluatedKey: response.LastEvaluatedKey
+        ? unmarshall(response.LastEvaluatedKey)
+        : undefined,
     };
   }
 }

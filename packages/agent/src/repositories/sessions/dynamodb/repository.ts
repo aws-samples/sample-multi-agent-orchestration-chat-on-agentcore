@@ -185,6 +185,36 @@ export class DynamoDBSessionsRepository implements SessionsRepository {
   }
 
   /**
+   * Mark (startedAt) or clear (undefined) the session's running turn. Read by
+   * the UI to show "still running" after a reload. No-op if the session is gone.
+   */
+  async setActiveTurn(sessionId: string, startedAt: string | undefined): Promise<void> {
+    const now = new Date().toISOString();
+    try {
+      await this.client.send(
+        new UpdateItemCommand({
+          TableName: this.tableName,
+          Key: marshall({ userId: this.partitionKey, sessionId }),
+          ...(startedAt
+            ? {
+                UpdateExpression: 'SET activeTurnStartedAt = :startedAt, updatedAt = :updatedAt',
+                ExpressionAttributeValues: marshall({ ':startedAt': startedAt, ':updatedAt': now }),
+              }
+            : { UpdateExpression: 'REMOVE activeTurnStartedAt' }),
+          ConditionExpression: 'attribute_exists(userId) AND attribute_exists(sessionId)',
+        })
+      );
+    } catch (error: unknown) {
+      if ((error as { name?: string }).name === 'ConditionalCheckFailedException') {
+        logger.warn({ sessionId }, 'Session not found for active-turn update:');
+        return;
+      }
+      logger.error({ error }, 'Error updating session active turn:');
+      throw error;
+    }
+  }
+
+  /**
    * Get session data, or null when absent.
    */
   async getSession(sessionId: string): Promise<SessionData | null> {

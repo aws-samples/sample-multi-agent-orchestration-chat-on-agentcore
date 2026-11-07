@@ -213,6 +213,26 @@ export interface ServerErrorEvent extends AgentStreamEvent {
   };
 }
 
+export interface ServerWarning {
+  code: 'persistenceDegraded' | 'modelStopped' | (string & {});
+  target?: string;
+  /** For `modelStopped`: the model's stop reason (e.g. contentFiltered). */
+  stopReason?: string;
+  message: string;
+}
+
+/** Out-of-band warning about the running turn (the turn itself continues). */
+export interface ServerWarningEvent extends AgentStreamEvent {
+  type: 'serverWarningEvent';
+  warning: ServerWarning;
+}
+
+/** The session already has a turn running; this prompt was not processed. */
+export interface ServerTurnInProgressEvent extends AgentStreamEvent {
+  type: 'serverTurnInProgressEvent';
+  turn: { startedAt: string };
+}
+
 // Config types
 export interface AgentConfig {
   endpoint: string;

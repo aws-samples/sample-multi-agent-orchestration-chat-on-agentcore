@@ -9,12 +9,13 @@ import { MessageList } from './MessageList';
 import { MessageInput } from './MessageInput';
 import { AgentSelectorModal } from './AgentSelectorModal';
 import { useMessageEventsSubscription } from '../hooks/useMessageEventsSubscription';
+import { useInFlightTurn } from '../hooks/useInFlightTurn';
 import type { Agent } from '../types/agent';
 import { translateIfKey } from '../utils/agent-translation';
 
 interface ChatContainerProps {
   sessionId: string | null;
-  onCreateSession: () => string;
+  onCreateSession: (sessionId?: string) => string;
   onAgentSelect?: (agent: Agent | null) => void;
   /** Whether the agent selection from URL has been resolved. Used to suppress welcome-screen flash. */
   isAgentResolved?: boolean;
@@ -35,6 +36,8 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
 
   // Subscribe to real-time message updates for cross-tab/cross-device sync
   useMessageEventsSubscription(sessionId);
+  // Show (and keep alive) a turn still running server-side after a reload
+  useInFlightTurn(sessionId);
 
   // Handle scenario click
   const handleScenarioClick = (prompt: string) => {

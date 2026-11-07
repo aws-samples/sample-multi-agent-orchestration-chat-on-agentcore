@@ -55,6 +55,7 @@ export const environments: Record<Environment, EnvironmentConfigInput> = {
 | `eventRules` | array | - | EventBridge rule configurations |
 | `microsoftGraphOAuthProviderArn` | string | - | Microsoft Graph OAuth2 credential provider ARN |
 | `microsoftGraphOAuthSecretArn` | string | - | Microsoft Graph OAuth2 secret ARN |
+| `runtimeWarmupEnabled` | boolean | `false` | Pre-warm the AgentCore Runtime microVM on the user's first keystroke to hide cold start. Each warmup provisions a microVM billed until idle-reclaimed. |
 | `cloudFrontGeoRestriction` | string[] | `['JP', 'US']` | CloudFront geo restriction allowlist (ISO 3166-1 alpha-2 codes). Override to customize. |
 | `awsAccount` | string | - | AWS Account ID (uses CDK_DEFAULT_ACCOUNT if not specified) |
 | `resourcePrefix` | string | auto-generated | Resource name prefix (e.g., 'moca', 'mocadev') |

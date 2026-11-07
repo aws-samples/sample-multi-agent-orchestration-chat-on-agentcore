@@ -20,6 +20,8 @@ jest.unstable_mockModule('../../../libs/logger/index.js', () => ({
 
 jest.unstable_mockModule('../../../libs/context/request-context.js', () => ({
   getCurrentContext: mockGetCurrentContext,
+  getCallerAuthorizationHeader: () => mockGetCurrentContext()?.authorizationHeader,
+  getCallerIdToken: () => mockGetCurrentContext()?.idToken,
 }));
 
 const { runManageTrigger } = await import('../manage-trigger.js');

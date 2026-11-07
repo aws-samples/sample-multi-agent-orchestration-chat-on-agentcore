@@ -29,6 +29,7 @@
  */
 
 import { NextFunction, Request, Response } from 'express';
+import { recordSessionTokens } from '../auth/session-token-store.js';
 
 import { isSessionId, isUserId, type UserId } from '@moca/core';
 import {
@@ -215,8 +216,7 @@ export function requestContextMiddleware(req: Request, res: Response, next: Next
       // Session headers — validated with branded guards.
       const rawSessionId = getHeader(req, 'x-amzn-bedrock-agentcore-runtime-session-id');
       const sessionType = getHeader(req, 'x-amzn-bedrock-agentcore-runtime-session-type') as
-        | SessionType
-        | undefined;
+        SessionType | undefined;
 
       if (rawSessionId) {
         if (isSessionId(rawSessionId)) {
@@ -229,6 +229,19 @@ export function requestContextMiddleware(req: Request, res: Response, next: Next
         }
       }
       requestContext.sessionType = sessionType;
+
+      // Tokens are verified at this point, so they may replace the copies a
+      // still-running turn on this session captured at its own start.
+      requestContext.tokenOwner = accessPayload.sub;
+      if (requestContext.sessionId) {
+        recordSessionTokens(
+          { owner: accessPayload.sub, sessionId: requestContext.sessionId },
+          {
+            idToken: idTokenRaw,
+            authorizationHeader: authHeader,
+          }
+        );
+      }
 
       logger.info(
         {

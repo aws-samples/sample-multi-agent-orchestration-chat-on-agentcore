@@ -131,6 +131,25 @@ describe('SessionsRepository (DynamoDB Local)', () => {
     expect(String(stored?.updatedAt) >= created.updatedAt).toBe(true);
   });
 
+  it('setActiveTurn marks a running turn and clears it when the turn ends', async () => {
+    await repo.createSession({ sessionId: 's-turn', title: 't' });
+    const startedAt = new Date().toISOString();
+
+    await repo.setActiveTurn('s-turn', startedAt);
+    expect((await rawGet('s-turn'))?.activeTurnStartedAt).toBe(startedAt);
+    expect((await repo.getSession('s-turn'))?.activeTurnStartedAt).toBe(startedAt);
+
+    await repo.setActiveTurn('s-turn', undefined);
+    expect((await rawGet('s-turn'))?.activeTurnStartedAt).toBeUndefined();
+  });
+
+  it('setActiveTurn on a missing session is a no-op and creates nothing', async () => {
+    await expect(
+      repo.setActiveTurn('ghost-turn', new Date().toISOString())
+    ).resolves.toBeUndefined();
+    expect(await rawGet('ghost-turn')).toBeUndefined();
+  });
+
   it('update on a missing session is a no-op (existence condition), does not throw', async () => {
     await expect(repo.updateSessionTitle('ghost', 'x')).resolves.toBeUndefined();
     await expect(repo.updateSessionTimestamp('ghost')).resolves.toBeUndefined();
@@ -232,7 +251,7 @@ describe('SessionsRepository.listSessions (DynamoDB Local)', () => {
 // do not assert: cross-user isolation, the DynamoDB "Limit == count" hasMore
 // gotcha, and a full pagination walk with a non-unique sort key.
 describe('SessionsRepository.listSessions — review hardening (DynamoDB Local)', () => {
-  it('isolates sessions per user: never returns another user\'s rows', async () => {
+  it("isolates sessions per user: never returns another user's rows", async () => {
     const userA = new DynamoDBSessionsRepository(
       client,
       tableName,

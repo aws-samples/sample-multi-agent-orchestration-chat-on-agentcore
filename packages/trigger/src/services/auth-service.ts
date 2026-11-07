@@ -43,6 +43,15 @@ interface OAuth2TokenResponse {
 /**
  * OpenID Token response for a specific user
  */
+/**
+ * Lifetime of the developer-auth OpenID token forwarded to the agent runtime.
+ * Event-driven turns have no frontend to renew it, and the runtime re-mints
+ * Identity Pool credentials with it roughly hourly, so it must cover the
+ * AgentCore microVM's 8 h maximum lifetime. The token never leaves the
+ * Trigger Lambda → Runtime path and is redacted from logs.
+ */
+export const DEVELOPER_TOKEN_DURATION_SECONDS = 8 * 60 * 60;
+
 export interface OpenIdTokenResponse {
   /** Short-lived OpenID Token (15 min) issued by GetOpenIdTokenForDeveloperIdentity */
   openIdToken: string;
@@ -147,7 +156,7 @@ export class AuthService {
       IdentityPoolId: identityPoolId,
       Logins: { [developerProviderName]: userId },
       // IdentityId omitted: Cognito resolves it from the developer login link.
-      // TokenDuration omitted: use the default (15 minutes).
+      TokenDuration: DEVELOPER_TOKEN_DURATION_SECONDS,
     });
 
     log.info(

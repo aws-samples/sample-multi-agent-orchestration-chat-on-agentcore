@@ -3,7 +3,11 @@
 // import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { config } from '../../config/index.js';
 import { logger } from '../logger/index.js';
-import { getCurrentContext } from '../context/request-context.js';
+import {
+  getCallerAuthorizationHeader,
+  getCallerIdToken,
+  getCurrentContext,
+} from '../context/request-context.js';
 import type { MCPToolDefinition } from '../../types/index.js';
 
 /**
@@ -242,7 +246,7 @@ export class AgentCoreMCPClient {
    */
   private getAuthorizationHeader(required = true): string | null {
     // Get Inbound JWT from request context
-    const contextAuthHeader = getCurrentContext()?.authorizationHeader;
+    const contextAuthHeader = getCallerAuthorizationHeader();
     if (contextAuthHeader) {
       logger.debug('Using JWT from request context');
       return contextAuthHeader;
@@ -353,7 +357,7 @@ export class AgentCoreMCPClient {
       const storagePath = context.storagePath;
       // Forward the Cognito ID Token so the Gateway interceptor can resolve identityId.
       // The interceptor requires an ID Token (not an Access Token) for GetId.
-      const idToken = context.idToken;
+      const idToken = getCallerIdToken(undefined, context);
       const headers: Record<string, string> = {
         'Content-Type': 'application/json',
         'x-storage-path': storagePath,

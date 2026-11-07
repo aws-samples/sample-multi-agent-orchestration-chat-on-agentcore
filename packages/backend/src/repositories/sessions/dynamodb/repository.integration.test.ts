@@ -53,6 +53,7 @@ async function putSession(opts: {
   updatedAt: string;
   agentId?: AgentId;
   sessionType?: 'user' | 'event' | 'subagent';
+  activeTurnStartedAt?: string;
 }): Promise<void> {
   await client.send(
     new PutItemCommand({
@@ -64,6 +65,7 @@ async function putSession(opts: {
           title: opts.title,
           agentId: opts.agentId,
           sessionType: opts.sessionType,
+          activeTurnStartedAt: opts.activeTurnStartedAt,
           createdAt: opts.updatedAt,
           updatedAt: opts.updatedAt,
         },
@@ -99,6 +101,30 @@ describe('SessionsRepository (DynamoDB Local)', () => {
     expect(result.sessions.map((s) => s.sessionId)).toEqual(['s-new', 's-mid', 's-old']);
     expect(result.hasMore).toBe(false);
     expect(result.nextToken).toBeUndefined();
+  });
+
+  it('exposes the running-turn marker in the list so a reloaded UI shows the turn as running', async () => {
+    const u = 'us-east-1:turn-user' as IdentityId;
+    await putSession({
+      userId: u,
+      sessionId: 's-running',
+      title: 'r',
+      updatedAt: '2026-01-02T00:00:00.000Z',
+      activeTurnStartedAt: '2026-01-01T23:00:00.000Z',
+    });
+    await putSession({
+      userId: u,
+      sessionId: 's-idle',
+      title: 'i',
+      updatedAt: '2026-01-01T00:00:00.000Z',
+    });
+
+    const { sessions } = await repo.listSessions(u);
+
+    expect(sessions.find((s) => s.sessionId === 's-running')?.activeTurnStartedAt).toBe(
+      '2026-01-01T23:00:00.000Z'
+    );
+    expect(sessions.find((s) => s.sessionId === 's-idle')?.activeTurnStartedAt).toBeUndefined();
   });
 
   it('paginates with Limit and a round-trippable opaque nextToken', async () => {

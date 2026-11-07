@@ -48,7 +48,7 @@ function buildSubscriptionId(): string {
 /**
  * Session event from DynamoDB Streams
  */
-interface SessionEvent {
+export interface SessionEvent {
   type: 'INSERT' | 'MODIFY' | 'REMOVE';
   sessionId: string;
   title?: string;
@@ -56,11 +56,79 @@ interface SessionEvent {
   sessionType?: SessionType;
   updatedAt?: string;
   createdAt?: string;
+  activeTurnStartedAt?: string;
+  /** Absent from stream handlers that predate the active-turn marker. */
+  turnActive?: boolean;
 }
 
 // ============================================================
 // Hook
 // ============================================================
+
+/**
+ * Apply one session stream event to the session store. Exported for tests.
+ */
+export function applySessionEvent(event: SessionEvent): void {
+  const store = useSessionStore.getState();
+
+  switch (event.type) {
+    case 'INSERT': {
+      // Check if session already exists (might be added optimistically)
+      const exists = store.sessions.some((s) => s.sessionId === event.sessionId);
+      if (!exists) {
+        store.addOptimisticSession(event.sessionId, event.title, event.sessionType, event.agentId);
+      } else {
+        // WHY: The session may have been added optimistically before the
+        // stream event arrived (e.g., HTTP POST /sessions response) without
+        // a sessionType / agentId. Patch them here so the sidebar badge
+        // (`[Sub]` / `[Event]`) renders and clicking the session switches
+        // the selected agent without requiring a page reload.
+        if (event.sessionType) {
+          store.updateSessionType(event.sessionId, event.sessionType);
+        }
+        if (event.agentId) {
+          store.updateSessionAgentId(event.sessionId, event.agentId);
+        }
+      }
+      break;
+    }
+
+    case 'MODIFY': {
+      // Update session title if changed
+      if (event.title) {
+        store.updateSessionTitle(event.sessionId, event.title);
+      }
+      // sessionType is immutable after creation in backend, but patch it
+      // defensively in case an INSERT event was missed.
+      if (event.sessionType) {
+        store.updateSessionType(event.sessionId, event.sessionType);
+      }
+      // Backfill agentId in case the optimistic add ran before the
+      // agentId-bearing event arrived. Required so clicking a `[Sub]`
+      // session while the agent is still running switches the selected
+      // agent in the header.
+      if (event.agentId) {
+        store.updateSessionAgentId(event.sessionId, event.agentId);
+      }
+      // Turn start / end on the server, including turns this tab is not streaming.
+      if (event.turnActive !== undefined) {
+        store.updateSessionActiveTurn(
+          event.sessionId,
+          event.turnActive ? event.activeTurnStartedAt : undefined,
+          event.updatedAt
+        );
+      }
+      break;
+    }
+
+    case 'REMOVE': {
+      // Session was deleted (possibly by another device/tab)
+      // Refresh to sync
+      store.refreshSessions();
+      break;
+    }
+  }
+}
 
 /**
  * Custom hook for subscribing to real-time session updates
@@ -82,62 +150,7 @@ export function useSessionEventsSubscription() {
       const event = JSON.parse(eventData) as SessionEvent;
       logger.log('Received session event:', event);
 
-      const store = useSessionStore.getState();
-
-      switch (event.type) {
-        case 'INSERT': {
-          // Check if session already exists (might be added optimistically)
-          const exists = store.sessions.some((s) => s.sessionId === event.sessionId);
-          if (!exists) {
-            store.addOptimisticSession(
-              event.sessionId,
-              event.title,
-              event.sessionType,
-              event.agentId
-            );
-          } else {
-            // WHY: The session may have been added optimistically before the
-            // stream event arrived (e.g., HTTP POST /sessions response) without
-            // a sessionType / agentId. Patch them here so the sidebar badge
-            // (`[Sub]` / `[Event]`) renders and clicking the session switches
-            // the selected agent without requiring a page reload.
-            if (event.sessionType) {
-              store.updateSessionType(event.sessionId, event.sessionType);
-            }
-            if (event.agentId) {
-              store.updateSessionAgentId(event.sessionId, event.agentId);
-            }
-          }
-          break;
-        }
-
-        case 'MODIFY': {
-          // Update session title if changed
-          if (event.title) {
-            store.updateSessionTitle(event.sessionId, event.title);
-          }
-          // sessionType is immutable after creation in backend, but patch it
-          // defensively in case an INSERT event was missed.
-          if (event.sessionType) {
-            store.updateSessionType(event.sessionId, event.sessionType);
-          }
-          // Backfill agentId in case the optimistic add ran before the
-          // agentId-bearing event arrived. Required so clicking a `[Sub]`
-          // session while the agent is still running switches the selected
-          // agent in the header.
-          if (event.agentId) {
-            store.updateSessionAgentId(event.sessionId, event.agentId);
-          }
-          break;
-        }
-
-        case 'REMOVE': {
-          // Session was deleted (possibly by another device/tab)
-          // Refresh to sync
-          store.refreshSessions();
-          break;
-        }
-      }
+      applySessionEvent(event);
     } catch (error) {
       logger.error('Failed to parse session event:', error);
     }

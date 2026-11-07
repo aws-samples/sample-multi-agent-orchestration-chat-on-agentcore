@@ -5,12 +5,16 @@ import type {
   ModelContentBlockStartEvent,
   ServerCompletionEvent,
   ServerErrorEvent,
+  ServerWarningEvent,
+  ServerTurnInProgressEvent,
+  ServerWarning,
   MessageAddedEvent,
   BeforeToolsEvent,
   ToolUse,
   ToolResult,
 } from '../types/index';
 import { agentClient } from './client/agent-client';
+import { startAgentTokenRenewal } from './agent-token-renewal';
 import { logger } from '../utils/logger';
 
 /**
@@ -26,6 +30,8 @@ interface StreamingCallbacks {
   onToolResult?: (toolResult: ToolResult) => void;
   onComplete?: (metadata: Record<string, unknown>) => void;
   onError?: (error: Error) => void;
+  onWarning?: (warning: ServerWarning) => void;
+  onTurnInProgress?: (turn: { startedAt: string }) => void;
 }
 
 /**
@@ -87,6 +93,9 @@ export const streamAgentResponse = async (
   }
 
   const body = buildRequestBody(prompt, agentConfig);
+
+  // Supply the turn with fresh tokens for as long as we are streaming it.
+  const stopTokenRenewal = sessionId ? startAgentTokenRenewal(sessionId) : undefined;
 
   try {
     const response = await agentClient.invoke({
@@ -165,6 +174,49 @@ export const streamAgentResponse = async (
     } else {
       throw error;
     }
+  } finally {
+    stopTokenRenewal?.();
+  }
+};
+
+const warmedSessionIds = new Set<string>();
+
+/**
+ * Whether speculative runtime warmup is enabled (VITE_ENABLE_RUNTIME_WARMUP=true)
+ */
+export const isRuntimeWarmupEnabled = (): boolean =>
+  import.meta.env.VITE_ENABLE_RUNTIME_WARMUP === 'true';
+
+/**
+ * Pre-warm the AgentCore Runtime microVM for a session (fire-and-forget).
+ *
+ * Sends `{ warmup: true }` with the same session-id header as the real invoke so
+ * microVM stickiness routes the first prompt to the already-started microVM.
+ * `storagePath` lets the runtime start the workspace S3 pull ahead of the prompt;
+ * it must match the storagePath of the real invoke for the pull to be reused.
+ * At most once per sessionId; errors are swallowed.
+ */
+export const warmupAgentRuntime = async (
+  sessionId: string,
+  storagePath?: string
+): Promise<void> => {
+  if (!isRuntimeWarmupEnabled() || warmedSessionIds.has(sessionId)) {
+    return;
+  }
+  warmedSessionIds.add(sessionId);
+
+  try {
+    const response = await agentClient.invoke({
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Amzn-Bedrock-AgentCore-Runtime-Session-Id': sessionId,
+      },
+      body: JSON.stringify({ warmup: true, storagePath }),
+    });
+    await response.body?.cancel();
+  } catch (error) {
+    logger.warn('Runtime warmup failed:', error);
   }
 };
 
@@ -306,6 +358,16 @@ const handleStreamEvent = (event: AgentStreamEvent, callbacks: StreamingCallback
       if (callbacks.onError) {
         callbacks.onError(new Error(errorEvent.error.message));
       }
+      break;
+    }
+
+    case 'serverTurnInProgressEvent': {
+      callbacks.onTurnInProgress?.((event as ServerTurnInProgressEvent).turn);
+      break;
+    }
+
+    case 'serverWarningEvent': {
+      callbacks.onWarning?.((event as ServerWarningEvent).warning);
       break;
     }
 

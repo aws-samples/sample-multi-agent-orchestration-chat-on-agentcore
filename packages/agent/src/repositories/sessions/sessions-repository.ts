@@ -89,4 +89,7 @@ export interface SessionsRepository {
 
   /** Update session title (and `updatedAt`). No-op (warn) if the session is gone. */
   updateSessionTitle(sessionId: string, title: string): Promise<void>;
+
+  /** Mark (ISO startedAt) or clear (undefined) the running turn. */
+  setActiveTurn(sessionId: string, startedAt: string | undefined): Promise<void>;
 }

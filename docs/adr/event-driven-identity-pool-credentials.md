@@ -138,7 +138,7 @@ execution environment.
 +---------------------------------------------------------------------+
 | Cognito Identity Pool (Developer Authenticated Identities)         |
 |  developer login "moca.trigger: userId" is linked to identity A    |
-|  -> returns openIdToken (JWT, 15 min)                              |
+|  -> returns openIdToken (JWT, 8 h — see Attack 4)                 |
 |     iss = "https://cognito-identity.amazonaws.com"                 |
 |     sub = "us-west-2:e6224b58-..."  <-- identityId A               |
 +----------------------------+----------------------------------------+
@@ -374,11 +374,31 @@ Attacker controls triggerId/userId payload in EventBridge event:
 
 ```
 Attacker intercepts an openIdToken in transit:
-  -> openIdToken is valid for 15 minutes only (Cognito default)
-  -> Token is sent over HTTPS only (TLS in transit)
+  -> openIdToken is valid for 8 hours (TokenDuration, not the 15 min default)
+  -> Token is sent over HTTPS only (TLS in transit) and redacted from logs
+  -> It travels only Trigger Lambda -> AgentCore Runtime (InvokeAgentRuntime)
+  -> It is scoped to ONE user's identity; it cannot reach the Backend without
+     the paired machine-user access token
   -> After expiry, GetCredentialsForIdentity returns InvalidIdentityTokenException
-  -> MITIGATED by short token lifetime v
+  -> PARTIALLY MITIGATED: the replay window is the token lifetime
 ```
+
+Why 8 h and not the 15 min default: the agent runtime re-mints the user's
+Identity Pool credentials (1 h) from this token throughout the turn.
+Browser turns get a renewed token over the `renewTokens` side channel, but an
+event-driven turn has no client to renew it. With 15 min, every trigger turn
+longer than its first credentials (~1 h) silently stopped persisting history
+and workspace files. 8 h is the AgentCore microVM's maximum lifetime, so no
+turn can outlive the token.
+
+Rejected alternatives:
+
+- **Runtime asks the Backend for a fresh developer-auth token.** The runtime
+  would need a Backend route that mints tokens for an arbitrary userId,
+  reintroducing the developer-provider privilege this ADR keeps out of the
+  runtime.
+- **Trigger Lambda pushes renewals.** The Lambda is fire-and-forget and has
+  returned long before the token expires.
 
 ### Attack 5: forged developer-auth token names the victim's identityId (Backend)
 

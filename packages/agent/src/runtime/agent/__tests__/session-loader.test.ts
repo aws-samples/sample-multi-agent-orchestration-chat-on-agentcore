@@ -23,7 +23,13 @@ jest.unstable_mockModule('../../../config/index.js', () => ({
   config: {},
 }));
 
-const { loadSessionHistory, applyWindowTruncation } = await import('../session-loader.js');
+const {
+  loadSessionHistory,
+  applyWindowTruncation,
+  repairToolPairing,
+  repairRoleAlternation,
+  INTERRUPTED_TURN_PLACEHOLDER,
+} = await import('../session-loader.js');
 
 /** Create a minimal mock message object for testing (avoids importing ESM SDK) */
 function createMockMessage(role: string, text: string) {
@@ -375,5 +381,199 @@ describe('applyWindowTruncation', () => {
 
     // Falls back to full history
     expect(result).toBe(messages);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Tool pairing invariant (AC-4)
+//
+// Bedrock rejects a history in which a toolUse is not immediately followed by
+// its toolResult ("tool_use ids were found without tool_result blocks
+// immediately after") or a toolResult lacks its toolUse. Every restore path
+// (within window, truncated, fallback) must return a history satisfying this.
+// ---------------------------------------------------------------------------
+
+type AnyBlock = { type: string; toolUseId?: string; text?: string };
+type AnyMessage = { role: string; content: AnyBlock[] };
+
+function toolUseIds(m: AnyMessage | undefined): string[] {
+  return (m?.content ?? []).filter((b) => b.type === 'toolUseBlock').map((b) => b.toolUseId!);
+}
+function toolResultIds(m: AnyMessage | undefined): string[] {
+  return (m?.content ?? []).filter((b) => b.type === 'toolResultBlock').map((b) => b.toolUseId!);
+}
+
+function expectToolPairingInvariant(messages: unknown[]): void {
+  const window = messages as AnyMessage[];
+  window.forEach((m, i) => {
+    for (const id of toolUseIds(m)) {
+      expect(toolResultIds(window[i + 1])).toContain(id);
+    }
+    for (const id of toolResultIds(m)) {
+      expect(toolUseIds(window[i - 1])).toContain(id);
+    }
+    expect(m.content.length).toBeGreaterThan(0);
+  });
+}
+
+/** Converse accepts it, and the SDK's appended user prompt keeps it alternating. */
+function expectRoleAlternation(messages: unknown[]): void {
+  const roles = (messages as AnyMessage[]).map((m) => m.role);
+  roles.forEach((role, i) => expect(role).toBe(i % 2 === 0 ? 'user' : 'assistant'));
+  expect(roles.at(-1)).toBe('assistant');
+}
+
+function longHistoryEndingWithToolChain(pairs: number, completeLastPair: boolean): unknown[] {
+  const history: unknown[] = [];
+  for (let i = 0; i < 30; i++) {
+    history.push(createMockMessage('user', `q${i}`), createMockMessage('assistant', `a${i}`));
+  }
+  history.push(createMockMessage('user', 'build it'));
+  for (let i = 0; i < pairs; i++) {
+    history.push(createToolUseMessage(`t${i}`));
+    if (i < pairs - 1 || completeLastPair) history.push(createToolResultMessage(`t${i}`));
+  }
+  return history;
+}
+
+describe('tool pairing invariant', () => {
+  it('truncated window never ends with an orphaned toolUse when history ends with a complete pair', () => {
+    const history = longHistoryEndingWithToolChain(5, true);
+
+    const window = applyWindowTruncation(history as never, 40) as unknown as AnyMessage[];
+
+    expectToolPairingInvariant(window);
+    // The correctly paired trailing toolResult must be kept, not dropped.
+    expect(window).toHaveLength(40);
+    expect(toolResultIds(window[window.length - 1])).toEqual(['t4']);
+  });
+
+  it('truncated window neutralises a genuinely orphaned trailing toolUse', () => {
+    const history = longHistoryEndingWithToolChain(5, false);
+
+    const window = applyWindowTruncation(history as never, 40) as unknown as AnyMessage[];
+
+    expectToolPairingInvariant(window);
+    expect(toolUseIds(window[window.length - 1])).toEqual([]);
+  });
+
+  it('strips only the unanswered toolUse of a parallel tool call', () => {
+    const messages = [
+      createMockMessage('user', 'go'),
+      {
+        role: 'assistant',
+        content: [
+          { type: 'toolUseBlock', toolUseId: 'p1', name: 'test', input: {} },
+          { type: 'toolUseBlock', toolUseId: 'p2', name: 'test', input: {} },
+        ],
+      },
+      createToolResultMessage('p1'),
+      createMockMessage('assistant', 'done'),
+    ];
+
+    const result = repairToolPairing(messages as never) as unknown as AnyMessage[];
+
+    expectToolPairingInvariant(result);
+    expect(toolUseIds(result[1])).toEqual(['p1']);
+  });
+
+  it('strips a toolResult whose toolUse is not the previous message', () => {
+    const messages = [
+      createMockMessage('user', 'go'),
+      createMockMessage('assistant', 'thinking'),
+      createToolResultMessage('ghost'),
+      createMockMessage('assistant', 'done'),
+    ];
+
+    const result = repairToolPairing(messages as never) as unknown as AnyMessage[];
+
+    expectToolPairingInvariant(result);
+    expect(result).toHaveLength(4);
+    // Role alternation is preserved by a non-whitespace placeholder.
+    expect(result[2].role).toBe('user');
+    expect(result[2].content[0].text?.trim()).not.toBe('');
+  });
+
+  it('returns the same array when the history is already valid', () => {
+    const messages = [
+      createMockMessage('user', 'go'),
+      createToolUseMessage('x'),
+      createToolResultMessage('x'),
+      createMockMessage('assistant', 'done'),
+    ];
+    expect(repairToolPairing(messages as never)).toBe(messages);
+  });
+
+  it.each([
+    ['within window', 100],
+    ['truncated', 40],
+    ['no valid trim point (fallback)', 1],
+  ])('loadSessionHistory satisfies the invariant on the %s path', async (_label, windowSize) => {
+    const history =
+      windowSize === 1
+        ? [
+            createToolUseMessage('only'),
+            createToolResultMessage('only'),
+            createToolUseMessage('o2'),
+          ]
+        : longHistoryEndingWithToolChain(5, false);
+    const storage = {
+      loadMessages: jest.fn<() => Promise<unknown[]>>().mockResolvedValue(history),
+    } as unknown as SessionStorage;
+
+    const result = await loadSessionHistory(
+      storage,
+      { sessionId: 's' as SessionId, actorId: 'a' as IdentityId },
+      windowSize
+    );
+
+    expectToolPairingInvariant(result);
+    expectRoleAlternation(result);
+  });
+});
+
+describe('role alternation', () => {
+  function storageWith(history: unknown[]): SessionStorage {
+    return {
+      loadMessages: jest.fn<() => Promise<unknown[]>>().mockResolvedValue(history),
+    } as unknown as SessionStorage;
+  }
+  const config = { sessionId: 's' as SessionId, actorId: 'a' as IdentityId };
+
+  it('keeps a trailing toolResult and closes it with an assistant placeholder', async () => {
+    const result = (await loadSessionHistory(
+      storageWith(longHistoryEndingWithToolChain(5, true)),
+      config,
+      40
+    )) as unknown as AnyMessage[];
+
+    expectToolPairingInvariant(result);
+    expectRoleAlternation(result);
+    expect(toolResultIds(result.at(-2))).toEqual(['t4']);
+    expect(result.at(-1)!.content[0].text).toBe(INTERRUPTED_TURN_PLACEHOLDER);
+  });
+
+  it('separates two user prompts left by a turn that failed before replying', async () => {
+    const result = (await loadSessionHistory(
+      storageWith([
+        createMockMessage('user', 'q1'),
+        createMockMessage('user', 'q2'),
+        createMockMessage('assistant', 'a2'),
+      ]),
+      config
+    )) as unknown as AnyMessage[];
+
+    expectRoleAlternation(result);
+    expect(result.map((m) => m.content[0].text)).toEqual([
+      'q1',
+      INTERRUPTED_TURN_PLACEHOLDER,
+      'q2',
+      'a2',
+    ]);
+  });
+
+  it('returns the same array when the history already alternates', () => {
+    const messages = [createMockMessage('user', 'q'), createMockMessage('assistant', 'a')];
+    expect(repairRoleAlternation(messages as never)).toBe(messages);
   });
 });

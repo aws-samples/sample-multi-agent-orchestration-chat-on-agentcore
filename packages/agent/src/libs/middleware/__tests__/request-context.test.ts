@@ -50,6 +50,8 @@ jest.unstable_mockModule('../../auth/jwt-verifier.js', () => {
 
 const { requestContextMiddleware } = await import('../request-context.js');
 const { getCurrentContext } = await import('../../context/request-context.js');
+const { getFreshestIdToken, getFreshestAuthorizationHeader, resetSessionTokenStore } =
+  await import('../../auth/session-token-store.js');
 
 function createRequest(overrides: Partial<Request> = {}): Request {
   return {
@@ -73,6 +75,7 @@ function createResponse() {
 
 beforeEach(() => {
   jest.clearAllMocks();
+  resetSessionTokenStore();
 });
 
 describe('requestContextMiddleware', () => {
@@ -258,5 +261,43 @@ describe('requestContextMiddleware', () => {
     });
 
     expect(verifyIdTokenMock).not.toHaveBeenCalled();
+  });
+
+  it('records verified tokens as the freshest for the session so a running turn can use them', async () => {
+    verifyAccessTokenMock.mockResolvedValueOnce({
+      sub: USER_SUB,
+      client_id: 'frontend-client',
+      token_use: 'access',
+      exp: 1,
+      iss: 'x',
+      username: USER_SUB,
+      raw: { 'cognito:username': USER_SUB },
+    });
+    verifyIdTokenMock.mockResolvedValueOnce({
+      sub: USER_SUB,
+      aud: 'frontend-client',
+      token_use: 'id',
+      exp: 1,
+      iss: 'x',
+      raw: {},
+    });
+    const sessionId = 'S'.repeat(33);
+    const req = createRequest({
+      headers: {
+        authorization: 'Bearer renewed-at',
+        'x-amzn-bedrock-agentcore-runtime-custom-id-token': 'renewed-id',
+        'x-amzn-bedrock-agentcore-runtime-session-id': sessionId,
+      },
+    });
+
+    await new Promise<void>((resolve) => {
+      requestContextMiddleware(req, createResponse(), resolve as unknown as NextFunction);
+    });
+
+    const scope = { owner: USER_SUB, sessionId };
+    expect(getFreshestIdToken(scope, undefined)).toBe('renewed-id');
+    expect(getFreshestAuthorizationHeader(scope, undefined)).toBe('Bearer renewed-at');
+    // A caller naming someone else's session id must not reach that user's turn.
+    expect(getFreshestIdToken({ owner: 'victim-sub', sessionId }, undefined)).toBeUndefined();
   });
 });

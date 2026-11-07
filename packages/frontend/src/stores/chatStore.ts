@@ -18,6 +18,8 @@ import { useSessionStore } from './sessionStore';
 import { useMemoryStore } from './memoryStore';
 import { useSettingsStore } from './settingsStore';
 import { logger } from '../utils/logger';
+import toast from 'react-hot-toast';
+import i18n from '../i18n';
 
 // Helper function: Convert image to Base64
 const convertImageToBase64 = (file: File): Promise<string> => {
@@ -123,6 +125,11 @@ interface ChatActions {
   sendPrompt: (prompt: string, sessionId: string, images?: ImageAttachment[]) => Promise<void>;
   clearSession: (sessionId: string) => void;
   setLoading: (sessionId: string, loading: boolean) => void;
+  /**
+   * Reflect a turn running server-side that this tab is not streaming (e.g.
+   * after a reload). Never ends the loading state of a turn this tab streams.
+   */
+  setRemoteTurnRunning: (sessionId: string, running: boolean) => void;
   setError: (sessionId: string, error: string | null) => void;
   clearError: (sessionId: string) => void;
   loadSessionHistory: (sessionId: string, conversationMessages: ConversationMessage[]) => void;
@@ -281,7 +288,7 @@ export const useChatStore = create<ChatStore>()(
           }
 
           // Add user message
-          addMessage(sessionId, {
+          const userMessageId = addMessage(sessionId, {
             type: 'user',
             contents: userContents,
           });
@@ -510,6 +517,59 @@ export const useChatStore = create<ChatStore>()(
                   useSessionStore.getState().refreshSessions();
                 }
               },
+              onTurnInProgress: (turn) => {
+                // The runtime refused this prompt: a turn started elsewhere
+                // (or before a reload) is still running. Drop the optimistic
+                // messages and show that turn as running; it renders through
+                // AppSync and AGENT_COMPLETE ends the loading state.
+                const { sessions } = get();
+                const currentState = sessions[sessionId];
+                if (!currentState) return;
+                set({
+                  sessions: {
+                    ...sessions,
+                    [sessionId]: {
+                      ...currentState,
+                      messages: currentState.messages.filter(
+                        (msg) => msg.id !== userMessageId && msg.id !== assistantMessageId
+                      ),
+                      isLoading: true,
+                    },
+                  },
+                });
+                useSessionStore
+                  .getState()
+                  .updateSessionActiveTurn(sessionId, turn.startedAt, new Date().toISOString());
+                toast(i18n.t('chat.turnInProgress'), { id: `turn-in-progress-${sessionId}` });
+              },
+              onWarning: (warning) => {
+                if (warning.code === 'modelStopped') {
+                  // The turn ends without an answer or an error; say why.
+                  const current = get().sessions[sessionId]?.messages.find(
+                    (msg) => msg.id === assistantMessageId
+                  );
+                  updateMessage(sessionId, assistantMessageId, {
+                    contents: [
+                      ...(current?.contents ?? []),
+                      {
+                        type: 'text',
+                        text: i18n.t('chat.modelStopped', {
+                          stopReason: warning.stopReason ?? 'unknown',
+                        }),
+                      },
+                    ],
+                    isError: true,
+                  });
+                  return;
+                }
+                if (warning.code === 'persistenceDegraded') {
+                  // One toast per session even if the runtime reports again.
+                  toast.error(i18n.t('chat.persistenceDegraded'), {
+                    id: `persistence-degraded-${sessionId}`,
+                    duration: 15000,
+                  });
+                }
+              },
               onError: (error: Error) => {
                 // Add error message as assistant response (with isError flag)
                 const { sessions } = get();
@@ -533,11 +593,15 @@ export const useChatStore = create<ChatStore>()(
                   isError: true,
                 });
 
-                const currentState = sessions[sessionId] || createDefaultSessionState();
+                // Re-read: `sessions` above predates updateMessage, and spreading
+                // it would revert the message to isStreaming=true — the tab then
+                // never reattaches to a turn that keeps running server-side.
+                const latest = get().sessions;
+                const currentState = latest[sessionId] || createDefaultSessionState();
 
                 set({
                   sessions: {
-                    ...sessions,
+                    ...latest,
                     [sessionId]: {
                       ...currentState,
                       isLoading: false,
@@ -545,6 +609,10 @@ export const useChatStore = create<ChatStore>()(
                     },
                   },
                 });
+
+                // A dropped stream does not stop the server-side turn; pick up
+                // its running marker without waiting for an AppSync event.
+                void useSessionStore.getState().refreshSessions();
               },
             },
             agentConfig
@@ -575,6 +643,15 @@ export const useChatStore = create<ChatStore>()(
 
         set({ sessions: newSessions });
         logger.log(`Session cleared: ${sessionId}`);
+      },
+
+      setRemoteTurnRunning: (sessionId: string, running: boolean) => {
+        const { sessions } = get();
+        const sessionState = getOrCreateSessionState(sessions, sessionId);
+        const streamingHere = sessionState.messages.some((msg) => msg.isStreaming);
+        if (!running && streamingHere) return;
+        if (sessionState.isLoading === running && sessions[sessionId]) return;
+        set({ sessions: { ...sessions, [sessionId]: { ...sessionState, isLoading: running } } });
       },
 
       setLoading: (sessionId: string, loading: boolean) => {

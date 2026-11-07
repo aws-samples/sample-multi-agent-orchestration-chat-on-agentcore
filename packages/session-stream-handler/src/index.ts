@@ -36,6 +36,13 @@ interface SessionEvent {
    * key (REGION:UUID format) which AppSync rejects due to the colon character.
    */
   channelUserId?: string;
+  /** ISO start of the running turn; absent when idle. */
+  activeTurnStartedAt?: string;
+  /**
+   * Explicit so subscribers can tell "turn ended" (marker removed) apart from
+   * an event that predates the marker field.
+   */
+  turnActive?: boolean;
 }
 
 /**
@@ -49,13 +56,15 @@ interface HttpResponse {
 /**
  * Parse DynamoDB Streams record to session event
  */
-function parseRecord(record: DynamoDBRecord): SessionEvent | null {
+export function parseRecord(record: DynamoDBRecord): SessionEvent | null {
   const eventName = record.eventName as 'INSERT' | 'MODIFY' | 'REMOVE';
   const image = record.dynamodb?.NewImage || record.dynamodb?.OldImage;
 
   if (!image) {
     return null;
   }
+
+  const activeTurnStartedAt = (image.activeTurnStartedAt as { S: string } | undefined)?.S;
 
   return {
     type: eventName,
@@ -66,6 +75,8 @@ function parseRecord(record: DynamoDBRecord): SessionEvent | null {
     updatedAt: (image.updatedAt as { S: string })?.S,
     createdAt: (image.createdAt as { S: string })?.S,
     channelUserId: (image.channelUserId as { S: string })?.S,
+    activeTurnStartedAt,
+    turnActive: eventName !== 'REMOVE' && !!activeTurnStartedAt,
   };
 }
 

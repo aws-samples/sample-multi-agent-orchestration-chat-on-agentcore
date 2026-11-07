@@ -227,9 +227,9 @@ describe('resolveSkillsPaths', () => {
   });
 
   it('drops synced sources that are absent (null)', async () => {
-    expect(await resolveSkillsPaths(fakeWorkspaceSync(null, '/tmp/ws/proj/.agents/skills'))).toEqual(
-      [BUNDLED, '/tmp/ws/proj/.agents/skills']
-    );
+    expect(
+      await resolveSkillsPaths(fakeWorkspaceSync(null, '/tmp/ws/proj/.agents/skills'))
+    ).toEqual([BUNDLED, '/tmp/ws/proj/.agents/skills']);
     expect(await resolveSkillsPaths(fakeWorkspaceSync('/tmp/ws/.agents/skills', null))).toEqual([
       BUNDLED,
       '/tmp/ws/.agents/skills',
