@@ -95,6 +95,8 @@ export class AgentCoreGatewayTargetStack extends cdk.Stack {
    */
   public readonly novaReelToolsTarget: AgentCoreLambdaTarget;
 
+  public readonly pegasusToolsTarget: AgentCoreLambdaTarget;
+
   /**
    * S3 bucket for Athena query results.
    * Undefined when envConfig.athenaSourceBuckets is not configured.
@@ -511,6 +513,43 @@ export class AgentCoreGatewayTargetStack extends cdk.Stack {
       description: 'Nova Reel Tools Lambda Function Name',
     });
 
+    this.pegasusToolsTarget = new AgentCoreLambdaTarget(this, 'PegasusToolsTarget', {
+      resourcePrefix,
+      targetName: 'pegasus-tools',
+      description: 'Video analysis with TwelveLabs Pegasus 1.5',
+      lambdaCodePath: 'packages/lambda-tools/tools/pegasus-tools',
+      toolSchemaPath: 'packages/lambda-tools/tools/pegasus-tools/tool-schema.json',
+      timeout: 900,
+      memorySize: 512,
+      environment: {
+        LOG_LEVEL: 'INFO',
+        PEGASUS_REGION: 'us-east-1',
+        USER_STORAGE_BUCKET_NAME: userStorageBucketName,
+        USER_STORAGE_BUCKET_OWNER: this.account,
+      },
+      allowedRequestHeaders: ['X-Amzn-Bedrock-AgentCore-Runtime-Custom-Id-Token', 'x-storage-path'],
+    });
+    this.pegasusToolsTarget.addToImportedGateway(importedGateway, 'PegasusToolsGatewayTarget');
+    this.pegasusToolsTarget.lambdaFunction.addToRolePolicy(
+      new iam.PolicyStatement({
+        actions: ['bedrock:InvokeModel'],
+        resources: [
+          `arn:${this.partition}:bedrock:us-east-1:${this.account}:inference-profile/global.twelvelabs.pegasus-1-5-v1:0`,
+          `arn:${this.partition}:bedrock:us-east-1:${this.account}:inference-profile/us.twelvelabs.pegasus-1-5-v1:0`,
+          `arn:${this.partition}:bedrock:*::foundation-model/twelvelabs.pegasus-1-5-v1:0`,
+        ],
+      })
+    );
+    this.pegasusToolsTarget.lambdaFunction.addToRolePolicy(
+      new iam.PolicyStatement({
+        actions: ['s3:GetObject'],
+        resources: [`arn:${this.partition}:s3:::${userStorageBucketName}/users/*`],
+      })
+    );
+    new cdk.CfnOutput(this, 'PegasusToolsLambdaArn', {
+      value: this.pegasusToolsTarget.lambdaFunction.functionArn,
+    });
+
     // ── OneDrive (Microsoft Graph) OpenAPI Target ──
     // Conditionally created only when OAuth provider ARN and secret ARN are configured
     if (envConfig.microsoftGraphOAuthProviderArn && envConfig.microsoftGraphOAuthSecretArn) {
@@ -636,6 +675,18 @@ export class AgentCoreGatewayTargetStack extends cdk.Stack {
           id: 'AwsSolutions-IAM5',
           reason:
             'bedrock:StartAsyncInvoke/GetAsyncInvoke requires async-invoke/* because async invocation IDs are generated at runtime. inference-profile/* supports cross-region inference. bedrock:ListAsyncInvokes is a list-level action that does not support resource-level permissions and requires Resource: "*". User storage bucket /* is required for video output writes.',
+        },
+      ]
+    );
+
+    NagSuppressions.addResourceSuppressionsByPath(
+      this,
+      [`/${id}/PegasusToolsTarget/Function/ServiceRole/DefaultPolicy/Resource`],
+      [
+        {
+          id: 'AwsSolutions-IAM5',
+          reason:
+            'Cross-Region inference requires destination-region foundation model ARNs. S3 reads are limited to users/*; the tool validates the injected identity and workspace prefix before any read or invocation.',
         },
       ]
     );

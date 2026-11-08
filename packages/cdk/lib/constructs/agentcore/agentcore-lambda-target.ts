@@ -263,18 +263,18 @@ export class AgentCoreLambdaTarget extends Construct {
     importedGateway: agentcore.IGateway,
     targetId: string
   ): agentcore.GatewayTarget {
-    return agentcore.GatewayTarget.forLambda(this, targetId, {
+    const target = agentcore.GatewayTarget.forLambda(this, targetId, {
       gateway: importedGateway,
       gatewayTargetName: this.targetName,
       lambdaFunction: this.lambdaFunction,
       toolSchema: this.toolSchema,
       description: `Lambda target for ${this.targetName}`,
-      ...(this.allowedRequestHeaders &&
-        this.allowedRequestHeaders.length > 0 && {
-          metadataConfiguration: {
-            allowedRequestHeaders: this.allowedRequestHeaders,
-          },
-        }),
     });
+    if (this.allowedRequestHeaders && this.allowedRequestHeaders.length > 0) {
+      // The pinned L2 silently ignores metadataConfiguration; only the L1 renders it.
+      const resource = target.node.defaultChild as agentcore.CfnGatewayTarget;
+      resource.metadataConfiguration = { allowedRequestHeaders: this.allowedRequestHeaders };
+    }
+    return target;
   }
 }

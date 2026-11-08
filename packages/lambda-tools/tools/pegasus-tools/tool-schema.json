@@ -1,0 +1,41 @@
+{
+  "tools": [
+    {
+      "name": "video_to_text",
+      "description": "Summarize, describe or extract timestamped metadata from a video in your workspace. Use an S3 URI for large videos; workspace paths are limited to 25 MiB.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "videoPath": {
+            "type": "string",
+            "description": "S3 URI in your current workspace, or a workspace-relative path (also accepts /tmp/ws/ paths)."
+          },
+          "prompt": {
+            "type": "string",
+            "description": "Analysis instructions; defaults to a detailed description."
+          },
+          "analysisMode": {
+            "type": "string",
+            "description": "general (default) or time_based_metadata."
+          },
+          "maxOutputTokens": { "type": "integer", "description": "512 to 98304, default 1024." },
+          "temperature": { "type": "number", "description": "0 to 1, default 0.2." },
+          "segmentDefinitions": {
+            "type": "array",
+            "items": { "type": "object" },
+            "description": "Segment definitions required for time_based_metadata."
+          },
+          "responseJsonSchema": {
+            "type": "object",
+            "description": "Structured output schema, general mode only."
+          },
+          "modelId": {
+            "type": "string",
+            "description": "global.twelvelabs.pegasus-1-5-v1:0 (default) or us.twelvelabs.pegasus-1-5-v1:0."
+          }
+        },
+        "required": ["videoPath"]
+      }
+    }
+  ]
+}

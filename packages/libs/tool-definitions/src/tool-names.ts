@@ -55,6 +55,8 @@ export const GATEWAY_TOOL_NAMES = {
   /** nova-reel-tools__nova_reel */
   NOVA_REEL: 'nova-reel-tools___nova_reel',
 
+  PEGASUS_VIDEO_TO_TEXT: 'pegasus-tools___video_to_text',
+
   // ── Tavily Tools (opt-in: requires tavilyApiKeySecretName in environments.ts) ──
   /** tavily-tools___tavily_search */
   TAVILY_SEARCH: 'tavily-tools___tavily_search',

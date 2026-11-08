@@ -1,0 +1,22 @@
+{
+  "name": "@moca/lambda-tools-pegasus",
+  "version": "1.0.0",
+  "description": "AgentCore Gateway Pegasus video analysis tools",
+  "type": "module",
+  "main": "dist/handler.js",
+  "scripts": {
+    "clean": "rimraf dist tsconfig.tsbuildinfo",
+    "test": "jest"
+  },
+  "dependencies": {
+    "@aws-sdk/client-bedrock-runtime": "^3.1106.0",
+    "@aws-sdk/client-s3": "^3.1106.0",
+    "@moca/lambda-tools-shared": "*"
+  },
+  "devDependencies": {
+    "@types/aws-lambda": "^8.10.162"
+  },
+  "engines": {
+    "node": ">=22.12.0"
+  }
+}
