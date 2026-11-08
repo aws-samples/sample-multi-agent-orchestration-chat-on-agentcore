@@ -248,6 +248,7 @@ chat:
   noEarlierMessages: 以前のメッセージはありません
   loadEarlierError: 以前のメッセージの読み込みに失敗しました
   loadEarlierRetry: 再試行
+  contentOmitted: 'コンテンツは履歴から省略されました (≈{{size}})'
 
 # エージェント
 agent:
@@ -402,6 +403,9 @@ tool:
     output: 実行結果
     errorOutput: エラー
     waitingForResult: 結果を待っています…
+    inputOmitted: '入力内容は履歴から省略されました (≈{{size}})'
+    resultOmitted: '実行結果は履歴から省略されました (≈{{size}})'
+    reasoningOmitted: '推論内容は履歴から省略されました (≈{{size}})'
     status:
       running: 実行中
       completed: 完了

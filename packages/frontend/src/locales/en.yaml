@@ -250,6 +250,7 @@ chat:
   noEarlierMessages: No earlier messages
   loadEarlierError: Failed to load earlier messages
   loadEarlierRetry: Retry
+  contentOmitted: 'Content omitted from history (≈{{size}})'
 
 # Agent
 agent:
@@ -409,6 +410,9 @@ tool:
     output: Output
     errorOutput: Error
     waitingForResult: Waiting for result…
+    inputOmitted: 'Input omitted from history (≈{{size}})'
+    resultOmitted: 'Result omitted from history (≈{{size}})'
+    reasoningOmitted: 'Reasoning omitted from history (≈{{size}})'
     status:
       running: Running
       completed: Completed

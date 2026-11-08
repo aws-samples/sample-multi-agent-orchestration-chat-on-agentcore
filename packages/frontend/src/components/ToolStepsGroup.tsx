@@ -1,5 +1,6 @@
 import React, { useId, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { formatBytes } from '../utils/formatBytes';
 import {
   AlertCircle,
   BookOpen,
@@ -172,22 +173,34 @@ const ToolStepDetail: React.FC<{ step: ToolStep }> = ({ step }) => {
   const result = step.result ? formatToolResult(step.result.content) : null;
   return (
     <div className="space-y-2">
-      {Object.keys(step.input).length > 0 && (
-        <DetailBlock
-          label={t('common.inputParameters')}
-          text={JSON.stringify(step.input, null, 2)}
-          mono
-        />
+      {step.truncated ? (
+        <p className="text-xs text-fg-muted italic">
+          {t('tool.steps.inputOmitted', { size: formatBytes(step.truncated.byteSize) })}
+        </p>
+      ) : (
+        Object.keys(step.input).length > 0 && (
+          <DetailBlock
+            label={t('common.inputParameters')}
+            text={JSON.stringify(step.input, null, 2)}
+            mono
+          />
+        )
       )}
-      {result && (
-        <DetailBlock
-          label={step.status === 'error' ? t('tool.steps.errorOutput') : t('tool.steps.output')}
-          text={result.text}
-          mono={result.isJson}
-          tone={step.status === 'error' ? 'error' : 'default'}
-        />
+      {step.resultTruncated ? (
+        <p className="text-xs text-fg-muted italic">
+          {t('tool.steps.resultOmitted', { size: formatBytes(step.resultTruncated.byteSize) })}
+        </p>
+      ) : (
+        result && (
+          <DetailBlock
+            label={step.status === 'error' ? t('tool.steps.errorOutput') : t('tool.steps.output')}
+            text={result.text}
+            mono={result.isJson}
+            tone={step.status === 'error' ? 'error' : 'default'}
+          />
+        )
       )}
-      {!result && step.status === 'running' && (
+      {!result && !step.resultTruncated && step.status === 'running' && (
         <p className="text-xs text-fg-muted">{t('tool.steps.waitingForResult')}</p>
       )}
     </div>
@@ -197,6 +210,7 @@ const ToolStepDetail: React.FC<{ step: ToolStep }> = ({ step }) => {
 const StepRow: React.FC<{ step: Step }> = ({ step }) => {
   const [open, setOpen] = useState(false);
   const detailId = useId();
+  const { t } = useTranslation();
   const meta = useStepMeta()(step);
   const Icon = meta.icon;
   const isError = step.status === 'error';
@@ -235,7 +249,15 @@ const StepRow: React.FC<{ step: Step }> = ({ step }) => {
       {open && (
         <div id={detailId} className="mb-1.5 ml-6 mt-1">
           {step.kind === 'reasoning' ? (
-            <p className="whitespace-pre-wrap break-words text-xs text-fg-muted">{step.text}</p>
+            step.truncated ? (
+              <p className="text-xs text-fg-muted italic">
+                {t('tool.steps.reasoningOmitted', {
+                  size: formatBytes(step.truncated.byteSize),
+                })}
+              </p>
+            ) : (
+              <p className="whitespace-pre-wrap break-words text-xs text-fg-muted">{step.text}</p>
+            )
           ) : (
             <ToolStepDetail step={step} />
           )}

@@ -286,11 +286,20 @@ describe('AgentCoreMemoryService.getSessionEventsPage', () => {
 
     expect(page.events).toHaveLength(1);
     const contents = page.events[0].contents;
-    // The oversized toolUse block must be replaced with a truncation placeholder.
-    const truncated = contents.find((c) => c.type === 'truncated');
-    expect(truncated).toBeDefined();
-    expect((truncated as { type: 'truncated'; truncated: { originalType: string; byteSize: number } }).truncated.originalType).toBe('toolUse');
-    expect((truncated as { type: 'truncated'; truncated: { originalType: string; byteSize: number } }).truncated.byteSize).toBeGreaterThan(BLOCK_TRUNCATE_THRESHOLD_BYTES);
+    // The oversized toolUse block must be replaced with an identity-preserving
+    // truncation placeholder (type:'toolUse' with truncated marker, not the old
+    // generic { type:'truncated' } shape).
+    const toolUseBlock = contents.find((c) => c.type === 'toolUse');
+    expect(toolUseBlock).toBeDefined();
+    expect(
+      (toolUseBlock as { type: 'toolUse'; toolUse: { name: string }; truncated?: { field: string; byteSize: number } }).truncated
+    ).toBeDefined();
+    expect(
+      (toolUseBlock as { type: 'toolUse'; toolUse: { name: string }; truncated?: { field: string; byteSize: number } }).truncated!.field
+    ).toBe('input');
+    expect(
+      (toolUseBlock as { type: 'toolUse'; toolUse: { name: string }; truncated?: { field: string; byteSize: number } }).truncated!.byteSize
+    ).toBeGreaterThan(BLOCK_TRUNCATE_THRESHOLD_BYTES);
 
     // Page is within budget after truncation.
     const pageBytes = Buffer.byteLength(JSON.stringify(page.events), 'utf8');

@@ -57,6 +57,17 @@ export interface Reasoning {
   text: string;
 }
 
+/**
+ * Truncation marker added to a content block when its heavy payload field was
+ * replaced with an empty value to stay within the response byte budget.
+ * `field` is the name of the replaced field; `byteSize` is the pre-truncation
+ * byte count of the entire block.
+ */
+export interface TruncationMarker {
+  field: string;
+  byteSize: number;
+}
+
 // Message Content types
 export interface MessageContent {
   type: 'text' | 'toolUse' | 'toolResult' | 'image' | 'reasoning' | 'truncated';
@@ -65,8 +76,11 @@ export interface MessageContent {
   toolResult?: ToolResult;
   image?: ImageAttachment;
   reasoning?: Reasoning;
-  /** Present when type === 'truncated': describes the omitted content block. */
-  truncated?: { originalType: string; byteSize: number };
+  /**
+   * Present when type === 'truncated': legacy generic placeholder for block
+   * types that cannot carry identity fields (text, image).
+   */
+  truncated?: { originalType: string; byteSize: number } | TruncationMarker;
 }
 
 // Message types

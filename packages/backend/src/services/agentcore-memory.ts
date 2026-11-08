@@ -137,23 +137,70 @@ interface ConversationalPayload {
 }
 
 /**
- * Replace oversized content blocks in a message with truncation placeholders.
+ * Replace oversized content blocks in a message with identity-preserving
+ * truncation placeholders (option a).
  *
- * A block whose serialized JSON exceeds {@link BLOCK_TRUNCATE_THRESHOLD_BYTES}
- * is replaced with a `{ type: 'truncated', truncated: { originalType, byteSize } }`
- * placeholder, keeping the page within the byte budget even when a single turn
- * carries very large tool inputs or results.
+ * For blocks that carry both identity fields (id, toolUseId, name) and a heavy
+ * payload field (input, content, text), the payload field is replaced with an
+ * empty value and a `truncated: { field, byteSize }` marker is added to the
+ * block.  This keeps tool-step pairing intact on the frontend while ensuring
+ * the page stays within the byte budget.
+ *
+ * For block types without identity fields (text, image) the legacy generic
+ * `{ type:'truncated', truncated:{ originalType, byteSize } }` shape is used
+ * as a fallback (those block types are extremely unlikely to exceed the
+ * threshold in practice).
  */
 function applyContentTruncation(msg: ConversationMessage): ConversationMessage {
   const newContents = msg.contents.map((block) => {
     const blockBytes = Buffer.byteLength(JSON.stringify(block), 'utf8');
-    if (blockBytes > BLOCK_TRUNCATE_THRESHOLD_BYTES) {
+    if (blockBytes <= BLOCK_TRUNCATE_THRESHOLD_BYTES) return block;
+
+    const marker = { field: '', byteSize: blockBytes };
+
+    if (block.type === 'toolUse' && block.toolUse) {
+      marker.field = 'input';
       return {
-        type: 'truncated' as const,
-        truncated: { originalType: block.type, byteSize: blockBytes },
+        type: 'toolUse' as const,
+        toolUse: {
+          id: block.toolUse.id,
+          name: block.toolUse.name,
+          input: {} as Record<string, unknown>,
+          status: block.toolUse.status,
+          originalToolUseId: block.toolUse.originalToolUseId,
+        },
+        truncated: marker,
       };
     }
-    return block;
+
+    if (block.type === 'toolResult' && block.toolResult) {
+      marker.field = 'content';
+      return {
+        type: 'toolResult' as const,
+        toolResult: {
+          toolUseId: block.toolResult.toolUseId,
+          content: '',
+          isError: block.toolResult.isError,
+        },
+        truncated: marker,
+      };
+    }
+
+    if (block.type === 'reasoning' && block.reasoning) {
+      marker.field = 'text';
+      return {
+        type: 'reasoning' as const,
+        reasoning: { text: '' },
+        truncated: marker,
+      };
+    }
+
+    // Fallback for text / image / unknown types — these rarely exceed the
+    // threshold but the generic placeholder keeps the page safe.
+    return {
+      type: 'truncated' as const,
+      truncated: { originalType: block.type, byteSize: blockBytes },
+    };
   });
   return { ...msg, contents: newContents };
 }

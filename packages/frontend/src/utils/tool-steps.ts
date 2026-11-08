@@ -10,6 +10,10 @@ export interface ToolStep {
   input: Record<string, unknown>;
   result?: ToolResult;
   status: ToolStepStatus;
+  /** Present when the toolUse input was truncated server-side. */
+  truncated?: { field: string; byteSize: number };
+  /** Present when the toolResult content was truncated server-side. */
+  resultTruncated?: { field: string; byteSize: number };
 }
 
 export interface ReasoningStep {
@@ -17,6 +21,8 @@ export interface ReasoningStep {
   key: string;
   text: string;
   status: 'running' | 'completed';
+  /** Present when the reasoning text was truncated server-side. */
+  truncated?: { field: string; byteSize: number };
 }
 
 export type Step = ToolStep | ReasoningStep;
@@ -27,6 +33,8 @@ export type Segment =
   /** Generative UI output is a user-facing artifact, so it is never folded into a step group. */
   | { type: 'ui'; key: string; content: string }
   | { type: 'steps'; key: string; steps: Step[] }
+  /** Generic truncated block (text/image overflow) — rendered as a muted notice. */
+  | { type: 'truncated'; key: string; originalType: string; byteSize: number }
   | { type: 'unknown'; key: string; contentType: string };
 
 const isToolResultOnly = (m: Message): boolean =>
@@ -96,13 +104,17 @@ export function buildSegments(contents: MessageContent[], isStreaming: boolean):
         return;
 
       case 'reasoning':
-        if (!content.reasoning?.text) return;
+        // A truncated reasoning block has an empty text but a truncated marker.
+        // Render it as a reasoning step with the truncation info, not as a
+        // no-op (empty text filter) or an unknown segment.
+        if (!content.reasoning?.text && !content.truncated) return;
         pushStep(
           {
             kind: 'reasoning',
             key: `reasoning-${index}`,
-            text: content.reasoning.text,
+            text: content.reasoning?.text ?? '',
             status: isStreaming && index === contents.length - 1 ? 'running' : 'completed',
+            truncated: content.truncated as { field: string; byteSize: number } | undefined,
           },
           index
         );
@@ -126,6 +138,7 @@ export function buildSegments(contents: MessageContent[], isStreaming: boolean):
                 : isStreaming
                   ? 'running'
                   : 'incomplete',
+          truncated: content.truncated as { field: string; byteSize: number } | undefined,
         };
         stepById.set(tu.id, step);
         if (tu.originalToolUseId) stepById.set(tu.originalToolUseId, step);
@@ -137,9 +150,11 @@ export function buildSegments(contents: MessageContent[], isStreaming: boolean):
         const tr = content.toolResult;
         if (!tr) return;
         const owner = stepById.get(tr.toolUseId);
+        const resultTrunc = content.truncated as { field: string; byteSize: number } | undefined;
         if (owner) {
           owner.result = tr;
           owner.status = tr.isError ? 'error' : 'completed';
+          if (resultTrunc) owner.resultTruncated = resultTrunc;
         }
         if (extractUISpec(tr.content) !== null) {
           current = null;
@@ -156,10 +171,25 @@ export function buildSegments(contents: MessageContent[], isStreaming: boolean):
               input: {},
               result: tr,
               status: tr.isError ? 'error' : 'completed',
+              resultTruncated: resultTrunc,
             },
             index
           );
         }
+        return;
+      }
+
+      case 'truncated': {
+        // Generic truncated block (text/image overflow). Rendered as a muted
+        // notice; NOT folded into a step group.
+        const trInfo = content.truncated as { originalType: string; byteSize: number } | undefined;
+        current = null;
+        segments.push({
+          type: 'truncated',
+          key: `truncated-${index}`,
+          originalType: trInfo?.originalType ?? 'unknown',
+          byteSize: trInfo?.byteSize ?? 0,
+        });
         return;
       }
 

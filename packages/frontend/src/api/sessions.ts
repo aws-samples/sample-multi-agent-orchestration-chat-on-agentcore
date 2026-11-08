@@ -56,10 +56,11 @@ export interface ToolResult {
  * MessageContent type definition (Union type)
  */
 export type MessageContent =
-  | { type: 'text'; text: string }
-  | { type: 'toolUse'; toolUse: ToolUse }
-  | { type: 'toolResult'; toolResult: ToolResult }
-  | { type: 'image'; image: { base64: string; mimeType: string; fileName?: string } }
+  | { type: 'text'; text: string; truncated?: { field: string; byteSize: number } }
+  | { type: 'toolUse'; toolUse: ToolUse; truncated?: { field: string; byteSize: number } }
+  | { type: 'toolResult'; toolResult: ToolResult; truncated?: { field: string; byteSize: number } }
+  | { type: 'image'; image: { base64: string; mimeType: string; fileName?: string }; truncated?: { field: string; byteSize: number } }
+  | { type: 'reasoning'; reasoning: { text: string }; truncated?: { field: string; byteSize: number } }
   | { type: 'truncated'; truncated: { originalType: string; byteSize: number } };
 
 /**
