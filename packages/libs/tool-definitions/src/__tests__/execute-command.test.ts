@@ -29,4 +29,13 @@ describe('Execute Command Tool Definition', () => {
       expect(executeCommandDefinition.description).toMatch(/no install/i);
     });
   });
+
+  describe('background process guidance', () => {
+    // Verified live: an un-redirected `python3 -m http.server &` answers the
+    // first request, then returns empty replies once the call's pipes close,
+    // and agents misdiagnose this as "localhost is blocked".
+    it('tells agents to redirect output of background processes', () => {
+      expect(executeCommandDefinition.description).toMatch(/> \S+ 2>&1 &/);
+    });
+  });
 });
