@@ -99,8 +99,27 @@ RUN npm ci --omit=dev --ignore-scripts && npm cache clean --force
 #     file:// inside the agent workspace.  Agents that need to screenshot or
 #     test a locally running web app must use this local headless Chromium via
 #     execute_command instead.
+#
+# The `chromium` wrapper on PATH exists because agents discover tools with
+# `which chromium`; the real binary sits in a versioned directory outside PATH.
+# --no-sandbox: the microVM has no unprivileged user namespaces, so Chromium
+# aborts with "No usable sandbox!" without it (Playwright passes the same flag;
+# the per-session microVM is the isolation boundary). The stderr filter drops
+# ~15 harmless dbus/vaapi/bluetooth/sandbox ERROR lines per run that agents
+# otherwise read as failure; --log-level does not suppress them. Real errors
+# (e.g. "Page load failed") and the exit code pass through.
 RUN node node_modules/playwright-core/cli.js install --with-deps chromium-headless-shell \
+    && CHROME_BIN="$(ls -d /opt/ms-playwright/chromium_headless_shell-*/chrome-headless-shell-linux*/chrome-headless-shell | head -1)" \
+    && test -x "$CHROME_BIN" \
+    && printf '#!/bin/bash\n{ %s --no-sandbox "$@" 2>&1 1>&3 3>&- | grep -vE ":(ERROR|WARNING):(dbus|media/gpu/vaapi|device/bluetooth|sandbox/policy)/" >&2; } 3>&1\nexit "${PIPESTATUS[0]}"\n' "$CHROME_BIN" > /usr/local/bin/chromium \
+    && chmod 755 /usr/local/bin/chromium \
+    && chromium --version \
     && chown -R node:node /opt/ms-playwright
+
+# Lets `require('playwright-core')` resolve from the workspace (/tmp/ws), not
+# only from /app. NODE_PATH is a fallback, so projects with their own
+# node_modules still resolve their own copy first.
+ENV NODE_PATH=/app/node_modules
 
 # Copy built artifacts from builder stage (only dist/ folders, preserving structure)
 COPY --chown=node:node --from=builder --parents /build/./packages/**/dist ./

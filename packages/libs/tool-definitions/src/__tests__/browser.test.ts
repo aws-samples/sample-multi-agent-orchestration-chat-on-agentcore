@@ -37,5 +37,10 @@ describe('Browser Tool Definition', () => {
     it('points to local headless Chromium via execute_command as the alternative', () => {
       expect(browserDefinition.description).toMatch(/execute_command/i);
     });
+
+    it('does not suggest `npx playwright` (only playwright-core is in the image)', () => {
+      // `npx playwright` would fetch the full `playwright` package at runtime.
+      expect(browserDefinition.description).not.toMatch(/npx playwright/);
+    });
   });
 });
