@@ -11,6 +11,8 @@ import {
   RetrieveMemoryRecordsCommand,
   DeleteEventCommand,
   paginateListEvents,
+  ListEventsCommand,
+  type Event as AgentCoreEvent,
 } from '@aws-sdk/client-bedrock-agentcore';
 import { config } from '../config/index.js';
 import { createAgentCoreClient } from '../libs/auth/scoped-credentials.js';
@@ -27,6 +29,14 @@ import {
   type MemoryRecordList,
   type MemoryRecordSummary,
 } from './memory/record-mapper.js';
+import {
+  EVENTS_DEFAULT_PAGE_SIZE,
+  EVENTS_MAX_PAGE_SIZE,
+  PAGE_BYTE_BUDGET_BYTES,
+  BLOCK_TRUNCATE_THRESHOLD_BYTES,
+  type EventPageCursor,
+  encodeEventCursor,
+} from '../libs/http/index.js';
 
 const log = createLogger('AgentCoreMemoryService');
 
@@ -102,6 +112,19 @@ export interface ConversationMessage {
 }
 
 /**
+ * Result of a single event-history page request.
+ *
+ * `events` are in chronological order (oldest → newest) within the page.
+ * `nextCursor` is absent when there are no older events; present when older
+ * pages can be loaded by passing it back as `?cursor=<nextCursor>`.
+ */
+export interface SessionEventsPage {
+  events: ConversationMessage[];
+  nextCursor?: string;
+  hasMore: boolean;
+}
+
+/**
  * Conversational Payload type definition
  */
 interface ConversationalPayload {
@@ -111,6 +134,28 @@ interface ConversationalPayload {
       text: string;
     };
   };
+}
+
+/**
+ * Replace oversized content blocks in a message with truncation placeholders.
+ *
+ * A block whose serialized JSON exceeds {@link BLOCK_TRUNCATE_THRESHOLD_BYTES}
+ * is replaced with a `{ type: 'truncated', truncated: { originalType, byteSize } }`
+ * placeholder, keeping the page within the byte budget even when a single turn
+ * carries very large tool inputs or results.
+ */
+function applyContentTruncation(msg: ConversationMessage): ConversationMessage {
+  const newContents = msg.contents.map((block) => {
+    const blockBytes = Buffer.byteLength(JSON.stringify(block), 'utf8');
+    if (blockBytes > BLOCK_TRUNCATE_THRESHOLD_BYTES) {
+      return {
+        type: 'truncated' as const,
+        truncated: { originalType: block.type, byteSize: blockBytes },
+      };
+    }
+    return block;
+  });
+  return { ...msg, contents: newContents };
 }
 
 /**
@@ -343,6 +388,228 @@ export class AgentCoreMemoryService {
       log.error({ err: error }, 'Session event retrieval error:');
       throw error;
     }
+  }
+
+  /**
+   * Get a single size-bounded page of conversation history.
+   *
+   * ASSUMPTION: `ListEvents` returns events newest → oldest across upstream
+   * pages. The first upstream page (no nextToken) therefore contains the most
+   * recent events. This assumption is documented here and pinned by the test
+   * suite rather than trusted silently.
+   *
+   * When `cursor` is absent the most recent page is returned; subsequent calls
+   * with the returned `nextCursor` navigate backward through time. Events
+   * within each page are returned chronologically (oldest → newest).
+   *
+   * Two independent page bounds, whichever is hit first:
+   *   1. `limit` — maximum message count (default {@link EVENTS_DEFAULT_PAGE_SIZE},
+   *      max {@link EVENTS_MAX_PAGE_SIZE}).
+   *   2. {@link PAGE_BYTE_BUDGET_BYTES} — serialized byte budget for the events
+   *      array. Content blocks that individually exceed
+   *      {@link BLOCK_TRUNCATE_THRESHOLD_BYTES} are always replaced with
+   *      truncation placeholders before the budget check, so a single message
+   *      with large toolUse/toolResult/reasoning content stays within budget.
+   *
+   * @param actorId  Cognito Identity ID of the caller.
+   * @param sessionId  AgentCore session ID.
+   * @param opts.limit  Requested page size (clamped to max).
+   * @param opts.cursor  Decoded cursor from a previous call; absent = first page.
+   */
+  async getSessionEventsPage(
+    actorId: string,
+    sessionId: string,
+    opts: { limit?: number; cursor?: EventPageCursor } = {}
+  ): Promise<SessionEventsPage> {
+    const limit = Math.min(
+      Math.max(1, opts.limit ?? EVENTS_DEFAULT_PAGE_SIZE),
+      EVENTS_MAX_PAGE_SIZE
+    );
+    const cursor = opts.cursor;
+
+    log.info(
+      { sessionId, limit, hasCursor: !!cursor, offset: cursor?.off ?? 0 },
+      'Event history page request'
+    );
+
+    const pageMessages: ConversationMessage[] = [];
+    let runningBytes = 0;
+    let budgetLimited = false;
+    let upstreamPageCount = 0;
+
+    // Token that was PASSED to the most recent ListEvents call (undefined = first upstream page).
+    let currentPageToken: string | undefined = cursor?.tok;
+    // How many events to skip from the current upstream page (already served to client).
+    let currentSkipCount = cursor?.off ?? 0;
+    // nextToken returned by the most recent ListEvents call (for the next upstream page).
+    let lastResponseNextToken: string | undefined = undefined;
+    // Cursor to emit when we stop mid-upstream-page.
+    let resultNextCursor: EventPageCursor | undefined;
+
+    // Iterate upstream pages (each iteration = one ListEvents call).
+    // ListEvents returns events newest → oldest, so we navigate from newest backward.
+    while (pageMessages.length < limit) {
+      const response = await this.client.send(
+        new ListEventsCommand({
+          memoryId: this.memoryId,
+          actorId,
+          sessionId,
+          includePayloads: true,
+          maxResults: 100,
+          nextToken: currentPageToken,
+        })
+      );
+      upstreamPageCount++;
+
+      const upstreamEvents = response.events ?? [];
+      lastResponseNextToken = response.nextToken;
+
+      if (upstreamEvents.length === 0) {
+        break;
+      }
+
+      // Apply in-page offset: skip events already served from this upstream page.
+      const initialSkip = currentSkipCount;
+      const eventsToProcess = upstreamEvents.slice(initialSkip);
+      currentSkipCount = 0; // reset for any subsequent upstream pages
+
+      for (let i = 0; i < eventsToProcess.length; i++) {
+        // Limit check: stop collecting and emit a cursor before adding.
+        if (pageMessages.length >= limit) {
+          resultNextCursor = {
+            v: 1,
+            sid: sessionId,
+            tok: currentPageToken,
+            off: initialSkip + i,
+          };
+          break;
+        }
+
+        const event = eventsToProcess[i];
+        const raw = this._convertEventToMessage(event);
+        if (!raw) continue;
+
+        // Always truncate oversized content blocks first, so the byte check
+        // operates on the post-truncation size.
+        const msg = applyContentTruncation(raw);
+        const msgBytes = Buffer.byteLength(JSON.stringify(msg), 'utf8');
+
+        if (runningBytes + msgBytes > PAGE_BYTE_BUDGET_BYTES) {
+          if (pageMessages.length === 0) {
+            // Even after truncation this single message exceeds the budget
+            // (extreme edge case). Include it anyway so the page is non-empty.
+            pageMessages.push(msg);
+            runningBytes += msgBytes;
+            budgetLimited = true;
+            resultNextCursor = {
+              v: 1,
+              sid: sessionId,
+              tok: currentPageToken,
+              off: initialSkip + i + 1,
+            };
+          } else {
+            budgetLimited = true;
+            resultNextCursor = {
+              v: 1,
+              sid: sessionId,
+              tok: currentPageToken,
+              off: initialSkip + i,
+            };
+          }
+          break;
+        }
+
+        pageMessages.push(msg);
+        runningBytes += msgBytes;
+      }
+
+      if (resultNextCursor) break; // stopped mid-page
+
+      if (!lastResponseNextToken) break; // no more upstream pages
+
+      // Advance to the next (older) upstream page.
+      currentPageToken = lastResponseNextToken;
+    }
+
+    // Build the output cursor. `resultNextCursor` covers mid-page stops.
+    // `lastResponseNextToken` covers the case where we exhausted a page
+    // without hitting limits but more upstream pages remain.
+    let outputCursor: string | undefined;
+    if (resultNextCursor) {
+      outputCursor = encodeEventCursor(resultNextCursor);
+    } else if (lastResponseNextToken) {
+      outputCursor = encodeEventCursor({
+        v: 1,
+        sid: sessionId,
+        tok: lastResponseNextToken,
+        off: 0,
+      });
+    }
+
+    // Reverse: events were collected newest → oldest; return oldest → newest.
+    pageMessages.reverse();
+
+    log.info(
+      {
+        sessionId,
+        upstreamPageCount,
+        messageCount: pageMessages.length,
+        serializedBytes: runningBytes,
+        budgetLimited,
+        hasMore: !!outputCursor,
+      },
+      'Event history page served'
+    );
+
+    return {
+      events: pageMessages,
+      nextCursor: outputCursor,
+      hasMore: !!outputCursor,
+    };
+  }
+
+  /**
+   * Convert a raw ListEvents event record to a {@link ConversationMessage}.
+   * Returns null if the event has no usable payload.
+   */
+  private _convertEventToMessage(event: AgentCoreEvent): ConversationMessage | null {
+    if (!event.payload || event.payload.length === 0) return null;
+
+    // Cast to a looser type so we can use `in` checks — the SDK's `PayloadType`
+    // discriminated union is structurally correct but doesn't expose an index
+    // signature, so we cast through `unknown` to avoid false TS errors.
+    const payloadItems = event.payload as unknown as Array<Record<string, unknown>>;
+
+    for (const payloadItem of payloadItems) {
+      if ('conversational' in payloadItem) {
+        const cp = payloadItem as {
+          conversational: { role: string; content: { text: string } };
+        };
+        const role = cp.conversational.role;
+        const text = cp.conversational.content.text;
+        return {
+          id: event.eventId || `event_${Date.now()}`,
+          type: role === 'USER' ? 'user' : 'assistant',
+          contents: [{ type: 'text', text }],
+          timestamp: event.eventTimestamp?.toISOString() || new Date().toISOString(),
+        };
+      }
+
+      if ('blob' in payloadItem && payloadItem['blob']) {
+        const blobData = parseBlobPayload(payloadItem['blob']);
+        if (blobData) {
+          const messageContents = convertToMessageContents(blobData.content);
+          return {
+            id: event.eventId || `event_${Date.now()}`,
+            type: blobData.role === 'user' ? 'user' : 'assistant',
+            contents: messageContents,
+            timestamp: event.eventTimestamp?.toISOString() || new Date().toISOString(),
+          };
+        }
+      }
+    }
+
+    return null;
   }
 
   /**

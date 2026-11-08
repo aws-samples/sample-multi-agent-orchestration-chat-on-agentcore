@@ -24,6 +24,9 @@ import {
   parseLimit,
   queryString,
   zSessionId,
+  EVENTS_DEFAULT_PAGE_SIZE,
+  EVENTS_MAX_PAGE_SIZE,
+  decodeEventCursor,
 } from '../libs/http/index.js';
 
 const router = Router();
@@ -79,8 +82,16 @@ router.get(
 );
 
 /**
- * Session conversation history retrieval endpoint
- * GET /sessions/:sessionId/events
+ * Session conversation history retrieval endpoint (paginated)
+ * GET /sessions/:sessionId/events?limit=<n>&cursor=<opaque>
+ *
+ * Returns the most recent page when no cursor is supplied. Older pages are
+ * fetched by passing the `nextCursor` value from a previous response as the
+ * `cursor` query parameter.
+ *
+ * Compatibility: old clients that call without parameters receive the latest
+ * page only (recent history) rather than an HTTP 500 caused by an unbounded
+ * full-history response that exceeds the Lambda 6 MB payload limit.
  */
 router.get(
   '/:sessionId/events',
@@ -101,10 +112,31 @@ router.get(
       }
     }
 
-    const memoryService = await createAgentCoreMemoryServiceForRequest(req);
-    const events = await memoryService.getSessionEvents(actorId, sessionId);
+    // Parse cursor (validated against sessionId — throws 400 on mismatch/malformed).
+    const rawCursor = queryString(req.query.cursor);
+    const cursor = decodeEventCursor(rawCursor, sessionId);
 
-    res.status(200).json(ok(req, { events }, { actorId, sessionId, count: events.length }));
+    // Parse limit with event-history-specific default/max values.
+    const limit = parseLimit(req, EVENTS_DEFAULT_PAGE_SIZE, EVENTS_MAX_PAGE_SIZE);
+
+    const memoryService = await createAgentCoreMemoryServiceForRequest(req);
+    const page = await memoryService.getSessionEventsPage(actorId, sessionId, { limit, cursor });
+
+    res.status(200).json(
+      ok(
+        req,
+        {
+          events: page.events,
+          nextCursor: page.nextCursor,
+          hasMore: page.hasMore,
+        },
+        {
+          actorId,
+          sessionId,
+          count: page.events.length,
+        }
+      )
+    );
   })
 );
 

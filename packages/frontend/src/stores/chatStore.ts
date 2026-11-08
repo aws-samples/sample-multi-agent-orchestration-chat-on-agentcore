@@ -134,6 +134,17 @@ interface ChatActions {
   setError: (sessionId: string, error: string | null) => void;
   clearError: (sessionId: string) => void;
   loadSessionHistory: (sessionId: string, conversationMessages: ConversationMessage[]) => void;
+  /**
+   * Re-process the full combined raw history after an older page is prepended.
+   *
+   * Re-runs `mergeToolTurnMessages` over `allRawMessages` (older + already-loaded)
+   * so a `toolResult`-only message at the start of the previously-loaded page
+   * merges into the `toolUse` turn that arrives with the older page (AC3).
+   *
+   * Preserves the current `isLoading` / `error` / `lastUpdated` fields so a
+   * streaming or resumed turn is not disturbed (AC7).
+   */
+  prependSessionHistory: (sessionId: string, allRawMessages: ConversationMessage[]) => void;
 }
 
 type ChatStore = ChatState & ChatActions;
@@ -770,6 +781,72 @@ export const useChatStore = create<ChatStore>()(
         });
 
         logger.log(`Conversation history restored (${sessionId}): ${messages.length} messages`);
+      },
+
+      prependSessionHistory: (sessionId: string, allRawMessages: ConversationMessage[]) => {
+        logger.log(
+          `Prepending session history (${sessionId}): ${allRawMessages.length} combined messages`
+        );
+
+        // Reuse the same content-conversion logic as loadSessionHistory.
+        const isErrorMessage = (contents: MessageContent[]): boolean =>
+          contents.some(
+            (content) =>
+              content.type === 'text' &&
+              content.text &&
+              (content.text.includes('[SYSTEM_ERROR]') ||
+                content.text.startsWith('An error occurred:') ||
+                // eslint-disable-next-line no-restricted-syntax -- matches the agent's Japanese error prefix in stored history, not UI text
+                content.text.startsWith('エラーが発生しました:'))
+          );
+
+        const convertContents = (apiContents: ConversationMessage['contents']): MessageContent[] =>
+          apiContents.map((content) => {
+            if (content.type === 'image' && content.image) {
+              return {
+                type: 'image' as const,
+                image: {
+                  id: randomId(),
+                  fileName: content.image.fileName || 'image',
+                  mimeType: content.image.mimeType,
+                  size: 0,
+                  base64: content.image.base64,
+                } as ImageAttachment,
+              };
+            }
+            return content as MessageContent;
+          });
+
+        const messages: Message[] = mergeToolTurnMessages(
+          allRawMessages.map((convMsg) => {
+            const contents = convertContents(convMsg.contents);
+            return {
+              id: convMsg.id,
+              type: convMsg.type,
+              contents,
+              timestamp: new Date(convMsg.timestamp),
+              isStreaming: false,
+              isError: convMsg.type === 'assistant' && isErrorMessage(contents),
+            };
+          })
+        );
+
+        const { sessions } = get();
+        const sessionState = getOrCreateSessionState(sessions, sessionId);
+
+        // Preserve isLoading / error / lastUpdated so an in-flight or resumed
+        // turn is not disturbed (AC7).
+        set({
+          sessions: {
+            ...sessions,
+            [sessionId]: {
+              ...sessionState,
+              messages,
+            },
+          },
+        });
+
+        logger.log(`Session history prepend complete (${sessionId}): ${messages.length} messages`);
       },
     }),
     {

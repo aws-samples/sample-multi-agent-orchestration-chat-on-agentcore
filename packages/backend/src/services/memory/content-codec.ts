@@ -47,7 +47,8 @@ export type MessageContent =
   | { type: 'toolUse'; toolUse: ToolUse }
   | { type: 'toolResult'; toolResult: ToolResult }
   | { type: 'image'; image: { base64: string; mimeType: string; fileName?: string } }
-  | { type: 'reasoning'; reasoning: { text: string } };
+  | { type: 'reasoning'; reasoning: { text: string } }
+  | { type: 'truncated'; truncated: { originalType: string; byteSize: number } };
 
 /**
  * Backend-local content block shape used to interpret AgentCore Memory blob

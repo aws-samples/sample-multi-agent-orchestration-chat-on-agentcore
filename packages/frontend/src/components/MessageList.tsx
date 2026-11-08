@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState, useMemo } from 'react';
+import React, { useEffect, useRef, useState, useMemo, useLayoutEffect, useCallback } from 'react';
 import { useParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useChatStore } from '../stores/chatStore';
@@ -23,7 +23,8 @@ export const MessageList: React.FC<MessageListProps> = ({
 }) => {
   const { t } = useTranslation();
   const { sessionId } = useParams<{ sessionId?: string }>();
-  const { isLoadingEvents } = useSessionStore();
+  const { isLoadingEvents, eventsHasMore, isLoadingOlderEvents, olderEventsError, loadOlderEvents } =
+    useSessionStore();
   const isWideView = useUIStore((state) => state.isWideView);
   const sessionState = useChatStore((state) =>
     sessionId ? (state.sessions[sessionId] ?? null) : null
@@ -34,6 +35,10 @@ export const MessageList: React.FC<MessageListProps> = ({
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const [shouldAutoScroll, setShouldAutoScroll] = useState(true);
+
+  // Scroll-position preservation: saved scrollHeight before prepend.
+  const savedScrollHeightRef = useRef<number | null>(null);
+  const prevMessageCountRef = useRef<number>(messages.length);
 
   // Monitor scroll position and stop auto-scroll if user scrolls up
   const handleScroll = () => {
@@ -52,6 +57,37 @@ export const MessageList: React.FC<MessageListProps> = ({
     }
   }, [messages, shouldAutoScroll]);
 
+  // Restore scroll position after older messages are prepended (AC7).
+  // Using useLayoutEffect fires synchronously after DOM mutation, before paint,
+  // so the scroll position is corrected before the user sees it.
+  useLayoutEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+
+    const prevCount = prevMessageCountRef.current;
+    const currCount = messages.length;
+
+    if (currCount > prevCount && savedScrollHeightRef.current !== null) {
+      // Messages were prepended — restore relative scroll position.
+      const diff = container.scrollHeight - savedScrollHeightRef.current;
+      if (diff > 0) {
+        container.scrollTop += diff;
+      }
+      savedScrollHeightRef.current = null;
+    }
+
+    prevMessageCountRef.current = currCount;
+  }, [messages.length]);
+
+  const handleLoadEarlier = useCallback(() => {
+    if (!sessionId || isLoadingOlderEvents) return;
+    // Save scroll height before prepend for position restoration.
+    if (containerRef.current) {
+      savedScrollHeightRef.current = containerRef.current.scrollHeight;
+    }
+    loadOlderEvents(sessionId);
+  }, [sessionId, isLoadingOlderEvents, loadOlderEvents]);
+
   return (
     <div
       ref={containerRef}
@@ -61,6 +97,34 @@ export const MessageList: React.FC<MessageListProps> = ({
       <div
         className={`${isWideView ? 'max-w-full px-8' : 'max-w-4xl px-4'} mx-auto py-4 pb-32 transition-[max-width,padding] duration-300 ease-in-out`}
       >
+        {/* Load earlier messages control — shown at top when older pages exist */}
+        {!isLoadingEvents && messages.length > 0 && sessionId && (
+          <div className="flex justify-center mb-4">
+            {isLoadingOlderEvents ? (
+              <span className="text-sm text-fg-secondary py-2 px-4">
+                {t('chat.loadingEarlierMessages')}
+              </span>
+            ) : olderEventsError ? (
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-feedback-error">{t('chat.loadEarlierError')}</span>
+                <button
+                  onClick={handleLoadEarlier}
+                  className="text-sm text-brand-default hover:underline"
+                >
+                  {t('chat.loadEarlierRetry')}
+                </button>
+              </div>
+            ) : eventsHasMore ? (
+              <button
+                onClick={handleLoadEarlier}
+                className="text-sm text-fg-secondary bg-surface-secondary hover:bg-surface-tertiary rounded-full px-4 py-1.5 transition-colors"
+              >
+                {t('chat.loadEarlierMessages')}
+              </button>
+            ) : null}
+          </div>
+        )}
+
         {/* Error display */}
         {error && (
           <div className="mb-6 bg-feedback-error-bg border border-feedback-error-border rounded-2xl p-4">

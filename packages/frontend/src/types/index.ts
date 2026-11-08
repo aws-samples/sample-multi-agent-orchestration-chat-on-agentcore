@@ -59,12 +59,14 @@ export interface Reasoning {
 
 // Message Content types
 export interface MessageContent {
-  type: 'text' | 'toolUse' | 'toolResult' | 'image' | 'reasoning';
+  type: 'text' | 'toolUse' | 'toolResult' | 'image' | 'reasoning' | 'truncated';
   text?: string;
   toolUse?: ToolUse;
   toolResult?: ToolResult;
   image?: ImageAttachment;
   reasoning?: Reasoning;
+  /** Present when type === 'truncated': describes the omitted content block. */
+  truncated?: { originalType: string; byteSize: number };
 }
 
 // Message types

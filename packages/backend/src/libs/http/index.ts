@@ -30,6 +30,13 @@ export {
   decodePageToken,
   encodePageToken,
   queryString,
+  EVENTS_DEFAULT_PAGE_SIZE,
+  EVENTS_MAX_PAGE_SIZE,
+  PAGE_BYTE_BUDGET_BYTES,
+  BLOCK_TRUNCATE_THRESHOLD_BYTES,
+  type EventPageCursor,
+  encodeEventCursor,
+  decodeEventCursor,
 } from './pagination.js';
 
 export { zAgentId, zUserId, zSessionId, zTriggerId } from './schemas.js';

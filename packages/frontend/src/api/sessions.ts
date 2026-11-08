@@ -59,7 +59,8 @@ export type MessageContent =
   | { type: 'text'; text: string }
   | { type: 'toolUse'; toolUse: ToolUse }
   | { type: 'toolResult'; toolResult: ToolResult }
-  | { type: 'image'; image: { base64: string; mimeType: string; fileName?: string } };
+  | { type: 'image'; image: { base64: string; mimeType: string; fileName?: string } }
+  | { type: 'truncated'; truncated: { originalType: string; byteSize: number } };
 
 /**
  * Conversation message type definition
@@ -90,6 +91,8 @@ interface SessionsResponse {
 
 interface SessionEventsResponse {
   events: ConversationMessage[];
+  nextCursor?: string;
+  hasMore: boolean;
   metadata: {
     requestId: string;
     timestamp: string;
@@ -97,6 +100,25 @@ interface SessionEventsResponse {
     sessionId: SessionId;
     count: number;
   };
+}
+
+/**
+ * Result of fetching a single events page.
+ */
+export interface FetchSessionEventsResult {
+  events: ConversationMessage[];
+  nextCursor?: string;
+  hasMore: boolean;
+}
+
+/**
+ * Options for fetching session events.
+ */
+export interface FetchSessionEventsOptions {
+  /** Opaque cursor from a previous response; absent = first (latest) page. */
+  cursor?: string;
+  /** Requested page size. */
+  limit?: number;
 }
 
 /**
@@ -145,13 +167,44 @@ export async function fetchSessions(options?: FetchSessionsOptions): Promise<Fet
 }
 
 /**
- * Fetch session conversation history
+ * Fetch a page of session conversation history.
+ *
+ * When called without options (no `cursor`) the most recent page is returned.
+ * Older pages are fetched by passing the `nextCursor` from a previous response.
+ *
+ * Old clients that call without parameters receive the latest page only
+ * (recent history) rather than an HTTP 500, preserving backward compatibility.
+ *
  * @param sessionId Session ID
- * @returns Conversation history
+ * @param options   Pagination options
+ * @returns Events page with pagination cursors
  */
-export async function fetchSessionEvents(sessionId: string): Promise<ConversationMessage[]> {
-  const data = await backendClient.get<SessionEventsResponse>(`/sessions/${sessionId}/events`);
-  return data.events;
+export async function fetchSessionEvents(
+  sessionId: string,
+  options?: FetchSessionEventsOptions
+): Promise<FetchSessionEventsResult> {
+  const params = new URLSearchParams();
+
+  if (options?.cursor) {
+    params.set('cursor', options.cursor);
+  }
+
+  if (options?.limit) {
+    params.set('limit', options.limit.toString());
+  }
+
+  const queryString = params.toString();
+  const url = queryString
+    ? `/sessions/${sessionId}/events?${queryString}`
+    : `/sessions/${sessionId}/events`;
+
+  const data = await backendClient.get<SessionEventsResponse>(url);
+
+  return {
+    events: data.events,
+    nextCursor: data.nextCursor,
+    hasMore: data.hasMore,
+  };
 }
 
 /**
