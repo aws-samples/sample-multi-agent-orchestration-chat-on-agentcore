@@ -33,7 +33,7 @@ const UiArtifact: React.FC<{ title: string }> = ({ title }) => (
     <div className="flex h-28 items-end gap-6 px-4">
       {[61, 42, 35].map((v, i) => (
         <div key={i} className="flex flex-1 flex-col items-center gap-1">
-          <div className="w-full rounded-t bg-action-primary/80" style={{ height: `${v * 1.6}px` }} />
+          <div className="w-full rounded-t bg-action-primary" style={{ height: `${v * 1.6}px` }} />
           <span className="text-xs text-fg-muted">{['金融', '製造', '小売'][i]}</span>
         </div>
       ))}

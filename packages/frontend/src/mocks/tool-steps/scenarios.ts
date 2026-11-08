@@ -58,7 +58,7 @@ const think = (text: string, ms = 1800): StepDef => ({ kind: 'reasoning', text, 
 export const scenarios: Scenario[] = [
   {
     id: 'research',
-    label: '長いリサーチ (24 ステップ)',
+    label: '長いリサーチ (14 + 7 ステップ)',
     userPrompt: '国内の生成 AI 導入状況を調べて、業種別の比較表とグラフを作って',
     items: [
       {
@@ -157,7 +157,7 @@ export const scenarios: Scenario[] = [
       { type: 'ui', title: '業種別 生成 AI 導入率 (生成 UI)' },
       {
         type: 'text',
-        text: '## まとめ\n\n| 業種 | 導入率 |\n|---|---|\n| 金融 | 61% |\n| 製造 | 42% |\n| 小売 | 35% |\n\n金融が最も高く、小売は人手不足領域から導入が進んでいます。レポートは `/workspace/report/genai-adoption.md` に保存しました。',
+        text: '**まとめ**: 金融 61% / 製造 42% / 小売 35%。金融が最も高く、小売は人手不足領域から導入が進んでいます。レポートは `/workspace/report/genai-adoption.md` に保存しました。',
       },
     ],
   },

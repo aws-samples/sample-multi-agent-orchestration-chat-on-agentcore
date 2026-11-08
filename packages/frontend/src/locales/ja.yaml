@@ -385,6 +385,41 @@ tool:
   refresh: 再読み込み
   closeError: エラーを閉じる
 
+  # ToolStepsGroup (collapsible tool execution steps)
+  steps:
+    count: '· {{count}} ステップ'
+    executed: '{{count}} ステップを実行'
+    failed: '{{count}} 件失敗'
+    retried: '{{count}} 件再試行'
+    showEarlier: '前の {{count}} 件を表示'
+    output: 実行結果
+    errorOutput: エラー
+    waitingForResult: 結果を待っています…
+    status:
+      running: 実行中
+      completed: 完了
+      error: 失敗
+      incomplete: 未完了
+    labels:
+      search: 検索
+      browse: ページを閲覧
+      code: コードを実行
+      file: ファイルを編集
+      command: コマンドを実行
+      agent: エージェントに依頼
+      todo: タスクを更新
+      ui: UI を生成
+      memory: メモリを検索
+      think: 思考を整理
+      files: ファイル一覧を取得
+      imageToText: 画像を読み取り
+      image: 画像を生成
+      video: 動画を生成
+      knowledge: ナレッジを検索
+      trigger: トリガーを管理
+      reasoning: 思考
+      unknown: ツール結果
+
   # ToolSelector
   selector:
     availableTools: 利用可能なツール

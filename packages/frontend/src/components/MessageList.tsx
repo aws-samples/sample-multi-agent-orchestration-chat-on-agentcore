@@ -10,6 +10,7 @@ import { MessageSkeleton } from './MessageSkeleton';
 import { WelcomeScreenSkeleton } from './WelcomeScreenSkeleton';
 import { TypingIndicator } from './TypingIndicator';
 import { translateIfKey } from '../utils/agent-translation';
+import { mergeToolTurnMessages } from '../utils/tool-steps';
 
 interface MessageListProps {
   onScenarioClick?: (prompt: string) => void;
@@ -29,6 +30,8 @@ export const MessageList: React.FC<MessageListProps> = ({
     sessionId ? (state.sessions[sessionId] ?? null) : null
   );
   const messages = useMemo(() => sessionState?.messages || [], [sessionState?.messages]);
+  // Display-only: history splits one tool turn across several messages.
+  const displayMessages = useMemo(() => mergeToolTurnMessages(messages), [messages]);
   const error = sessionState?.error || null;
   const selectedAgent = useSelectedAgent();
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -134,7 +137,7 @@ export const MessageList: React.FC<MessageListProps> = ({
 
         {/* Message list - hidden while loading */}
         {!isLoadingEvents &&
-          messages.map((message) => <Message key={message.id} message={message} />)}
+          displayMessages.map((message) => <Message key={message.id} message={message} />)}
 
         {/* Show TypingIndicator when agent is processing via AppSync Events (e.g., after page reload).
             During normal HTTP streaming, TypingIndicator is shown inside Message.tsx via isStreaming flag.

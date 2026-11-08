@@ -1,6 +1,7 @@
 import type React from 'react';
 import type { StepGroupViewProps } from '../types';
 import { CurrentPattern } from './Current';
+import { ImplPattern } from './Impl';
 import { PatternA } from './PatternA';
 import { PatternB } from './PatternB';
 import { PatternC } from './PatternC';
@@ -19,6 +20,12 @@ export const patterns: PatternEntry[] = [
     name: '現状',
     summary: 'ツール呼び出し・結果・推論をすべて個別ブロックで縦に並べる',
     Component: CurrentPattern,
+  },
+  {
+    id: 'impl',
+    name: '本実装 (A)',
+    summary: 'components/ToolStepsGroup.tsx を buildSegments 経由で描画',
+    Component: ImplPattern,
   },
   {
     id: 'a',

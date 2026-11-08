@@ -13,11 +13,9 @@ import type { Message as MessageType } from '../types/index';
 import { useThemeStore } from '../stores/themeStore';
 import { useUIStore } from '../stores/uiStore';
 import { TypingIndicator } from './TypingIndicator';
-import { ToolUseBlock } from './ToolUseBlock';
-import { ToolResultBlock } from './ToolResultBlock';
-import { ReasoningBlock } from './ReasoningBlock';
+import { ToolStepsGroup } from './ToolStepsGroup';
 import { JsonRenderBlock } from './JsonRenderBlock';
-import { extractUISpec } from '../utils/generative-ui';
+import { buildSegments } from '../utils/tool-steps';
 import { MermaidDiagram } from './MermaidDiagram';
 import { S3FileLink } from './S3FileLink';
 import { S3Image } from './S3Image';
@@ -33,6 +31,10 @@ export const Message: React.FC<MessageProps> = ({ message }) => {
   const isDark = resolvedTheme === 'dark';
   const isWideView = useUIStore((s) => s.isWideView);
   const isUser = message.type === 'user';
+  const segments = useMemo(
+    () => buildSegments(message.contents, Boolean(message.isStreaming)),
+    [message.contents, message.isStreaming]
+  );
 
   // Full-width block content (tool cards, reasoning panel) lays the message out
   // edge-to-edge instead of in a content-hugging bubble. Reasoning is included so
@@ -40,9 +42,7 @@ export const Message: React.FC<MessageProps> = ({ message }) => {
   // full width and doesn't visibly jump wider once the text arrives.
   const hasBlockContent = message.contents.some(
     (content) =>
-      content.type === 'toolUse' ||
-      content.type === 'toolResult' ||
-      content.type === 'reasoning'
+      content.type === 'toolUse' || content.type === 'toolResult' || content.type === 'reasoning'
   );
 
   // Check if a path is an S3 storage path (user relative path)
@@ -253,72 +253,46 @@ export const Message: React.FC<MessageProps> = ({ message }) => {
           {/* Message content */}
           <div className="prose prose-sm max-w-none">
             <div className="message-contents space-y-2">
-              {message.contents.map((content, index) => {
-                switch (content.type) {
+              {segments.map((segment, index) => {
+                switch (segment.type) {
                   case 'text':
                     return (
-                      <div key={`text-${index}`} className="markdown-content">
+                      <div key={segment.key} className="markdown-content">
                         <ReactMarkdown
                           remarkPlugins={[remarkGfm, remarkBreaks, remarkMath]}
                           rehypePlugins={[rehypeKatex]}
                           components={markdownComponents}
                         >
-                          {content.text || ''}
+                          {segment.text}
                         </ReactMarkdown>
                       </div>
                     );
 
-                  case 'reasoning':
-                    return content.reasoning ? (
-                      <ReasoningBlock
-                        key={`reasoning-${index}`}
-                        reasoning={content.reasoning}
-                        // "Thinking…" only while this reasoning block is the one
-                        // actively streaming — i.e. it's the last content and the
-                        // turn is still running. Once text/toolUse follows, the
-                        // reasoning is complete, so stop the indicator.
-                        isStreaming={
-                          message.isStreaming && index === message.contents.length - 1
-                        }
-                      />
-                    ) : null;
-
-                  case 'toolUse':
-                    return content.toolUse ? (
-                      <ToolUseBlock key={`tool-use-${index}`} toolUse={content.toolUse} />
-                    ) : null;
-
-                  case 'toolResult': {
-                    if (!content.toolResult) return null;
-                    if (extractUISpec(content.toolResult.content) !== null) {
-                      return (
-                        <JsonRenderBlock
-                          key={`json-render-${index}`}
-                          content={content.toolResult.content}
-                        />
-                      );
-                    }
+                  case 'steps':
                     return (
-                      <ToolResultBlock
-                        key={`tool-result-${index}`}
-                        toolResult={content.toolResult}
+                      <ToolStepsGroup
+                        key={segment.key}
+                        steps={segment.steps}
+                        // Live only while the agent is still working inside this
+                        // group; once text/UI follows it folds automatically.
+                        isLive={Boolean(message.isStreaming) && index === segments.length - 1}
                       />
                     );
-                  }
+
+                  case 'ui':
+                    return <JsonRenderBlock key={segment.key} content={segment.content} />;
 
                   case 'image': {
-                    if (!content.image) return null;
+                    const image = segment.image;
                     // Use previewUrl if available (newly attached), otherwise construct from base64 (from session history)
                     const imageSrc =
-                      content.image.previewUrl ||
-                      (content.image.base64
-                        ? `data:${content.image.mimeType};base64,${content.image.base64}`
-                        : '');
+                      image.previewUrl ||
+                      (image.base64 ? `data:${image.mimeType};base64,${image.base64}` : '');
                     return imageSrc ? (
-                      <div key={`image-${index}`} className="inline-block mr-2 mb-2">
+                      <div key={segment.key} className="inline-block mr-2 mb-2">
                         <img
                           src={imageSrc}
-                          alt={content.image.fileName || 'Attached image'}
+                          alt={image.fileName || 'Attached image'}
                           className="max-w-xs max-h-48 object-contain rounded-lg border border-border"
                         />
                       </div>
@@ -327,17 +301,19 @@ export const Message: React.FC<MessageProps> = ({ message }) => {
 
                   default:
                     return (
-                      <div key={`unknown-${index}`} className="text-fg-muted text-sm">
-                        {t('common.unsupportedContentType', { type: content.type })}
+                      <div key={segment.key} className="text-fg-muted text-sm">
+                        {t('common.unsupportedContentType', { type: segment.contentType })}
                       </div>
                     );
                 }
               })}
 
               {/* Show TypingIndicator while streaming, waiting for the next content */}
+              {/* A live step group shows its own spinner, so skip the indicator there. */}
               {message.isStreaming &&
-                (message.contents.length === 0 ||
-                  message.contents[message.contents.length - 1]?.type === 'toolResult') && (
+                (segments.length === 0 ||
+                  (segments[segments.length - 1]?.type !== 'steps' &&
+                    message.contents[message.contents.length - 1]?.type === 'toolResult')) && (
                   <TypingIndicator />
                 )}
             </div>
