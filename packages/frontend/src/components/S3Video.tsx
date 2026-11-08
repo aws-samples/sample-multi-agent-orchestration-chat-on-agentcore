@@ -25,14 +25,14 @@ export const S3Video: React.FC<S3VideoProps> = ({ path, className = '' }) => {
         setPresignedUrl(url);
       } catch (err) {
         logger.error('Failed to generate presigned URL for video:', err);
-        setError(err instanceof Error ? err.message : 'Failed to load video');
+        setError(err instanceof Error ? err.message : t('storage.videoLoadFailed'));
       } finally {
         setIsLoading(false);
       }
     };
 
     fetchPresignedUrl();
-  }, [path]);
+  }, [path, t]);
 
   if (isLoading) {
     return (

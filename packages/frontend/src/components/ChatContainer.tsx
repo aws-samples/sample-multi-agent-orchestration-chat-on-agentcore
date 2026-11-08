@@ -82,7 +82,9 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
                   return <AgentIcon className="w-6 h-6 text-fg-secondary" />;
                 })()}
                 <h1 className="text-lg font-semibold text-fg-default">
-                  {selectedAgent ? translateIfKey(selectedAgent.name, t) : '汎用アシスタント'}
+                  {selectedAgent
+                    ? translateIfKey(selectedAgent.name, t)
+                    : t('defaultAgents.generalAssistant.name')}
                 </h1>
                 <ChevronDown
                   className="w-4 h-4 text-fg-disabled group-hover:text-fg-secondary transition-colors"

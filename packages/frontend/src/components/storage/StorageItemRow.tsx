@@ -36,7 +36,7 @@ export function StorageItemRow({
   selectionActive,
   onToggleSelect,
 }: StorageItemRowProps) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
 
   const handleDelete = (e: React.MouseEvent) => {
     e.stopPropagation(); // Stop card click event
@@ -72,7 +72,7 @@ export function StorageItemRow({
 
   const formatDate = (dateString?: string) => {
     if (!dateString) return '—';
-    return new Date(dateString).toLocaleDateString('ja-JP', {
+    return new Date(dateString).toLocaleDateString(i18n.language, {
       year: 'numeric',
       month: '2-digit',
       day: '2-digit',

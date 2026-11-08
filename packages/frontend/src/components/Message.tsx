@@ -288,12 +288,15 @@ export const Message: React.FC<MessageProps> = ({ message }) => {
                     // Use previewUrl if available (newly attached), otherwise construct from base64 (from session history)
                     const imageSrc =
                       image.previewUrl ||
-                      (image.base64 ? `data:${image.mimeType};base64,${image.base64}` : '');
+                      (image.base64
+                        ? // eslint-disable-next-line i18next/no-literal-string -- data URL, not UI text
+                          `data:${image.mimeType};base64,${image.base64}`
+                        : '');
                     return imageSrc ? (
                       <div key={segment.key} className="inline-block mr-2 mb-2">
                         <img
                           src={imageSrc}
-                          alt={image.fileName || 'Attached image'}
+                          alt={image.fileName || t('chat.imageAttachment.alt')}
                           className="max-w-xs max-h-48 object-contain rounded-lg border border-border"
                         />
                       </div>

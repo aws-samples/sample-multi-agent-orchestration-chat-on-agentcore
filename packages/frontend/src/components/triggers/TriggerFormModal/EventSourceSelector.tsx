@@ -74,7 +74,7 @@ export function EventSourceSelector({
         setEventSources(sources);
       } catch (err) {
         logger.error('Failed to fetch event sources:', err);
-        setError(err instanceof Error ? err.message : 'Failed to load event sources');
+        setError(err instanceof Error ? err.message : t('triggers.eventSource.loadError'));
         toast.error(t('triggers.eventSource.loadError'));
       } finally {
         setLoading(false);

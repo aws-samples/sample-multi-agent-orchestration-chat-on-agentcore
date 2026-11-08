@@ -77,7 +77,7 @@ export const S3FileLink: React.FC<S3FileLinkProps> = ({ path, children }) => {
       } catch (err) {
         if (cancelled) return;
         logger.error('Failed to generate download URL:', err);
-        setError(err instanceof Error ? err.message : 'Failed to generate download URL');
+        setError(err instanceof Error ? err.message : t('storage.downloadUrlFailed'));
       } finally {
         if (!cancelled) setIsLoading(false);
       }
@@ -89,7 +89,7 @@ export const S3FileLink: React.FC<S3FileLinkProps> = ({ path, children }) => {
       cancelled = true;
       clearInterval(interval);
     };
-  }, [path]);
+  }, [path, t]);
 
   // Fallback handler for when presigned URL is not yet available
   const handleFallbackClick = (e: React.MouseEvent<HTMLAnchorElement>) => {
@@ -123,7 +123,9 @@ export const S3FileLink: React.FC<S3FileLinkProps> = ({ path, children }) => {
           ${isLoading ? 'opacity-50 cursor-wait' : ''}
           ${error ? 'text-feedback-error' : ''}
         `}
-        title={error || (isLoading ? 'Loading...' : `Download: ${fileName}`)}
+        title={
+          error || (isLoading ? t('common.loading') : t('storage.downloadTooltip', { fileName }))
+        }
       >
         <span className="text-base leading-none">{getFileIcon(fileName)}</span>
         <span>{children}</span>

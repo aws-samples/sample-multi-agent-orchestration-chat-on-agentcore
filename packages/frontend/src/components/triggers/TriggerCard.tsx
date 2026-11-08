@@ -31,7 +31,7 @@ export function TriggerCard({
   onViewHistory,
   onDelete,
 }: TriggerCardProps) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const { getAgent } = useAgentStore();
   const togglingIds = useTriggerStore((state) => state.togglingIds);
   const agent = getAgent(trigger.agentId);
@@ -62,7 +62,7 @@ export function TriggerCard({
   const formatLastExecution = (timestamp?: string) => {
     if (!timestamp) return t('triggers.card.notExecuted');
     const date = new Date(timestamp);
-    return date.toLocaleString('ja-JP', {
+    return date.toLocaleString(i18n.language, {
       year: 'numeric',
       month: '2-digit',
       day: '2-digit',

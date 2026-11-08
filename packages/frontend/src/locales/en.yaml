@@ -2,6 +2,7 @@
 
 # Common
 common:
+  unknownError: Unknown error
   loading: Loading...
   error: An error occurred
   errorOccurred: An error occurred
@@ -136,6 +137,7 @@ auth:
 
 # Navigation
 navigation:
+  returnHome: Return to home page
   home: Home
   chat: Chat
   newChat: New Chat
@@ -180,6 +182,12 @@ shortcuts:
 
 # Chat
 chat:
+  loadingHistory: Loading conversation history...
+  sessionsDeleteFailed_one: '{{count}} session failed to delete'
+  sessionsDeleteFailed_other: '{{count}} sessions failed to delete'
+  sessionBadge:
+    event: '[Event]'
+    subAgent: '[Sub]'
   modelStopped: 'The model stopped this response, e.g. by a safety filter (reason: {{stopReason}}). Retry with a different model or rephrase the request.'
   turnInProgress: 'The previous request in this session is still running. Please wait for it to finish.'
   persistenceDegraded: 'Your sign-in expired, so this conversation and its workspace files are no longer being saved. Keep this tab open while the agent runs, or reload and retry.'
@@ -205,6 +213,9 @@ chat:
   searchChatsDescription: Chat search functionality is under development.
   searchChatsFeature: You will be able to search past conversation history by keywords.
   imageAttachment:
+    alt: Attached image
+    remove: 'Remove {{fileName}}'
+    fileError: '{{fileName}}: {{error}}'
     attach: Attach image
     invalidType: Invalid file type. Please select PNG, JPEG, WebP, or GIF.
     tooLarge: File is too large. Maximum size is 5MB.
@@ -455,6 +466,11 @@ tool:
 
 # Storage
 storage:
+  workingDirectoryTooltip: 'Storage: {{path}}'
+  downloadTooltip: 'Download: {{fileName}}'
+  downloadUrlFailed: Failed to generate download URL
+  imageLoadFailed: Failed to load image
+  videoLoadFailed: Failed to load video
   loadError: Failed to load folders
   title: Storage Management
   fileStorage: File Storage
@@ -659,6 +675,8 @@ triggers:
     typeSchedule: Schedule
     typeEvent: Event (Coming Soon)
     inputMessage: Input Message
+    inputMessageDescription: Enter the message to send to the agent
+    eventSourceRequired: Please select an event source
     inputMessagePlaceholder: Message to send to the agent
     inputMessageRequired: Input message is required
     modelId: Model ID
@@ -745,6 +763,8 @@ triggers:
     hideDetails: Hide Details
     loadMore: Load More
     executionId: Execution ID
+    sessionId: Session
+    eventPayload: Event Payload
 
   # Messages
   messages:
@@ -788,7 +808,6 @@ triggers:
     noSourcesAvailable: No event sources configured
     loadError: Failed to load event sources
     helpText: Select which event should trigger this agent. To add new event sources, please contact your system administrator.
-    eventSourceRequired: Please select an event source
     ruleDetails: EventBridge Rule Details
 
   # Card Display
@@ -995,27 +1014,18 @@ defaultAgents:
     name: Slideshow Video Creator
     description: Create narrated videos from images with Japanese subtitles and voice. Supports PDF to video conversion
     scenarios:
-      basicVideo:
+      imageVideo:
         title: Create Basic Video
         prompt: "Please create a video from the following images:\n\nImage folder/files: \nDisplay time per image: (default: 1 second)\n\nWill create a basic video without subtitles or audio."
-      subtitledVideo:
-        title: Add Subtitles
-        prompt: "Please add Japanese subtitles to the video:\n\nVideo file: \nSubtitle texts (one per image): \n1. \n2. \n3. \n\nSubtitles will be displayed at the bottom center with black background."
-      narratedVideo:
-        title: Add Narration
-        prompt: "Please add narration audio to the video:\n\nVideo file: \nNarration texts (one per image): \n1. \n2. \n3. \n\nWill generate Japanese TTS audio and merge with video."
-      fullPackage:
+      subtitleVideo:
         title: Complete Video with Subtitles & Audio
         prompt: "Please create a complete video with both subtitles and narration:\n\nImage folder/files: \nSubtitle/Narration texts: \n1. \n2. \n3. \n\nWill create a fully narrated video with Japanese subtitles."
       pdfToVideo:
         title: PDF to Video
         prompt: "Please convert a PDF (PowerPoint export) to a narrated video:\n\nPDF file: \nNarration texts for each page: \n1. \n2. \n3. \n\nWill convert PDF pages to images, then create video with subtitles and narration."
-      customSettings:
-        title: Custom Settings
-        prompt: "Please create a video with custom settings:\n\nImage folder/files: \nDisplay time per image: \nSubtitle position: (top/bottom/custom)\nFont size: \nOther settings: \n\nWill create a customized video based on your specifications."
-      presentationVideo:
-        title: Presentation Video
-        prompt: "Please create a presentation-style video:\n\nSlide images/PDF: \nPresentation script: \nBackground music: (optional)\n\nWill create a professional presentation video with narration."
+      envCheck:
+        title: Check Video Environment
+        prompt: "Please check the environment needed to create videos:\n\n- ffmpeg\n- Japanese fonts\n- Python packages (OpenCV, Pillow, gTTS, etc.)\n\nIf anything is missing, tell me how to install it."
 
   kamishibaiMaster:
     name: Kamishibai Master

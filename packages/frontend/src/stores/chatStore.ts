@@ -713,6 +713,7 @@ export const useChatStore = create<ChatStore>()(
               content.text &&
               (content.text.includes('[SYSTEM_ERROR]') ||
                 content.text.startsWith('An error occurred:') ||
+                // eslint-disable-next-line no-restricted-syntax -- matches the agent's Japanese error prefix in stored history, not UI text
                 content.text.startsWith('エラーが発生しました:'))
           );
         };

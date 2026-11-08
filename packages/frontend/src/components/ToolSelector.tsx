@@ -5,6 +5,8 @@ import { useToolStore } from '../stores/toolStore';
 import { LoadingIndicator } from './ui/LoadingIndicator';
 import { getToolIcon } from '../utils/toolIcons';
 
+const TOOL_ICON_CLASS = 'w-3 h-3';
+
 interface ToolSelectorProps {
   selectedTools: string[];
   onSelectionChange: (selectedTools: string[]) => void;
@@ -196,7 +198,7 @@ export const ToolSelector: React.FC<ToolSelectorProps> = ({
                         : 'bg-surface-secondary text-fg-secondary border border-border hover:border-feedback-info-border hover:bg-feedback-info-bg'
                     }`}
                   >
-                    {getToolIcon(tool.name, 'w-3 h-3')}
+                    {getToolIcon(tool.name, TOOL_ICON_CLASS)}
                   </div>
 
                   {/* Tool information */}
