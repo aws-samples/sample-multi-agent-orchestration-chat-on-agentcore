@@ -24,8 +24,6 @@ common:
   noFolders: No folders
   inputParameters: Input Parameters
   unsupportedContentType: 'Unsupported content type: {{type}}'
-  reasoning: Reasoning
-  thinking: Thinking…
   reasoningDepth: Reasoning
   reasoningDepthOff: 'Off'
   reasoningDepthModelDefault: 'Model default (always on)'
@@ -42,13 +40,11 @@ common:
   renderingDiagram: Rendering diagram...
   diagramLoading: Mermaid diagram loading...
   characters: '{{count}} characters'
-  charactersWithStatus: '{{count}} characters • {{status}}'
   iconsCount: '{{count}} icons'
   noIconsFound: 'No icons found matching "{{query}}"'
   searchIconsPlaceholder: Search icons...
   clickToSelectIcon: Click to select an icon
   success: Success
-  errorStatus: Error
   moreOptions: More options
   deleting: Deleting...
 
@@ -365,10 +361,6 @@ tool:
   required: required
   showDetails: Show Details
   hideDetails: Hide Details
-  errorResult: Error Result JSON
-  executionResult: Execution Result JSON
-  jsonResponse: JSON Response
-  textResult: Text Result
   searchPlaceholder: Search tools in natural language... (e.g. 'echo text')
   searching: Searching tools...
   loadingTools: Loading tools...

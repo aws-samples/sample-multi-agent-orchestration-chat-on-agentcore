@@ -35,6 +35,7 @@ export const Message: React.FC<MessageProps> = ({ message }) => {
     () => buildSegments(message.contents, Boolean(message.isStreaming)),
     [message.contents, message.isStreaming]
   );
+  const lastSegment = segments[segments.length - 1];
 
   // Full-width block content (tool cards, reasoning panel) lays the message out
   // edge-to-edge instead of in a content-hugging bubble. Reasoning is included so
@@ -309,11 +310,11 @@ export const Message: React.FC<MessageProps> = ({ message }) => {
               })}
 
               {/* Show TypingIndicator while streaming, waiting for the next content */}
-              {/* A live step group shows its own spinner, so skip the indicator there. */}
+              {/* A live multi-step group has a spinner in its header; a lone step does not. */}
               {message.isStreaming &&
                 (segments.length === 0 ||
-                  (segments[segments.length - 1]?.type !== 'steps' &&
-                    message.contents[message.contents.length - 1]?.type === 'toolResult')) && (
+                  (message.contents[message.contents.length - 1]?.type === 'toolResult' &&
+                    !(lastSegment?.type === 'steps' && lastSegment.steps.length > 1))) && (
                   <TypingIndicator />
                 )}
             </div>

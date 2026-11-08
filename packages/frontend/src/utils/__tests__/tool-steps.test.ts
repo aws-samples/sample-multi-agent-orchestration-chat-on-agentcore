@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import type { Message, MessageContent } from '../../types/index';
 import {
+  appendTurnMessage,
   buildSegments,
   mergeToolTurnMessages,
   stepSummary,
@@ -63,13 +64,42 @@ describe('mergeToolTurnMessages', () => {
     expect(merged).toHaveLength(2);
   });
 
-  it('takes streaming/error flags from the merged tail', () => {
+  it('takes the streaming flag from the merged tail', () => {
     const merged = mergeToolTurnMessages([
-      msg('a1', 'assistant', [use('t1', 'browser')], { isError: true }),
+      msg('a1', 'assistant', [use('t1', 'browser')]),
       msg('u1', 'user', [result('t1')]),
       msg('a2', 'assistant', [text('…')], { isStreaming: true }),
     ]);
-    expect(merged[0]).toMatchObject({ id: 'a1', isStreaming: true, isError: true });
+    expect(merged[0]).toMatchObject({ id: 'a1', isStreaming: true });
+  });
+
+  it('keeps an error notice as its own message so its banner sits next to the failure', () => {
+    const merged = mergeToolTurnMessages([
+      msg('a1', 'assistant', [use('t1', 'browser')]),
+      msg('u1', 'user', [result('t1')]),
+      msg('a2', 'assistant', [text('An error occurred: x')], { isError: true }),
+    ]);
+    expect(merged.map((m) => m.id)).toEqual(['a1', 'a2']);
+    expect(merged[0].isError).toBeUndefined();
+  });
+});
+
+describe('appendTurnMessage', () => {
+  it('folds an incoming toolResult into the last turn without touching earlier messages', () => {
+    const earlier = msg('u0', 'user', [text('q')]);
+    const turn = msg('a1', 'assistant', [use('t1', 'browser')]);
+    const next = appendTurnMessage([earlier, turn], msg('u1', 'user', [result('t1')]));
+    expect(next).toHaveLength(2);
+    expect(next[0]).toBe(earlier);
+    expect(next[1].contents.map((c) => c.type)).toEqual(['toolUse', 'toolResult']);
+  });
+
+  it('appends a message that does not continue a tool turn', () => {
+    const next = appendTurnMessage(
+      [msg('a1', 'assistant', [text('done')])],
+      msg('u1', 'user', [text('thanks')])
+    );
+    expect(next.map((m) => m.id)).toEqual(['a1', 'u1']);
   });
 });
 
@@ -120,13 +150,21 @@ describe('buildSegments', () => {
     expect(step).toMatchObject({ status: 'error', result: { content: 'boom' } });
   });
 
-  it('marks a call without a result as running while streaming and incomplete afterwards', () => {
+  it('marks a running call without a result as running while streaming and incomplete afterwards', () => {
     const status = (streaming: boolean) => {
-      const s = buildSegments([use('t1', 'browser')], streaming)[0];
+      const s = buildSegments(
+        [{ type: 'toolUse', toolUse: { id: 't1', name: 'browser', input: {}, status: 'running' } }],
+        streaming
+      )[0];
       return s.type === 'steps' ? s.steps[0].status : null;
     };
     expect(status(true)).toBe('running');
     expect(status(false)).toBe('incomplete');
+  });
+
+  it('trusts a completed status even before the result is attached (history / AppSync)', () => {
+    const s = buildSegments([use('t1', 'browser')], false)[0];
+    expect(s.type === 'steps' && s.steps[0].status).toBe('completed');
   });
 
   it('marks only the trailing reasoning of a streaming turn as running', () => {

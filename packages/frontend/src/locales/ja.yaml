@@ -26,8 +26,6 @@ common:
   noFolders: フォルダがありません
   inputParameters: 入力パラメータ
   unsupportedContentType: '未対応のコンテンツタイプ: {{type}}'
-  reasoning: 思考プロセス
-  thinking: Thinking…
   reasoningDepth: 思考の深さ
   reasoningDepthOff: オフ
   reasoningDepthModelDefault: モデル既定（思考は常時オン）
@@ -44,13 +42,11 @@ common:
   renderingDiagram: Rendering diagram...
   diagramLoading: Mermaid diagram loading...
   characters: '{{count}} 文字'
-  charactersWithStatus: '{{count}} 文字 • {{status}}'
   iconsCount: '{{count}} 個のアイコン'
   noIconsFound: '「{{query}}」に一致するアイコンが見つかりません'
   searchIconsPlaceholder: アイコンを検索...
   clickToSelectIcon: クリックしてアイコンを選択
   success: 成功
-  errorStatus: エラー
 
 # 認証
 auth:
@@ -364,10 +360,6 @@ tool:
   required: required
   showDetails: 詳細を表示
   hideDetails: 詳細を閉じる
-  errorResult: エラー結果 JSON
-  executionResult: 実行結果 JSON
-  jsonResponse: JSON レスポンス
-  textResult: テキスト結果
   searchPlaceholder: 自然言語でツールを検索... (例 テキストをエコーする)
   searching: ツールを検索しています...
   loadingTools: ツール一覧を読み込んでいます...

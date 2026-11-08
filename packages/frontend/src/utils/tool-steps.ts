@@ -34,35 +34,33 @@ const isToolResultOnly = (m: Message): boolean =>
 
 /**
  * History stores a tool round-trip as assistant(toolUse) → user(toolResult) →
- * assistant(...), following the Converse role convention. Live streaming puts
- * the same turn in a single assistant message. Merge history into the live
- * shape so one turn renders as one message and its steps can be grouped.
+ * assistant(...), following the Converse role convention, and AppSync delivers
+ * it the same way. Live streaming puts the same turn in a single assistant
+ * message. Normalize to the live shape when a message enters the store so one
+ * turn is one message and its steps can be grouped.
  *
  * Why not merge every consecutive assistant message: unrelated assistant
- * messages (e.g. an error notice) can be adjacent; only continue a turn whose
- * last block is a toolResult.
+ * messages can be adjacent; only continue a turn whose last block is a
+ * toolResult. An error notice stays its own message so its banner is shown
+ * next to the failure rather than above the steps that succeeded.
  */
-export function mergeToolTurnMessages(messages: Message[]): Message[] {
-  const merged: Message[] = [];
-  for (const m of messages) {
-    const prev = merged[merged.length - 1];
-    const continuesTurn =
-      prev?.type === 'assistant' &&
-      (isToolResultOnly(m) ||
-        (m.type === 'assistant' && prev.contents[prev.contents.length - 1]?.type === 'toolResult'));
-    if (prev && continuesTurn) {
-      merged[merged.length - 1] = {
-        ...prev,
-        contents: [...prev.contents, ...m.contents],
-        isStreaming: m.isStreaming,
-        isError: Boolean(prev.isError || m.isError),
-      };
-    } else {
-      merged.push(m);
-    }
-  }
-  return merged;
+export function appendTurnMessage(messages: Message[], next: Message): Message[] {
+  const prev = messages[messages.length - 1];
+  const continuesTurn =
+    prev?.type === 'assistant' &&
+    !next.isError &&
+    (isToolResultOnly(next) ||
+      (next.type === 'assistant' &&
+        prev.contents[prev.contents.length - 1]?.type === 'toolResult'));
+  if (!prev || !continuesTurn) return [...messages, next];
+  return [
+    ...messages.slice(0, -1),
+    { ...prev, contents: [...prev.contents, ...next.contents], isStreaming: next.isStreaming },
+  ];
 }
+
+export const mergeToolTurnMessages = (messages: Message[]): Message[] =>
+  messages.reduce<Message[]>((acc, m) => appendTurnMessage(acc, m), []);
 
 /**
  * Split message contents into render segments. Consecutive reasoning / toolUse /
@@ -118,7 +116,16 @@ export function buildSegments(contents: MessageContent[], isStreaming: boolean):
           key: `tool-${index}`,
           name: tu.name,
           input: tu.input,
-          status: tu.status === 'error' ? 'error' : isStreaming ? 'running' : 'incomplete',
+          // History and AppSync mark a call 'completed' before its result is
+          // attached; trust that over "no result yet".
+          status:
+            tu.status === 'error'
+              ? 'error'
+              : tu.status === 'completed'
+                ? 'completed'
+                : isStreaming
+                  ? 'running'
+                  : 'incomplete',
         };
         stepById.set(tu.id, step);
         if (tu.originalToolUseId) stepById.set(tu.originalToolUseId, step);
@@ -194,6 +201,7 @@ export function summarizeSteps(steps: Step[]): StepGroupSummary {
   return { failed, recovered };
 }
 
+// `path` before `command`: file_editor's command is a verb (view / create).
 const SUMMARY_KEYS = [
   'query',
   'url',
@@ -213,8 +221,6 @@ export function stepSummary(step: Step): string {
   const input = step.input;
   for (const k of SUMMARY_KEYS) {
     const v = input[k];
-    // file_editor's `command` is a verb (view / create); the path says more.
-    if (k === 'command' && typeof input.path === 'string') continue;
     if (typeof v === 'string' && v.trim()) return firstLine(v);
   }
   const first = Object.values(input).find((v): v is string => typeof v === 'string' && !!v.trim());

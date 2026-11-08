@@ -132,7 +132,8 @@ const CopyButton: React.FC<{ text: string }> = ({ text }) => {
   return (
     <button
       type="button"
-      onClick={() => navigator.clipboard.writeText(text)}
+      // clipboard is undefined outside secure contexts; copying is best-effort.
+      onClick={() => void navigator.clipboard?.writeText(text).catch(() => undefined)}
       className="rounded px-1.5 py-0.5 text-[11px] text-fg-disabled hover:bg-surface-secondary hover:text-fg-secondary"
       title={t('common.copyToClipboard')}
     >
@@ -266,15 +267,10 @@ export const ToolStepsGroup: React.FC<ToolStepsGroupProps> = ({ steps, isLive, c
 
   if (steps.length === 0) return null;
 
-  if (steps.length === 1) {
-    return (
-      <ul className={cn('not-prose', className)}>
-        <StepRow step={steps[0]} />
-      </ul>
-    );
-  }
-
-  const open = manualOpen ?? isLive;
+  // A lone step needs no summary header. Same element tree either way, so the
+  // first row keeps its expanded state when a second step arrives.
+  const single = steps.length === 1;
+  const open = single || (manualOpen ?? isLive);
   const { failed, recovered } = summarizeSteps(steps);
   const current =
     [...steps].reverse().find((s) => s.status === 'running') ?? steps[steps.length - 1];
@@ -285,60 +281,62 @@ export const ToolStepsGroup: React.FC<ToolStepsGroupProps> = ({ steps, isLive, c
 
   return (
     <div className={cn('not-prose', className)}>
-      <button
-        type="button"
-        aria-expanded={open}
-        aria-controls={bodyId}
-        onClick={() => setManualOpen(!open)}
-        className="flex w-full items-center gap-2 rounded-btn px-1.5 py-1 text-left text-sm text-fg-secondary transition-colors hover:bg-surface-secondary"
-      >
-        <ChevronRight
-          className={cn(
-            'size-3.5 shrink-0 text-fg-muted motion-safe:transition-transform',
-            open && 'rotate-90'
-          )}
-        />
-        {isLive ? (
-          <>
-            <Loader2 className="size-4 shrink-0 text-action-primary motion-safe:animate-spin" />
-            <span aria-live="polite" className="min-w-0 flex-1 truncate">
-              {currentMeta.label}
-              {currentSummary && <span className="text-fg-muted">: {currentSummary}</span>}
-            </span>
-            <span className="shrink-0 text-xs text-fg-muted">
-              {t('tool.steps.count', { count: steps.length })}
-            </span>
-          </>
-        ) : (
-          <>
-            <span className="min-w-0 truncate">
-              {t('tool.steps.executed', { count: steps.length })}
-            </span>
-            <span className="flex shrink-0 -space-x-1" aria-hidden="true">
-              {icons.map((Ic, i) => (
-                <span
-                  key={i}
-                  className="flex size-5 items-center justify-center rounded-full border border-border bg-surface-primary text-fg-muted"
-                >
-                  <Ic className="size-3" />
-                </span>
-              ))}
-            </span>
-            {failed > 0 && (
-              <span className="shrink-0 rounded-btn border border-feedback-error-border bg-feedback-error-bg px-1.5 py-0.5 text-xs text-feedback-error">
-                {t('tool.steps.failed', { count: failed })}
-              </span>
+      {single ? null : (
+        <button
+          type="button"
+          aria-expanded={open}
+          aria-controls={bodyId}
+          onClick={() => setManualOpen(!open)}
+          className="flex w-full items-center gap-2 rounded-btn px-1.5 py-1 text-left text-sm text-fg-secondary transition-colors hover:bg-surface-secondary"
+        >
+          <ChevronRight
+            className={cn(
+              'size-3.5 shrink-0 text-fg-muted motion-safe:transition-transform',
+              open && 'rotate-90'
             )}
-            {recovered > 0 && (
+          />
+          {isLive ? (
+            <>
+              <Loader2 className="size-4 shrink-0 text-action-primary motion-safe:animate-spin" />
+              <span aria-live="polite" className="min-w-0 flex-1 truncate">
+                {currentMeta.label}
+                {currentSummary && <span className="text-fg-muted">: {currentSummary}</span>}
+              </span>
               <span className="shrink-0 text-xs text-fg-muted">
-                {t('tool.steps.retried', { count: recovered })}
+                {t('tool.steps.count', { count: steps.length })}
               </span>
-            )}
-          </>
-        )}
-      </button>
+            </>
+          ) : (
+            <>
+              <span className="min-w-0 truncate">
+                {t('tool.steps.executed', { count: steps.length })}
+              </span>
+              <span className="flex shrink-0 -space-x-1" aria-hidden="true">
+                {icons.map((Ic, i) => (
+                  <span
+                    key={i}
+                    className="flex size-5 items-center justify-center rounded-full border border-border bg-surface-primary text-fg-muted"
+                  >
+                    <Ic className="size-3" />
+                  </span>
+                ))}
+              </span>
+              {failed > 0 && (
+                <span className="shrink-0 rounded-btn border border-feedback-error-border bg-feedback-error-bg px-1.5 py-0.5 text-xs text-feedback-error">
+                  {t('tool.steps.failed', { count: failed })}
+                </span>
+              )}
+              {recovered > 0 && (
+                <span className="shrink-0 text-xs text-fg-muted">
+                  {t('tool.steps.retried', { count: recovered })}
+                </span>
+              )}
+            </>
+          )}
+        </button>
+      )}
       {open && (
-        <div id={bodyId} className="ml-3 mt-0.5 border-l border-border pl-2">
+        <div id={bodyId} className={cn(!single && 'ml-3 mt-0.5 border-l border-border pl-2')}>
           {hidden > 0 && (
             <button
               type="button"
