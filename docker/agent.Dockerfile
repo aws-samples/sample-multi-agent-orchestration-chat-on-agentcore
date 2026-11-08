@@ -60,6 +60,20 @@ RUN curl -LsSf https://astral.sh/uv/install.sh | sh && \
     mv /root/.local/bin/uvx /usr/local/bin/uvx && \
     chmod +x /usr/local/bin/uv /usr/local/bin/uvx
 
+# Install CJK and emoji fonts so local headless Chromium can render Japanese/
+# Chinese/Korean text without tofu boxes (□).  This layer is independent of
+# npm packages, so routine dependency bumps do not re-download these fonts.
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    fonts-noto-cjk \
+    fonts-noto-color-emoji \
+    && rm -rf /var/lib/apt/lists/*
+
+# Tell Playwright (and any project-level playwright install) where to store
+# browser binaries.  The headless shell pre-installed below will be found here,
+# and projects pinned to a different Playwright version can still run
+# `npx playwright install chromium` as the node user without root.
+ENV PLAYWRIGHT_BROWSERS_PATH=/opt/ms-playwright
+
 WORKDIR /app
 
 # Copy workspace metadata from builder (package.json files only, for npm ci).
@@ -72,6 +86,21 @@ COPY --chown=node:node --from=builder --parents /build/./scripts/package.json ./
 
 # Install production dependencies only
 RUN npm ci --omit=dev --ignore-scripts && npm cache clean --force
+
+# Pre-install headless Chromium and its OS-level shared-library dependencies
+# using the playwright-core version that is already resolved by package-lock.json.
+# This avoids hard-coding a separate version that could drift from the lockfile.
+#
+# Why this is needed:
+#   - The container runs as USER node (no sudo), so the agent cannot call
+#     `apt-get install` or `npx playwright install --with-deps` at runtime.
+#   - AgentCore Browser (used by the built-in `browser` tool) is a managed
+#     Chrome running on the AWS side — it cannot reach localhost / 127.0.0.1 /
+#     file:// inside the agent workspace.  Agents that need to screenshot or
+#     test a locally running web app must use this local headless Chromium via
+#     execute_command instead.
+RUN node node_modules/playwright-core/cli.js install --with-deps chromium-headless-shell \
+    && chown -R node:node /opt/ms-playwright
 
 # Copy built artifacts from builder stage (only dist/ folders, preserving structure)
 COPY --chown=node:node --from=builder --parents /build/./packages/**/dist ./
