@@ -60,6 +60,20 @@ RUN curl -LsSf https://astral.sh/uv/install.sh | sh && \
     mv /root/.local/bin/uvx /usr/local/bin/uvx && \
     chmod +x /usr/local/bin/uv /usr/local/bin/uvx
 
+# Install CJK and emoji fonts so local headless Chromium can render Japanese/
+# Chinese/Korean text without tofu boxes (□).  This layer is independent of
+# npm packages, so routine dependency bumps do not re-download these fonts.
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    fonts-noto-cjk \
+    fonts-noto-color-emoji \
+    && rm -rf /var/lib/apt/lists/*
+
+# Tell Playwright (and any project-level playwright install) where to store
+# browser binaries.  The headless shell pre-installed below will be found here,
+# and projects pinned to a different Playwright version can still run
+# `npx playwright install chromium` as the node user without root.
+ENV PLAYWRIGHT_BROWSERS_PATH=/opt/ms-playwright
+
 WORKDIR /app
 
 # Copy workspace metadata from builder (package.json files only, for npm ci).
@@ -72,6 +86,40 @@ COPY --chown=node:node --from=builder --parents /build/./scripts/package.json ./
 
 # Install production dependencies only
 RUN npm ci --omit=dev --ignore-scripts && npm cache clean --force
+
+# Pre-install headless Chromium and its OS-level shared-library dependencies
+# using the playwright-core version that is already resolved by package-lock.json.
+# This avoids hard-coding a separate version that could drift from the lockfile.
+#
+# Why this is needed:
+#   - The container runs as USER node (no sudo), so the agent cannot call
+#     `apt-get install` or `npx playwright install --with-deps` at runtime.
+#   - AgentCore Browser (used by the built-in `browser` tool) is a managed
+#     Chrome running on the AWS side — it cannot reach localhost / 127.0.0.1 /
+#     file:// inside the agent workspace.  Agents that need to screenshot or
+#     test a locally running web app must use this local headless Chromium via
+#     execute_command instead.
+#
+# The `chromium` wrapper on PATH exists because agents discover tools with
+# `which chromium`; the real binary sits in a versioned directory outside PATH.
+# --no-sandbox: the microVM has no unprivileged user namespaces, so Chromium
+# aborts with "No usable sandbox!" without it (Playwright passes the same flag;
+# the per-session microVM is the isolation boundary). The stderr filter drops
+# ~15 harmless dbus/vaapi/bluetooth/sandbox ERROR lines per run that agents
+# otherwise read as failure; --log-level does not suppress them. Real errors
+# (e.g. "Page load failed") and the exit code pass through.
+RUN node node_modules/playwright-core/cli.js install --with-deps chromium-headless-shell \
+    && CHROME_BIN="$(ls -d /opt/ms-playwright/chromium_headless_shell-*/chrome-headless-shell-linux*/chrome-headless-shell | head -1)" \
+    && test -x "$CHROME_BIN" \
+    && printf '#!/bin/bash\n{ %s --no-sandbox "$@" 2>&1 1>&3 3>&- | grep -vE ":(ERROR|WARNING):(dbus|media/gpu/vaapi|device/bluetooth|sandbox/policy)/" >&2; } 3>&1\nexit "${PIPESTATUS[0]}"\n' "$CHROME_BIN" > /usr/local/bin/chromium \
+    && chmod 755 /usr/local/bin/chromium \
+    && chromium --version \
+    && chown -R node:node /opt/ms-playwright
+
+# Lets `require('playwright-core')` resolve from the workspace (/tmp/ws), not
+# only from /app. NODE_PATH is a fallback, so projects with their own
+# node_modules still resolve their own copy first.
+ENV NODE_PATH=/app/node_modules
 
 # Copy built artifacts from builder stage (only dist/ folders, preserving structure)
 COPY --chown=node:node --from=builder --parents /build/./packages/**/dist ./
