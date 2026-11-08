@@ -140,6 +140,7 @@ export function contentBlockToWire(block: ContentBlock): WireContentBlock {
     case 'cachePointBlock':
     case 'guardContentBlock':
     case 'videoBlock':
+    case 'audioBlock':
     case 'documentBlock':
     case 'citationsBlock': {
       // No structured wire shape needed yet; preserve every enumerable
@@ -275,6 +276,7 @@ export function wireToContentBlock(wire: WireContentBlock): ContentBlock {
     case 'cachePointBlock':
     case 'guardContentBlock':
     case 'videoBlock':
+    case 'audioBlock':
     case 'documentBlock':
     case 'citationsBlock':
       // Pass-through blocks: cast to `ContentBlock`. Strands SDK accepts
