@@ -27,7 +27,13 @@ export const executeCommandSchema = z.object({
 export const executeCommandDefinition: ToolDefinition<typeof executeCommandSchema> = {
   name: 'execute_command',
   description:
-    'Execute shell commands and return results. Can be used for file operations, information gathering, and development task automation.',
+    'Execute shell commands and return results. Can be used for file operations, information gathering, and development task automation.\n\n' +
+    'Pre-installed for local web preview/testing (works with localhost servers you start here): headless Chromium on PATH as `chromium` ' +
+    '(e.g. `chromium --screenshot=shot.png --window-size=1280,800 http://localhost:3000`, `chromium --dump-dom URL`), ' +
+    "`playwright-core` resolvable from any directory (`require('playwright-core').chromium.launch()`), and Japanese/CJK + emoji fonts. " +
+    'No install or download is needed.\n\n' +
+    'Background processes (dev servers etc.) MUST redirect output, e.g. `python3 -m http.server 8000 > /tmp/server.log 2>&1 &`. ' +
+    'Without it the process loses its stdout/stderr when this call returns and later requests get empty responses (ERR_EMPTY_RESPONSE) — this is not a network restriction.',
   zodSchema: executeCommandSchema,
   jsonSchema: zodToJsonSchema(executeCommandSchema),
 };

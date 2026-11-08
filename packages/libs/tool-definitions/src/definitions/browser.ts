@@ -149,7 +149,8 @@ It returns \`scrollYBefore\` / \`scrollYAfter\` / \`didScroll\` so you can verif
 ## Notes
 - Sessions auto-timeout after 15 minutes.
 - Screenshots are saved to the user's S3 storage; the returned \`imagePath\` can be referenced in replies.
-- After \`navigate\`, previously-returned UIDs become invalid. Take a new \`snapshot\`.`,
+- After \`navigate\`, previously-returned UIDs become invalid. Take a new \`snapshot\`.
+- **Network boundary**: The browser runs in a managed AWS environment, **not inside this agent container**. It cannot open \`localhost\` / \`127.0.0.1\` / \`file://\` URLs served from the agent workspace. To preview or test a local web app, use the pre-installed local headless Chromium via \`execute_command\` instead (e.g. \`chromium --screenshot=shot.png http://localhost:3000\`, or \`require('playwright-core')\` in a Node script).`,
   zodSchema: browserSchema,
   jsonSchema: zodToJsonSchema(browserSchema),
 };
