@@ -100,6 +100,7 @@ const KNOWN_CONTENT_BLOCK_TYPES: ReadonlySet<string> = new Set([
   'guardContentBlock',
   'imageBlock',
   'videoBlock',
+  'audioBlock',
   'documentBlock',
   'citationsBlock',
 ]);

@@ -44,6 +44,16 @@ updates:
       semver-minor-days: 7
       semver-patch-days: 3
     open-pull-requests-limit: 3
+    # The agent's OTel deps must stay on the generation that ADOT (~0.13) and
+    # @strands-agents/sdk are built against: ADOT's register path resolves the
+    # hoisted exporter-trace-otlp-http, and Strands peers it at ^0.219.0. Newer
+    # exporters / api >=1.10 (OTel SDK 3.x) are ERESOLVE against them. Lift
+    # these once both upstreams move.
+    ignore:
+      - dependency-name: "@opentelemetry/api"
+        versions: [">=1.10.0"]
+      - dependency-name: "@opentelemetry/exporter-trace-otlp-http"
+        versions: [">=0.220.0"]
     labels:
       - "dependencies"
     commit-message:

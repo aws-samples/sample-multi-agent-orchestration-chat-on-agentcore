@@ -234,7 +234,7 @@ export const AgentForm: React.FC<AgentFormProps> = ({ agent, onSubmit, isLoading
       logger.error('AI generation error (caught):', error);
       setErrors((prev) => ({
         ...prev,
-        generation: `${t('agent.validationGenerationFailed')}: ${error instanceof Error ? error.message : '不明なエラー'}`,
+        generation: `${t('agent.validationGenerationFailed')}: ${error instanceof Error ? error.message : t('common.unknownError')}`,
       }));
       setIsGenerating(false);
     }

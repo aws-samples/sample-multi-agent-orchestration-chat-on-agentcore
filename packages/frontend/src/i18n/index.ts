@@ -72,4 +72,12 @@ i18n
     },
   });
 
+// Keep <html lang> in sync: screen readers pick the voice from it and the
+// browser uses it for CJK line breaking. index.html can only ship one value.
+const syncDocumentLang = (lng: string) => {
+  if (typeof document !== 'undefined') document.documentElement.lang = lng;
+};
+syncDocumentLang(i18n.resolvedLanguage ?? i18n.language);
+i18n.on('languageChanged', syncDocumentLang);
+
 export default i18n;

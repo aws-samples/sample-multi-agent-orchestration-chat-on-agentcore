@@ -18,7 +18,7 @@ import { useSessionStore } from '../stores/sessionStore';
  * Search Chat Page Main Component
  */
 export function SearchChatPage() {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const navigate = useNavigate();
   const {
     sessions,
@@ -118,7 +118,7 @@ export function SearchChatPage() {
 
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
-    return date.toLocaleString();
+    return date.toLocaleString(i18n.language);
   };
 
   const selectedCount = selectedSessionIds.size;

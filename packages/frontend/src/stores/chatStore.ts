@@ -20,6 +20,7 @@ import { useSettingsStore } from './settingsStore';
 import { logger } from '../utils/logger';
 import toast from 'react-hot-toast';
 import i18n from '../i18n';
+import { mergeToolTurnMessages } from '../utils/tool-steps';
 
 // Helper function: Convert image to Base64
 const convertImageToBase64 = (file: File): Promise<string> => {
@@ -712,6 +713,7 @@ export const useChatStore = create<ChatStore>()(
               content.text &&
               (content.text.includes('[SYSTEM_ERROR]') ||
                 content.text.startsWith('An error occurred:') ||
+                // eslint-disable-next-line no-restricted-syntax -- matches the agent's Japanese error prefix in stored history, not UI text
                 content.text.startsWith('エラーが発生しました:'))
           );
         };
@@ -740,17 +742,19 @@ export const useChatStore = create<ChatStore>()(
         };
 
         // Convert ConversationMessage to Message type
-        const messages: Message[] = conversationMessages.map((convMsg) => {
-          const contents = convertContents(convMsg.contents);
-          return {
-            id: convMsg.id,
-            type: convMsg.type,
-            contents,
-            timestamp: new Date(convMsg.timestamp),
-            isStreaming: false, // History data is not streaming
-            isError: convMsg.type === 'assistant' && isErrorMessage(contents), // Detect error message
-          };
-        });
+        const messages: Message[] = mergeToolTurnMessages(
+          conversationMessages.map((convMsg) => {
+            const contents = convertContents(convMsg.contents);
+            return {
+              id: convMsg.id,
+              type: convMsg.type,
+              contents,
+              timestamp: new Date(convMsg.timestamp),
+              isStreaming: false, // History data is not streaming
+              isError: convMsg.type === 'assistant' && isErrorMessage(contents), // Detect error message
+            };
+          })
+        );
 
         const { sessions } = get();
         set({

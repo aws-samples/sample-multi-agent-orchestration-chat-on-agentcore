@@ -61,7 +61,7 @@ export const ForgotPasswordForm: React.FC<ForgotPasswordFormProps> = ({
       }
     } catch (err) {
       if (err instanceof ZodError && err.issues) {
-        setValidationError(err.issues[0]?.message || 'バリデーションエラー');
+        setValidationError(err.issues[0]?.message || t('auth.forgotPassword.validationError'));
       } else if (err instanceof Error) {
         setError(err.message);
       } else {

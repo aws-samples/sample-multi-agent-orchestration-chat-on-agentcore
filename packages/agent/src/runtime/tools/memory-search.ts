@@ -52,6 +52,9 @@ function formatMessageContent(message: Message): string {
       case 'videoBlock':
         parts.push('[video]');
         break;
+      case 'audioBlock':
+        parts.push('[audio]');
+        break;
       case 'documentBlock':
         parts.push('[document]');
         break;

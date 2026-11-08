@@ -2,6 +2,7 @@
 
 # 共通
 common:
+  unknownError: 不明なエラー
   loading: 読み込み中...
   error: エラーが発生しました
   errorOccurred: エラーが発生しました
@@ -26,8 +27,6 @@ common:
   noFolders: フォルダがありません
   inputParameters: 入力パラメータ
   unsupportedContentType: '未対応のコンテンツタイプ: {{type}}'
-  reasoning: 思考プロセス
-  thinking: Thinking…
   reasoningDepth: 思考の深さ
   reasoningDepthOff: オフ
   reasoningDepthModelDefault: モデル既定（思考は常時オン）
@@ -44,13 +43,11 @@ common:
   renderingDiagram: Rendering diagram...
   diagramLoading: Mermaid diagram loading...
   characters: '{{count}} 文字'
-  charactersWithStatus: '{{count}} 文字 • {{status}}'
   iconsCount: '{{count}} 個のアイコン'
   noIconsFound: '「{{query}}」に一致するアイコンが見つかりません'
   searchIconsPlaceholder: アイコンを検索...
   clickToSelectIcon: クリックしてアイコンを選択
   success: 成功
-  errorStatus: エラー
 
 # 認証
 auth:
@@ -139,6 +136,7 @@ auth:
 
 # ナビゲーション
 navigation:
+  returnHome: ホームに戻る
   home: ホーム
   chat: チャット
   newChat: 新しいチャット
@@ -183,6 +181,11 @@ shortcuts:
 
 # チャット
 chat:
+  loadingHistory: 会話履歴を読み込み中...
+  sessionsDeleteFailed: '{{count}}件のセッションの削除に失敗しました'
+  sessionBadge:
+    event: '[イベント]'
+    subAgent: '[サブ]'
   modelStopped: 'モデルの安全フィルタなどにより応答が途中で停止されました（理由: {{stopReason}}）。別のモデルで再試行するか、指示の内容を見直してください。'
   turnInProgress: 'このセッションでは前の指示をまだ実行中です。完了するまでお待ちください。'
   persistenceDegraded: 'サインインの有効期限が切れたため、この会話と作業ファイルを保存できなくなりました。エージェントの実行中はこのタブを開いたままにするか、再読み込みしてやり直してください。'
@@ -208,6 +211,9 @@ chat:
   searchChatsDescription: チャット検索機能は今後開発する予定です。
   searchChatsFeature: 過去の会話履歴をキーワードで検索できるようになります。
   imageAttachment:
+    alt: 添付画像
+    remove: '{{fileName}} を削除'
+    fileError: '{{fileName}}: {{error}}'
     attach: 画像を添付
     invalidType: 無効なファイル形式です。PNG、JPEG、WebP、またはGIFを選択してください。
     tooLarge: ファイルサイズが大きすぎます。最大5MBまでです。
@@ -364,10 +370,6 @@ tool:
   required: required
   showDetails: 詳細を表示
   hideDetails: 詳細を閉じる
-  errorResult: エラー結果 JSON
-  executionResult: 実行結果 JSON
-  jsonResponse: JSON レスポンス
-  textResult: テキスト結果
   searchPlaceholder: 自然言語でツールを検索... (例 テキストをエコーする)
   searching: ツールを検索しています...
   loadingTools: ツール一覧を読み込んでいます...
@@ -384,6 +386,41 @@ tool:
   searchingFor: 検索中
   refresh: 再読み込み
   closeError: エラーを閉じる
+
+  # ToolStepsGroup (collapsible tool execution steps)
+  steps:
+    count: '· {{count}} ステップ'
+    executed: '{{count}} ステップを実行'
+    failed: '{{count}} 件失敗'
+    retried: '{{count}} 件再試行'
+    showEarlier: '前の {{count}} 件を表示'
+    output: 実行結果
+    errorOutput: エラー
+    waitingForResult: 結果を待っています…
+    status:
+      running: 実行中
+      completed: 完了
+      error: 失敗
+      incomplete: 未完了
+    labels:
+      search: 検索
+      browse: ページを閲覧
+      code: コードを実行
+      file: ファイルを編集
+      command: コマンドを実行
+      agent: エージェントに依頼
+      todo: タスクを更新
+      ui: UI を生成
+      memory: メモリを検索
+      think: 思考を整理
+      files: ファイル一覧を取得
+      imageToText: 画像を読み取り
+      image: 画像を生成
+      video: 動画を生成
+      knowledge: ナレッジを検索
+      trigger: トリガーを管理
+      reasoning: 思考
+      unknown: ツール結果
 
   # ToolSelector
   selector:
@@ -422,6 +459,11 @@ tool:
 
 # ストレージ
 storage:
+  workingDirectoryTooltip: 'ストレージ: {{path}}'
+  downloadTooltip: 'ダウンロード: {{fileName}}'
+  downloadUrlFailed: ダウンロード URL の生成に失敗しました
+  imageLoadFailed: 画像の読み込みに失敗しました
+  videoLoadFailed: 動画の読み込みに失敗しました
   loadError: フォルダの読み込みに失敗しました
   title: ストレージ管理
   fileStorage: ファイルストレージ
@@ -627,6 +669,7 @@ triggers:
     scheduleConfigDescription: トリガーを実行する日時を設定します
     inputMessage: 入力メッセージ
     inputMessageDescription: エージェントに送信するメッセージを入力してください
+    eventSourceRequired: イベントソースを選択してください
     inputMessagePlaceholder: エージェントに送信するメッセージ
     inputMessageRequired: 入力メッセージは必須です
     modelId: モデルID
@@ -711,6 +754,8 @@ triggers:
     hideDetails: 詳細を閉じる
     loadMore: さらに読み込む
     executionId: 実行ID
+    sessionId: セッション
+    eventPayload: イベントペイロード
     startedAt: 開始日時
     completedAt: 完了日時
 
@@ -748,12 +793,6 @@ triggers:
     event:
       label: イベント駆動
       description: 外部イベント（S3など）をトリガーに実行
-    slack:
-      label: Slack イベント連携
-      description: Slack イベントをトリガーに実行
-    github:
-      label: GitHub 連携
-      description: GitHub イベントをトリガーに実行
 
   # イベントソース選択
   eventSource:
@@ -898,14 +937,6 @@ defaultAgents:
   generalAssistant:
     name: 汎用アシスタント
     description: 様々なタスクに対応できる汎用的なAIアシスタント
-    systemPrompt: |
-      あなたは親切で知識豊富なAIアシスタントです。ユーザーの質問に対して、正確で分かりやすい回答を提供してください。
-
-      以下の点を心がけてください：
-      - 日本語で自然に回答する
-      - 専門的な内容も初心者にも理解しやすいように説明する
-      - 不明な点があれば素直に「分からない」と答える
-      - 必要に応じて追加の質問をする
     scenarios:
       question:
         title: 質問・相談
@@ -976,27 +1007,18 @@ defaultAgents:
     name: スライドショー動画クリエイター
     description: 画像から日本語字幕とナレーション音声付きの動画を作成します。PDF形式のプレゼンテーションから動画への変換にも対応
     scenarios:
-      basicVideo:
+      imageVideo:
         title: 基本動画作成
         prompt: "以下の画像から動画を作成してください:\n\n画像フォルダ/ファイル: \n1枚あたりの表示時間: (デフォルト: 1秒)\n\n字幕・音声なしの基本動画を作成します。"
-      subtitledVideo:
-        title: 字幕を追加
-        prompt: "動画に日本語字幕を追加してください:\n\n動画ファイル: \n字幕テキスト（画像ごと）: \n1. \n2. \n3. \n\n字幕は画面下部中央に黒背景付きで表示されます。"
-      narratedVideo:
-        title: ナレーション追加
-        prompt: "動画にナレーション音声を追加してください:\n\n動画ファイル: \nナレーションテキスト（画像ごと）: \n1. \n2. \n3. \n\n日本語TTSで音声を生成し、動画と結合します。"
-      fullPackage:
+      subtitleVideo:
         title: 完全版動画（字幕＋音声）
         prompt: "字幕とナレーションの両方を含む完全版動画を作成してください:\n\n画像フォルダ/ファイル: \n字幕・ナレーションテキスト: \n1. \n2. \n3. \n\n日本語字幕とナレーション音声付きの完全な動画を作成します。"
       pdfToVideo:
         title: PDFから動画作成
         prompt: "PDF（PowerPointからエクスポート）をナレーション付き動画に変換してください:\n\nPDFファイル: \n各ページのナレーションテキスト: \n1. \n2. \n3. \n\nPDFの各ページを画像に変換し、字幕とナレーション付きの動画を作成します。"
-      customSettings:
-        title: カスタム設定で作成
-        prompt: "カスタム設定で動画を作成してください:\n\n画像フォルダ/ファイル: \n1枚あたりの表示時間: \n字幕の位置: (上部/下部/カスタム)\nフォントサイズ: \nその他の設定: \n\n指定された設定でカスタマイズした動画を作成します。"
-      presentationVideo:
-        title: プレゼンテーション動画
-        prompt: "プレゼンテーション形式の動画を作成してください:\n\nスライド画像/PDF: \nプレゼンテーション原稿: \nBGM: (オプション)\n\nナレーション付きのプロフェッショナルなプレゼンテーション動画を作成します。"
+      envCheck:
+        title: 動画作成環境の確認
+        prompt: "動画作成に必要な環境を確認してください:\n\n- ffmpeg\n- 日本語フォント\n- Python パッケージ (OpenCV、Pillow、gTTS など)\n\n不足しているものがあれば、インストール方法を教えてください。"
 
   kamishibaiMaster:
     name: 紙芝居の達人

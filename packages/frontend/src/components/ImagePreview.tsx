@@ -1,5 +1,6 @@
 import React from 'react';
 import { X } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import type { ImageAttachment } from '../types/index';
 
 interface ImagePreviewProps {
@@ -15,6 +16,7 @@ const formatFileSize = (bytes: number): string => {
 };
 
 export const ImagePreview: React.FC<ImagePreviewProps> = ({ images, onRemove, disabled }) => {
+  const { t } = useTranslation();
   if (images.length === 0) return null;
 
   return (
@@ -31,7 +33,7 @@ export const ImagePreview: React.FC<ImagePreviewProps> = ({ images, onRemove, di
               type="button"
               onClick={() => onRemove(image.id)}
               className="absolute -top-2 -right-2 w-5 h-5 bg-gray-800 bg-opacity-70 hover:bg-opacity-90 rounded-full flex items-center justify-center text-white transition-opacity"
-              aria-label={`Remove ${image.fileName}`}
+              aria-label={t('chat.imageAttachment.remove', { fileName: image.fileName })}
             >
               <X className="w-3 h-3" />
             </button>

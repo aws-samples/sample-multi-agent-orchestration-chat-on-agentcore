@@ -136,7 +136,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({
       for (const file of filesToProcess) {
         const error = validateImageFile(file);
         if (error) {
-          alert(`${file.name}: ${error}`);
+          alert(t('chat.imageAttachment.fileError', { fileName: file.name, error }));
           continue;
         }
         validFiles.push(file);
