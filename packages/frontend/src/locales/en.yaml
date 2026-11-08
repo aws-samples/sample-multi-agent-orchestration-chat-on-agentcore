@@ -25,8 +25,6 @@ common:
   noFolders: No folders
   inputParameters: Input Parameters
   unsupportedContentType: 'Unsupported content type: {{type}}'
-  reasoning: Reasoning
-  thinking: Thinking…
   reasoningDepth: Reasoning
   reasoningDepthOff: 'Off'
   reasoningDepthModelDefault: 'Model default (always on)'
@@ -43,13 +41,11 @@ common:
   renderingDiagram: Rendering diagram...
   diagramLoading: Mermaid diagram loading...
   characters: '{{count}} characters'
-  charactersWithStatus: '{{count}} characters • {{status}}'
   iconsCount: '{{count}} icons'
   noIconsFound: 'No icons found matching "{{query}}"'
   searchIconsPlaceholder: Search icons...
   clickToSelectIcon: Click to select an icon
   success: Success
-  errorStatus: Error
   moreOptions: More options
   deleting: Deleting...
 
@@ -376,10 +372,6 @@ tool:
   required: required
   showDetails: Show Details
   hideDetails: Hide Details
-  errorResult: Error Result JSON
-  executionResult: Execution Result JSON
-  jsonResponse: JSON Response
-  textResult: Text Result
   searchPlaceholder: Search tools in natural language... (e.g. 'echo text')
   searching: Searching tools...
   loadingTools: Loading tools...
@@ -396,6 +388,46 @@ tool:
   searchingFor: Searching
   refresh: Refresh
   closeError: Close Error
+
+  # ToolStepsGroup (collapsible tool execution steps)
+  steps:
+    count_one: '· {{count}} step'
+    count_other: '· {{count}} steps'
+    executed_one: 'Ran {{count}} step'
+    executed_other: 'Ran {{count}} steps'
+    failed_one: '{{count}} failed'
+    failed_other: '{{count}} failed'
+    retried_one: '{{count}} retried'
+    retried_other: '{{count}} retried'
+    showEarlier_one: 'Show {{count}} earlier step'
+    showEarlier_other: 'Show {{count}} earlier steps'
+    output: Output
+    errorOutput: Error
+    waitingForResult: Waiting for result…
+    status:
+      running: Running
+      completed: Completed
+      error: Failed
+      incomplete: Not completed
+    labels:
+      search: Search
+      browse: Browse
+      code: Run code
+      file: Edit file
+      command: Run command
+      agent: Ask agent
+      todo: Update tasks
+      ui: Generate UI
+      memory: Search memory
+      think: Think
+      files: List files
+      imageToText: Read image
+      image: Generate image
+      video: Generate video
+      knowledge: Search knowledge
+      trigger: Manage trigger
+      reasoning: Reasoning
+      unknown: Tool result
 
   # ToolSelector
   selector:

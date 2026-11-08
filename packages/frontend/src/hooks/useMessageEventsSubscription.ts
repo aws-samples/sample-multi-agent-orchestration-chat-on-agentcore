@@ -15,6 +15,7 @@ import {
 import type { MessageContent, Message } from '../types/index';
 import { randomId } from '../utils/randomId';
 import { logger } from '../utils/logger';
+import { appendTurnMessage } from '../utils/tool-steps';
 
 // ============================================================
 // Constants & Channel Configuration
@@ -268,7 +269,8 @@ export function useMessageEventsSubscription(sessionId: string | null) {
               ...sessions,
               [event.sessionId]: {
                 ...currentState,
-                messages: [...currentState.messages, newMessage],
+                // Tool round-trips arrive as separate messages; fold them into the turn.
+                messages: appendTurnMessage(currentState.messages, newMessage),
                 // WHY: Set isLoading=true when receiving assistant messages via AppSync.
                 // After page reload, HTTP streaming state is lost (isLoading/isStreaming
                 // are both false). When the agent is still running, AppSync Events
