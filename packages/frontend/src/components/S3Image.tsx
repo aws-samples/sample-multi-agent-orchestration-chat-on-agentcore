@@ -26,14 +26,14 @@ export const S3Image: React.FC<S3ImageProps> = ({ path, alt, className = '' }) =
         setPresignedUrl(url);
       } catch (err) {
         logger.error('Failed to generate presigned URL for image:', err);
-        setError(err instanceof Error ? err.message : 'Failed to load image');
+        setError(err instanceof Error ? err.message : t('storage.imageLoadFailed'));
       } finally {
         setIsLoading(false);
       }
     };
 
     fetchPresignedUrl();
-  }, [path]);
+  }, [path, t]);
 
   if (isLoading) {
     return (

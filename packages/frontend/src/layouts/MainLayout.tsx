@@ -51,7 +51,9 @@ export function MainLayout() {
 
     // Return agent name for chat page
     if (isChatRoute(path)) {
-      return selectedAgent ? translateIfKey(selectedAgent.name, t) : '汎用アシスタント';
+      return selectedAgent
+        ? translateIfKey(selectedAgent.name, t)
+        : t('defaultAgents.generalAssistant.name');
     }
 
     // Get translation key from route config

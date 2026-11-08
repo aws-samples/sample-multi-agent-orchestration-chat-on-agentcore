@@ -40,9 +40,7 @@ export const Message: React.FC<MessageProps> = ({ message }) => {
   // full width and doesn't visibly jump wider once the text arrives.
   const hasBlockContent = message.contents.some(
     (content) =>
-      content.type === 'toolUse' ||
-      content.type === 'toolResult' ||
-      content.type === 'reasoning'
+      content.type === 'toolUse' || content.type === 'toolResult' || content.type === 'reasoning'
   );
 
   // Check if a path is an S3 storage path (user relative path)
@@ -277,9 +275,7 @@ export const Message: React.FC<MessageProps> = ({ message }) => {
                         // actively streaming — i.e. it's the last content and the
                         // turn is still running. Once text/toolUse follows, the
                         // reasoning is complete, so stop the indicator.
-                        isStreaming={
-                          message.isStreaming && index === message.contents.length - 1
-                        }
+                        isStreaming={message.isStreaming && index === message.contents.length - 1}
                       />
                     ) : null;
 
@@ -312,13 +308,14 @@ export const Message: React.FC<MessageProps> = ({ message }) => {
                     const imageSrc =
                       content.image.previewUrl ||
                       (content.image.base64
-                        ? `data:${content.image.mimeType};base64,${content.image.base64}`
+                        ? // eslint-disable-next-line i18next/no-literal-string -- data URL, not UI text
+                          `data:${content.image.mimeType};base64,${content.image.base64}`
                         : '');
                     return imageSrc ? (
                       <div key={`image-${index}`} className="inline-block mr-2 mb-2">
                         <img
                           src={imageSrc}
-                          alt={content.image.fileName || 'Attached image'}
+                          alt={content.image.fileName || t('chat.imageAttachment.alt')}
                           className="max-w-xs max-h-48 object-contain rounded-lg border border-border"
                         />
                       </div>

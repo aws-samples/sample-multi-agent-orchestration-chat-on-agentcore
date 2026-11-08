@@ -379,7 +379,7 @@ export const useSessionStore = create<SessionStore>()(
           if (successCount > 0) {
             toast.success(i18n.t('chat.sessionsDeleted', { count: successCount }));
           }
-          toast.error(`${failedCount} sessions failed to delete`);
+          toast.error(i18n.t('chat.sessionsDeleteFailed', { count: failedCount }));
         } else {
           logger.log(`${successCount} sessions deleted from server`);
           toast.success(i18n.t('chat.sessionsDeleted', { count: successCount }));

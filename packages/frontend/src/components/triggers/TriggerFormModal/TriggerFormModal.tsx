@@ -240,7 +240,7 @@ export function TriggerFormModal({ isOpen, onClose, trigger, onSave }: TriggerFo
     if (intervalClass !== 'warning' && intervalClass !== 'unknown') return true;
     const title = t('triggers.cron.costWarning.title');
     const body = t('triggers.cron.costWarning.body');
-    return window.confirm(`${title}\n\n${body}`);
+    return window.confirm([title, body].join('\n\n'));
   };
 
   // Handle save

@@ -73,13 +73,61 @@ export default defineConfig([
           message:
             'Do not use emojis or non-English text in console calls. Keep log messages English ASCII.',
         },
+        // ── i18n: user-facing text must come from src/locales ──────────────────
+        // Strings outside JSX are invisible to i18next/no-literal-string, so the
+        // most common leaks are blocked structurally here.
+        {
+          selector: 'Literal[value=/[\\u{3040}-\\u{309F}\\u{30A0}-\\u{30FF}\\u{4E00}-\\u{9FFF}]/u]',
+          message: 'Japanese text in code: move it to src/locales/*.yaml and use t().',
+        },
+        {
+          selector:
+            'TemplateElement[value.raw=/[\\u{3040}-\\u{309F}\\u{30A0}-\\u{30FF}\\u{4E00}-\\u{9FFF}]/u]',
+          message: 'Japanese text in code: move it to src/locales/*.yaml and use t().',
+        },
+        {
+          selector:
+            "CallExpression[callee.object.name='toast'] > :matches(Literal, TemplateLiteral).arguments:first-child",
+          message: 'Toast text must be translated: pass t(...) / i18n.t(...).',
+        },
+        {
+          selector:
+            "CallExpression[callee.name='toast'] > :matches(Literal, TemplateLiteral).arguments:first-child",
+          message: 'Toast text must be translated: pass t(...) / i18n.t(...).',
+        },
+        {
+          selector:
+            'CallExpression[callee.name=/^(alert|confirm)$/] > :matches(Literal, TemplateLiteral).arguments:first-child, CallExpression[callee.property.name=/^(alert|confirm)$/] > :matches(Literal, TemplateLiteral).arguments:first-child',
+          message: 'Dialog text must be translated: build it from t(...).',
+        },
+        {
+          selector:
+            'CallExpression[callee.property.name=/^toLocale(Date|Time)?String$/] > Literal.arguments:first-child',
+          message: 'Do not hard-code a locale; pass i18n.language so dates follow the UI language.',
+        },
+        {
+          selector:
+            'CallExpression[callee.property.name=/^toLocale(Date|Time)String$/][arguments.length=0]',
+          message: 'Pass i18n.language: without it dates follow the browser, not the UI language.',
+        },
       ],
       'i18next/no-literal-string': [
-        'warn',
+        'error',
         {
-          mode: 'jsx-text-only',
+          mode: 'jsx-only',
           'jsx-attributes': {
-            include: ['title', 'aria-label', 'alt', 'placeholder', 'label'],
+            include: [
+              'title',
+              'aria-label',
+              'alt',
+              'placeholder',
+              'label',
+              // Custom props that carry display text
+              'message',
+              'confirmText',
+              'cancelText',
+              'description',
+            ],
           },
           words: {
             exclude: [
@@ -108,6 +156,17 @@ export default defineConfig([
               '⌘B',
               '⇧⌘O',
               '⌘/',
+              // Typographic placeholders for "no value"
+              '—',
+              'N/A',
+              // cron expression examples (digits, *, ?, ranges, lists)
+              /^[\d\s*?,/-]+$/,
+              // example e-mail address
+              /^[\w.+-]+@[\w-]+(\.[\w-]+)+$/,
+              // snake_case identifiers (e.g. form error keys)
+              /^[a-z0-9]+(_[a-z0-9]+)*_?$/,
+              // data: URLs
+              /^data:/,
             ],
           },
           'should-validate-template': true,
@@ -179,7 +238,9 @@ export default defineConfig([
             {
               from: { element: { type: 'components' } },
               allow: {
-                to: { element: { types: { anyOf: ['foundation', 'utils', 'state', 'components'] } } },
+                to: {
+                  element: { types: { anyOf: ['foundation', 'utils', 'state', 'components'] } },
+                },
               },
             },
             // features: foundation, utils, state, components + intra-layer
@@ -221,6 +282,14 @@ export default defineConfig([
     ],
     rules: {
       'no-console': 'off',
+    },
+  },
+  // Tests use literal (incl. Japanese) fixture text on purpose; UI-text rules do not apply.
+  {
+    files: ['src/**/__tests__/**', 'src/**/*.test.{ts,tsx}', 'src/**/*.spec.{ts,tsx}'],
+    rules: {
+      'no-restricted-syntax': 'off',
+      'i18next/no-literal-string': 'off',
     },
   },
 ]);

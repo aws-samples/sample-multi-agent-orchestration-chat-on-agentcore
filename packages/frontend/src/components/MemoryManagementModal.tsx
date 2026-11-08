@@ -24,7 +24,7 @@ interface MemoryRecordItemProps {
 }
 
 function MemoryRecordItem({ record }: MemoryRecordItemProps) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
 
   const truncatedContent =
     record.content.length > 100 ? record.content.slice(0, 100) + '...' : record.content;
@@ -35,10 +35,10 @@ function MemoryRecordItem({ record }: MemoryRecordItemProps) {
         <p className="text-sm text-fg-default leading-relaxed mb-2">{truncatedContent}</p>
         <div className="flex items-center gap-4 text-xs text-fg-muted">
           <span>
-            {t('memory.created')}: {new Date(record.createdAt).toLocaleDateString()}
+            {t('memory.created')}: {new Date(record.createdAt).toLocaleDateString(i18n.language)}
           </span>
           <span>
-            {t('memory.updated')}: {new Date(record.updatedAt).toLocaleDateString()}
+            {t('memory.updated')}: {new Date(record.updatedAt).toLocaleDateString(i18n.language)}
           </span>
         </div>
       </div>
@@ -216,10 +216,7 @@ export function MemoryManagementModal({ isOpen, onClose }: MemoryManagementModal
             ) : (
               <div className="space-y-3">
                 {displayRecords.map((record, index) => (
-                  <MemoryRecordItem
-                    key={record.recordId || `memory-${index}`}
-                    record={record}
-                  />
+                  <MemoryRecordItem key={record.recordId || `memory-${index}`} record={record} />
                 ))}
                 {!searchQuery && nextToken && (
                   <div className="flex justify-center pt-2">

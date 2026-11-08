@@ -113,7 +113,7 @@ export const ToolResultBlock: React.FC<ToolResultBlockProps> = ({ toolResult }) 
         <button
           onClick={() => setIsExpanded(!isExpanded)}
           className="flex items-center gap-2 px-3 py-1.5 w-full text-left hover:bg-surface-secondary transition-colors"
-          aria-label={isExpanded ? '結果を隠す' : '結果を表示'}
+          aria-label={isExpanded ? t('tool.hideDetails') : t('tool.showDetails')}
         >
           {/* Icon and status */}
           <div className={`flex items-center ${resultStyles.statusColor}`}>{resultStyles.icon}</div>

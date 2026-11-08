@@ -5,6 +5,7 @@
 
 import React from 'react';
 import { AlertCircle, CheckCircle, AlertTriangle, Info, X } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import { cn } from '../../../lib/utils';
 
 export interface AlertProps {
@@ -35,6 +36,7 @@ const variantIcons: Record<AlertProps['variant'], React.FC<{ className?: string 
 };
 
 export const Alert: React.FC<AlertProps> = ({ variant, title, children, onDismiss, className }) => {
+  const { t } = useTranslation();
   const Icon = variantIcons[variant];
 
   return (
@@ -49,7 +51,7 @@ export const Alert: React.FC<AlertProps> = ({ variant, title, children, onDismis
           <button
             onClick={onDismiss}
             className="flex-shrink-0 p-0.5 rounded hover:bg-black/5 transition-colors"
-            aria-label="Dismiss"
+            aria-label={t('common.close')}
           >
             <X className="w-4 h-4" />
           </button>

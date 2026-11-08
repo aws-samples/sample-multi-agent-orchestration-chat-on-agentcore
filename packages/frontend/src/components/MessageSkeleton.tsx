@@ -4,9 +4,11 @@
  */
 
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import { LoadingIndicator } from './ui/LoadingIndicator';
 
 export const MessageSkeleton: React.FC = () => {
+  const { t } = useTranslation();
   return (
     <div className="animate-pulse space-y-6 p-4">
       {/* User message-style skeleton */}
@@ -37,7 +39,7 @@ export const MessageSkeleton: React.FC = () => {
       </div>
 
       {/* Loading text */}
-      <LoadingIndicator message="会話履歴を読み込み中..." />
+      <LoadingIndicator message={t('chat.loadingHistory')} />
     </div>
   );
 };

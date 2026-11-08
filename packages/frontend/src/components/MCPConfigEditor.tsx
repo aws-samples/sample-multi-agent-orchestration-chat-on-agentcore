@@ -11,6 +11,9 @@ import {
 import type { MCPConfig } from '../types/agent';
 import { fetchLocalMCPTools, type MCPServerError } from '../api/tools';
 
+// A JSON sample, identical in every language.
+const MCP_CONFIG_PLACEHOLDER = `{\n  "mcpServers": {\n    "my-server": {\n      "transport": "http",\n      "url": "https://your-mcp-server.example.com/mcp"\n    }\n  }\n}`;
+
 interface MCPConfigEditorProps {
   config?: MCPConfig;
   onChange: (config: MCPConfig | undefined) => void;
@@ -186,7 +189,7 @@ export const MCPConfigEditor: React.FC<MCPConfigEditorProps> = ({
           value={jsonText}
           onChange={(e) => handleTextChange(e.target.value)}
           disabled={disabled}
-          placeholder={`{\n  "mcpServers": {\n    "my-server": {\n      "transport": "http",\n      "url": "https://your-mcp-server.example.com/mcp"\n    }\n  }\n}`}
+          placeholder={MCP_CONFIG_PLACEHOLDER}
           rows={12}
           className="w-full px-3 py-2 border border-border-strong rounded-lg bg-surface-primary text-fg-default focus:ring-2 focus:ring-border-focus focus:border-transparent disabled:bg-surface-secondary disabled:cursor-not-allowed resize-none font-mono text-sm"
         />

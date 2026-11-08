@@ -186,7 +186,7 @@ export const ResetPasswordForm: React.FC<ResetPasswordFormProps> = ({
                 className={`input-field ${
                   validationErrors.code ? 'border-red-300 focus:ring-red-300' : ''
                 }`}
-                placeholder="6桁の確認コードを入力"
+                placeholder={t('auth.placeholderCode')}
               />
               {validationErrors.code && (
                 <p className="mt-2 text-sm text-feedback-error">{validationErrors.code}</p>
@@ -211,7 +211,7 @@ export const ResetPasswordForm: React.FC<ResetPasswordFormProps> = ({
                 className={`input-field ${
                   validationErrors.newPassword ? 'border-red-300 focus:ring-red-300' : ''
                 }`}
-                placeholder="新しいパスワードを入力"
+                placeholder={t('auth.forceChangePassword.newPasswordPlaceholder')}
               />
               {validationErrors.newPassword && (
                 <p className="mt-2 text-sm text-feedback-error">{validationErrors.newPassword}</p>
@@ -237,7 +237,7 @@ export const ResetPasswordForm: React.FC<ResetPasswordFormProps> = ({
                 className={`input-field ${
                   validationErrors.confirmPassword ? 'border-red-300 focus:ring-red-300' : ''
                 }`}
-                placeholder="パスワードを再入力"
+                placeholder={t('auth.forceChangePassword.confirmNewPasswordPlaceholder')}
               />
               {validationErrors.confirmPassword && (
                 <p className="mt-2 text-sm text-feedback-error">

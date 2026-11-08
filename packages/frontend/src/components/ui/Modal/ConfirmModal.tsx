@@ -1,4 +1,5 @@
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import { Modal } from './index';
 import { Button } from '../Button';
 import type { ConfirmModalProps } from './types';
@@ -9,10 +10,11 @@ export const ConfirmModal: React.FC<ConfirmModalProps> = ({
   onConfirm,
   title,
   message,
-  confirmText = '確認',
-  cancelText = 'キャンセル',
+  confirmText,
+  cancelText,
   variant = 'default',
 }) => {
+  const { t } = useTranslation();
   const handleConfirm = () => {
     onConfirm();
     onClose();
@@ -31,14 +33,14 @@ export const ConfirmModal: React.FC<ConfirmModalProps> = ({
 
       <Modal.Footer>
         <Button variant="outline" size="md" onClick={onClose}>
-          {cancelText}
+          {cancelText ?? t('common.cancel')}
         </Button>
         <Button
           variant={variant === 'danger' ? 'danger' : 'primary'}
           size="md"
           onClick={handleConfirm}
         >
-          {confirmText}
+          {confirmText ?? t('common.confirm')}
         </Button>
       </Modal.Footer>
     </Modal>

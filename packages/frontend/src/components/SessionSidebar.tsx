@@ -110,8 +110,8 @@ const SessionItem = memo(function SessionItem({
             }
           `}
           >
-            {isEventTriggered && <span className="text-xs">{'[Event] '}</span>}
-            {isSubAgent && <span className="text-xs">{'[Sub] '}</span>}
+            {isEventTriggered && <span className="text-xs">{t('chat.sessionBadge.event')} </span>}
+            {isSubAgent && <span className="text-xs">{t('chat.sessionBadge.subAgent')} </span>}
             {session.title}
           </span>
         </div>
@@ -350,7 +350,7 @@ export function SessionSidebar() {
               <Link
                 to="/"
                 className="flex items-center gap-2 rounded-lg p-2 pb-1 pt-1 transition-colors group no-underline"
-                title="Return to home page"
+                title={t('navigation.returnHome')}
               >
                 <Coffee className="w-5 h-5 text-fg-secondary group-hover:text-amber-600 transition-colors" />
                 <span className="text-lg font-semibold text-fg-default group-hover:text-amber-700 transition-colors">
@@ -362,7 +362,7 @@ export function SessionSidebar() {
               <button
                 onClick={handleToggleSidebar}
                 className="p-2 text-fg-secondary hover:text-fg-default hover:bg-surface-secondary rounded-lg transition-colors"
-                title={isMobileView ? 'Close sidebar' : 'Close sidebar'}
+                title={t('navigation.closeSidebar')}
               >
                 {isMobileView ? <X className="w-5 h-5" /> : <PanelRight className="w-5 h-5" />}
               </button>
@@ -371,7 +371,7 @@ export function SessionSidebar() {
             <button
               onClick={handleToggleSidebar}
               className="p-2 text-fg-secondary hover:text-fg-default hover:bg-surface-secondary rounded-lg transition-colors group"
-              title="Open sidebar"
+              title={t('navigation.openSidebar')}
             >
               <Coffee className="w-5 h-5 text-amber-600 group-hover:hidden" />
               <PanelRight className="w-5 h-5 hidden group-hover:block" />
