@@ -11,6 +11,9 @@ import { WelcomeScreenSkeleton } from './WelcomeScreenSkeleton';
 import { TypingIndicator } from './TypingIndicator';
 import { translateIfKey } from '../utils/agent-translation';
 
+/** Start fetching the previous page this far before the user reaches the top. */
+const AUTO_LOAD_THRESHOLD_PX = 300;
+
 interface MessageListProps {
   onScenarioClick?: (prompt: string) => void;
   /** When false, show a skeleton instead of the welcome screen to prevent flash of wrong agent. */
@@ -88,16 +91,64 @@ export const MessageList: React.FC<MessageListProps> = ({
     loadOlderEvents(sessionId);
   }, [sessionId, isLoadingOlderEvents, loadOlderEvents]);
 
+  // Auto-load older pages when the user scrolls near the top. Not after an
+  // error: the sentinel stays visible, so it would retry in a tight loop — the
+  // inline Retry button handles that. The observer is recreated whenever the
+  // message count or loading state changes, and observe() reports the current
+  // intersection immediately, so a page that still doesn't fill the viewport
+  // keeps loading until it does or history runs out.
+  //
+  // Gated on real user input (wheel / touch / pointer / key): opening a session
+  // smooth-scrolls from the top to the bottom, and the sentinel is visible at
+  // the start of that animation, which would fetch a page on every open.
+  // A list that does not overflow the viewport loads without input, since the
+  // user cannot scroll to reach older messages otherwise.
+  const topSentinelRef = useRef<HTMLDivElement>(null);
+  // Keyed by session so switching sessions resets the gate without an effect.
+  const [interactedSessionId, setInteractedSessionId] = useState<string | null>(null);
+  const userInteracted = !!sessionId && interactedSessionId === sessionId;
+  const markUserInteracted = useCallback(
+    () => setInteractedSessionId(sessionId ?? null),
+    [sessionId]
+  );
+  const canAutoLoad =
+    !!sessionId && !isLoadingEvents && messages.length > 0 && eventsHasMore && !olderEventsError;
+  useEffect(() => {
+    const sentinel = topSentinelRef.current;
+    const container = containerRef.current;
+    if (!canAutoLoad || isLoadingOlderEvents || !sentinel || !container) return;
+    if (typeof IntersectionObserver === 'undefined') return; // button fallback
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (!entries.some((e) => e.isIntersecting)) return;
+        const overflows = container.scrollHeight > container.clientHeight;
+        if (userInteracted || !overflows) handleLoadEarlier();
+      },
+      { root: container, rootMargin: `${AUTO_LOAD_THRESHOLD_PX}px 0px 0px 0px` }
+    );
+    observer.observe(sentinel);
+    return () => observer.disconnect();
+  }, [canAutoLoad, isLoadingOlderEvents, handleLoadEarlier, messages.length, userInteracted]);
+
   return (
     <div
       ref={containerRef}
       onScroll={handleScroll}
+      onWheel={markUserInteracted}
+      onTouchMove={markUserInteracted}
+      onPointerDown={markUserInteracted}
+      onKeyDown={markUserInteracted}
       className="flex-1 overflow-y-auto bg-surface-primary"
     >
       <div
         className={`${isWideView ? 'max-w-full px-8' : 'max-w-4xl px-4'} mx-auto py-4 pb-32 transition-[max-width,padding] duration-300 ease-in-out`}
       >
-        {/* Load earlier messages control — shown at top when older pages exist */}
+        {/* Sentinel for scroll-triggered loading of older pages */}
+        <div ref={topSentinelRef} data-testid="older-events-sentinel" aria-hidden="true" />
+
+        {/* Load earlier messages control — shown at top when older pages exist.
+            Loads automatically on scroll; the button remains as a keyboard /
+            no-IntersectionObserver fallback. */}
         {!isLoadingEvents && messages.length > 0 && sessionId && (
           <div className="flex justify-center mb-4">
             {isLoadingOlderEvents ? (
