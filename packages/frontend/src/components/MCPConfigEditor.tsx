@@ -256,7 +256,7 @@ export const MCPConfigEditor: React.FC<MCPConfigEditorProps> = ({
       {/* Validation error */}
       {validationError && (
         <div className="flex items-start space-x-2 p-3 bg-feedback-error-bg border border-feedback-error-border rounded-lg">
-          <AlertCircle className="w-5 h-5 text-feedback-error flex-shrink-0 mt-0.5" />
+          <AlertCircle className="w-5 h-5 text-feedback-error shrink-0 mt-0.5" />
           <div className="flex-1">
             <p className="text-sm text-feedback-error">{validationError}</p>
           </div>
@@ -335,7 +335,7 @@ export const MCPConfigEditor: React.FC<MCPConfigEditorProps> = ({
                           </button>
 
                           {isExpanded && (
-                            <div className="mt-2 p-3 bg-red-100 rounded border border-feedback-error-border overflow-x-auto">
+                            <div className="mt-2 p-3 bg-red-100 rounded-sm border border-feedback-error-border overflow-x-auto">
                               <pre className="text-xs font-mono text-feedback-error whitespace-pre-wrap break-all">
                                 {error.details}
                               </pre>

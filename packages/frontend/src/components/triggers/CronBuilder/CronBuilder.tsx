@@ -73,7 +73,7 @@ export function CronBuilder({
           value={timezone}
           onChange={(e) => onTimezoneChange(e.target.value)}
           disabled={disabled}
-          className="w-full px-3 py-2 border border-border-strong rounded-lg bg-surface-primary text-fg-default focus:outline-none focus:ring-2 focus:ring-border-focus disabled:bg-surface-secondary disabled:cursor-not-allowed"
+          className="w-full px-3 py-2 border border-border-strong rounded-lg bg-surface-primary text-fg-default focus:outline-hidden focus:ring-2 focus:ring-border-focus disabled:bg-surface-secondary disabled:cursor-not-allowed"
         >
           {TIMEZONES.map((tz) => (
             <option key={tz.value} value={tz.value}>
@@ -112,7 +112,7 @@ export function CronBuilder({
           onChange={(e) => handleCustomInput(e.target.value)}
           disabled={disabled || !isCustom}
           placeholder="0 0 * * ? *"
-          className="w-full px-3 py-2 border border-border-strong rounded-lg bg-surface-primary text-fg-default focus:outline-none focus:ring-2 focus:ring-border-focus disabled:bg-surface-secondary disabled:cursor-not-allowed font-mono text-sm"
+          className="w-full px-3 py-2 border border-border-strong rounded-lg bg-surface-primary text-fg-default focus:outline-hidden focus:ring-2 focus:ring-border-focus disabled:bg-surface-secondary disabled:cursor-not-allowed font-mono text-sm"
         />
         <p className="mt-1 text-xs text-fg-muted">{t('triggers.cron.customExpressionHint')}</p>
       </div>

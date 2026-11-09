@@ -47,7 +47,7 @@ export const NavItem: React.FC<NavItemProps> = ({
         className
       )}
     >
-      <Icon className="w-5 h-5 flex-shrink-0" />
+      <Icon className="w-5 h-5 shrink-0" />
       {!collapsed && <span className="text-sm">{label}</span>}
     </Link>
   );

@@ -38,7 +38,7 @@ export const S3Image: React.FC<S3ImageProps> = ({ path, alt, className = '' }) =
   if (isLoading) {
     return (
       <div
-        className={`flex items-center justify-center bg-surface-secondary rounded ${className}`}
+        className={`flex items-center justify-center bg-surface-secondary rounded-sm ${className}`}
         style={{ minHeight: '200px' }}
       >
         <div className="text-center text-fg-muted">
@@ -52,7 +52,7 @@ export const S3Image: React.FC<S3ImageProps> = ({ path, alt, className = '' }) =
   if (error || !presignedUrl) {
     return (
       <div
-        className={`flex items-center justify-center bg-feedback-error-bg border border-feedback-error-border rounded ${className}`}
+        className={`flex items-center justify-center bg-feedback-error-bg border border-feedback-error-border rounded-sm ${className}`}
         style={{ minHeight: '150px' }}
       >
         <div className="text-center text-feedback-error">

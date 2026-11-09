@@ -70,7 +70,7 @@ export const SearchSection: React.FC<SearchSectionProps> = ({
             className={cn(
               'w-full px-3 py-2 border border-border rounded-input text-sm',
               'bg-surface-primary text-fg-default',
-              'focus:outline-none focus:ring-2 focus:ring-border-focus focus:border-transparent',
+              'focus:outline-hidden focus:ring-2 focus:ring-border-focus focus:border-transparent',
               'placeholder:text-fg-disabled'
             )}
           />

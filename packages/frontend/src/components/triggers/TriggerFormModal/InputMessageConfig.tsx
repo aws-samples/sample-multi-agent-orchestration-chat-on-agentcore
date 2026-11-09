@@ -36,7 +36,7 @@ export function InputMessageConfig({
           disabled={disabled}
           maxLength={2000}
           rows={6}
-          className="w-full px-3 py-2 bg-surface-primary border border-border-strong rounded-lg focus:outline-none focus:ring-2 focus:ring-border-focus resize-none disabled:bg-surface-secondary disabled:cursor-not-allowed font-mono text-sm"
+          className="w-full px-3 py-2 bg-surface-primary border border-border-strong rounded-lg focus:outline-hidden focus:ring-2 focus:ring-border-focus resize-none disabled:bg-surface-secondary disabled:cursor-not-allowed font-mono text-sm"
         />
         <div className="flex justify-end items-center mt-2">
           <p className="text-xs text-fg-muted">{inputMessage.length} / 2000</p>

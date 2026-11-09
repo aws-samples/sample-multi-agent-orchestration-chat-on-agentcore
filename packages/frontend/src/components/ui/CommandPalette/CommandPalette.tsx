@@ -90,7 +90,7 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({ isOpen, onClose 
   return (
     <div className="fixed inset-0 z-50">
       {/* Backdrop */}
-      <div className="fixed inset-0 bg-black/20 backdrop-blur-sm" onClick={onClose} />
+      <div className="fixed inset-0 bg-black/20 backdrop-blur-xs" onClick={onClose} />
 
       {/* Command Dialog */}
       <div className="fixed left-1/2 top-[20%] -translate-x-1/2 w-full max-w-4xl px-4">
@@ -100,13 +100,13 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({ isOpen, onClose 
         >
           {/* Search Input */}
           <div className="flex items-center border-b border-border px-4">
-            <Search className="w-4 h-4 text-fg-disabled flex-shrink-0" />
+            <Search className="w-4 h-4 text-fg-disabled shrink-0" />
             <Command.Input
               placeholder={t('commandPalette.placeholder', 'Type a command or search...')}
-              className="w-full px-3 py-3 text-base outline-none bg-transparent text-fg-default placeholder:text-fg-disabled"
+              className="w-full px-3 py-3 text-base outline-hidden bg-transparent text-fg-default placeholder:text-fg-disabled"
               autoFocus
             />
-            <kbd className="hidden sm:flex items-center gap-1 px-2 py-1 text-xs font-medium text-fg-disabled bg-surface-secondary rounded">
+            <kbd className="hidden sm:flex items-center gap-1 px-2 py-1 text-xs font-medium text-fg-disabled bg-surface-secondary rounded-sm">
               ESC
             </kbd>
           </div>
@@ -138,14 +138,14 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({ isOpen, onClose 
                       onSelect={() => handleAgentSelect(agent)}
                       className="flex items-center gap-4 px-3 py-2.5 rounded-xl cursor-pointer text-fg-secondary data-[selected=true]:bg-surface-secondary data-[selected=true]:text-fg-default transition-colors"
                     >
-                      <AgentIcon className="w-4 h-4 flex-shrink-0" />
+                      <AgentIcon className="w-4 h-4 shrink-0" />
                       <div className="flex-1 min-w-0">
                         <div className="font-medium truncate">{translateIfKey(agent.name, t)}</div>
                         <div className="text-xs text-fg-muted truncate">
                           {translateIfKey(agent.description, t)}
                         </div>
                       </div>
-                      {isSelected && <Check className="w-4 h-4 text-fg-secondary flex-shrink-0" />}
+                      {isSelected && <Check className="w-4 h-4 text-fg-secondary shrink-0" />}
                     </Command.Item>
                   );
                 })}
@@ -171,7 +171,7 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({ isOpen, onClose 
                     onSelect={() => handleSessionSelect(session.sessionId)}
                     className="flex items-center gap-4 px-3 py-2.5 rounded-xl cursor-pointer text-fg-secondary data-[selected=true]:bg-surface-secondary data-[selected=true]:text-fg-default transition-colors"
                   >
-                    <MessageSquare className="w-4 h-4 flex-shrink-0 text-fg-disabled" />
+                    <MessageSquare className="w-4 h-4 shrink-0 text-fg-disabled" />
                     <span className="font-medium truncate">{session.title}</span>
                   </Command.Item>
                 ))}
@@ -183,29 +183,29 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({ isOpen, onClose 
           <div className="flex items-center justify-between border-t border-border px-4 py-2 text-xs text-fg-disabled">
             <div className="flex items-center gap-4">
               <span className="flex items-center gap-1">
-                <kbd className="px-1.5 py-0.5 bg-surface-secondary rounded text-fg-muted">↑↓</kbd>
+                <kbd className="px-1.5 py-0.5 bg-surface-secondary rounded-sm text-fg-muted">↑↓</kbd>
                 {t('commandPalette.toNavigate', 'to navigate')}
               </span>
               <span className="flex items-center gap-1">
-                <kbd className="px-1.5 py-0.5 bg-surface-secondary rounded text-fg-muted">↵</kbd>
+                <kbd className="px-1.5 py-0.5 bg-surface-secondary rounded-sm text-fg-muted">↵</kbd>
                 {t('commandPalette.toSelect', 'to select')}
               </span>
             </div>
             <div className="flex items-center gap-4">
               <span className="flex items-center gap-1">
-                <kbd className="px-1.5 py-0.5 bg-surface-secondary rounded text-fg-muted">⌘K</kbd>
+                <kbd className="px-1.5 py-0.5 bg-surface-secondary rounded-sm text-fg-muted">⌘K</kbd>
                 {t('commandPalette.toToggle', 'to toggle')}
               </span>
               <span className="flex items-center gap-1">
-                <kbd className="px-1.5 py-0.5 bg-surface-secondary rounded text-fg-muted">⌘B</kbd>
+                <kbd className="px-1.5 py-0.5 bg-surface-secondary rounded-sm text-fg-muted">⌘B</kbd>
                 {t('commandPalette.toToggleSidebar', 'to toggle sidebar')}
               </span>
               <span className="flex items-center gap-1">
-                <kbd className="px-1.5 py-0.5 bg-surface-secondary rounded text-fg-muted">⇧⌘O</kbd>
+                <kbd className="px-1.5 py-0.5 bg-surface-secondary rounded-sm text-fg-muted">⇧⌘O</kbd>
                 {t('commandPalette.toStartNewChat', 'to start new chat')}
               </span>
               <span className="flex items-center gap-1">
-                <kbd className="px-1.5 py-0.5 bg-surface-secondary rounded text-fg-muted">⌘/</kbd>
+                <kbd className="px-1.5 py-0.5 bg-surface-secondary rounded-sm text-fg-muted">⌘/</kbd>
                 {t('commandPalette.toShowShortcuts', 'to show shortcuts')}
               </span>
             </div>

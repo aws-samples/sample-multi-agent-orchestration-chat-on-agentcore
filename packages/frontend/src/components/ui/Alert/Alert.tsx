@@ -42,7 +42,7 @@ export const Alert: React.FC<AlertProps> = ({ variant, title, children, onDismis
   return (
     <div className={cn('border rounded-card p-4', variantStyles[variant], className)} role="alert">
       <div className="flex items-start gap-3">
-        <Icon className="w-4 h-4 flex-shrink-0 mt-0.5" />
+        <Icon className="w-4 h-4 shrink-0 mt-0.5" />
         <div className="flex-1 min-w-0">
           {title && <h3 className="text-sm font-medium mb-1">{title}</h3>}
           <div className="text-sm opacity-90">{children}</div>
@@ -50,7 +50,7 @@ export const Alert: React.FC<AlertProps> = ({ variant, title, children, onDismis
         {onDismiss && (
           <button
             onClick={onDismiss}
-            className="flex-shrink-0 p-0.5 rounded hover:bg-black/5 transition-colors"
+            className="shrink-0 p-0.5 rounded-sm hover:bg-black/5 transition-colors"
             aria-label={t('common.close')}
           >
             <X className="w-4 h-4" />

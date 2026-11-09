@@ -87,7 +87,7 @@ export function TriggerCard({
         </div>
 
         {/* Toggle Switch */}
-        <div className="flex-shrink-0">
+        <div className="shrink-0">
           <Toggle
             checked={isEnabled}
             onChange={(checked) => onToggle(trigger.id, checked)}
@@ -103,13 +103,13 @@ export function TriggerCard({
           <>
             {/* Schedule Type */}
             <div className="flex items-center gap-2 text-sm text-fg-secondary">
-              <Clock className="w-4 h-4 text-fg-disabled flex-shrink-0" />
+              <Clock className="w-4 h-4 text-fg-disabled shrink-0" />
               <span className="font-medium">{t('triggers.card.schedule')}:</span>
               <span className="truncate">{scheduleConfig?.expression || 'N/A'}</span>
             </div>
 
             <div className="flex items-center gap-2 text-sm text-fg-secondary">
-              <Calendar className="w-4 h-4 text-fg-disabled flex-shrink-0" />
+              <Calendar className="w-4 h-4 text-fg-disabled shrink-0" />
               <span className="font-medium">{t('triggers.card.timezone')}:</span>
               <span className="truncate">{scheduleConfig?.timezone || 'N/A'}</span>
             </div>
@@ -118,7 +118,7 @@ export function TriggerCard({
           <>
             {/* Event Type */}
             <div className="flex items-center gap-2 text-sm text-fg-secondary">
-              <Zap className="w-4 h-4 text-fg-disabled flex-shrink-0" />
+              <Zap className="w-4 h-4 text-fg-disabled shrink-0" />
               <span className="font-medium">{t('triggers.card.eventSource')}:</span>
               <span className="truncate">
                 {eventSourceName || eventConfig?.eventSourceId || 'N/A'}
@@ -126,7 +126,7 @@ export function TriggerCard({
             </div>
 
             <div className="flex items-center gap-2 text-sm text-fg-secondary">
-              <Bell className="w-4 h-4 text-fg-disabled flex-shrink-0" />
+              <Bell className="w-4 h-4 text-fg-disabled shrink-0" />
               <span className="font-medium">{t('triggers.card.triggerCondition')}:</span>
               <span className="truncate">{t('triggers.card.onEventReceived')}</span>
             </div>
@@ -135,7 +135,7 @@ export function TriggerCard({
 
         {/* Common: Agent */}
         <div className="flex items-center gap-2 text-sm text-fg-secondary">
-          <Bot className="w-4 h-4 text-fg-disabled flex-shrink-0" />
+          <Bot className="w-4 h-4 text-fg-disabled shrink-0" />
           <span className="font-medium">{t('triggers.card.agent')}:</span>
           <span className="truncate">
             {agent ? translateIfKey(agent.name, t) : trigger.agentId}

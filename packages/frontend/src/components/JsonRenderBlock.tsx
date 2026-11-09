@@ -13,7 +13,7 @@ export const JsonRenderBlock: React.FC<JsonRenderBlockProps> = ({ content }) => 
 
   if (!spec) {
     return (
-      <pre className="text-xs bg-surface-secondary rounded p-3 overflow-x-auto whitespace-pre-wrap break-words">
+      <pre className="text-xs bg-surface-secondary rounded-sm p-3 overflow-x-auto whitespace-pre-wrap wrap-break-word">
         {content}
       </pre>
     );

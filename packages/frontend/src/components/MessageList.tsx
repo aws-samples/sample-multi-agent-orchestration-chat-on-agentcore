@@ -180,7 +180,7 @@ export const MessageList: React.FC<MessageListProps> = ({
         {error && (
           <div className="mb-6 bg-feedback-error-bg border border-feedback-error-border rounded-2xl p-4">
             <div className="flex">
-              <div className="flex-shrink-0">
+              <div className="shrink-0">
                 <svg
                   className="h-5 w-5 text-feedback-error"
                   viewBox="0 0 20 20"

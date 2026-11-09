@@ -18,8 +18,8 @@ export const WelcomeScreenSkeleton: React.FC = () => (
     <div className="h-8 bg-border rounded-lg w-48 mx-auto mb-3" />
 
     {/* Description lines */}
-    <div className="h-4 bg-border rounded w-80 mx-auto mb-2" />
-    <div className="h-4 bg-border rounded w-64 mx-auto mb-8" />
+    <div className="h-4 bg-border rounded-sm w-80 mx-auto mb-2" />
+    <div className="h-4 bg-border rounded-sm w-64 mx-auto mb-8" />
 
     {/* Scenario buttons */}
     <div className="grid grid-cols-3 gap-3 max-w-2xl mx-auto">

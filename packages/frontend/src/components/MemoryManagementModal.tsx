@@ -111,7 +111,7 @@ export function MemoryManagementModal({ isOpen, onClose }: MemoryManagementModal
   return (
     <Modal isOpen={isOpen} onClose={onClose} size="xl" className="max-w-4xl h-[70vh] flex flex-col">
       {/* Header */}
-      <div className="border-b border-border px-6 py-4 flex-shrink-0">
+      <div className="border-b border-border px-6 py-4 shrink-0">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <Brain className="w-5 h-5 text-fg-secondary" />
@@ -128,7 +128,7 @@ export function MemoryManagementModal({ isOpen, onClose }: MemoryManagementModal
       </div>
 
       {/* Search section */}
-      <div className="px-6 py-4 border-b border-border flex-shrink-0">
+      <div className="px-6 py-4 border-b border-border shrink-0">
         <div className="flex gap-3">
           <div className="flex-1 relative">
             <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
@@ -140,7 +140,7 @@ export function MemoryManagementModal({ isOpen, onClose }: MemoryManagementModal
               onChange={(e) => setSearchQuery(e.target.value)}
               onKeyPress={handleKeyPress}
               placeholder={t('memory.searchPlaceholder')}
-              className="w-full pl-10 pr-4 py-2 border border-border-strong rounded-md bg-surface-primary text-fg-default focus:outline-none focus:ring-2 focus:ring-border-focus focus:border-transparent text-sm"
+              className="w-full pl-10 pr-4 py-2 border border-border-strong rounded-md bg-surface-primary text-fg-default focus:outline-hidden focus:ring-2 focus:ring-border-focus focus:border-transparent text-sm"
             />
             {searchQuery && (
               <button
@@ -166,7 +166,7 @@ export function MemoryManagementModal({ isOpen, onClose }: MemoryManagementModal
         {/* Error display */}
         {error && (
           <div className="mb-4 p-3 bg-feedback-error-bg border border-feedback-error-border rounded-lg flex items-start gap-2">
-            <AlertCircle className="w-4 h-4 text-feedback-error mt-0.5 flex-shrink-0" />
+            <AlertCircle className="w-4 h-4 text-feedback-error mt-0.5 shrink-0" />
             <div className="flex-1">
               <p className="text-sm text-feedback-error">{error}</p>
               <button
@@ -243,7 +243,7 @@ export function MemoryManagementModal({ isOpen, onClose }: MemoryManagementModal
       </div>
 
       {/* Footer */}
-      <div className="border-t border-border px-6 py-4 bg-surface-secondary flex-shrink-0">
+      <div className="border-t border-border px-6 py-4 bg-surface-secondary shrink-0">
         <div className="flex justify-between items-center">
           <p className="text-xs text-fg-muted">
             {t('memory.totalCount', { count: records.length })}

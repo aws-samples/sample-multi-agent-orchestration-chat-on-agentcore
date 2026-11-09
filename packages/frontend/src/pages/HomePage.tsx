@@ -34,7 +34,7 @@ export function HomePage() {
           <div className="pt-8">
             <button
               onClick={() => navigate('/chat')}
-              className="group px-12 py-4 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white rounded-full text-lg font-semibold transition-all duration-300 shadow-md"
+              className="group px-12 py-4 bg-linear-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white rounded-full text-lg font-semibold transition-all duration-300 shadow-md"
             >
               <span className="flex items-center gap-2">
                 {t('home.getStarted')}

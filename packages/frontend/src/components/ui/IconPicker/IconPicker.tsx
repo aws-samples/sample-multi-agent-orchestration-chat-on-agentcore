@@ -99,7 +99,7 @@ export const IconPicker: React.FC<IconPickerProps> = ({
         onClick={() => !disabled && setIsOpen(!isOpen)}
         disabled={disabled}
         className={cn(
-          'w-11 h-11 bg-surface-secondary rounded-lg flex items-center justify-center flex-shrink-0 transition-colors',
+          'w-11 h-11 bg-surface-secondary rounded-lg flex items-center justify-center shrink-0 transition-colors',
           !disabled && 'hover:bg-border cursor-pointer',
           disabled && 'opacity-50 cursor-not-allowed',
           isOpen && 'ring-2 ring-blue-500'
@@ -181,7 +181,7 @@ export const IconPicker: React.FC<IconPickerProps> = ({
                                 : 'hover:bg-surface-secondary text-fg-secondary hover:text-fg-default'
                             )}
                           >
-                            <IconComponent className="w-5 h-5 flex-shrink-0" />
+                            <IconComponent className="w-5 h-5 shrink-0" />
                             <span
                               className={cn(
                                 'text-[8px] mt-0.5 truncate max-w-[48px] leading-tight',

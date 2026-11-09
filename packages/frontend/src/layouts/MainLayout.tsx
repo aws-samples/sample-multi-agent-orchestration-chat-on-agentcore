@@ -68,7 +68,7 @@ export function MainLayout() {
     // Return agent icon for chat page
     if (isChatRoute(path) && selectedAgent?.icon) {
       const AgentIcon = (icons[selectedAgent.icon as keyof typeof icons] as LucideIcon) || Bot;
-      return <AgentIcon className="w-5 h-5 text-fg-secondary flex-shrink-0" />;
+      return <AgentIcon className="w-5 h-5 text-fg-secondary shrink-0" />;
     }
 
     return null;
@@ -192,7 +192,7 @@ export function MainLayout() {
         <header className="fixed top-0 left-0 right-0 z-30 bg-surface-primary border-b border-border px-3 py-2 flex items-center gap-2">
           <button
             onClick={() => setSidebarOpen(true)}
-            className="p-2 text-fg-secondary hover:text-fg-default hover:bg-surface-secondary rounded-lg transition-colors flex-shrink-0"
+            className="p-2 text-fg-secondary hover:text-fg-default hover:bg-surface-secondary rounded-lg transition-colors shrink-0"
             aria-label="open-sidebar"
           >
             <Menu className="w-5 h-5" />
@@ -200,8 +200,8 @@ export function MainLayout() {
 
           {showSkeleton ? (
             <div className="flex items-center gap-2 flex-1 min-w-0 p-2">
-              <div className="w-5 h-5 bg-border rounded animate-pulse flex-shrink-0" />
-              <div className="h-5 bg-border rounded animate-pulse w-32" />
+              <div className="w-5 h-5 bg-border rounded-sm animate-pulse shrink-0" />
+              <div className="h-5 bg-border rounded-sm animate-pulse w-32" />
             </div>
           ) : (
             pageTitle && (
@@ -224,7 +224,7 @@ export function MainLayout() {
             <Link
               to="/chat"
               onClick={handleNewChat}
-              className="p-2 text-fg-secondary hover:text-fg-default hover:bg-surface-secondary rounded-lg transition-colors flex-shrink-0"
+              className="p-2 text-fg-secondary hover:text-fg-default hover:bg-surface-secondary rounded-lg transition-colors shrink-0"
               aria-label={t('navigation.newChat')}
               title={t('navigation.newChat')}
             >
@@ -257,7 +257,7 @@ export function MainLayout() {
         // Desktop: Normal sidebar
         <div
           className={`
-            transition-all duration-300 ease-in-out flex-shrink-0
+            transition-all duration-300 ease-in-out shrink-0
             ${isSidebarOpen ? 'w-80' : 'w-16'}
           `}
         >

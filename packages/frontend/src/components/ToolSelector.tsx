@@ -167,7 +167,7 @@ export const ToolSelector: React.FC<ToolSelectorProps> = ({
       {/* Error state */}
       {error && (
         <div className="flex items-center space-x-2 p-3 bg-feedback-error-bg border border-feedback-error-border rounded-lg">
-          <AlertCircle className="w-4 h-4 text-feedback-error flex-shrink-0" />
+          <AlertCircle className="w-4 h-4 text-feedback-error shrink-0" />
           <span className="text-sm text-feedback-error">{error}</span>
         </div>
       )}
@@ -192,9 +192,9 @@ export const ToolSelector: React.FC<ToolSelectorProps> = ({
                 >
                   {/* Tool icon (border color changes based on selection state) */}
                   <div
-                    className={`flex-shrink-0 w-6 h-6 rounded-lg flex items-center justify-center transition-all duration-200 ${
+                    className={`shrink-0 w-6 h-6 rounded-lg flex items-center justify-center transition-all duration-200 ${
                       isSelected
-                        ? 'bg-action-primary text-white border-1 border-blue-500 shadow-sm'
+                        ? 'bg-action-primary text-white border border-blue-500 shadow-xs'
                         : 'bg-surface-secondary text-fg-secondary border border-border hover:border-feedback-info-border hover:bg-feedback-info-bg'
                     }`}
                   >

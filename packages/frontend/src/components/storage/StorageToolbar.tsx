@@ -59,21 +59,21 @@ export function StorageToolbar({
           <div className="flex items-center gap-1.5">
             <button
               onClick={onBulkDownload}
-              className="flex items-center gap-1.5 px-2 py-1.5 text-xs text-fg-secondary hover:text-fg-default hover:bg-surface-secondary rounded transition-colors"
+              className="flex items-center gap-1.5 px-2 py-1.5 text-xs text-fg-secondary hover:text-fg-default hover:bg-surface-secondary rounded-sm transition-colors"
             >
               <Download className="w-3.5 h-3.5" />
               <span>{t('storage.bulkDownload')}</span>
             </button>
             <button
               onClick={onBulkDelete}
-              className="flex items-center gap-1.5 px-2 py-1.5 text-xs text-feedback-error hover:bg-feedback-error-bg rounded transition-colors"
+              className="flex items-center gap-1.5 px-2 py-1.5 text-xs text-feedback-error hover:bg-feedback-error-bg rounded-sm transition-colors"
             >
               <Trash2 className="w-3.5 h-3.5" />
               <span>{t('storage.bulkDelete')}</span>
             </button>
             <button
               onClick={onClearSelection}
-              className="flex items-center gap-1.5 px-2 py-1.5 text-xs text-fg-secondary hover:text-fg-default hover:bg-surface-secondary rounded transition-colors"
+              className="flex items-center gap-1.5 px-2 py-1.5 text-xs text-fg-secondary hover:text-fg-default hover:bg-surface-secondary rounded-sm transition-colors"
               title={t('storage.clearSelection')}
             >
               <X className="w-3.5 h-3.5" />
@@ -86,7 +86,7 @@ export function StorageToolbar({
           <button
             onClick={onUploadClick}
             disabled={isUploading}
-            className="flex items-center gap-1.5 px-2 py-1.5 text-xs text-fg-secondary hover:text-fg-default hover:bg-surface-secondary rounded disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            className="flex items-center gap-1.5 px-2 py-1.5 text-xs text-fg-secondary hover:text-fg-default hover:bg-surface-secondary rounded-sm disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
             <Upload className="w-3.5 h-3.5" />
             <span>{t('storage.upload')}</span>
@@ -94,7 +94,7 @@ export function StorageToolbar({
 
           <button
             onClick={onNewFolder}
-            className="flex items-center gap-1.5 px-2 py-1.5 text-xs text-fg-secondary hover:text-fg-default hover:bg-surface-secondary rounded transition-colors"
+            className="flex items-center gap-1.5 px-2 py-1.5 text-xs text-fg-secondary hover:text-fg-default hover:bg-surface-secondary rounded-sm transition-colors"
           >
             <FolderPlus className="w-3.5 h-3.5" />
             <span>{t('storage.newFolder')}</span>
@@ -103,7 +103,7 @@ export function StorageToolbar({
           <button
             onClick={onSetWorkingDirectory}
             disabled={!canSetWorkingDirectory}
-            className="flex items-center gap-1.5 px-2 py-1.5 text-xs text-fg-secondary hover:text-fg-default hover:bg-surface-secondary rounded disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            className="flex items-center gap-1.5 px-2 py-1.5 text-xs text-fg-secondary hover:text-fg-default hover:bg-surface-secondary rounded-sm disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
             <FolderCog className="w-3.5 h-3.5" />
             <span>{t('storage.setAsWorkingDirectory')}</span>

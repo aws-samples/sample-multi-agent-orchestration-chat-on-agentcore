@@ -141,7 +141,7 @@ export const ModelReasoningSelector: React.FC<ModelReasoningSelectorProps> = (pr
       >
         <span className="font-medium">{triggerLabel}</span>
         {showReasoningBadge(effectiveModelId, currentDepth) && (
-          <span className="px-1.5 py-0.5 rounded text-xs bg-surface-secondary text-fg-secondary">
+          <span className="px-1.5 py-0.5 rounded-sm text-xs bg-surface-secondary text-fg-secondary">
             {t(reasoningDepthLabelKey(effectiveModelId, currentDepth))}
           </span>
         )}

@@ -61,7 +61,7 @@ export const Input = React.forwardRef<HTMLInputElement, InputProps>(
             // Base styles
             'w-full border rounded-input bg-surface-primary text-fg-default',
             'placeholder:text-fg-disabled',
-            'focus:outline-none focus:ring-2 focus:ring-border-focus focus:border-transparent',
+            'focus:outline-hidden focus:ring-2 focus:ring-border-focus focus:border-transparent',
             'disabled:bg-surface-secondary disabled:cursor-not-allowed disabled:text-fg-disabled',
             'transition-colors duration-200',
             // Size

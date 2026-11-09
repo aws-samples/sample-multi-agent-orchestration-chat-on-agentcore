@@ -391,7 +391,7 @@ export const AgentForm: React.FC<AgentFormProps> = ({ agent, onSubmit, isLoading
                 <div className="space-y-3">
                   {formData.scenarios.map((scenario, index) => (
                     <div key={index} className="flex items-start space-x-3">
-                      <div className="flex-shrink-0 w-48">
+                      <div className="shrink-0 w-48">
                         <textarea
                           value={scenario.title}
                           onChange={(e) => updateScenario(index, 'title', e.target.value)}
@@ -441,7 +441,7 @@ export const AgentForm: React.FC<AgentFormProps> = ({ agent, onSubmit, isLoading
                         type="button"
                         onClick={() => removeScenario(index)}
                         disabled={isLoading || isGenerating}
-                        className="flex-shrink-0 p-1 text-fg-disabled hover:text-feedback-error disabled:text-fg-disabled disabled:cursor-not-allowed transition-colors"
+                        className="shrink-0 p-1 text-fg-disabled hover:text-feedback-error disabled:text-fg-disabled disabled:cursor-not-allowed transition-colors"
                       >
                         <X className="w-4 h-4" />
                       </button>

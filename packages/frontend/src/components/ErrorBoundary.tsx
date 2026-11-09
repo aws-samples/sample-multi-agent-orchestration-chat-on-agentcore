@@ -94,7 +94,7 @@ class ErrorBoundaryInner extends Component<Props, State> {
                 <summary className="text-sm text-fg-secondary cursor-pointer hover:text-fg-default">
                   {t('error.boundary.developerInfo')}
                 </summary>
-                <pre className="mt-2 text-xs bg-surface-secondary rounded p-3 overflow-auto max-h-64">
+                <pre className="mt-2 text-xs bg-surface-secondary rounded-sm p-3 overflow-auto max-h-64">
                   {this.state.errorInfo.componentStack}
                 </pre>
               </details>

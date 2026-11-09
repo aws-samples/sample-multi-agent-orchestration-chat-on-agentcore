@@ -147,7 +147,7 @@ export const Message: React.FC<MessageProps> = ({ message }) => {
         // Inline code
         return (
           <code
-            className="bg-surface-secondary text-fg-default px-1 py-0.5 rounded text-sm"
+            className="bg-surface-secondary text-fg-default px-1 py-0.5 rounded-sm text-sm"
             {...props}
           >
             {children}
@@ -166,7 +166,7 @@ export const Message: React.FC<MessageProps> = ({ message }) => {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       th: ({ children, ...props }: any) => (
         <th
-          className="border border-border-strong px-4 py-2 bg-surface-secondary font-semibold text-left break-words"
+          className="border border-border-strong px-4 py-2 bg-surface-secondary font-semibold text-left wrap-break-word"
           {...props}
         >
           {children}
@@ -174,7 +174,7 @@ export const Message: React.FC<MessageProps> = ({ message }) => {
       ),
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       td: ({ children, ...props }: any) => (
-        <td className="border border-border-strong px-4 py-2 break-words" {...props}>
+        <td className="border border-border-strong px-4 py-2 wrap-break-word" {...props}>
           {children}
         </td>
       ),
