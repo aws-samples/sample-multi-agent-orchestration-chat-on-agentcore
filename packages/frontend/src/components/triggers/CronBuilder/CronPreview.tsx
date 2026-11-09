@@ -43,8 +43,8 @@ export function CronPreview({ expression, timezone, isValid }: CronPreviewProps)
     <div className="space-y-4">
       {/* Human-readable description */}
       <div className="p-4 bg-feedback-info-bg border border-feedback-info-border rounded-lg">
-        <p className="text-sm font-medium text-action-primary">{description}</p>
-        <p className="text-xs text-action-primary mt-1 font-mono">{expression}</p>
+        <p className="text-sm font-medium text-fg-link">{description}</p>
+        <p className="text-xs text-fg-link mt-1 font-mono">{expression}</p>
       </div>
 
       {/* Next execution times */}

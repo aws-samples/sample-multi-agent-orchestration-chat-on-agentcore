@@ -76,7 +76,7 @@ export function EventTypeSelector({
             type="button"
             onClick={() => onSelect(null)}
             disabled={disabled}
-            className="text-sm text-action-primary hover:text-action-primary font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+            className="text-sm text-fg-link hover:text-fg-link font-medium disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {t('triggers.eventTypes.change')}
           </button>

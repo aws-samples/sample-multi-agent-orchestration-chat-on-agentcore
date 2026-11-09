@@ -534,7 +534,7 @@ export function StorageManagementModal({ isOpen, onClose }: StorageManagementMod
                           }}
                           onChange={handleToggleSelectAll}
                           aria-label={t('storage.selectAll')}
-                          className="block w-4 h-4 rounded-sm border-border-strong text-action-primary focus:ring-border-focus cursor-pointer"
+                          className="block w-4 h-4 rounded-sm border-border-strong text-fg-link focus:ring-border-focus cursor-pointer"
                         />
                         <span className="text-xs text-fg-muted">{t('storage.selectAll')}</span>
                       </div>
@@ -577,7 +577,7 @@ export function StorageManagementModal({ isOpen, onClose }: StorageManagementMod
                           <button
                             onClick={handleCreateDirectory}
                             disabled={!newDirectoryName.trim()}
-                            className="shrink-0 p-2 text-action-primary hover:bg-blue-100 rounded-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                            className="shrink-0 p-2 text-fg-link hover:bg-feedback-info-bg rounded-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                             title={t('storage.create')}
                           >
                             <Check className="w-4 h-4" />
@@ -604,8 +604,8 @@ export function StorageManagementModal({ isOpen, onClose }: StorageManagementMod
             {isDragOver && (
               <div className="absolute inset-0 flex items-center justify-center bg-feedback-info-bg/90 pointer-events-none">
                 <div className="text-center">
-                  <Upload className="w-12 h-12 text-action-primary mx-auto mb-2" />
-                  <p className="text-lg font-medium text-action-primary">
+                  <Upload className="w-12 h-12 text-fg-link mx-auto mb-2" />
+                  <p className="text-lg font-medium text-fg-link">
                     {t('storage.dropFiles')}
                   </p>
                 </div>

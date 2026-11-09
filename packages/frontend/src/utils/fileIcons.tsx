@@ -44,7 +44,7 @@ export function getFileIcon(filename: string): FileIconConfig {
     return { icon: FileText, color: 'text-feedback-error' };
   }
   if (['doc', 'docx'].includes(ext)) {
-    return { icon: FileText, color: 'text-action-primary' };
+    return { icon: FileText, color: 'text-fg-link' };
   }
   if (['txt', 'md', 'markdown'].includes(ext)) {
     return { icon: FileText, color: 'text-fg-muted' };
@@ -72,7 +72,7 @@ export function getFileIcon(filename: string): FileIconConfig {
 
   // Code (Python)
   if (['py', 'pyc', 'pyd', 'pyw'].includes(ext)) {
-    return { icon: FileCode, color: 'text-action-primary' };
+    return { icon: FileCode, color: 'text-fg-link' };
   }
 
   // Code (Web)
@@ -108,5 +108,5 @@ export function getFileIcon(filename: string): FileIconConfig {
   }
 
   // Default (unknown extension)
-  return { icon: File, color: 'text-action-primary' };
+  return { icon: File, color: 'text-fg-link' };
 }

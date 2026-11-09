@@ -18,7 +18,7 @@ export const ModalHeader: React.FC<ModalHeaderProps> = ({ children, className })
 };
 
 export const ModalIcon: React.FC<ModalIconProps> = ({ icon: Icon, className }) => {
-  return <Icon className={cn('w-6 h-6 text-action-primary', className)} />;
+  return <Icon className={cn('w-6 h-6 text-fg-link', className)} />;
 };
 
 export const ModalTitle: React.FC<ModalTitleProps> = ({ children, className }) => {

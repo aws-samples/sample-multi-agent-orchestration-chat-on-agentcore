@@ -164,14 +164,14 @@ export function SettingsPage() {
                       transition-colors duration-150
                       ${
                         i18n.language === option.value
-                          ? 'bg-feedback-info-bg text-action-primary font-medium'
+                          ? 'bg-feedback-info-bg text-fg-link font-medium'
                           : 'text-fg-default hover:bg-surface-secondary'
                       }
                     `}
                   >
                     <span>{option.label}</span>
                     {i18n.language === option.value && (
-                      <Check className="w-5 h-5 text-action-primary" />
+                      <Check className="w-5 h-5 text-fg-link" />
                     )}
                   </button>
                 ))}
@@ -214,13 +214,13 @@ export function SettingsPage() {
                       transition-colors duration-150
                       ${
                         theme === option.value
-                          ? 'bg-feedback-info-bg text-action-primary font-medium'
+                          ? 'bg-feedback-info-bg text-fg-link font-medium'
                           : 'text-fg-default hover:bg-surface-secondary'
                       }
                     `}
                   >
                     <span>{option.label}</span>
-                    {theme === option.value && <Check className="w-5 h-5 text-action-primary" />}
+                    {theme === option.value && <Check className="w-5 h-5 text-fg-link" />}
                   </button>
                 ))}
               </div>
@@ -280,7 +280,7 @@ export function SettingsPage() {
                   value="enter"
                   checked={sendBehavior === 'enter'}
                   onChange={() => setSendBehavior('enter')}
-                  className="w-4 h-4 text-action-primary border-border-strong focus:ring-border-focus"
+                  className="w-4 h-4 text-fg-link border-border-strong focus:ring-border-focus"
                 />
                 <span className="text-sm text-fg-default">{t('settings.sendOnEnter')}</span>
               </label>
@@ -292,7 +292,7 @@ export function SettingsPage() {
                   value="cmdEnter"
                   checked={sendBehavior === 'cmdEnter'}
                   onChange={() => setSendBehavior('cmdEnter')}
-                  className="w-4 h-4 text-action-primary border-border-strong focus:ring-border-focus"
+                  className="w-4 h-4 text-fg-link border-border-strong focus:ring-border-focus"
                 />
                 <span className="text-sm text-fg-default">
                   {t('settings.newlineOnEnter')}（

@@ -379,7 +379,7 @@ export const AgentForm: React.FC<AgentFormProps> = ({ agent, onSubmit, isLoading
                     type="button"
                     onClick={addScenario}
                     disabled={isLoading || isGenerating}
-                    className="inline-flex items-center space-x-1 text-sm text-action-primary hover:opacity-80 disabled:text-fg-disabled disabled:cursor-not-allowed"
+                    className="inline-flex items-center space-x-1 text-sm text-fg-link hover:opacity-80 disabled:text-fg-disabled disabled:cursor-not-allowed"
                   >
                     <Plus className="w-4 h-4" />
                     <span>{t('agent.addScenario')}</span>

@@ -472,7 +472,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({
         className={`${isWideView ? 'max-w-full px-4' : 'max-w-4xl'} mx-auto transition-[max-width,padding] duration-300 ease-in-out`}
       >
         <div
-          className={`relative ${isDragging ? 'ring-2 ring-blue-400 ring-opacity-50 rounded-2xl' : ''}`}
+          className={`relative ${isDragging ? 'ring-2 ring-blue-400/50 rounded-2xl' : ''}`}
           onDragOver={handleDragOver}
           onDragLeave={handleDragLeave}
           onDrop={handleDrop}
@@ -510,7 +510,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({
               normal flex row (not absolute) so the left controls and the send
               button can never overlap: the left group shrinks/scrolls while the
               send button keeps its fixed width at the right edge. */}
-          <div className="border border-border rounded-2xl bg-surface-primary focus-within:ring-1 focus-within:ring-gray-200">
+          <div className="border border-border rounded-2xl bg-surface-primary focus-within:ring-1 focus-within:ring-border-default">
             {/* Text input area - Reserve space for 2 rows */}
             <textarea
               ref={textareaRef}
@@ -557,7 +557,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({
                 className={`ml-auto shrink-0 w-8 h-8 rounded-md flex items-center justify-center transition-all duration-200 ${
                   (!input.trim() && attachedImages.length === 0) || isLoading || isAgentStoreLoading
                     ? 'text-fg-disabled cursor-not-allowed'
-                    : 'text-black hover:bg-surface-secondary'
+                    : 'text-fg-default hover:bg-surface-secondary'
                 }`}
               >
                 {isLoading ? (

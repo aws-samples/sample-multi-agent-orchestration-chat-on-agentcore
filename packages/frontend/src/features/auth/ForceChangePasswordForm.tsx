@@ -109,8 +109,8 @@ export const ForceChangePasswordForm: React.FC<ForceChangePasswordFormProps> = (
       <div className="min-h-screen flex items-center justify-center bg-surface-secondary">
         <div className="max-w-md w-full space-y-8 p-8 text-center">
           <div className="relative mb-6">
-            <div className="absolute inset-0 bg-green-200 rounded-full blur-2xl opacity-30 scale-125"></div>
-            <CheckCircle className="w-16 h-16 text-green-600 mx-auto" />
+            <div className="absolute inset-0 bg-feedback-success-border rounded-full blur-2xl opacity-30 scale-125"></div>
+            <CheckCircle className="w-16 h-16 text-feedback-success mx-auto" />
           </div>
           <h2 className="text-3xl font-bold text-fg-default mb-2">
             {t('auth.forceChangePassword.successTitle')}
@@ -126,10 +126,10 @@ export const ForceChangePasswordForm: React.FC<ForceChangePasswordFormProps> = (
       <div className="max-w-md w-full space-y-8 p-8">
         <div className="text-center">
           <div className="relative mb-6">
-            <div className="absolute inset-0 bg-amber-200 rounded-full blur-2xl opacity-30 scale-125"></div>
-            <Coffee className="w-16 h-16 text-amber-600 mx-auto" />
+            <div className="absolute inset-0 bg-brand-light rounded-full blur-2xl opacity-30 scale-125"></div>
+            <Coffee className="w-16 h-16 text-brand mx-auto" />
           </div>
-          <h2 className="text-2xl font-bold text-amber-900 mb-2 whitespace-nowrap">
+          <h2 className="text-2xl font-bold text-brand-dark mb-2 whitespace-nowrap">
             {t('auth.forceChangePassword.title')}
           </h2>
           <p className="text-fg-secondary text-sm">{t('auth.forceChangePassword.description')}</p>
@@ -199,7 +199,7 @@ export const ForceChangePasswordForm: React.FC<ForceChangePasswordFormProps> = (
             loading={isLoading}
             fullWidth
             size="lg"
-            className="bg-gray-900 hover:bg-gray-800"
+            className="bg-fg-default text-fg-inverse hover:bg-fg-default/85"
           >
             {isLoading
               ? t('auth.forceChangePassword.changingButton')

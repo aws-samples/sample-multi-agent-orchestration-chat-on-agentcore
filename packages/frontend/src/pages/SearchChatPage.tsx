@@ -218,7 +218,7 @@ export function SearchChatPage() {
                         type="checkbox"
                         checked={allFilteredSelected}
                         onChange={toggleSelectAll}
-                        className="w-4 h-4 text-action-primary border-border-strong rounded-sm focus:ring-border-focus cursor-pointer"
+                        className="w-4 h-4 text-fg-link border-border-strong rounded-sm focus:ring-border-focus cursor-pointer"
                         title={allFilteredSelected ? t('chat.deselectAll') : t('chat.selectAll')}
                       />
                     </th>
@@ -247,7 +247,7 @@ export function SearchChatPage() {
                             type="checkbox"
                             checked={isSelected}
                             onChange={() => {}}
-                            className="w-4 h-4 text-action-primary border-border-strong rounded-sm focus:ring-border-focus pointer-events-none"
+                            className="w-4 h-4 text-fg-link border-border-strong rounded-sm focus:ring-border-focus pointer-events-none"
                           />
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">

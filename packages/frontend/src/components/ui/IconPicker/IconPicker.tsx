@@ -177,7 +177,7 @@ export const IconPicker: React.FC<IconPickerProps> = ({
                             className={cn(
                               'w-14 h-14 flex flex-col items-center justify-center rounded-lg transition-all group',
                               isSelected
-                                ? 'bg-blue-100 text-action-primary ring-2 ring-blue-500'
+                                ? 'bg-feedback-info-bg text-fg-link ring-2 ring-border-focus'
                                 : 'hover:bg-surface-secondary text-fg-secondary hover:text-fg-default'
                             )}
                           >
@@ -185,7 +185,7 @@ export const IconPicker: React.FC<IconPickerProps> = ({
                             <span
                               className={cn(
                                 'text-[8px] mt-0.5 truncate max-w-[48px] leading-tight',
-                                isSelected ? 'text-action-primary' : 'text-fg-muted'
+                                isSelected ? 'text-fg-link' : 'text-fg-muted'
                               )}
                               title={iconName}
                             >

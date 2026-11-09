@@ -29,7 +29,7 @@ export function SidebarTabs<T extends string>({
                 onClick={() => onTabChange(tab.id)}
                 className={`flex items-center space-x-2 px-4 py-2 rounded-lg text-sm whitespace-nowrap transition-colors ${
                   isActive
-                    ? 'bg-feedback-info-bg text-action-primary font-medium'
+                    ? 'bg-feedback-info-bg text-fg-link font-medium'
                     : 'text-fg-secondary hover:bg-surface-secondary'
                 }`}
               >
@@ -57,7 +57,7 @@ export function SidebarTabs<T extends string>({
               onClick={() => onTabChange(tab.id)}
               className={`w-full flex items-center space-x-3 px-3 py-2 rounded-lg text-sm transition-colors ${
                 isActive
-                  ? 'bg-feedback-info-bg text-action-primary font-medium'
+                  ? 'bg-feedback-info-bg text-fg-link font-medium'
                   : 'text-fg-secondary hover:bg-surface-secondary'
               }`}
             >

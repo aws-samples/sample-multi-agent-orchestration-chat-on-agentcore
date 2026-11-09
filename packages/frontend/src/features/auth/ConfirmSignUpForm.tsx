@@ -112,8 +112,8 @@ export const ConfirmSignUpForm: React.FC<ConfirmSignUpFormProps> = ({
         <div className="text-center">
           {/* Main icon */}
           <div className="relative mb-4">
-            <div className="absolute inset-0 bg-amber-200 rounded-full blur-2xl opacity-30 scale-125"></div>
-            <Coffee className="w-12 h-12 text-amber-600 mx-auto mb-2" />
+            <div className="absolute inset-0 bg-brand-light rounded-full blur-2xl opacity-30 scale-125"></div>
+            <Coffee className="w-12 h-12 text-brand mx-auto mb-2" />
           </div>
           <div className="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-feedback-success-bg mb-4">
             <Mail className="h-6 w-6 text-feedback-success" aria-hidden="true" />
@@ -215,7 +215,7 @@ export const ConfirmSignUpForm: React.FC<ConfirmSignUpFormProps> = ({
             <button
               type="button"
               onClick={onSwitchToLogin}
-              className="font-medium text-indigo-600 hover:text-indigo-500 transition-colors"
+              className="font-medium text-fg-link hover:opacity-80 transition-colors"
             >
               {t('auth.signIn')}
             </button>

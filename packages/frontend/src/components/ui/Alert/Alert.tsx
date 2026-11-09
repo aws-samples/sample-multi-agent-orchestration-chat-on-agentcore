@@ -50,7 +50,7 @@ export const Alert: React.FC<AlertProps> = ({ variant, title, children, onDismis
         {onDismiss && (
           <button
             onClick={onDismiss}
-            className="shrink-0 p-0.5 rounded-sm hover:bg-black/5 transition-colors"
+            className="shrink-0 p-0.5 rounded-sm hover:bg-fg-default/10 transition-colors"
             aria-label={t('common.close')}
           >
             <X className="w-4 h-4" />
