@@ -65,7 +65,7 @@
     "typescript-eslint": "^8.72.0"
   },
   "overrides": {
-    "aws-cdk-lib": "2.274.0",
+    "aws-cdk-lib": "2.275.0",
     "test-exclude": "^7.0.1",
     "glob": "^10.0.0",
     "fast-xml-parser": ">=5.3.6",
