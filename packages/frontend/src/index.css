@@ -178,11 +178,11 @@
     --color-brand-fg: #fde68a; /* amber-200 */
 
     /* --- Action Colors --- */
-    --color-action-primary: #3b82f6; /* blue-500 */
-    --color-action-primary-hover: #60a5fa; /* blue-400 */
+    --color-action-primary: #2563eb; /* blue-600 */
+    --color-action-primary-hover: #1d4ed8; /* blue-700 */
     --color-action-primary-fg: #ffffff;
-    --color-action-danger: #ef4444; /* red-500 */
-    --color-action-danger-hover: #f87171; /* red-400 */
+    --color-action-danger: #dc2626; /* red-600 */
+    --color-action-danger-hover: #b91c1c; /* red-700 */
     --color-action-danger-fg: #ffffff;
     --color-action-danger-light: rgba(239, 68, 68, 0.15);
     --color-action-success: #22c55e; /* green-500 */
@@ -203,7 +203,7 @@
     --color-fg-default: #f1f5f9; /* slate-100 */
     --color-fg-secondary: #cbd5e1; /* slate-300 */
     --color-fg-muted: #94a3b8; /* slate-400 */
-    --color-fg-disabled: #64748b; /* slate-500 */
+    --color-fg-disabled: #8191a6; /* between slate-400/500: >= 4.5:1 on surface-secondary */
     --color-fg-inverse: #0f172a; /* slate-900 */
     --color-fg-link: #60a5fa; /* blue-400 */
 
@@ -369,7 +369,7 @@
   }
 
   .button-primary {
-    @apply px-6 py-2 bg-gray-900 text-white hover:bg-gray-800 transition-colors duration-200 focus:outline-hidden focus:ring-2 focus:ring-gray-300;
+    @apply px-6 py-2 bg-fg-default text-fg-inverse hover:bg-fg-default/85 transition-colors duration-200 focus:outline-hidden focus:ring-2 focus:ring-border-strong;
     border-radius: var(--radius-btn);
   }
 

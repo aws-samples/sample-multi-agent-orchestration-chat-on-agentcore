@@ -46,7 +46,7 @@ export function ExecutionItem({ execution }: ExecutionItemProps) {
               <a
                 href={`/chat/${execution.sessionId}`}
                 onClick={(e) => e.stopPropagation()}
-                className="inline-flex items-center gap-1 text-xs text-action-primary hover:underline font-mono"
+                className="inline-flex items-center gap-1 text-xs text-fg-link hover:underline font-mono"
               >
                 {execution.sessionId.slice(0, 12)}...
                 <ExternalLink className="w-3 h-3" />

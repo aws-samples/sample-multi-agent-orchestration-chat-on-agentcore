@@ -73,11 +73,11 @@ const AgentCard: React.FC<AgentCardProps> = ({
           <div className="flex items-center space-x-3 flex-1">
             <div
               className={`w-10 h-10 rounded-lg flex items-center justify-center ${
-                isSelected ? 'bg-blue-100' : 'bg-surface-secondary'
+                isSelected ? 'bg-feedback-info-bg' : 'bg-surface-secondary'
               }`}
             >
               <AgentIcon
-                className={`w-5 h-5 ${isSelected ? 'text-action-primary' : 'text-fg-secondary'}`}
+                className={`w-5 h-5 ${isSelected ? 'text-fg-link' : 'text-fg-secondary'}`}
               />
             </div>
             <div className="flex-1">
@@ -448,7 +448,7 @@ export const AgentSelectorModal: React.FC<AgentSelectorModalProps> = ({
                     <p className="text-fg-muted mb-6">{t('agent.noAgentsDescription')}</p>
                     <button
                       onClick={() => setMode('create')}
-                      className="text-action-primary hover:text-action-primary font-medium"
+                      className="text-fg-link hover:text-fg-link font-medium"
                     >
                       {t('agent.createAgentButton')}
                     </button>
@@ -462,7 +462,7 @@ export const AgentSelectorModal: React.FC<AgentSelectorModalProps> = ({
                     <p className="text-fg-muted mb-6">{t('agent.noSearchResultsDescription')}</p>
                     <button
                       onClick={() => setSearchQuery('')}
-                      className="text-action-primary hover:text-action-primary font-medium"
+                      className="text-fg-link hover:text-fg-link font-medium"
                     >
                       {t('agent.clearSearch')}
                     </button>

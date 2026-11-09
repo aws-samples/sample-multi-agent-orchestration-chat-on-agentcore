@@ -78,10 +78,10 @@ export function Tooltip({
 
   // Style classes for arrow position
   const arrowClasses = {
-    top: 'top-full left-1/2 -translate-x-1/2 border-t-gray-900',
-    bottom: 'bottom-full left-1/2 -translate-x-1/2 border-b-gray-900',
-    left: 'left-full top-1/2 -translate-y-1/2 border-l-gray-900',
-    right: 'right-full top-1/2 -translate-y-1/2 border-r-gray-900',
+    top: 'top-full left-1/2 -translate-x-1/2 border-t-fg-default',
+    bottom: 'bottom-full left-1/2 -translate-x-1/2 border-b-fg-default',
+    left: 'left-full top-1/2 -translate-y-1/2 border-l-fg-default',
+    right: 'right-full top-1/2 -translate-y-1/2 border-r-fg-default',
   };
 
   return (
@@ -105,7 +105,7 @@ export function Tooltip({
         >
           {/* Tooltip background */}
           <div
-            className={`relative bg-gray-800 text-white text-xs rounded-lg px-3 py-2 shadow-lg ${
+            className={`relative bg-fg-default text-fg-inverse text-xs rounded-lg px-3 py-2 shadow-lg ${
               width ? 'whitespace-normal wrap-break-word' : 'whitespace-nowrap'
             }`}
           >

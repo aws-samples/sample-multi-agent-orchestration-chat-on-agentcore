@@ -100,7 +100,7 @@ const StatusMark: React.FC<{ step: Step }> = ({ step }) => {
     case 'running':
       return (
         <Loader2
-          className="size-3.5 shrink-0 text-action-primary motion-safe:animate-spin"
+          className="size-3.5 shrink-0 text-fg-link motion-safe:animate-spin"
           aria-label={t('tool.steps.status.running')}
         />
       );
@@ -319,7 +319,7 @@ export const ToolStepsGroup: React.FC<ToolStepsGroupProps> = ({ steps, isLive, c
           />
           {isLive ? (
             <>
-              <Loader2 className="size-4 shrink-0 text-action-primary motion-safe:animate-spin" />
+              <Loader2 className="size-4 shrink-0 text-fg-link motion-safe:animate-spin" />
               <span aria-live="polite" className="min-w-0 flex-1 truncate">
                 {currentMeta.label}
                 {currentSummary && <span className="text-fg-muted">: {currentSummary}</span>}
@@ -363,7 +363,7 @@ export const ToolStepsGroup: React.FC<ToolStepsGroupProps> = ({ steps, isLive, c
             <button
               type="button"
               onClick={() => setShowAll(true)}
-              className="mb-0.5 rounded-btn px-1.5 py-0.5 text-xs text-action-primary hover:bg-surface-secondary"
+              className="mb-0.5 rounded-btn px-1.5 py-0.5 text-xs text-fg-link hover:bg-surface-secondary"
             >
               {t('tool.steps.showEarlier', { count: hidden })}
             </button>

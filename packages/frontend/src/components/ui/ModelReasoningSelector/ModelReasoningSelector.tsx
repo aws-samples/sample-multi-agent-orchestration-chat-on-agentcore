@@ -171,7 +171,7 @@ export const ModelReasoningSelector: React.FC<ModelReasoningSelectorProps> = (pr
                     <div className="flex items-center justify-between gap-2">
                       <span className="font-medium text-fg-default truncate">{model.name}</span>
                       {model.id === effectiveModelId && (
-                        <Check className="w-4 h-4 text-action-primary shrink-0" />
+                        <Check className="w-4 h-4 text-fg-link shrink-0" />
                       )}
                     </div>
                   </button>
@@ -222,7 +222,7 @@ export const ModelReasoningSelector: React.FC<ModelReasoningSelectorProps> = (pr
                       {t(reasoningDepthLabelKey(effectiveModelId, depth))}
                     </span>
                     {depth === currentDepth && (
-                      <Check className="w-4 h-4 text-action-primary shrink-0" />
+                      <Check className="w-4 h-4 text-fg-link shrink-0" />
                     )}
                   </div>
                 </button>

@@ -275,8 +275,8 @@ export const MCPConfigEditor: React.FC<MCPConfigEditorProps> = ({
             <div className="p-4 bg-feedback-success-bg border border-feedback-success-border rounded-lg space-y-4">
               {Object.entries(groupedTools).map(([serverName, tools]) => (
                 <div key={serverName}>
-                  <h4 className="text-sm font-medium text-green-900 mb-2 flex items-center space-x-2">
-                    <CheckCircle className="w-4 h-4 text-green-600" />
+                  <h4 className="text-sm font-medium text-fg-default mb-2 flex items-center space-x-2">
+                    <CheckCircle className="w-4 h-4 text-feedback-success" />
                     <span>
                       {serverName} ({t('tool.mcp.toolCount', { count: tools.length })})
                     </span>
@@ -335,7 +335,7 @@ export const MCPConfigEditor: React.FC<MCPConfigEditorProps> = ({
                           </button>
 
                           {isExpanded && (
-                            <div className="mt-2 p-3 bg-red-100 rounded-sm border border-feedback-error-border overflow-x-auto">
+                            <div className="mt-2 p-3 bg-feedback-error-bg rounded-sm border border-feedback-error-border overflow-x-auto">
                               <pre className="text-xs font-mono text-feedback-error whitespace-pre-wrap break-all">
                                 {error.details}
                               </pre>

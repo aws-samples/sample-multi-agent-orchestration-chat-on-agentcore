@@ -83,14 +83,14 @@ export const FolderPathSelector: React.FC<FolderPathSelectorProps> = ({
       {/* Selected path display */}
       {value && (
         <div className="flex items-center justify-between px-3 py-2 bg-feedback-info-bg border border-action-primary rounded-input">
-          <span className="text-sm text-action-primary truncate">{value}</span>
+          <span className="text-sm text-fg-link truncate">{value}</span>
           <button
             type="button"
             onClick={handleClear}
             disabled={disabled}
             className="p-0.5 hover:bg-border rounded-sm transition-colors disabled:opacity-50"
           >
-            <X className="size-4 text-action-primary" />
+            <X className="size-4 text-fg-link" />
           </button>
         </div>
       )}

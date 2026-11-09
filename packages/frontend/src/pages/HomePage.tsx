@@ -17,13 +17,13 @@ export function HomePage() {
         <div className="max-w-2xl space-y-8">
           {/* Main icon */}
           <div className="relative">
-            <div className="absolute inset-0 bg-amber-200 rounded-full blur-3xl opacity-30 scale-150"></div>
-            <Coffee className="w-24 h-24 text-amber-600 mx-auto" />
+            <div className="absolute inset-0 bg-brand-light rounded-full blur-3xl opacity-30 scale-150"></div>
+            <Coffee className="w-24 h-24 text-brand mx-auto" />
           </div>
 
           {/* Title and description */}
           <div className="space-y-4">
-            <p className="text-md text-amber-600 leading-relaxed max-w-lg mx-auto">
+            <p className="text-md text-brand leading-relaxed max-w-lg mx-auto">
               {t('home.description')}
               <br />
               {t('home.descriptionLine2')}

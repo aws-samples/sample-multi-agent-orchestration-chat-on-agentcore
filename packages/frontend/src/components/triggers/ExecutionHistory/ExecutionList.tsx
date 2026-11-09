@@ -96,7 +96,7 @@ export function ExecutionList({ executions, isLoading, hasMore, onLoadMore }: Ex
                         {execution.errorMessage ? (
                           <XCircle className="w-4 h-4 text-feedback-error shrink-0" />
                         ) : (
-                          <CheckCircle className="w-4 h-4 text-green-600 shrink-0" />
+                          <CheckCircle className="w-4 h-4 text-feedback-success shrink-0" />
                         )}
                         <span className="text-sm text-fg-default">
                           {formatDate(execution.executedAt)}
@@ -108,7 +108,7 @@ export function ExecutionList({ executions, isLoading, hasMore, onLoadMore }: Ex
                         <a
                           href={`/chat/${execution.sessionId}`}
                           onClick={(e) => e.stopPropagation()}
-                          className="inline-flex items-center gap-1 text-xs text-action-primary hover:underline font-mono"
+                          className="inline-flex items-center gap-1 text-xs text-fg-link hover:underline font-mono"
                         >
                           {execution.sessionId.slice(0, 12)}...
                           <ExternalLink className="w-3 h-3" />
@@ -181,7 +181,7 @@ export function ExecutionList({ executions, isLoading, hasMore, onLoadMore }: Ex
             type="button"
             onClick={onLoadMore}
             disabled={isLoading}
-            className="flex items-center gap-2 px-6 py-3 bg-surface-secondary0 text-white text-sm font-medium rounded-lg hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            className="flex items-center gap-2 px-6 py-3 bg-fg-muted text-fg-inverse text-sm font-medium rounded-lg hover:bg-fg-secondary disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
             {isLoading ? (
               <>

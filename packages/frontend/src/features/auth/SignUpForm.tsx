@@ -82,13 +82,13 @@ export const SignUpForm: React.FC<SignUpFormProps> = ({ onSwitchToLogin }) => {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-linear-to-br from-indigo-100 via-white to-cyan-100">
+    <div className="min-h-screen flex items-center justify-center bg-surface-secondary">
       <div className="max-w-md w-full space-y-8 p-8">
         <div className="text-center">
           {/* Main icon */}
           <div className="relative mb-6">
-            <div className="absolute inset-0 bg-amber-200 rounded-full blur-2xl opacity-30 scale-125"></div>
-            <Coffee className="w-16 h-16 text-amber-600 mx-auto" />
+            <div className="absolute inset-0 bg-brand-light rounded-full blur-2xl opacity-30 scale-125"></div>
+            <Coffee className="w-16 h-16 text-brand mx-auto" />
           </div>
           <p className="text-fg-secondary">{t('auth.createAccountDescription')}</p>
         </div>
@@ -259,7 +259,7 @@ export const SignUpForm: React.FC<SignUpFormProps> = ({ onSwitchToLogin }) => {
             <button
               type="button"
               onClick={onSwitchToLogin}
-              className="font-medium text-indigo-600 hover:text-indigo-500 transition-colors"
+              className="font-medium text-fg-link hover:opacity-80 transition-colors"
             >
               {t('auth.signIn')}
             </button>

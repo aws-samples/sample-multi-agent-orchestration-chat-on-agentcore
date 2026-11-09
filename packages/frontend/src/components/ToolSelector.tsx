@@ -129,7 +129,7 @@ export const ToolSelector: React.FC<ToolSelectorProps> = ({
             type="button"
             onClick={toggleAllTools}
             disabled={disabled || isLoading}
-            className="text-sm text-action-primary hover:text-action-primary disabled:text-fg-disabled disabled:cursor-not-allowed"
+            className="text-sm text-fg-link hover:text-fg-link disabled:text-fg-disabled disabled:cursor-not-allowed"
           >
             {allVisibleSelected
               ? t('tool.selector.deselectAllVisible')

@@ -119,7 +119,7 @@ export function StorageItemRow({
             checked={selected}
             readOnly
             aria-label={t('storage.selectItem', { name: item.name })}
-            className="block w-4 h-4 rounded-sm border-border-strong text-action-primary focus:ring-border-focus cursor-pointer"
+            className="block w-4 h-4 rounded-sm border-border-strong text-fg-link focus:ring-border-focus cursor-pointer"
           />
         </div>
 
@@ -130,7 +130,7 @@ export function StorageItemRow({
           ) : FileIcon ? (
             <FileIcon className={`w-5 h-5 ${fileIconConfig.color}`} />
           ) : (
-            <File className="w-5 h-5 text-action-primary" />
+            <File className="w-5 h-5 text-fg-link" />
           )}
         </div>
 
@@ -163,7 +163,7 @@ export function StorageItemRow({
           )}
           <button
             onClick={handleDownloadClick}
-            className="p-2 text-fg-disabled hover:text-action-primary hover:bg-feedback-info-bg rounded-lg transition-colors"
+            className="p-2 text-fg-disabled hover:text-fg-link hover:bg-feedback-info-bg rounded-lg transition-colors"
             title={item.type === 'directory' ? t('storage.downloadFolder') : t('storage.download')}
           >
             <Download className="w-4 h-4" />

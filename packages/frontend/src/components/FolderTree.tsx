@@ -56,7 +56,7 @@ function TreeNode({
     <div>
       <div
         className={`flex items-center gap-1 px-2 py-1.5 rounded cursor-pointer hover:bg-surface-secondary transition-colors ${
-          isSelected ? 'bg-feedback-info-bg text-action-primary' : 'text-fg-secondary'
+          isSelected ? 'bg-feedback-info-bg text-fg-link' : 'text-fg-secondary'
         }`}
         style={{ paddingLeft: `${level * 12 + 8}px` }}
         onClick={handleClick}

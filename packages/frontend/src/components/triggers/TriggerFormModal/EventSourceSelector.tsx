@@ -195,7 +195,7 @@ export function EventSourceSelector({
                 rounded-lg border transition-all
                 ${
                   isSelected
-                    ? 'border-feedback-info-border bg-surface-primary ring-1 ring-blue-100'
+                    ? 'border-feedback-info-border bg-surface-primary ring-1 ring-feedback-info-border'
                     : 'border-border hover:border-border-strong bg-surface-primary'
                 }
                 ${disabled ? 'opacity-50' : ''}
@@ -228,7 +228,7 @@ export function EventSourceSelector({
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">
                       <p className="text-sm font-semibold text-fg-default">{source.name}</p>
-                      {isSelected && <LucideIcons.Check className="w-4 h-4 text-action-primary" />}
+                      {isSelected && <LucideIcons.Check className="w-4 h-4 text-fg-link" />}
                     </div>
                     <p className="text-xs text-fg-secondary mt-1">{source.description}</p>
                   </div>

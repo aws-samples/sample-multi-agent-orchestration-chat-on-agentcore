@@ -117,7 +117,7 @@ export const S3FileLink: React.FC<S3FileLinkProps> = ({ path, children }) => {
         rel="noopener noreferrer"
         className={`
           inline-flex items-center gap-1
-          text-action-primary hover:text-action-primary
+          text-fg-link hover:text-fg-link
           underline decoration-blue-300 hover:decoration-blue-500
           transition-colors cursor-pointer
           ${isLoading ? 'opacity-50 cursor-wait' : ''}

@@ -83,7 +83,7 @@ export const S3Video: React.FC<S3VideoProps> = ({ path, className = '' }) => {
       <a
         href={presignedUrl}
         download
-        className="absolute top-2 right-2 bg-black bg-opacity-50 hover:bg-opacity-70 text-white p-2 rounded-lg transition-all"
+        className="absolute top-2 right-2 bg-black/50 hover:bg-black/70 text-white p-2 rounded-lg transition-all"
         title={t('storage.download')}
       >
         <Download className="w-5 h-5" />

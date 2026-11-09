@@ -82,8 +82,8 @@ export const LoginForm: React.FC<LoginFormProps> = ({
         <div className="text-center">
           {/* Main icon */}
           <div className="relative mb-6">
-            <div className="absolute inset-0 bg-amber-200 rounded-full blur-2xl opacity-30 scale-125"></div>
-            <Coffee className="w-16 h-16 text-amber-600 mx-auto" />
+            <div className="absolute inset-0 bg-brand-light rounded-full blur-2xl opacity-30 scale-125"></div>
+            <Coffee className="w-16 h-16 text-brand mx-auto" />
           </div>
           <p className="text-fg-secondary text-sm">{t('auth.welcomeDescription')}</p>
           <p className="text-fg-secondary text-sm">{t('auth.welcomeDescriptionLine2')}</p>
@@ -157,7 +157,7 @@ export const LoginForm: React.FC<LoginFormProps> = ({
             loading={isLoading}
             fullWidth
             size="lg"
-            className="bg-gray-900 hover:bg-gray-800"
+            className="bg-fg-default text-fg-inverse hover:bg-fg-default/85"
           >
             {isLoading ? t('auth.signInAction') : t('auth.signIn')}
           </Button>
@@ -170,7 +170,7 @@ export const LoginForm: React.FC<LoginFormProps> = ({
               <button
                 type="button"
                 onClick={onSwitchToSignUp}
-                className="font-medium text-indigo-600 hover:text-indigo-500 transition-colors"
+                className="font-medium text-fg-link hover:opacity-80 transition-colors"
               >
                 {t('auth.signUp')}
               </button>
@@ -181,7 +181,7 @@ export const LoginForm: React.FC<LoginFormProps> = ({
               <button
                 type="button"
                 onClick={onSwitchToForgotPassword}
-                className="text-fg-secondary hover:text-indigo-600 transition-colors"
+                className="text-fg-secondary hover:text-fg-link transition-colors"
               >
                 {t('auth.forgotPassword.link')}
               </button>

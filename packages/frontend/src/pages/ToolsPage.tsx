@@ -53,7 +53,7 @@ function ToolItem({ tool }: ToolItemProps) {
             return (
               <div key={paramName} className="bg-surface-secondary px-3 py-2 rounded-sm text-xs">
                 <div className="flex items-center gap-2">
-                  <span className="font-mono text-action-primary">{paramName}</span>
+                  <span className="font-mono text-fg-link">{paramName}</span>
                   <span className="text-fg-muted">({typeString})</span>
                   {required.includes(paramName) && (
                     <span className="text-feedback-error text-xs">*{t('tool.required')}</span>

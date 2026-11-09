@@ -122,15 +122,15 @@ export const ResetPasswordForm: React.FC<ResetPasswordFormProps> = ({
       <div className="min-h-screen flex items-center justify-center bg-surface-secondary">
         <div className="max-w-md w-full space-y-8 p-8 text-center">
           <div className="relative mb-6">
-            <div className="absolute inset-0 bg-green-200 rounded-full blur-2xl opacity-30 scale-125"></div>
-            <CheckCircle className="w-16 h-16 text-green-600 mx-auto" />
+            <div className="absolute inset-0 bg-feedback-success-border rounded-full blur-2xl opacity-30 scale-125"></div>
+            <CheckCircle className="w-16 h-16 text-feedback-success mx-auto" />
           </div>
           <h2 className="text-3xl font-bold text-fg-default mb-2">
             {t('auth.resetPassword.successTitle')}
           </h2>
           <p className="text-fg-secondary">{t('auth.resetPassword.successDescription')}</p>
           <div className="flex justify-center">
-            <svg className="animate-spin h-8 w-8 text-amber-600" fill="none" viewBox="0 0 24 24">
+            <svg className="animate-spin h-8 w-8 text-brand" fill="none" viewBox="0 0 24 24">
               <circle
                 className="opacity-25"
                 cx="12"
@@ -156,10 +156,10 @@ export const ResetPasswordForm: React.FC<ResetPasswordFormProps> = ({
       <div className="max-w-md w-full space-y-8 p-8">
         <div className="text-center">
           <div className="relative mb-6">
-            <div className="absolute inset-0 bg-amber-200 rounded-full blur-2xl opacity-30 scale-125"></div>
-            <Coffee className="w-16 h-16 text-amber-600 mx-auto" />
+            <div className="absolute inset-0 bg-brand-light rounded-full blur-2xl opacity-30 scale-125"></div>
+            <Coffee className="w-16 h-16 text-brand mx-auto" />
           </div>
-          <h2 className="text-3xl font-bold text-amber-900 mb-2">
+          <h2 className="text-3xl font-bold text-brand-dark mb-2">
             {t('auth.resetPassword.title')}
           </h2>
           <p className="text-fg-secondary text-sm">{t('auth.resetPassword.description')}</p>

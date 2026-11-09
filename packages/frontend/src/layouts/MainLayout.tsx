@@ -239,7 +239,7 @@ export function MainLayout() {
 
       {/* Overlay background for mobile */}
       {isMobileView && isSidebarOpen && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 z-40" onClick={handleOverlayClick} />
+        <div className="fixed inset-0 bg-black/50 z-40" onClick={handleOverlayClick} />
       )}
 
       {/* Sidebar */}

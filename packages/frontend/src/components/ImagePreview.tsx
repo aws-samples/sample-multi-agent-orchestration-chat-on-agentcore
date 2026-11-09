@@ -32,13 +32,13 @@ export const ImagePreview: React.FC<ImagePreviewProps> = ({ images, onRemove, di
             <button
               type="button"
               onClick={() => onRemove(image.id)}
-              className="absolute -top-2 -right-2 w-5 h-5 bg-gray-800 bg-opacity-70 hover:bg-opacity-90 rounded-full flex items-center justify-center text-white transition-opacity"
+              className="absolute -top-2 -right-2 w-5 h-5 bg-gray-800/70 hover:bg-gray-800/90 rounded-full flex items-center justify-center text-white transition-opacity"
               aria-label={t('chat.imageAttachment.remove', { fileName: image.fileName })}
             >
               <X className="w-3 h-3" />
             </button>
           )}
-          <div className="absolute bottom-0 left-0 right-0 bg-black bg-opacity-50 text-white text-xs px-1 py-0.5 rounded-b-lg truncate">
+          <div className="absolute bottom-0 left-0 right-0 bg-black/50 text-white text-xs px-1 py-0.5 rounded-b-lg truncate">
             {formatFileSize(image.size)}
           </div>
         </div>

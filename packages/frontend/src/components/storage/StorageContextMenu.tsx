@@ -66,8 +66,8 @@ export function StorageContextMenu({ x, y, items, onClose }: StorageContextMenuP
               onClick={item.onClick}
               className="w-full px-4 py-2 text-sm text-left hover:bg-surface-secondary flex items-center gap-2 transition-colors"
             >
-              <Icon className={`w-4 h-4 ${item.confirmActive ? 'text-green-600' : 'text-fg-secondary'}`} />
-              <span className={item.confirmActive ? 'text-green-600' : 'text-fg-default'}>
+              <Icon className={`w-4 h-4 ${item.confirmActive ? 'text-feedback-success' : 'text-fg-secondary'}`} />
+              <span className={item.confirmActive ? 'text-feedback-success' : 'text-fg-default'}>
                 {item.label}
               </span>
             </button>
