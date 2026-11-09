@@ -137,6 +137,12 @@ export async function createAgentCoreClient(idToken: string): Promise<BedrockAge
   return new BedrockAgentCoreClient({
     region: config.AWS_REGION,
     credentials: toAwsClientCredentials(credentials),
+    // Adaptive mode adds a client-side token bucket that slows calls down once
+    // Memory returns throttling errors. Session delete issues one DeleteEvent
+    // per event and was throttled ("Rate exceeded") with the default standard
+    // mode. Same setting as the agent's Bedrock client.
+    retryMode: 'adaptive',
+    maxAttempts: 5,
   });
 }
 
