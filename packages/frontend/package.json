@@ -47,7 +47,7 @@
     "remark-gfm": "^4.0.1",
     "remark-math": "^6.0.0",
     "tailwind-merge": "^3.7.0",
-    "tailwindcss": "^3.4.19",
+    "tailwindcss": "^4.3.3",
     "uuid": "^13.0.0",
     "zod": "^4.2.1",
     "zustand": "^5.0.16"
