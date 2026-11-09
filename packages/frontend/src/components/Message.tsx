@@ -20,6 +20,7 @@ import { MermaidDiagram } from './MermaidDiagram';
 import { S3FileLink } from './S3FileLink';
 import { S3Image } from './S3Image';
 import { S3Video } from './S3Video';
+import { formatBytes } from '../utils/formatBytes';
 
 interface MessageProps {
   message: MessageType;
@@ -282,6 +283,15 @@ export const Message: React.FC<MessageProps> = ({ message }) => {
 
                   case 'ui':
                     return <JsonRenderBlock key={segment.key} content={segment.content} />;
+
+                  case 'truncated':
+                    return (
+                      <div key={segment.key} className="text-xs text-fg-muted italic py-0.5">
+                        {t('chat.contentOmitted', {
+                          size: formatBytes(segment.byteSize),
+                        })}
+                      </div>
+                    );
 
                   case 'image': {
                     const image = segment.image;

@@ -245,6 +245,12 @@ chat:
   bulkDelete: Bulk delete
   bulkDeleteConfirm: 'Are you sure you want to delete {{count}} selected sessions? This action cannot be undone.'
   sessionsDeleted: '{{count}} sessions deleted'
+  loadEarlierMessages: Load earlier messages
+  loadingEarlierMessages: Loading earlier messages...
+  noEarlierMessages: No earlier messages
+  loadEarlierError: Failed to load earlier messages
+  loadEarlierRetry: Retry
+  contentOmitted: 'Content omitted from history (≈{{size}})'
 
 # Agent
 agent:
@@ -404,6 +410,9 @@ tool:
     output: Output
     errorOutput: Error
     waitingForResult: Waiting for result…
+    inputOmitted: 'Input omitted from history (≈{{size}})'
+    resultOmitted: 'Result omitted from history (≈{{size}})'
+    reasoningOmitted: 'Reasoning omitted from history (≈{{size}})'
     status:
       running: Running
       completed: Completed

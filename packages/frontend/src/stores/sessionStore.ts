@@ -49,6 +49,15 @@ interface SessionState {
   isLoadingEvents: boolean;
   eventsError: string | null;
 
+  /** Cursor for the next older events page; null when no more older pages. */
+  eventsNextCursor: string | null;
+  /** True when more older pages are available. */
+  eventsHasMore: boolean;
+  /** True while an older-events page is loading. */
+  isLoadingOlderEvents: boolean;
+  /** Error message from the last loadOlderEvents failure; null when none. */
+  olderEventsError: string | null;
+
   isCreatingSession: boolean;
 }
 
@@ -60,6 +69,11 @@ interface SessionActions {
   loadMoreSessions: () => Promise<void>;
   loadAllSessions: () => Promise<void>;
   selectSession: (sessionId: string) => Promise<void>;
+  /**
+   * Load the next older page of events for the given session and prepend them.
+   * Stale responses (active session changed while loading) are silently discarded.
+   */
+  loadOlderEvents: (sessionId: string) => Promise<void>;
   deleteSession: (sessionId: string) => Promise<void>;
   deleteMultipleSessions: (sessionIds: string[]) => Promise<void>;
   setActiveSessionId: (sessionId: string) => void;
@@ -109,6 +123,10 @@ export const useSessionStore = create<SessionStore>()(
       sessionEvents: [],
       isLoadingEvents: false,
       eventsError: null,
+      eventsNextCursor: null,
+      eventsHasMore: false,
+      isLoadingOlderEvents: false,
+      olderEventsError: null,
       isCreatingSession: false,
 
       // Actions
@@ -245,15 +263,17 @@ export const useSessionStore = create<SessionStore>()(
             }
           }
 
-          const events = await fetchSessionEvents(sessionId);
+          const result = await fetchSessionEvents(sessionId);
 
           set({
-            sessionEvents: events,
+            sessionEvents: result.events,
             isLoadingEvents: false,
             eventsError: null,
+            eventsNextCursor: result.nextCursor ?? null,
+            eventsHasMore: result.hasMore,
           });
 
-          logger.log(`Session conversation history loaded: ${events.length} items`);
+          logger.log(`Session conversation history loaded: ${result.events.length} items, hasMore: ${result.hasMore}`);
         } catch (error) {
           // Handle a missing/unowned session - redirect to /chat. The backend
           // returns 404 (NOT_FOUND) for a session that does not exist or is
@@ -267,6 +287,8 @@ export const useSessionStore = create<SessionStore>()(
               sessionEvents: [],
               isLoadingEvents: false,
               eventsError: null,
+              eventsNextCursor: null,
+              eventsHasMore: false,
             });
             window.location.href = '/chat';
             return;
@@ -282,7 +304,80 @@ export const useSessionStore = create<SessionStore>()(
             sessionEvents: [],
             isLoadingEvents: false,
             eventsError: errorMessage,
+            eventsNextCursor: null,
+            eventsHasMore: false,
           });
+        }
+      },
+
+      loadOlderEvents: async (sessionId: string) => {
+        const { eventsHasMore, eventsNextCursor, isLoadingOlderEvents, sessionEvents } = get();
+
+        // Guard: nothing to load.
+        if (!eventsHasMore || !eventsNextCursor || isLoadingOlderEvents) return;
+
+        // Capture active session BEFORE any async operation so the stale-
+        // response guard (AC6) sees the session at invocation time, not at
+        // response time.
+        const requestSessionId = get().activeSessionId;
+
+        // Guard: do not prepend while a turn is streaming or running server-side.
+        // Importing chatStore here would create a circular dependency; use a
+        // lazy require so the module graph stays acyclic.
+        try {
+          const { useChatStore } = await import('./chatStore');
+          const chatState = useChatStore.getState().sessions[sessionId];
+          if (chatState?.isLoading) {
+            logger.log('loadOlderEvents: skipped — turn in progress');
+            return;
+          }
+        } catch {
+          // chatStore unavailable (e.g. during tests with partial mocking) — proceed.
+        }
+
+        set({ isLoadingOlderEvents: true, olderEventsError: null });
+
+        try {
+          const result = await fetchSessionEvents(sessionId, { cursor: eventsNextCursor });
+
+          // Stale-response guard: discard if the active session changed (AC6).
+          if (get().activeSessionId !== requestSessionId) {
+            logger.log('loadOlderEvents: discarding stale response for', sessionId);
+            set({ isLoadingOlderEvents: false });
+            return;
+          }
+
+          // Deduplicate: skip events whose id already appears in the current list.
+          const existingIds = new Set(sessionEvents.map((e) => e.id));
+          const newOlderEvents = result.events.filter((e) => !existingIds.has(e.id));
+
+          // Prepend older events (they are older in time than what's already loaded).
+          const updatedEvents = [...newOlderEvents, ...sessionEvents];
+
+          set({
+            sessionEvents: updatedEvents,
+            eventsNextCursor: result.nextCursor ?? null,
+            eventsHasMore: result.hasMore,
+            isLoadingOlderEvents: false,
+          });
+
+          logger.log(
+            `Older events loaded: ${newOlderEvents.length} new events prepended, hasMore: ${result.hasMore}`
+          );
+
+          // Re-run mergeToolTurnMessages over the combined raw history so a
+          // toolUse/toolResult pair split across a page boundary renders as one step.
+          try {
+            const { useChatStore } = await import('./chatStore');
+            useChatStore.getState().prependSessionHistory(sessionId, updatedEvents);
+          } catch {
+            // chatStore unavailable — skip merge (tests may mock this away).
+          }
+        } catch (error) {
+          // Do NOT clear existing events on failure; user can retry.
+          const errorMessage = extractErrorMessage(error, 'Failed to load older messages');
+          logger.error('loadOlderEvents error:', error);
+          set({ isLoadingOlderEvents: false, olderEventsError: errorMessage });
         }
       },
 
@@ -410,6 +505,10 @@ export const useSessionStore = create<SessionStore>()(
           sessionEvents: [],
           eventsError: null,
           isLoadingEvents: false,
+          eventsNextCursor: null,
+          eventsHasMore: false,
+          isLoadingOlderEvents: false,
+          olderEventsError: null,
         });
         logger.log(`Set new session as active: ${sessionId}`);
       },
@@ -420,6 +519,10 @@ export const useSessionStore = create<SessionStore>()(
           sessionEvents: [],
           eventsError: null,
           isLoadingEvents: false,
+          eventsNextCursor: null,
+          eventsHasMore: false,
+          isLoadingOlderEvents: false,
+          olderEventsError: null,
         });
         logger.log('Cleared active session');
       },

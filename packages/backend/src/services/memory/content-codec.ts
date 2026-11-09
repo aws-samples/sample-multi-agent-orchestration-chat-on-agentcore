@@ -40,14 +40,25 @@ export interface ToolResult {
 }
 
 /**
+ * Truncation marker that can appear alongside any content block whose heavy
+ * payload field was replaced by an empty value to stay within the byte budget.
+ * `field` names the replaced field; `byteSize` is the pre-truncation byte count.
+ */
+export interface TruncationMarker {
+  field: string;
+  byteSize: number;
+}
+
+/**
  * MessageContent type definition (Union type)
  */
 export type MessageContent =
-  | { type: 'text'; text: string }
-  | { type: 'toolUse'; toolUse: ToolUse }
-  | { type: 'toolResult'; toolResult: ToolResult }
-  | { type: 'image'; image: { base64: string; mimeType: string; fileName?: string } }
-  | { type: 'reasoning'; reasoning: { text: string } };
+  | { type: 'text'; text: string; truncated?: TruncationMarker }
+  | { type: 'toolUse'; toolUse: ToolUse; truncated?: TruncationMarker }
+  | { type: 'toolResult'; toolResult: ToolResult; truncated?: TruncationMarker }
+  | { type: 'image'; image: { base64: string; mimeType: string; fileName?: string }; truncated?: TruncationMarker }
+  | { type: 'reasoning'; reasoning: { text: string }; truncated?: TruncationMarker }
+  | { type: 'truncated'; truncated: { originalType: string; byteSize: number } };
 
 /**
  * Backend-local content block shape used to interpret AgentCore Memory blob
