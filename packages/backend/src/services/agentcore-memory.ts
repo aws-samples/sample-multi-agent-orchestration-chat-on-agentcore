@@ -206,6 +206,41 @@ function applyContentTruncation(msg: ConversationMessage): ConversationMessage {
 }
 
 /**
+ * Wall-clock budget for deleting one session's events. The backend Lambda and
+ * the HTTP API integration both stop at 30 s; past that the request is killed
+ * mid-loop and neither the error nor the leftover count is reported. 15 s
+ * leaves room for cold start, credential exchange, ListEvents, the in-flight
+ * delete and the DynamoDB delete: with 20 s a live request took 27.4 s end to
+ * end. Throttling is
+ * absorbed by the client's adaptive retry mode (see `createAgentCoreClient`),
+ * not by a second retry loop here.
+ */
+export const DELETE_SESSION_DEADLINE_MS = 15_000;
+
+const isNotFound = (error: unknown) =>
+  (error as { name?: string } | undefined)?.name === 'ResourceNotFoundException';
+
+/** Thrown when some session events are still present after the delete pass. */
+export class SessionEventsDeleteError extends Error {
+  constructor(
+    readonly remainingEvents: number,
+    readonly totalEvents: number,
+    readonly reason: 'deadline' | 'errors'
+  ) {
+    super(
+      `${remainingEvents} of ${totalEvents} session events were not deleted (${reason === 'deadline' ? 'time budget exceeded' : 'delete errors'})`
+    );
+    this.name = 'SessionEventsDeleteError';
+  }
+}
+
+export interface AgentCoreMemoryServiceOptions {
+  /** Injected for tests so the delete deadline can be simulated. */
+  now?: () => number;
+  deleteDeadlineMs?: number;
+}
+
+/**
  * AgentCore Memory service class.
  *
  * The constructor requires the data-plane client to be injected. Routes MUST
@@ -226,10 +261,18 @@ function applyContentTruncation(msg: ConversationMessage): ConversationMessage {
 export class AgentCoreMemoryService {
   private client: BedrockAgentCoreClient;
   private memoryId: string;
+  private now: () => number;
+  private deleteDeadlineMs: number;
 
-  constructor(memoryId: string, client: BedrockAgentCoreClient) {
+  constructor(
+    memoryId: string,
+    client: BedrockAgentCoreClient,
+    options: AgentCoreMemoryServiceOptions = {}
+  ) {
     this.client = client;
     this.memoryId = memoryId;
+    this.now = options.now ?? Date.now;
+    this.deleteDeadlineMs = options.deleteDeadlineMs ?? DELETE_SESSION_DEADLINE_MS;
   }
 
   /**
@@ -296,50 +339,67 @@ export class AgentCoreMemoryService {
   }
 
   /**
-   * Delete a session from AgentCore Memory by deleting all events
-   * @param actorId User ID
-   * @param sessionId Session ID
+   * Delete a session from AgentCore Memory by deleting all events.
+   *
+   * Idempotent: an actor/session/event that no longer exists counts as
+   * deleted, so a retry after a partial failure converges to success.
+   *
+   * @throws SessionEventsDeleteError if any event is left — either a delete
+   *   failed (after the client's adaptive retries) or the time budget ran out.
+   *   Callers must not treat the session as gone in that case.
    */
   async deleteSession(actorId: string, sessionId: string): Promise<void> {
+    const deadline = this.now() + this.deleteDeadlineMs;
     try {
       log.info(`Deleting session events: sessionId=${sessionId}`);
 
-      // Get all events for the session
-      const allEvents = [];
-      const paginator = paginateListEvents(
-        { client: this.client },
-        {
-          memoryId: this.memoryId,
-          actorId,
-          sessionId,
-          maxResults: 100,
+      const eventIds: string[] = [];
+      try {
+        const paginator = paginateListEvents(
+          { client: this.client },
+          { memoryId: this.memoryId, actorId, sessionId, maxResults: 100 }
+        );
+        for await (const page of paginator) {
+          for (const event of page.events ?? []) {
+            if (event.eventId) eventIds.push(event.eventId);
+          }
         }
-      );
+      } catch (error) {
+        // Same case listSessions handles for new users: nothing to delete.
+        if (!isNotFound(error)) throw error;
+      }
 
-      for await (const page of paginator) {
-        if (page.events) {
-          allEvents.push(...page.events);
+      log.info(`Found ${eventIds.length} events to delete`);
+
+      // Sequential on purpose: parallel deletes only make throttling worse.
+      let failed = 0;
+      let index = 0;
+      for (; index < eventIds.length; index++) {
+        if (this.now() >= deadline) break;
+        try {
+          await this.client.send(
+            new DeleteEventCommand({
+              memoryId: this.memoryId,
+              actorId,
+              sessionId,
+              eventId: eventIds[index],
+            })
+          );
+        } catch (error) {
+          if (!isNotFound(error)) {
+            failed++;
+            log.warn({ err: error, eventId: eventIds[index] }, 'Failed to delete event');
+          }
         }
       }
 
-      log.info(`Found ${allEvents.length} events to delete`);
-
-      // Delete each event
-      for (const event of allEvents) {
-        if (event.eventId) {
-          try {
-            await this.client.send(
-              new DeleteEventCommand({
-                memoryId: this.memoryId,
-                actorId,
-                sessionId,
-                eventId: event.eventId,
-              })
-            );
-          } catch (deleteError) {
-            log.warn({ err: deleteError }, 'Failed to delete event %s:', event.eventId);
-          }
-        }
+      const notAttempted = eventIds.length - index;
+      if (failed > 0 || notAttempted > 0) {
+        throw new SessionEventsDeleteError(
+          failed + notAttempted,
+          eventIds.length,
+          notAttempted > 0 ? 'deadline' : 'errors'
+        );
       }
 
       log.info(`Session events deleted successfully: sessionId=${sessionId}`);

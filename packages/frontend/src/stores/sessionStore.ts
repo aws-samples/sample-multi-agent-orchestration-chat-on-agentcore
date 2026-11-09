@@ -19,7 +19,11 @@ import { useStorageStore } from './storageStore';
 import { logger } from '../utils/logger';
 import { extractErrorMessage } from '../utils/store-helpers';
 import { generateSessionId } from '../utils/sessionId';
+import { settleWithConcurrency } from '../utils/settleWithConcurrency';
 import { isSessionId, isAgentId } from '@moca/core';
+
+/** Max session DELETE requests in flight during a bulk delete. */
+export const BULK_DELETE_CONCURRENCY = 2;
 
 /**
  * Default page size for session list
@@ -410,10 +414,15 @@ export const useSessionStore = create<SessionStore>()(
           if (sessionToDelete) {
             const currentSessions = get().sessions;
             // Restore at original position if possible
-            const restoredSessions = [...currentSessions];
-            const insertIndex = Math.min(originalIndex, restoredSessions.length);
-            restoredSessions.splice(insertIndex, 0, sessionToDelete);
-            set({ sessions: restoredSessions });
+            // A list refresh during the request may already have brought the
+            // session back (the row survives a failed delete), so only re-insert
+            // it when absent.
+            if (!currentSessions.some((s) => s.sessionId === sessionToDelete.sessionId)) {
+              const restoredSessions = [...currentSessions];
+              const insertIndex = Math.min(originalIndex, restoredSessions.length);
+              restoredSessions.splice(insertIndex, 0, sessionToDelete);
+              set({ sessions: restoredSessions });
+            }
           }
 
           const errorMessage = extractErrorMessage(error, 'Failed to delete session');
@@ -445,9 +454,14 @@ export const useSessionStore = create<SessionStore>()(
 
         logger.log(`Optimistically removed ${sessionIds.length} sessions`);
 
-        // 3. Call API to delete sessions (in parallel, in background)
-        const results = await Promise.allSettled(
-          sessionIds.map((sessionId) => deleteSessionApi(sessionId))
+        // 3. Call API to delete sessions (in background). Bounded concurrency:
+        // each delete issues one Memory DeleteEvent per event against a shared
+        // per-account rate limit, so firing every request at once throttles
+        // them all into failures.
+        const results = await settleWithConcurrency(
+          sessionIds,
+          BULK_DELETE_CONCURRENCY,
+          (sessionId) => deleteSessionApi(sessionId)
         );
 
         // 4. Check results
@@ -468,7 +482,11 @@ export const useSessionStore = create<SessionStore>()(
 
           if (sessionsToRestore.length > 0) {
             const currentSessions = get().sessions;
-            set({ sessions: [...sessionsToRestore, ...currentSessions] });
+            // Skip sessions a concurrent list refresh already restored (the row
+            // survives a failed delete), otherwise they show up twice.
+            const present = new Set(currentSessions.map((s) => s.sessionId));
+            const missing = sessionsToRestore.filter((s) => !present.has(s.sessionId));
+            set({ sessions: [...missing, ...currentSessions] });
           }
 
           if (successCount > 0) {
