@@ -116,12 +116,14 @@ interface ConversationalPayload {
 /**
  * Wall-clock budget for deleting one session's events. The backend Lambda and
  * the HTTP API integration both stop at 30 s; past that the request is killed
- * mid-loop and neither the error nor the leftover count is reported. Stopping
- * at 20 s leaves room for the DynamoDB delete and the response. Throttling is
+ * mid-loop and neither the error nor the leftover count is reported. 15 s
+ * leaves room for cold start, credential exchange, ListEvents, the in-flight
+ * delete and the DynamoDB delete: with 20 s a live request took 27.4 s end to
+ * end. Throttling is
  * absorbed by the client's adaptive retry mode (see `createAgentCoreClient`),
  * not by a second retry loop here.
  */
-export const DELETE_SESSION_DEADLINE_MS = 20_000;
+export const DELETE_SESSION_DEADLINE_MS = 15_000;
 
 const isNotFound = (error: unknown) =>
   (error as { name?: string } | undefined)?.name === 'ResourceNotFoundException';
