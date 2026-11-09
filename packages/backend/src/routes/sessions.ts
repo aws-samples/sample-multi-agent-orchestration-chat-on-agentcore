@@ -111,7 +111,7 @@ router.get(
 /**
  * Session deletion endpoint
  * DELETE /sessions/:sessionId
- * Deletes from both DynamoDB and AgentCore Memory.
+ * Deletes from both AgentCore Memory and DynamoDB.
  *
  * Idempotent: deleting a missing/unowned session is a no-op success. If one of
  * the two backing stores fails, the endpoint reports a non-2xx error rather
@@ -124,34 +124,18 @@ router.delete(
     const actorId = req.identityId!;
     const sessionId = req.params.sessionId;
 
-    // Ownership check. A missing DynamoDB row means the session is either
-    // already deleted or not owned by this caller, so we skip the DynamoDB
-    // delete — but we still run the Memory delete below. This is what makes a
-    // retry safe: if a previous attempt deleted the DynamoDB row but failed on
-    // Memory, the row is now absent yet the Memory events may still be orphaned,
-    // so we must NOT short-circuit to success here without re-attempting Memory.
     const sessionsRepository = getSessionsRepository();
     let sessionExists = true;
     if (sessionsRepository.isConfigured()) {
       sessionExists = !!(await sessionsRepository.getSession(actorId, sessionId));
     }
 
-    const errors: string[] = [];
-
-    if (sessionsRepository.isConfigured() && sessionExists) {
-      try {
-        await sessionsRepository.deleteSession(actorId, sessionId);
-      } catch (dynamoError) {
-        req.log.error({ err: dynamoError, sessionId }, 'Failed to delete session from DynamoDB');
-        errors.push(
-          `DynamoDB: ${dynamoError instanceof Error ? dynamoError.message : 'Unknown error'}`
-        );
-      }
-    }
-
-    // Always attempt the Memory delete (it is idempotent — a session with no
-    // events is a no-op), so a retry after a prior Memory failure cleans up the
-    // orphaned events even though the DynamoDB row is already gone.
+    // Memory first, DynamoDB row last. The session list reads DynamoDB, so the
+    // row is the user's only handle to retry: deleting it before Memory left
+    // orphaned events with no way to retry once a Memory delete failed. The
+    // Memory delete still runs when the row is absent (idempotent), which
+    // cleans up after an older failure. The scoped client can only touch the
+    // caller's own actorId, so an unowned session id is a no-op there.
     if (config.AGENTCORE_MEMORY_ID) {
       try {
         const memoryService = await createAgentCoreMemoryServiceForRequest(req);
@@ -161,21 +145,37 @@ router.delete(
           { err: memoryError, sessionId },
           'Failed to delete session from AgentCore Memory'
         );
-        errors.push(
-          `AgentCore Memory: ${memoryError instanceof Error ? memoryError.message : 'Unknown error'}`
+        throw new AppError(
+          ErrorCode.INTERNAL_ERROR,
+          'Session was only partially deleted; please retry',
+          {
+            details: {
+              failures: [
+                `AgentCore Memory: ${memoryError instanceof Error ? memoryError.message : 'Unknown error'}`,
+              ],
+            },
+          }
         );
       }
     }
 
-    // A partial failure must NOT be reported as success — the row may still
-    // exist while the client believes the session is gone.
-    if (errors.length > 0) {
-      req.log.warn({ failures: errors }, 'Session deletion failed partially');
-      throw new AppError(
-        ErrorCode.INTERNAL_ERROR,
-        'Session was only partially deleted; please retry',
-        { details: { failures: errors } }
-      );
+    if (sessionsRepository.isConfigured() && sessionExists) {
+      try {
+        await sessionsRepository.deleteSession(actorId, sessionId);
+      } catch (dynamoError) {
+        req.log.error({ err: dynamoError, sessionId }, 'Failed to delete session from DynamoDB');
+        throw new AppError(
+          ErrorCode.INTERNAL_ERROR,
+          'Session was only partially deleted; please retry',
+          {
+            details: {
+              failures: [
+                `DynamoDB: ${dynamoError instanceof Error ? dynamoError.message : 'Unknown error'}`,
+              ],
+            },
+          }
+        );
+      }
     }
 
     res

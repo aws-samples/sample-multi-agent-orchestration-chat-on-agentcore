@@ -78,6 +78,9 @@ describe('createAgentCoreClient', () => {
     expect(mockBedrockAgentCoreClient).toHaveBeenCalledWith({
       region: 'us-east-1',
       credentials: { accessKeyId: 'AKIA_TEST', secretAccessKey: 'secret', sessionToken: 'token' },
+      // Adaptive retry absorbs Memory throttling (session delete hit "Rate exceeded").
+      retryMode: 'adaptive',
+      maxAttempts: 5,
     });
   });
 
