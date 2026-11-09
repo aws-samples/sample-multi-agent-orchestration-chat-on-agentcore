@@ -24,9 +24,12 @@ export const MAX_PAGE_SIZE = 100;
 
 /**
  * Default number of messages returned per event-history page.
- * Matches the session-list default for consistency.
+ * Set to the max: fewer round trips, and fewer toolUse/toolResult pairs split
+ * across pages. PAGE_BYTE_BUDGET_BYTES still bounds the response size, so this
+ * only trades a slower first paint (2-3 sequential ListEvents calls of 100)
+ * for fewer requests.
  */
-export const EVENTS_DEFAULT_PAGE_SIZE = 50;
+export const EVENTS_DEFAULT_PAGE_SIZE = 200;
 
 /**
  * Hard upper bound on messages per event-history page.
