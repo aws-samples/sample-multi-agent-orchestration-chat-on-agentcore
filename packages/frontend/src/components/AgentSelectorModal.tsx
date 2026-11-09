@@ -94,7 +94,7 @@ const AgentCard: React.FC<AgentCardProps> = ({
           <div className="relative ml-2">
             <button
               onClick={(e) => onToggleMenu(agent.agentId, e)}
-              className="p-1.5 text-fg-disabled hover:text-fg-secondary hover:bg-surface-secondary rounded transition-colors"
+              className="p-1.5 text-fg-disabled hover:text-fg-secondary hover:bg-surface-secondary rounded-sm transition-colors"
             >
               <MoreHorizontal className="w-5 h-5" />
             </button>
@@ -409,7 +409,7 @@ export const AgentSelectorModal: React.FC<AgentSelectorModalProps> = ({
                         value={searchQuery}
                         onChange={(e) => setSearchQuery(e.target.value)}
                         placeholder={t('agent.searchPlaceholder')}
-                        className="w-full pl-10 pr-10 py-2.5 border border-border-strong rounded-lg bg-surface-primary text-fg-default focus:outline-none focus:ring-2 focus:ring-border-focus focus:border-transparent text-sm"
+                        className="w-full pl-10 pr-10 py-2.5 border border-border-strong rounded-lg bg-surface-primary text-fg-default focus:outline-hidden focus:ring-2 focus:ring-border-focus focus:border-transparent text-sm"
                       />
                       {searchQuery && (
                         <button
@@ -425,7 +425,7 @@ export const AgentSelectorModal: React.FC<AgentSelectorModalProps> = ({
                     {/* New creation button (right side) - Mobile: icon only, Desktop: full text */}
                     <button
                       onClick={() => setMode('create')}
-                      className={`inline-flex items-center text-white bg-action-primary rounded-xl hover:bg-action-primary-hover transition-colors shadow-sm ${
+                      className={`inline-flex items-center text-white bg-action-primary rounded-xl hover:bg-action-primary-hover transition-colors shadow-xs ${
                         isMobileView ? 'p-2.5' : 'space-x-2 px-6 py-2.5'
                       }`}
                       title={isMobileView ? t('agent.createNewAgent') : undefined}
@@ -516,7 +516,7 @@ export const AgentSelectorModal: React.FC<AgentSelectorModalProps> = ({
                             <select
                               value={`${sortConfig.field}-${sortConfig.order}`}
                               onChange={(e) => handleSortChange(e.target.value)}
-                              className="text-sm border border-border-strong rounded-lg bg-surface-primary text-fg-default px-2 py-1 focus:outline-none focus:ring-2 focus:ring-border-focus"
+                              className="text-sm border border-border-strong rounded-lg bg-surface-primary text-fg-default px-2 py-1 focus:outline-hidden focus:ring-2 focus:ring-border-focus"
                             >
                               <option value="createdAt-desc">{t('agent.sortNewest')}</option>
                               <option value="createdAt-asc">{t('agent.sortOldest')}</option>

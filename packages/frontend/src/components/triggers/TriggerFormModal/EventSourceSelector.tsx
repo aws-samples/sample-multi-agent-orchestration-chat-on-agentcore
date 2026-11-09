@@ -167,7 +167,7 @@ export function EventSourceSelector({
         </button>
 
         {isExpanded && (
-          <pre className="mt-2 p-3 bg-surface-secondary rounded text-xs font-mono text-fg-secondary overflow-x-auto animate-subtle-fade-in">
+          <pre className="mt-2 p-3 bg-surface-secondary rounded-sm text-xs font-mono text-fg-secondary overflow-x-auto animate-subtle-fade-in">
             {JSON.stringify(source.eventPattern, null, 2)}
           </pre>
         )}
@@ -215,7 +215,7 @@ export function EventSourceSelector({
                   {/* Icon */}
                   <div
                     className={`
-                      flex-shrink-0 w-10 h-10 rounded-lg flex items-center justify-center
+                      shrink-0 w-10 h-10 rounded-lg flex items-center justify-center
                       ${isSelected ? 'bg-action-primary' : 'bg-surface-secondary'}
                     `}
                   >

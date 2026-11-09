@@ -11,7 +11,7 @@ import type {
 
 export const ModalHeader: React.FC<ModalHeaderProps> = ({ children, className }) => {
   return (
-    <div className={cn('border-b border-border px-6 py-4 flex-shrink-0', className)}>
+    <div className={cn('border-b border-border px-6 py-4 shrink-0', className)}>
       <div className="flex items-center justify-between">{children}</div>
     </div>
   );

@@ -1,80 +1,174 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import 'tailwindcss';
 
 /* ============================================
- * Design Tokens - CSS Custom Properties
+ * Tailwind CSS v4 configuration (CSS-first)
+ *
+ * Replaces the former `tailwind.config.js`. Source files are detected
+ * automatically by Tailwind v4 (respecting .gitignore), so no `content`
+ * globs are required.
  * ============================================ */
-@layer base {
-  :root {
-    /* --- Brand Colors --- */
-    --color-brand: #d97706; /* amber-600 */
-    --color-brand-light: #fde68a; /* amber-200 */
-    --color-brand-dark: #78350f; /* amber-900 */
-    --color-brand-accent: #f59e0b; /* amber-500 */
-    --color-brand-fg: #92400e; /* amber-800 */
 
-    /* --- Action Colors --- */
-    --color-action-primary: #2563eb; /* blue-600 */
-    --color-action-primary-hover: #1d4ed8; /* blue-700 */
-    --color-action-primary-fg: #ffffff;
-    --color-action-danger: #dc2626; /* red-600 */
-    --color-action-danger-hover: #b91c1c; /* red-700 */
-    --color-action-danger-fg: #ffffff;
-    --color-action-danger-light: #fef2f2; /* red-50 */
-    --color-action-success: #16a34a; /* green-600 */
-    --color-action-success-fg: #ffffff;
+/* Keep v3 hover semantics: v4 wraps `hover:` in `@media (hover: hover)`,
+   which would hide hover-revealed controls (e.g. the session menu button)
+   on touch devices. */
+@custom-variant hover (&:hover);
 
-    /* --- Surface Colors --- */
-    --color-surface-primary: #ffffff;
-    --color-surface-secondary: #f9fafb; /* gray-50 */
-    --color-surface-elevated: #ffffff;
-    --color-surface-overlay: rgba(0, 0, 0, 0.1);
+/* ============================================
+ * Design Tokens - Theme variables (light theme defaults)
+ *
+ * Each token is a Tailwind theme variable, so it both backs a utility
+ * (e.g. `bg-brand`, `rounded-btn`, `p-page`) and is available as a plain
+ * CSS custom property. `static` forces every token to be emitted even when
+ * it is only referenced via `var()` in CSS or inline styles.
+ * The dark theme overrides these properties in the base layer below.
+ * ============================================ */
+@theme static {
+  --font-sans: 'M PLUS Rounded 1c', ui-rounded, system-ui, sans-serif;
 
-    /* --- Border Colors --- */
-    --color-border-default: #e5e7eb; /* gray-200 */
-    --color-border-strong: #d1d5db; /* gray-300 */
-    --color-border-focus: #2563eb; /* blue-600 */
+  /* --- Gray scale (pinned to the Tailwind v3 hex values) --- */
+  --color-gray-50: #f9fafb;
+  --color-gray-100: #f3f4f6;
+  --color-gray-200: #e5e7eb;
+  --color-gray-300: #d1d5db;
+  --color-gray-400: #9ca3af;
+  --color-gray-500: #6b7280;
+  --color-gray-600: #4b5563;
+  --color-gray-700: #374151;
+  --color-gray-800: #1f2937;
+  --color-gray-900: #111827;
 
-    /* --- Foreground (Text) Colors --- */
-    --color-fg-default: #111827; /* gray-900 */
-    --color-fg-secondary: #4b5563; /* gray-600 */
-    --color-fg-muted: #6b7280; /* gray-500 */
-    --color-fg-disabled: #9ca3af; /* gray-400 */
-    --color-fg-inverse: #ffffff;
-    --color-fg-link: #2563eb; /* blue-600 */
+  /* --- Brand Colors --- */
+  --color-brand: #d97706; /* amber-600 */
+  --color-brand-light: #fde68a; /* amber-200 */
+  --color-brand-dark: #78350f; /* amber-900 */
+  --color-brand-accent: #f59e0b; /* amber-500 */
+  --color-brand-fg: #92400e; /* amber-800 */
 
-    /* --- Feedback Colors --- */
-    --color-feedback-error: #dc2626; /* red-600 */
-    --color-feedback-error-bg: #fef2f2; /* red-50 */
-    --color-feedback-error-border: #fecaca; /* red-200 */
-    --color-feedback-success: #16a34a; /* green-600 */
-    --color-feedback-success-bg: #f0fdf4; /* green-50 */
-    --color-feedback-success-border: #bbf7d0; /* green-200 */
-    --color-feedback-warning: #d97706; /* amber-600 */
-    --color-feedback-warning-bg: #fffbeb; /* amber-50 */
-    --color-feedback-warning-border: #fde68a; /* amber-200 */
-    --color-feedback-info: #2563eb; /* blue-600 */
-    --color-feedback-info-bg: #eff6ff; /* blue-50 */
-    --color-feedback-info-border: #bfdbfe; /* blue-200 */
+  /* --- Action Colors --- */
+  --color-action-primary: #2563eb; /* blue-600 */
+  --color-action-primary-hover: #1d4ed8; /* blue-700 */
+  --color-action-primary-fg: #ffffff;
+  --color-action-danger: #dc2626; /* red-600 */
+  --color-action-danger-hover: #b91c1c; /* red-700 */
+  --color-action-danger-fg: #ffffff;
+  --color-action-danger-light: #fef2f2; /* red-50 */
+  --color-action-success: #16a34a; /* green-600 */
+  --color-action-success-fg: #ffffff;
 
-    /* --- Border Radius Tokens --- */
-    --radius-btn: 0.5rem; /* 8px - rounded-lg */
-    --radius-input: 0.5rem; /* 8px - rounded-lg */
-    --radius-card: 0.75rem; /* 12px - rounded-xl */
-    --radius-card-lg: 1rem; /* 16px - rounded-2xl */
-    --radius-modal: 1.5rem; /* 24px - rounded-3xl */
+  /* --- Surface Colors --- */
+  --color-surface-primary: #ffffff;
+  --color-surface-secondary: #f9fafb; /* gray-50 */
+  --color-surface-elevated: #ffffff;
+  --color-surface-overlay: rgba(0, 0, 0, 0.1);
 
-    /* --- Spacing Tokens --- */
-    --spacing-page: 1.5rem; /* 24px */
-    --spacing-section: 1.5rem; /* 24px */
-    --spacing-card: 1rem; /* 16px */
-    --spacing-card-lg: 1.5rem; /* 24px */
+  /* --- Border Colors --- */
+  --color-border-default: #e5e7eb; /* gray-200 */
+  --color-border-strong: #d1d5db; /* gray-300 */
+  --color-border-focus: #2563eb; /* blue-600 */
+
+  /* --- Foreground (Text) Colors --- */
+  --color-fg-default: #111827; /* gray-900 */
+  --color-fg-secondary: #4b5563; /* gray-600 */
+  --color-fg-muted: #6b7280; /* gray-500 */
+  --color-fg-disabled: #9ca3af; /* gray-400 */
+  --color-fg-inverse: #ffffff;
+  --color-fg-link: #2563eb; /* blue-600 */
+
+  /* --- Feedback Colors --- */
+  --color-feedback-error: #dc2626; /* red-600 */
+  --color-feedback-error-bg: #fef2f2; /* red-50 */
+  --color-feedback-error-border: #fecaca; /* red-200 */
+  --color-feedback-success: #16a34a; /* green-600 */
+  --color-feedback-success-bg: #f0fdf4; /* green-50 */
+  --color-feedback-success-border: #bbf7d0; /* green-200 */
+  --color-feedback-warning: #d97706; /* amber-600 */
+  --color-feedback-warning-bg: #fffbeb; /* amber-50 */
+  --color-feedback-warning-border: #fde68a; /* amber-200 */
+  --color-feedback-info: #2563eb; /* blue-600 */
+  --color-feedback-info-bg: #eff6ff; /* blue-50 */
+  --color-feedback-info-border: #bfdbfe; /* blue-200 */
+
+  /* --- Border Radius Tokens --- */
+  --radius-btn: 0.5rem; /* 8px - rounded-lg */
+  --radius-input: 0.5rem; /* 8px - rounded-lg */
+  --radius-card: 0.75rem; /* 12px - rounded-xl */
+  --radius-card-lg: 1rem; /* 16px - rounded-2xl */
+  --radius-modal: 1.5rem; /* 24px - rounded-3xl */
+
+  /* --- Spacing Tokens --- */
+  --spacing-page: 1.5rem; /* 24px */
+  --spacing-section: 1.5rem; /* 24px */
+  --spacing-card: 1rem; /* 16px */
+  --spacing-card-lg: 1.5rem; /* 24px */
+
+  /* --- Elevation --- */
+  --shadow-elevation-1: 0 1px 2px rgba(0, 0, 0, 0.05);
+  --shadow-elevation-2: 0 1px 3px rgba(0, 0, 0, 0.1), 0 1px 2px rgba(0, 0, 0, 0.06);
+  --shadow-elevation-3: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+  --shadow-elevation-4: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+
+  /* --- Animations --- */
+  --animate-subtle-fade-in: subtle-fade-in 0.2s ease-out;
+  --animate-fade-in: fadeIn 0.2s ease-out;
+
+  @keyframes subtle-fade-in {
+    0% {
+      opacity: 0.5;
+    }
+    100% {
+      opacity: 1;
+    }
   }
 
-  /* ============================================
-   * Dark Theme
-   * ============================================ */
+  @keyframes fadeIn {
+    0% {
+      opacity: 0;
+    }
+    100% {
+      opacity: 1;
+    }
+  }
+}
+
+/* Utility aliases whose class names differ from the token names
+   (`border-border`, `text-fg`, `p-card-pad`, `p-card-pad-lg`). */
+@theme inline {
+  --color-border: var(--color-border-default);
+  --color-fg: var(--color-fg-default);
+  --spacing-card-pad: var(--spacing-card);
+  --spacing-card-pad-lg: var(--spacing-card-lg);
+}
+
+/* ============================================
+ * Tailwind v3 compatibility (Preflight changes in v4)
+ * ============================================ */
+@layer base {
+  /* v4 defaults borders to `currentcolor`; v3 used gray-200. */
+  *,
+  ::after,
+  ::before,
+  ::backdrop,
+  ::file-selector-button {
+    border-color: var(--color-gray-200, currentcolor);
+  }
+
+  /* v4 defaults placeholders to 50% of the text color; v3 used gray-400. */
+  input::placeholder,
+  textarea::placeholder {
+    color: var(--color-gray-400);
+  }
+
+  /* v4 resets buttons to `cursor: default`; v3 used `pointer`. */
+  button:not(:disabled),
+  [role='button']:not(:disabled) {
+    cursor: pointer;
+  }
+}
+
+/* ============================================
+ * Dark Theme
+ * ============================================ */
+@layer base {
   :root[data-theme='dark'] {
     /* --- Brand Colors --- */
     --color-brand: #f59e0b; /* amber-500 */
@@ -227,78 +321,6 @@
     @apply my-4 rounded-lg overflow-x-auto;
   }
 
-  /* KaTeX math styles */
-  .markdown-content .katex-display {
-    overflow-x: auto;
-    overflow-y: hidden;
-    max-width: 100%;
-    padding: 0.5rem 0;
-    margin: 1rem 0;
-  }
-
-  .markdown-content .katex-display > .katex {
-    white-space: nowrap;
-    display: inline-block;
-  }
-
-  .markdown-content .katex {
-    font-size: 1em;
-    max-width: 100%;
-  }
-
-  .markdown-content .katex-html {
-    max-width: 100%;
-    overflow: visible;
-  }
-
-  .markdown-content .katex svg {
-    max-width: 100%;
-    height: auto;
-  }
-
-  .markdown-content .katex .mord {
-    white-space: nowrap;
-  }
-
-  .markdown-content .katex-mathml {
-    display: none !important;
-  }
-
-  .markdown-content .katex .sr-only {
-    display: none !important;
-  }
-
-  .markdown-content .katex-html {
-    display: inline !important;
-  }
-
-  .markdown-content .katex .arraycolsep {
-    width: 0.5em;
-  }
-
-  .markdown-content .katex .mtable {
-    display: inline-table;
-    vertical-align: middle;
-  }
-
-  .markdown-content .katex .mtd {
-    text-align: center;
-    padding: 0.2em 0.4em;
-  }
-
-  .markdown-content .katex .mtr {
-    display: table-row;
-  }
-
-  .markdown-content .katex .left-right {
-    display: inline-block;
-    vertical-align: middle;
-  }
-
-  .markdown-content .katex + .katex-fallback {
-    display: none;
-  }
-
   /* Tool component animations */
   .tool-use-block {
     @apply animate-fade-in;
@@ -331,7 +353,7 @@
   }
 
   .input-field {
-    @apply w-full px-4 py-3 focus:outline-none focus:ring-2 focus:border-transparent resize-none;
+    @apply w-full px-4 py-3 focus:outline-hidden focus:ring-2 focus:border-transparent resize-none;
     background-color: var(--color-surface-primary);
     color: var(--color-fg-default);
     border: 1px solid var(--color-border-default);
@@ -347,12 +369,12 @@
   }
 
   .button-primary {
-    @apply px-6 py-2 bg-gray-900 text-white hover:bg-gray-800 transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-gray-300;
+    @apply px-6 py-2 bg-gray-900 text-white hover:bg-gray-800 transition-colors duration-200 focus:outline-hidden focus:ring-2 focus:ring-gray-300;
     border-radius: var(--radius-btn);
   }
 
   .button-secondary {
-    @apply px-6 py-2 bg-gray-100 text-gray-900 hover:bg-gray-200 transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-gray-300;
+    @apply px-6 py-2 bg-gray-100 text-gray-900 hover:bg-gray-200 transition-colors duration-200 focus:outline-hidden focus:ring-2 focus:ring-gray-300;
     border-radius: var(--radius-btn);
   }
 }
@@ -366,4 +388,82 @@
       @apply mx-1;
     }
   }
+}
+
+/* ============================================
+ * KaTeX overrides
+ *
+ * Intentionally kept outside any `@layer`: Tailwind v4 emits real CSS cascade
+ * layers, and unlayered third-party CSS (katex/dist/katex.min.css) always
+ * beats layered rules regardless of specificity.
+ * ============================================ */
+.markdown-content .katex-display {
+  overflow-x: auto;
+  overflow-y: hidden;
+  max-width: 100%;
+  padding: 0.5rem 0;
+  margin: 1rem 0;
+}
+
+.markdown-content .katex-display > .katex {
+  white-space: nowrap;
+  display: inline-block;
+}
+
+.markdown-content .katex {
+  font-size: 1em;
+  max-width: 100%;
+}
+
+.markdown-content .katex-html {
+  max-width: 100%;
+  overflow: visible;
+}
+
+.markdown-content .katex svg {
+  max-width: 100%;
+  height: auto;
+}
+
+.markdown-content .katex .mord {
+  white-space: nowrap;
+}
+
+.markdown-content .katex-mathml {
+  display: none !important;
+}
+
+.markdown-content .katex .sr-only {
+  display: none !important;
+}
+
+.markdown-content .katex-html {
+  display: inline !important;
+}
+
+.markdown-content .katex .arraycolsep {
+  width: 0.5em;
+}
+
+.markdown-content .katex .mtable {
+  display: inline-table;
+  vertical-align: middle;
+}
+
+.markdown-content .katex .mtd {
+  text-align: center;
+  padding: 0.2em 0.4em;
+}
+
+.markdown-content .katex .mtr {
+  display: table-row;
+}
+
+.markdown-content .katex .left-right {
+  display: inline-block;
+  vertical-align: middle;
+}
+
+.markdown-content .katex + .katex-fallback {
+  display: none;
 }

@@ -40,7 +40,7 @@ export function CronFieldSelector({ fields, onChange, disabled = false }: CronFi
           onChange={(e) => onChange('minute', e.target.value)}
           disabled={disabled}
           placeholder="0, *, 0-30"
-          className="w-full px-3 py-2 text-sm border border-border-strong rounded-md bg-surface-primary text-fg-default focus:outline-none focus:ring-2 focus:ring-border-focus disabled:bg-surface-secondary disabled:cursor-not-allowed"
+          className="w-full px-3 py-2 text-sm border border-border-strong rounded-md bg-surface-primary text-fg-default focus:outline-hidden focus:ring-2 focus:ring-border-focus disabled:bg-surface-secondary disabled:cursor-not-allowed"
         />
       </div>
 
@@ -55,7 +55,7 @@ export function CronFieldSelector({ fields, onChange, disabled = false }: CronFi
           onChange={(e) => onChange('hour', e.target.value)}
           disabled={disabled}
           placeholder="0, *, 9-17"
-          className="w-full px-3 py-2 text-sm border border-border-strong rounded-md bg-surface-primary text-fg-default focus:outline-none focus:ring-2 focus:ring-border-focus disabled:bg-surface-secondary disabled:cursor-not-allowed"
+          className="w-full px-3 py-2 text-sm border border-border-strong rounded-md bg-surface-primary text-fg-default focus:outline-hidden focus:ring-2 focus:ring-border-focus disabled:bg-surface-secondary disabled:cursor-not-allowed"
         />
       </div>
 
@@ -70,7 +70,7 @@ export function CronFieldSelector({ fields, onChange, disabled = false }: CronFi
           onChange={(e) => onChange('dayOfMonth', e.target.value)}
           disabled={disabled}
           placeholder="1, *, ?, 1-15"
-          className="w-full px-3 py-2 text-sm border border-border-strong rounded-md bg-surface-primary text-fg-default focus:outline-none focus:ring-2 focus:ring-border-focus disabled:bg-surface-secondary disabled:cursor-not-allowed"
+          className="w-full px-3 py-2 text-sm border border-border-strong rounded-md bg-surface-primary text-fg-default focus:outline-hidden focus:ring-2 focus:ring-border-focus disabled:bg-surface-secondary disabled:cursor-not-allowed"
         />
         <p className="mt-1 text-xs text-fg-muted">{t('triggers.cron.dayOfMonthHint')}</p>
       </div>
@@ -84,7 +84,7 @@ export function CronFieldSelector({ fields, onChange, disabled = false }: CronFi
           value={fields.month}
           onChange={(e) => onChange('month', e.target.value)}
           disabled={disabled}
-          className="w-full px-3 py-2 text-sm border border-border-strong rounded-md bg-surface-primary text-fg-default focus:outline-none focus:ring-2 focus:ring-border-focus disabled:bg-surface-secondary disabled:cursor-not-allowed"
+          className="w-full px-3 py-2 text-sm border border-border-strong rounded-md bg-surface-primary text-fg-default focus:outline-hidden focus:ring-2 focus:ring-border-focus disabled:bg-surface-secondary disabled:cursor-not-allowed"
         >
           <option value="*">{t('triggers.cron.optionAll')}</option>
           {MONTH_OPTIONS.map((month) => (
@@ -104,7 +104,7 @@ export function CronFieldSelector({ fields, onChange, disabled = false }: CronFi
           value={fields.dayOfWeek}
           onChange={(e) => onChange('dayOfWeek', e.target.value)}
           disabled={disabled}
-          className="w-full px-3 py-2 text-sm border border-border-strong rounded-md bg-surface-primary text-fg-default focus:outline-none focus:ring-2 focus:ring-border-focus disabled:bg-surface-secondary disabled:cursor-not-allowed"
+          className="w-full px-3 py-2 text-sm border border-border-strong rounded-md bg-surface-primary text-fg-default focus:outline-hidden focus:ring-2 focus:ring-border-focus disabled:bg-surface-secondary disabled:cursor-not-allowed"
         >
           <option value="?">{t('triggers.cron.optionNotSpecified')}</option>
           <option value="*">{t('triggers.cron.optionAll')}</option>
@@ -129,7 +129,7 @@ export function CronFieldSelector({ fields, onChange, disabled = false }: CronFi
           onChange={(e) => onChange('year', e.target.value)}
           disabled={disabled}
           placeholder="*, 2024"
-          className="w-full px-3 py-2 text-sm border border-border-strong rounded-md bg-surface-primary text-fg-default focus:outline-none focus:ring-2 focus:ring-border-focus disabled:bg-surface-secondary disabled:cursor-not-allowed"
+          className="w-full px-3 py-2 text-sm border border-border-strong rounded-md bg-surface-primary text-fg-default focus:outline-hidden focus:ring-2 focus:ring-border-focus disabled:bg-surface-secondary disabled:cursor-not-allowed"
         />
         <p className="mt-1 text-xs text-fg-muted">{t('triggers.cron.yearHint')}</p>
       </div>

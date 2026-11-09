@@ -33,9 +33,9 @@ export function StorageBreadcrumb({
         <div className="flex items-center gap-1 text-sm overflow-x-auto flex-1 min-w-0">
           <button
             onClick={onNavigateToRoot}
-            className="flex items-center gap-1 px-2 py-1 text-fg-secondary hover:text-fg-default hover:bg-surface-secondary rounded transition-colors whitespace-nowrap"
+            className="flex items-center gap-1 px-2 py-1 text-fg-secondary hover:text-fg-default hover:bg-surface-secondary rounded-sm transition-colors whitespace-nowrap"
           >
-            <Home className="w-4 h-4 flex-shrink-0" />
+            <Home className="w-4 h-4 shrink-0" />
             <span>{t('storage.root')}</span>
           </button>
 
@@ -43,10 +43,10 @@ export function StorageBreadcrumb({
             const segmentPath = '/' + pathSegments.slice(0, index + 1).join('/');
             return (
               <div key={segmentPath} className="flex items-center gap-1">
-                <ChevronRight className="w-4 h-4 text-fg-disabled flex-shrink-0" />
+                <ChevronRight className="w-4 h-4 text-fg-disabled shrink-0" />
                 <button
                   onClick={() => onNavigate(segmentPath)}
-                  className="px-2 py-1 text-fg-secondary hover:text-fg-default hover:bg-surface-secondary rounded transition-colors truncate max-w-[120px] sm:max-w-none"
+                  className="px-2 py-1 text-fg-secondary hover:text-fg-default hover:bg-surface-secondary rounded-sm transition-colors truncate max-w-[120px] sm:max-w-none"
                 >
                   {segment}
                 </button>
@@ -72,7 +72,7 @@ export function StorageBreadcrumb({
             position="left"
             width="320px"
           >
-            <div className="flex-shrink-0 p-1 cursor-help">
+            <div className="shrink-0 p-1 cursor-help">
               <AlertTriangle className="w-4 h-4 text-amber-500" />
             </div>
           </Tooltip>

@@ -19,9 +19,9 @@ export const MessageSkeleton: React.FC = () => {
       {/* Assistant message-style skeleton */}
       <div className="flex justify-start">
         <div className="bg-surface-secondary rounded-2xl rounded-tl-md p-4 w-96 max-w-[80%] space-y-2">
-          <div className="h-4 bg-border rounded w-full"></div>
-          <div className="h-4 bg-border rounded w-5/6"></div>
-          <div className="h-4 bg-border rounded w-4/6"></div>
+          <div className="h-4 bg-border rounded-sm w-full"></div>
+          <div className="h-4 bg-border rounded-sm w-5/6"></div>
+          <div className="h-4 bg-border rounded-sm w-4/6"></div>
         </div>
       </div>
 
@@ -33,8 +33,8 @@ export const MessageSkeleton: React.FC = () => {
       {/* Second assistant message-style skeleton */}
       <div className="flex justify-start">
         <div className="bg-surface-secondary rounded-2xl rounded-tl-md p-4 w-80 max-w-[75%] space-y-2">
-          <div className="h-4 bg-border rounded w-full"></div>
-          <div className="h-4 bg-border rounded w-3/4"></div>
+          <div className="h-4 bg-border rounded-sm w-full"></div>
+          <div className="h-4 bg-border rounded-sm w-3/4"></div>
         </div>
       </div>
 

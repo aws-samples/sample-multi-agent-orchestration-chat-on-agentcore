@@ -452,7 +452,7 @@ export function TriggerFormModal({ isOpen, onClose, trigger, onSave }: TriggerFo
             type="button"
             onClick={handleCancel}
             disabled={isSaving}
-            className="px-5 py-2.5 text-sm font-medium text-fg-secondary bg-surface-secondary rounded-xl hover:bg-border active:scale-95 transition-all disabled:opacity-50 disabled:cursor-not-allowed disabled:active:scale-100 shadow-sm"
+            className="px-5 py-2.5 text-sm font-medium text-fg-secondary bg-surface-secondary rounded-xl hover:bg-border active:scale-95 transition-all disabled:opacity-50 disabled:cursor-not-allowed disabled:active:scale-100 shadow-xs"
           >
             {t('triggers.form.cancel')}
           </button>
@@ -460,7 +460,7 @@ export function TriggerFormModal({ isOpen, onClose, trigger, onSave }: TriggerFo
             type="button"
             onClick={handleSave}
             disabled={isSaving}
-            className="px-5 py-2.5 text-sm font-medium text-white bg-action-primary rounded-xl hover:bg-action-primary-hover active:scale-95 transition-all disabled:opacity-50 disabled:cursor-not-allowed disabled:active:scale-100 shadow-sm flex items-center gap-2"
+            className="px-5 py-2.5 text-sm font-medium text-white bg-action-primary rounded-xl hover:bg-action-primary-hover active:scale-95 transition-all disabled:opacity-50 disabled:cursor-not-allowed disabled:active:scale-100 shadow-xs flex items-center gap-2"
           >
             {isSaving && (
               <svg

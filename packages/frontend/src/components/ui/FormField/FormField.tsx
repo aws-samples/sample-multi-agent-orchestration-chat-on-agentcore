@@ -43,7 +43,7 @@ export const FormField: React.FC<FormFieldProps> = ({
       {children}
       {error && (
         <div className="flex items-center gap-1.5 mt-1">
-          <AlertCircle className="w-4 h-4 text-feedback-error flex-shrink-0" />
+          <AlertCircle className="w-4 h-4 text-feedback-error shrink-0" />
           <span className="text-sm text-feedback-error">{error}</span>
         </div>
       )}

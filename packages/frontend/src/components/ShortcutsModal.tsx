@@ -51,7 +51,7 @@ export const ShortcutsModal: React.FC<ShortcutsModalProps> = ({ isOpen, onClose 
                         {tokens.map((token, index) => (
                           <kbd
                             key={index}
-                            className="px-2 py-0.5 min-w-[1.75rem] text-center text-xs font-medium text-fg-secondary bg-surface-secondary border border-border rounded"
+                            className="px-2 py-0.5 min-w-7 text-center text-xs font-medium text-fg-secondary bg-surface-secondary border border-border rounded-sm"
                           >
                             {token}
                           </kbd>

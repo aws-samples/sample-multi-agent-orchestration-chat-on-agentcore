@@ -94,9 +94,9 @@ export function ExecutionList({ executions, isLoading, hasMore, onLoadMore }: Ex
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="flex items-center gap-2">
                         {execution.errorMessage ? (
-                          <XCircle className="w-4 h-4 text-feedback-error flex-shrink-0" />
+                          <XCircle className="w-4 h-4 text-feedback-error shrink-0" />
                         ) : (
-                          <CheckCircle className="w-4 h-4 text-green-600 flex-shrink-0" />
+                          <CheckCircle className="w-4 h-4 text-green-600 shrink-0" />
                         )}
                         <span className="text-sm text-fg-default">
                           {formatDate(execution.executedAt)}

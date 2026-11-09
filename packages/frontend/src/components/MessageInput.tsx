@@ -519,7 +519,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({
               onKeyDown={handleKeyDown}
               onPaste={handlePaste}
               placeholder={t('chat.messageInputPlaceholder')}
-              className="w-full px-4 py-3 bg-transparent border-0 focus:outline-none resize-none min-h-[60px] max-h-[200px]"
+              className="w-full px-4 py-3 bg-transparent border-0 focus:outline-hidden resize-none min-h-[60px] max-h-[200px]"
               rows={2}
               style={{ height: 'auto' }}
             />

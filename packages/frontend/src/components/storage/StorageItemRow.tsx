@@ -113,18 +113,18 @@ export function StorageItemRow({
     >
       <div className="flex items-center gap-3">
         {/* Selection checkbox */}
-        <div className="flex-shrink-0 pr-1" onClick={handleCheckboxClick}>
+        <div className="shrink-0 pr-1" onClick={handleCheckboxClick}>
           <input
             type="checkbox"
             checked={selected}
             readOnly
             aria-label={t('storage.selectItem', { name: item.name })}
-            className="block w-4 h-4 rounded border-border-strong text-action-primary focus:ring-border-focus cursor-pointer"
+            className="block w-4 h-4 rounded-sm border-border-strong text-action-primary focus:ring-border-focus cursor-pointer"
           />
         </div>
 
         {/* Icon */}
-        <div className="flex-shrink-0">
+        <div className="shrink-0">
           {item.type === 'directory' ? (
             <Folder className="w-5 h-5 text-amber-500" />
           ) : FileIcon ? (

@@ -17,7 +17,7 @@ export function SidebarTabs<T extends string>({
   if (isMobileView) {
     // Mobile: horizontal tabs at the top
     return (
-      <div className={`w-full border-b border-border flex-shrink-0 ${className}`}>
+      <div className={`w-full border-b border-border shrink-0 ${className}`}>
         <nav className="flex space-x-1 px-4 py-2 overflow-x-auto">
           {tabs.map((tab) => {
             const Icon = tab.icon;
@@ -33,7 +33,7 @@ export function SidebarTabs<T extends string>({
                     : 'text-fg-secondary hover:bg-surface-secondary'
                 }`}
               >
-                <Icon className="w-4 h-4 flex-shrink-0" />
+                <Icon className="w-4 h-4 shrink-0" />
                 <span>{tab.label}</span>
               </button>
             );
@@ -45,7 +45,7 @@ export function SidebarTabs<T extends string>({
 
   // Desktop: vertical tabs on the left
   return (
-    <div className={`w-48 border-r border-border flex-shrink-0 ${className}`}>
+    <div className={`w-48 border-r border-border shrink-0 ${className}`}>
       <nav className="p-4 space-y-1">
         {tabs.map((tab) => {
           const Icon = tab.icon;
@@ -61,7 +61,7 @@ export function SidebarTabs<T extends string>({
                   : 'text-fg-secondary hover:bg-surface-secondary'
               }`}
             >
-              <Icon className="w-5 h-5 flex-shrink-0" />
+              <Icon className="w-5 h-5 shrink-0" />
               <span>{tab.label}</span>
             </button>
           );

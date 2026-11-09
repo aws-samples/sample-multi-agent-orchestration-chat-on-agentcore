@@ -88,7 +88,7 @@ export const FolderPathSelector: React.FC<FolderPathSelectorProps> = ({
             type="button"
             onClick={handleClear}
             disabled={disabled}
-            className="p-0.5 hover:bg-border rounded transition-colors disabled:opacity-50"
+            className="p-0.5 hover:bg-border rounded-sm transition-colors disabled:opacity-50"
           >
             <X className="size-4 text-action-primary" />
           </button>

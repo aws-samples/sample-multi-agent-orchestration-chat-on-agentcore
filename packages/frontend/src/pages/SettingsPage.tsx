@@ -117,7 +117,7 @@ export function SettingsPage() {
           </div>
 
           {isLoadingAccount ? (
-            <div className="h-5 w-48 bg-surface-secondary rounded animate-pulse" />
+            <div className="h-5 w-48 bg-surface-secondary rounded-sm animate-pulse" />
           ) : accountError ? (
             <p className="text-sm text-feedback-error">{accountError}</p>
           ) : (
@@ -142,7 +142,7 @@ export function SettingsPage() {
             {/* Trigger button */}
             <button
               onClick={() => setIsLanguageDropdownOpen(!isLanguageDropdownOpen)}
-              className="w-full px-4 py-3 bg-surface-primary border border-border-strong rounded-lg focus:outline-none focus:ring-2 focus:ring-border-focus focus:border-transparent text-fg-default font-medium cursor-pointer hover:border-border-strong transition-colors flex items-center justify-between"
+              className="w-full px-4 py-3 bg-surface-primary border border-border-strong rounded-lg focus:outline-hidden focus:ring-2 focus:ring-border-focus focus:border-transparent text-fg-default font-medium cursor-pointer hover:border-border-strong transition-colors flex items-center justify-between"
             >
               <span>{languageOptions.find((opt) => opt.value === i18n.language)?.label}</span>
               <ChevronDown
@@ -190,7 +190,7 @@ export function SettingsPage() {
           <div ref={themeDropdownRef} className="relative w-full">
             <button
               onClick={() => setIsThemeDropdownOpen(!isThemeDropdownOpen)}
-              className="w-full px-4 py-3 bg-surface-primary border border-border-strong rounded-lg focus:outline-none focus:ring-2 focus:ring-border-focus focus:border-transparent text-fg-default font-medium cursor-pointer hover:border-border-strong transition-colors flex items-center justify-between"
+              className="w-full px-4 py-3 bg-surface-primary border border-border-strong rounded-lg focus:outline-hidden focus:ring-2 focus:ring-border-focus focus:border-transparent text-fg-default font-medium cursor-pointer hover:border-border-strong transition-colors flex items-center justify-between"
             >
               <span>{themeOptions.find((opt) => opt.value === theme)?.label}</span>
               <ChevronDown
@@ -265,7 +265,7 @@ export function SettingsPage() {
           <div className="space-y-4">
             <p className="text-sm text-fg-secondary">
               {t('settings.enterBehaviorDescription')}
-              <kbd className="mx-1 px-2 py-1 bg-surface-secondary rounded text-sm font-mono">
+              <kbd className="mx-1 px-2 py-1 bg-surface-secondary rounded-sm text-sm font-mono">
                 Enter
               </kbd>
               {t('settings.enterBehaviorSuffix')}
@@ -296,11 +296,11 @@ export function SettingsPage() {
                 />
                 <span className="text-sm text-fg-default">
                   {t('settings.newlineOnEnter')}（
-                  <kbd className="mx-1 px-1.5 py-0.5 bg-surface-secondary rounded text-xs font-mono">
+                  <kbd className="mx-1 px-1.5 py-0.5 bg-surface-secondary rounded-sm text-xs font-mono">
                     ⌘
                   </kbd>
                   +
-                  <kbd className="mx-1 px-1.5 py-0.5 bg-surface-secondary rounded text-xs font-mono">
+                  <kbd className="mx-1 px-1.5 py-0.5 bg-surface-secondary rounded-sm text-xs font-mono">
                     Enter
                   </kbd>
                   {t('settings.sendSuffix')}）

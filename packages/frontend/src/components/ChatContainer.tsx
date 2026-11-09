@@ -67,8 +67,8 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
           <div className="flex items-center">
             {isAgentLoading ? (
               <div className="flex items-center space-x-3 p-2">
-                <div className="w-6 h-6 bg-border rounded animate-pulse" />
-                <div className="h-6 bg-border rounded animate-pulse w-32" />
+                <div className="w-6 h-6 bg-border rounded-sm animate-pulse" />
+                <div className="h-6 bg-border rounded-sm animate-pulse w-32" />
               </div>
             ) : (
               <button

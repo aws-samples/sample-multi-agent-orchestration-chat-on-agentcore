@@ -106,7 +106,7 @@ export function Tooltip({
           {/* Tooltip background */}
           <div
             className={`relative bg-gray-800 text-white text-xs rounded-lg px-3 py-2 shadow-lg ${
-              width ? 'whitespace-normal break-words' : 'whitespace-nowrap'
+              width ? 'whitespace-normal wrap-break-word' : 'whitespace-nowrap'
             }`}
           >
             {content}

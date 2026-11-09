@@ -135,7 +135,7 @@ const CopyButton: React.FC<{ text: string }> = ({ text }) => {
       type="button"
       // clipboard is undefined outside secure contexts; copying is best-effort.
       onClick={() => void navigator.clipboard?.writeText(text).catch(() => undefined)}
-      className="rounded px-1.5 py-0.5 text-[11px] text-fg-disabled hover:bg-surface-secondary hover:text-fg-secondary"
+      className="rounded-sm px-1.5 py-0.5 text-[11px] text-fg-disabled hover:bg-surface-secondary hover:text-fg-secondary"
       title={t('common.copyToClipboard')}
     >
       {t('common.copy')}
@@ -156,7 +156,7 @@ const DetailBlock: React.FC<{
     </div>
     <pre
       className={cn(
-        'max-h-64 overflow-auto whitespace-pre-wrap break-words rounded-btn border p-2 text-xs',
+        'max-h-64 overflow-auto whitespace-pre-wrap wrap-break-word rounded-btn border p-2 text-xs',
         mono ? 'font-mono' : 'font-sans',
         tone === 'error'
           ? 'border-feedback-error-border bg-feedback-error-bg text-feedback-error'
@@ -256,7 +256,7 @@ const StepRow: React.FC<{ step: Step }> = ({ step }) => {
                 })}
               </p>
             ) : (
-              <p className="whitespace-pre-wrap break-words text-xs text-fg-muted">{step.text}</p>
+              <p className="whitespace-pre-wrap wrap-break-word text-xs text-fg-muted">{step.text}</p>
             )
           ) : (
             <ToolStepDetail step={step} />

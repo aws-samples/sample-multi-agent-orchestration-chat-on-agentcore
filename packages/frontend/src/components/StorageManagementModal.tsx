@@ -437,7 +437,7 @@ export function StorageManagementModal({ isOpen, onClose }: StorageManagementMod
       {/* Content area: responsive layout */}
       <div className="flex divide-x divide-gray-200 flex-1 min-h-0">
         {/* Left column: folder tree - desktop only */}
-        <div className="hidden md:block md:w-[240px] flex-shrink-0 overflow-y-auto bg-surface-secondary">
+        <div className="hidden md:block md:w-[240px] shrink-0 overflow-y-auto bg-surface-secondary">
           <div className="px-3 py-2">
             <div className="text-xs font-semibold text-fg-muted uppercase tracking-wider mb-2 px-2">
               {t('storage.folders')}
@@ -479,7 +479,7 @@ export function StorageManagementModal({ isOpen, onClose }: StorageManagementMod
             {/* Marquee selection rectangle */}
             {marqueeRect && (
               <div
-                className="absolute z-10 border border-action-primary bg-action-primary/10 pointer-events-none rounded-sm"
+                className="absolute z-10 border border-action-primary bg-action-primary/10 pointer-events-none rounded-xs"
                 style={{
                   left: `${marqueeRect.left}px`,
                   top: `${marqueeRect.top}px`,
@@ -491,9 +491,9 @@ export function StorageManagementModal({ isOpen, onClose }: StorageManagementMod
             {/* Error display */}
             {error && (
               <div className="mb-4 p-3 bg-feedback-error-bg border border-feedback-error-border rounded-lg flex items-start gap-2">
-                <AlertCircle className="w-4 h-4 text-feedback-error mt-0.5 flex-shrink-0" />
+                <AlertCircle className="w-4 h-4 text-feedback-error mt-0.5 shrink-0" />
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm text-feedback-error break-words">{error}</p>
+                  <p className="text-sm text-feedback-error wrap-break-word">{error}</p>
                   <button
                     onClick={clearError}
                     className="text-sm text-feedback-error hover:text-feedback-error font-medium mt-1"
@@ -534,7 +534,7 @@ export function StorageManagementModal({ isOpen, onClose }: StorageManagementMod
                           }}
                           onChange={handleToggleSelectAll}
                           aria-label={t('storage.selectAll')}
-                          className="block w-4 h-4 rounded border-border-strong text-action-primary focus:ring-border-focus cursor-pointer"
+                          className="block w-4 h-4 rounded-sm border-border-strong text-action-primary focus:ring-border-focus cursor-pointer"
                         />
                         <span className="text-xs text-fg-muted">{t('storage.selectAll')}</span>
                       </div>
@@ -558,7 +558,7 @@ export function StorageManagementModal({ isOpen, onClose }: StorageManagementMod
                     {showNewDirectoryInput && (
                       <div className="border border-feedback-info-border rounded-lg p-3 bg-feedback-info-bg">
                         <div className="flex items-center gap-3">
-                          <Folder className="w-5 h-5 text-amber-500 flex-shrink-0" />
+                          <Folder className="w-5 h-5 text-amber-500 shrink-0" />
                           <input
                             type="text"
                             value={newDirectoryName}
@@ -571,13 +571,13 @@ export function StorageManagementModal({ isOpen, onClose }: StorageManagementMod
                               }
                             }}
                             placeholder={t('storage.folderNamePlaceholder')}
-                            className="flex-1 px-2 py-1.5 text-sm border border-border-strong rounded focus:outline-none focus:ring-2 focus:ring-border-focus"
+                            className="flex-1 px-2 py-1.5 text-sm border border-border-strong rounded-sm focus:outline-hidden focus:ring-2 focus:ring-border-focus"
                             autoFocus
                           />
                           <button
                             onClick={handleCreateDirectory}
                             disabled={!newDirectoryName.trim()}
-                            className="flex-shrink-0 p-2 text-action-primary hover:bg-blue-100 rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                            className="shrink-0 p-2 text-action-primary hover:bg-blue-100 rounded-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                             title={t('storage.create')}
                           >
                             <Check className="w-4 h-4" />
@@ -587,7 +587,7 @@ export function StorageManagementModal({ isOpen, onClose }: StorageManagementMod
                               setShowNewDirectoryInput(false);
                               setNewDirectoryName('');
                             }}
-                            className="flex-shrink-0 p-2 text-fg-disabled hover:text-feedback-error hover:bg-feedback-error-bg rounded transition-colors"
+                            className="shrink-0 p-2 text-fg-disabled hover:text-feedback-error hover:bg-feedback-error-bg rounded-sm transition-colors"
                             title={t('common.cancel')}
                           >
                             <X className="w-4 h-4" />

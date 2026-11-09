@@ -51,7 +51,7 @@ function ToolItem({ tool }: ToolItemProps) {
             const description = typeof info.description === 'string' ? info.description : null;
 
             return (
-              <div key={paramName} className="bg-surface-secondary px-3 py-2 rounded text-xs">
+              <div key={paramName} className="bg-surface-secondary px-3 py-2 rounded-sm text-xs">
                 <div className="flex items-center gap-2">
                   <span className="font-mono text-action-primary">{paramName}</span>
                   <span className="text-fg-muted">({typeString})</span>
@@ -82,7 +82,7 @@ function ToolItem({ tool }: ToolItemProps) {
           }
         }}
       >
-        <div className="flex-shrink-0 w-8 h-8 bg-surface-secondary rounded-btn flex items-center justify-center text-fg-secondary">
+        <div className="shrink-0 w-8 h-8 bg-surface-secondary rounded-btn flex items-center justify-center text-fg-secondary">
           {getToolIcon(tool.name)}
         </div>
 
@@ -91,7 +91,7 @@ function ToolItem({ tool }: ToolItemProps) {
             <h3 className="text-sm font-medium text-fg-default truncate">{tool.name}</h3>
 
             {isExpandable && (
-              <span className="flex-shrink-0 p-1 text-fg-disabled">
+              <span className="shrink-0 p-1 text-fg-disabled">
                 <svg
                   className={`w-4 h-4 transform transition-transform ${isExpanded ? 'rotate-180' : ''}`}
                   fill="currentColor"
