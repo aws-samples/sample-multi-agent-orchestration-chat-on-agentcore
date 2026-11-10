@@ -154,6 +154,11 @@ const envSchema = z.object({
    */
   EVENT_SOURCES_CONFIG: z.string().default('[]'),
 
+  // Workflows (optional — /workflows answers CONFIGURATION_ERROR when unset)
+  WORKFLOWS_TABLE_NAME: z.string().optional(),
+  /** Qualified (alias) ARN of the durable orchestrator; durable functions must be invoked qualified. */
+  WORKFLOW_ORCHESTRATOR_ARN: z.string().optional(),
+
   // GitHub Webhook (optional — only required when the webhook endpoint is enabled)
   GITHUB_WEBHOOK_SECRET_NAME: z.string().optional(),
 

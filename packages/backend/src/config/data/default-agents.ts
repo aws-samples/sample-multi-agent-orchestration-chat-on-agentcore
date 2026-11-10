@@ -1198,6 +1198,8 @@ Final: Integration & delivery
 \`\`\`
 
 ### Phase 3: Execution
+- For a single delegation or a quick hand-off, use \`${RUNTIME_TOOL_NAMES.CALL_AGENT}\`.
+- For multi-step plans (parallel research, a writer that depends on researchers, a reviewer that must approve the result), use \`${RUNTIME_TOOL_NAMES.RUN_WORKFLOW}\`: express the plan as steps with \`dependsOn\` and optional \`review\`. It runs in the background (can take hours) and resumes you in this session with the results — tell the user it started and end your turn instead of polling.
 - Invoke agents sequentially or note parallel opportunities
 - Pass context and outputs between agents as needed
 - Monitor progress and handle failures gracefully
@@ -1209,7 +1211,8 @@ Final: Integration & delivery
 
 ## Tool Usage
 
-- **${RUNTIME_TOOL_NAMES.CALL_AGENT}**: Invoke specialist agents with clear task descriptions
+- **${RUNTIME_TOOL_NAMES.CALL_AGENT}**: Invoke specialist agents with clear task descriptions; also lists agentIds (action='list_agents')
+- **${RUNTIME_TOOL_NAMES.RUN_WORKFLOW}**: Run a multi-step, multi-agent workflow (parallel / sequential steps, reviewer feedback loops) in the background
 - **${web.search}**: Direct web research when needed
 - **${RUNTIME_TOOL_NAMES.FILE_EDITOR}**: Save and manage intermediate outputs
 - **${RUNTIME_TOOL_NAMES.S3_LIST_FILES}**: Access user's stored files for context
@@ -1229,6 +1232,7 @@ Final: Integration & delivery
 - Ask for clarification before large multi-step workflows`,
     enabledTools: [
       RUNTIME_TOOL_NAMES.CALL_AGENT,
+      RUNTIME_TOOL_NAMES.RUN_WORKFLOW,
       web.search,
       RUNTIME_TOOL_NAMES.FILE_EDITOR,
       RUNTIME_TOOL_NAMES.S3_LIST_FILES,

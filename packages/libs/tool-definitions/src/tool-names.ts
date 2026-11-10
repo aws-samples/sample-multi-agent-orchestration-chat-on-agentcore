@@ -19,6 +19,7 @@ export const RUNTIME_TOOL_NAMES = {
   TODO: 'todo',
   THINK: 'think',
   GENERATE_UI: 'generate_ui',
+  RUN_WORKFLOW: 'run_workflow',
 } as const;
 
 export type RuntimeToolName = (typeof RUNTIME_TOOL_NAMES)[keyof typeof RUNTIME_TOOL_NAMES];

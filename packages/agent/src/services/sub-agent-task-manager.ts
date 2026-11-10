@@ -308,9 +308,10 @@ class SubAgentTaskManager {
       const agentOptions: CreateAgentOptions = {
         plugins,
         systemPrompt: agentDef.systemPrompt,
-        // Filter out call_agent to prevent infinite recursion
+        // Filter out call_agent / run_workflow to prevent unbounded fan-out
         enabledTools: agentDef.enabledTools.filter(
-          (t: string) => t !== RUNTIME_TOOL_NAMES.CALL_AGENT
+          (t: string) =>
+            t !== RUNTIME_TOOL_NAMES.CALL_AGENT && t !== RUNTIME_TOOL_NAMES.RUN_WORKFLOW
         ),
         modelId: task.modelId || agentDef.modelId,
         reasoningEffort: task.reasoningEffort,

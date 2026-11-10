@@ -55,6 +55,8 @@ export interface BedrockModelOptions {
  * {@link createBedrockOpenAiModel}. Both share the `Model` base class, so the
  * returned value is passed to `new Agent({ model })` unchanged.
  */
+export const BEDROCK_STREAM_IDLE_TIMEOUT_MS = 10 * 60 * 1000;
+
 export function createBedrockModel(options?: BedrockModelOptions): Model {
   const modelId = options?.modelId || config.BEDROCK_MODEL_ID;
   // Region resolution order:
@@ -115,6 +117,11 @@ export function createBedrockModel(options?: BedrockModelOptions): Model {
     ...(reasoningConfig
       ? { additionalRequestFields: reasoningConfig as unknown as JSONValue }
       : {}),
+    // The SDK's 120 s default is an HTTP/2 *idle* timeout for ConverseStream.
+    // Claude buffers a tool's string argument until it is complete, so writing
+    // a long file or report through a tool streams nothing for minutes and the
+    // stream is cut ("Stream ended without completing a message") on every retry.
+    requestTimeout: BEDROCK_STREAM_IDLE_TIMEOUT_MS,
     clientConfig: {
       retryMode: 'adaptive',
       maxAttempts: 5,

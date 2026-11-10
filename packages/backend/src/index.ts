@@ -18,6 +18,7 @@ import storageRouter from './routes/storage.js';
 import triggersRouter from './routes/triggers.js';
 import eventsRouter from './routes/events.js';
 import webhooksRouter from './routes/webhooks.js';
+import workflowsRouter from './routes/workflows.js';
 import { createLogger } from './libs/logger/index.js';
 
 const logger = createLogger('BackendServer');
@@ -91,6 +92,7 @@ app.use('/memory', authMiddleware, memoryRouter);
 app.use('/storage', authMiddleware, storageRouter);
 app.use('/triggers', authMiddleware, triggersRouter);
 app.use('/events', authMiddleware, eventsRouter);
+app.use('/workflows', authMiddleware, workflowsRouter);
 // `/webhooks` uses HMAC signature verification instead of JWT.
 app.use('/webhooks', webhooksRouter);
 

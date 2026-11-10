@@ -11,6 +11,8 @@ export * from './browser.js';
 export * from './todo.js';
 export * from './think.js';
 export * from './generate-ui.js';
+export * from './run-workflow.js';
+export * from './workflow-record.js';
 
 import { executeCommandDefinition } from './execute-command.js';
 import { fileEditorDefinition } from './file-editor.js';
@@ -25,6 +27,7 @@ import { browserDefinition } from './browser.js';
 import { todoDefinition } from './todo.js';
 import { thinkDefinition } from './think.js';
 import { generateUiDefinition } from './generate-ui.js';
+import { runWorkflowDefinition } from './run-workflow.js';
 
 /**
  * All tool definitions array
@@ -43,6 +46,7 @@ export const allToolDefinitions = [
   todoDefinition,
   thinkDefinition,
   generateUiDefinition,
+  runWorkflowDefinition,
 ];
 
 /**

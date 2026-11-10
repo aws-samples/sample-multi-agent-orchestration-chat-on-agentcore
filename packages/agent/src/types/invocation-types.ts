@@ -3,6 +3,7 @@
  */
 
 import type { ReasoningDepth } from '@moca/core';
+import type { WorkflowStepInvocation } from '@moca/tool-definitions';
 import type { ImageData } from './validation/image-validator.js';
 
 /**
@@ -22,4 +23,5 @@ export interface InvocationRequest {
   images?: ImageData[]; // Optional: Array of images for multimodal input
   targetUserId?: string; // Optional: Target user ID for batch processing (machine user only)
   warmup?: boolean; // Optional: Pre-warm request; short-circuited before validation (no agent work)
+  workflowStep?: WorkflowStepInvocation; // Optional: set by the workflow orchestrator (machine user only)
 }

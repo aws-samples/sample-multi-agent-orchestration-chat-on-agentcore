@@ -44,6 +44,14 @@ import { logger } from '../libs/logger/index.js';
 import { streamAgentResponse } from './stream-handler.js';
 import { stopOwnSession } from '../services/session-terminator.js';
 import { endTurn, getActiveTurn, tryBeginTurn } from '../libs/health/turn-registry.js';
+import {
+  buildStepResult,
+  completeStepCallback,
+  createSubmitResultTool,
+  startCallbackHeartbeat,
+} from '../services/workflow/workflow-step.js';
+import type { WorkflowStepInvocation } from '@moca/tool-definitions';
+import type { StreamOutcome } from './stream-handler.js';
 
 /**
  * Agent invocation endpoint (with streaming support).
@@ -85,9 +93,45 @@ export async function handleInvocation(req: Request, res: Response): Promise<voi
 async function runTurn(req: Request, res: Response): Promise<void> {
   const body = req.body as InvocationRequest;
   const context = getCurrentContext()!;
+  // Only the orchestrator (machine user) may run a step: the callback id
+  // completes a durable execution, so a user-supplied one must be ignored.
+  const workflowStep = context.isMachineUser ? body.workflowStep : undefined;
+  if (body.workflowStep && !workflowStep) {
+    logger.warn(
+      { requestId: context.requestId },
+      'Ignoring workflowStep from a non-machine caller'
+    );
+  }
+  if (!workflowStep) {
+    await runAgentTurn(req, res);
+    return;
+  }
+  try {
+    await runAgentTurn(req, res, workflowStep);
+  } catch (error) {
+    await completeStepCallback(workflowStep, {
+      ok: false,
+      error: error instanceof Error ? error.message : String(error),
+    });
+    throw error;
+  }
+}
+
+async function runAgentTurn(
+  req: Request,
+  res: Response,
+  workflowStep?: WorkflowStepInvocation
+): Promise<void> {
+  const body = req.body as InvocationRequest;
+  const context = getCurrentContext()!;
+  context.agentId = body.agentId;
+  context.modelId = body.modelId;
   const userId = requireUserId(); // UserId — populated by authResolverMiddleware
   const identityId = requireIdentityId(); // IdentityId — populated by identityResolverMiddleware
-  const { sessionId, sessionType, requestId } = context;
+  const { sessionId, requestId } = context;
+  // AgentCore does not forward the Session-Type header (not allowlisted), so a
+  // workflow step is marked from the body to keep it out of the chat list.
+  const sessionType = workflowStep ? 'subagent' : context.sessionType;
 
   logger.info(
     {
@@ -142,10 +186,13 @@ async function runTurn(req: Request, res: Response): Promise<void> {
   // 3. Create and stream agent response. The Strands SDK opens its own
   // `invoke_agent` span (with `traceAttributes` injected by `agent.ts`),
   // so we don't add a wrapper span here.
+  const submit = workflowStep ? createSubmitResultTool() : undefined;
   const { agent, metadata, retryStrategy } = await createAgent({
+    additionalTools: submit ? [submit.tool] : undefined,
     plugins: [
       ...(sessionResult ? [sessionResult.hook] : []),
       ...(workspaceSyncResult ? [workspaceSyncResult.hook] : []),
+      ...(submit ? [submit.plugin] : []),
     ],
     modelId: body.modelId,
     reasoningEffort,
@@ -172,12 +219,27 @@ async function runTurn(req: Request, res: Response): Promise<void> {
     'Agent creation completed:'
   );
 
-  await streamAgentResponse(agent, body.prompt, body.images, res, {
-    metadata,
-    retryStrategy,
-    sessionStorage: sessionResult?.storage,
-    sessionConfig: sessionResult?.config,
-  });
+  const stopHeartbeat = workflowStep ? startCallbackHeartbeat(workflowStep) : undefined;
+  let outcome: StreamOutcome;
+  try {
+    outcome = await streamAgentResponse(agent, body.prompt, body.images, res, {
+      metadata,
+      retryStrategy,
+      sessionStorage: sessionResult?.storage,
+      sessionConfig: sessionResult?.config,
+    });
+  } finally {
+    stopHeartbeat?.();
+  }
+
+  if (workflowStep) {
+    await completeStepCallback(
+      workflowStep,
+      outcome.ok
+        ? { ok: true, result: buildStepResult(submit?.getSubmitted(), agent, sessionId) }
+        : outcome
+    );
+  }
 
   // Event-driven (trigger) invocations are fire-and-forget: nothing on the
   // client side will tell the Runtime the session is done, so the microVM
@@ -190,7 +252,8 @@ async function runTurn(req: Request, res: Response): Promise<void> {
   // frontend's graceful stream close lets them go Idle on their own. Stopping
   // also terminates any ongoing stream, so this must run AFTER the response is
   // sent (which it is — `streamAgentResponse` calls `res.end()` before returning).
-  if (sessionType === 'event' && sessionId) {
+  // Workflow steps are fire-and-forget too; a revision re-hydrates from Memory.
+  if ((sessionType === 'event' || workflowStep) && sessionId) {
     await stopOwnSession(sessionId);
   }
 }

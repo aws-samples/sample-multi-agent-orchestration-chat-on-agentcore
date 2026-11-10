@@ -11,5 +11,5 @@
   },
   "include": ["src/**/*"],
   "exclude": ["node_modules", "dist", "**/*.test.ts", "**/*.spec.ts"],
-  "references": [{ "path": "../libs/core" }]
+  "references": [{ "path": "../libs/core" }, { "path": "../libs/tool-definitions" }]
 }
