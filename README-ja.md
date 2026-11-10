@@ -123,10 +123,11 @@ aws secretsmanager create-secret \
 ローカル開発の場合は、`packages/agent/.env`で環境変数として設定することもできます。
 
 <details>
-<summary><strong>⚠️ Claude Fable 5.1 / Fable 5 を利用するにはデータ保持設定が必要</strong></summary>
+<summary><strong>⚠️ Claude Fable 5.2 / Fable 5.1 / Fable 5 を利用するにはデータ保持設定が必要</strong></summary>
 
 デフォルトモデルは **Claude Opus 4.8** で、追加設定なしで利用できます。**Claude Fable** 系のモデルも選択可能なモデルとして用意していますが、これらは Mythos クラスのモデルです。Mythos クラスのモデルは、呼び出し先リージョンにおいて Amazon Bedrock の **データ保持モードが適切に設定されている場合のみ** 呼び出せます。必要なモードはモデルごとに異なります。
 
+- **Claude Fable 5.2**（`global.anthropic.claude-fable-5-2`）— [Covered Model](https://docs.aws.amazon.com/bedrock/latest/userguide/) であり、**`aws_review`** が必要です（Fable 5.1 と同じ）。
 - **Claude Fable 5.1**（`global.anthropic.claude-fable-5-1`）— [Covered Model](https://docs.aws.amazon.com/bedrock/latest/userguide/) であり、**`aws_review`** が必要です（プロンプトと出力が最大30日間、AWS 境界内での人による安全性レビューのために保持されます。モデルプロバイダーへの共有はありません）。
 - **Claude Fable 5**（`global.anthropic.claude-fable-5`）— **`provider_data_share`** が必要です。
 
@@ -145,6 +146,7 @@ ValidationException: data retention mode 'default' is not available for this mod
    // packages/cdk/config/environments.ts — 例: default 環境
    bedrockModels: [
      { id: 'global.anthropic.claude-opus-4-8', name: 'Claude Opus 4.8', provider: 'Anthropic' },
+     { id: 'global.anthropic.claude-fable-5-2', name: 'Claude Fable 5.2', provider: 'Anthropic', region: 'us-east-1' },
      { id: 'global.anthropic.claude-fable-5-1', name: 'Claude Fable 5.1', provider: 'Anthropic', region: 'us-east-1' },
      { id: 'global.anthropic.claude-fable-5', name: 'Claude Fable 5', provider: 'Anthropic', region: 'us-east-1' },
      // …その他のモデル…

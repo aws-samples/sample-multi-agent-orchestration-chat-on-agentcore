@@ -133,10 +133,11 @@ This secret is used to verify HMAC-SHA256 signatures on incoming GitHub webhooks
 For local development, you can also set these as environment variables in `packages/agent/.env`.
 
 <details>
-<summary><strong>⚠️ Data Retention required to use Claude Fable 5.1 / Fable 5</strong></summary>
+<summary><strong>⚠️ Data Retention required to use Claude Fable 5.2 / Fable 5.1 / Fable 5</strong></summary>
 
 The default model is **Claude Opus 4.8**, which works out of the box. The **Claude Fable** models are also available as selectable options, but they are Mythos-class models that can **only** be invoked when your account's Amazon Bedrock **Data Retention mode** is set appropriately in the invocation region — the required mode differs per model:
 
+- **Claude Fable 5.2** (`global.anthropic.claude-fable-5-2`) — a [Covered Model](https://docs.aws.amazon.com/bedrock/latest/userguide/), requires **`aws_review`** (same as Fable 5.1).
 - **Claude Fable 5.1** (`global.anthropic.claude-fable-5-1`) — a [Covered Model](https://docs.aws.amazon.com/bedrock/latest/userguide/), requires **`aws_review`** (AWS retains prompts/outputs for up to 30 days for human safety review within the AWS boundary; not shared with the model provider).
 - **Claude Fable 5** (`global.anthropic.claude-fable-5`) — requires **`provider_data_share`**.
 
@@ -155,6 +156,7 @@ This is an account/region-level Bedrock setting — it cannot be worked around p
    // packages/cdk/config/environments.ts — e.g. for the `default` environment
    bedrockModels: [
      { id: 'global.anthropic.claude-opus-4-8', name: 'Claude Opus 4.8', provider: 'Anthropic' },
+     { id: 'global.anthropic.claude-fable-5-2', name: 'Claude Fable 5.2', provider: 'Anthropic', region: 'us-east-1' },
      { id: 'global.anthropic.claude-fable-5-1', name: 'Claude Fable 5.1', provider: 'Anthropic', region: 'us-east-1' },
      { id: 'global.anthropic.claude-fable-5', name: 'Claude Fable 5', provider: 'Anthropic', region: 'us-east-1' },
      // …other models…

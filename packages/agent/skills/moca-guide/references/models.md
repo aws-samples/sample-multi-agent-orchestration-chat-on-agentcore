@@ -13,6 +13,7 @@ when unsure. The available catalog (deployment-dependent):
 | Claude Opus 5 (default) | Anthropic | yes (up to `max`) |
 | Claude Opus 5.5 | Anthropic | yes (up to `max`; thinking **always on** — `off` = model default `medium`, not suppressed) |
 | Claude Opus 4.8, 4.7, 4.6 | Anthropic | yes (up to `max`) |
+| Claude Fable 5.2 | Anthropic | yes (up to `max`; thinking **always on** — `off` = model default `high`, not suppressed; needs data-retention mode `aws_review` in-region) |
 | Claude Fable 5.1, Fable 5 | Anthropic | yes (up to `max`; needs data-retention mode in-region) |
 | Claude Sonnet 5.5 | Anthropic | yes (up to `max`; thinking on by default — `off` = `between_tools`: no up-front thinking, short notes between tool calls only) |
 | Claude Sonnet 5, Sonnet 4.6 | Anthropic | yes (capped at `high`) |
@@ -43,7 +44,8 @@ deliberation before answering — better on hard, multi-step problems, at higher
 latency and cost.
 
 - `off` — sends no thinking or effort hint; model defaults apply. For Opus 5.5,
-  thinking remains on at default `medium` effort, including saved `off` values.
+  thinking remains on at default `medium` effort, including saved `off` values
+  (Fable 5.2: default `high`).
   The selector labels this **Model default (always on)**, not **Off**.
   `medium` and `xhigh` are not separately selectable.
   For Sonnet 5.5, `off` sends `between_tools` (thinking cannot be disabled): no
