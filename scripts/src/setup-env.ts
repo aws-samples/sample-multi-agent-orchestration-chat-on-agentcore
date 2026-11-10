@@ -32,6 +32,7 @@ interface StackOutputs {
   MemoryId?: string;
   MemorySemanticStrategyId?: string;
   GatewayMcpEndpoint?: string;
+  WebSearchProvider?: string;
 
   GatewayName?: string;
   UserStorageBucketName?: string;
@@ -164,6 +165,8 @@ COGNITO_MACHINE_USER_CLIENT_ID=${outputs.MachineUserClientId || ''}
 AGENTCORE_MEMORY_ID=${outputs.MemoryId || ''}
 AGENTCORE_SEMANTIC_STRATEGY_ID=${outputs.MemorySemanticStrategyId || ''}
 AGENTCORE_GATEWAY_ENDPOINT=${outputs.GatewayMcpEndpoint || ''}
+# Web search tools for default agents (stacks without this output ran Tavily)
+WEB_SEARCH_PROVIDER=${outputs.WebSearchProvider || 'tavily'}
 
 
 # User Storage

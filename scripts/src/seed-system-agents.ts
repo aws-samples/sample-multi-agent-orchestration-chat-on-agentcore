@@ -231,8 +231,20 @@ async function main() {
   // 1. Resolve table name and web search provider (flags win over CloudFormation outputs)
   // Guessing the provider would seed tool names that don't exist on the Gateway
   // (after --force already deleted the good agents), so a failed lookup is fatal.
-  const outputs: Record<string, string> =
-    opts.table && opts.webSearchProvider ? {} : await getStackOutputs(stackName, opts.region);
+  let outputs: Record<string, string> = {};
+  if (!(opts.table && opts.webSearchProvider)) {
+    try {
+      outputs = await getStackOutputs(stackName, opts.region);
+    } catch (err) {
+      const hint = opts.table
+        ? ' Without CloudFormation access, also pass --web-search-provider <agentcore|tavily>.'
+        : '';
+      throw new Error(
+        `Failed to read outputs of stack "${stackName}": ${err instanceof Error ? err.message : err}.${hint}`,
+        { cause: err }
+      );
+    }
+  }
   const tableName = opts.table ?? outputs.AgentsTableName;
   if (!tableName) {
     throw new Error('AgentsTableName not found in stack outputs');

@@ -181,9 +181,10 @@ describeWithWebSearch('AgentCore Web Search connector', () => {
         .join('');
 
       expect(searchedUrls.size).toBeGreaterThan(0);
-      const citedUrls = (finalText.match(URL_PATTERN) ?? []).filter((u) =>
-        [...searchedUrls].some((s) => s.startsWith(u) || u.startsWith(s))
-      );
+      // Exact match (minus trailing punctuation): a bare domain must not count as a citation.
+      const citedUrls = (finalText.match(URL_PATTERN) ?? [])
+        .map((u) => u.replace(/[.,;:]+$/, ''))
+        .filter((u) => searchedUrls.has(u));
       expect(citedUrls.length).toBeGreaterThan(0);
     }, 180000);
   });

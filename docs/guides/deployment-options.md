@@ -419,7 +419,7 @@ dev: {
 },
 ```
 
-- **Region**: the connector is offered only in `us-east-1`, `eu-west-1`, and `ap-northeast-1`. In any other region `cdk synth` fails with an error telling you to opt into Tavily; it does not silently fall back. The list lives in `AGENTCORE_WEB_SEARCH_REGIONS` (`packages/cdk/config/environment-utils.ts`).
+- **Region**: the connector is offered only in the regions listed in `AGENTCORE_WEB_SEARCH_REGIONS` (`packages/cdk/config/environment-utils.ts`). In any other region `cdk synth` fails with an error telling you to opt into Tavily; it does not silently fall back.
 - **No API key**: queries are served within AWS. The Gateway service role is granted `bedrock-agentcore:InvokeWebSearch` on the service-owned `tool/web-search.v1` ARN.
 - **No page extraction**: the connector returns titled, dated snippets with URLs but has no extract/crawl equivalent. Use Tavily if your agents need full-page extraction or crawling.
 - **Acceptable use**: results include title, URL, and publication date. You must keep and display these citations in any output shown to end users, and must not bulk-extract results or build a competing index. Every agent with the tool gets these rules injected into its system prompt.

@@ -98,7 +98,7 @@ npm ci
 
 必要に応じて、対象環境のAWS Secrets ManagerにAPIキーとトークンを保存します。
 
-Web 検索は、標準では API キー不要のマネージドな AgentCore Web Search コネクタを使います（`us-east-1`、`eu-west-1`、`ap-northeast-1` で利用可能）。Tavily を使う場合（それ以外のリージョンでは必須）は `webSearchProvider: 'tavily'` を設定し、API キーを保存してください。詳しくは [Web Search Provider](docs/guides/deployment-options.md#web-search-provider) を参照してください。
+Web 検索は、標準では API キー不要のマネージドな AgentCore Web Search コネクタを使います。このコネクタは使えるリージョンが限られており、Tavily を使う場合（コネクタが使えないリージョンでは必須）は `webSearchProvider: 'tavily'` を設定し、API キーを保存してください。詳しくは [Web Search Provider](docs/guides/deployment-options.md#web-search-provider) を参照してください。
 
 **Tavily APIキー**（`webSearchProvider: 'tavily'` の場合のみ）
 

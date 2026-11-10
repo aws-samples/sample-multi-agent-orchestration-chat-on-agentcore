@@ -97,7 +97,7 @@ npm ci
 
 If needed, store API keys and tokens in AWS Secrets Manager for your target environment.
 
-Web search uses the managed AgentCore Web Search connector by default, with no API key (available in `us-east-1`, `eu-west-1`, `ap-northeast-1`). To use Tavily instead, which is required in other regions, set `webSearchProvider: 'tavily'` and store its API key. See [Web Search Provider](docs/guides/deployment-options.md#web-search-provider).
+Web search uses the managed AgentCore Web Search connector by default, with no API key. It is region-limited; to use Tavily instead, which is required where the connector is unavailable, set `webSearchProvider: 'tavily'` and store its API key. See [Web Search Provider](docs/guides/deployment-options.md#web-search-provider).
 
 **Tavily API Key** (only with `webSearchProvider: 'tavily'`)
 

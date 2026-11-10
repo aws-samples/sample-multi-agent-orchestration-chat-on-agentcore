@@ -434,16 +434,39 @@ export function assertWebSearchProviderRegion(
 ): void {
   if (config.webSearchProvider !== 'agentcore') return;
   if (!region || cdk.Token.isUnresolved(region)) {
-    throw new Error(
-      `[${config.env}] webSearchProvider 'agentcore' requires a concrete deploy region ` +
-        `(set CDK_DEFAULT_REGION / AWS_REGION). Supported: ${AGENTCORE_WEB_SEARCH_REGIONS.join(', ')}.`
+    // Environment-agnostic synth stays possible; CreateGatewayTarget rejects
+    // an unsupported region at deploy time instead.
+    console.warn(
+      `⚠️  [${config.env}] Deploy region unknown at synth time; the AgentCore Web Search ` +
+        `connector only works in ${AGENTCORE_WEB_SEARCH_REGIONS.join(', ')}.`
     );
+    return;
   }
   if (!AGENTCORE_WEB_SEARCH_REGIONS.includes(region)) {
     throw new Error(
       `[${config.env}] webSearchProvider 'agentcore' is not available in ${region}. ` +
         `The AgentCore Web Search connector is offered only in ${AGENTCORE_WEB_SEARCH_REGIONS.join(', ')}. ` +
         `Deploy to one of those regions, or opt into Tavily with webSearchProvider: 'tavily' in packages/cdk/config/environments.ts.`
+    );
+  }
+}
+
+/**
+ * Catch web search settings that would otherwise be silently ignored.
+ */
+export function validateWebSearchConfig(input: EnvironmentConfigInput, env: Environment): void {
+  const provider = input.webSearchProvider ?? DEFAULT_CONFIG.webSearchProvider;
+  if (provider !== 'agentcore' && input.agentcoreWebSearch) {
+    throw new Error(
+      `[${env}] agentcoreWebSearch domain filters only apply to webSearchProvider 'agentcore' ` +
+        `(got '${provider}'). Remove agentcoreWebSearch or switch the provider.`
+    );
+  }
+  if (input.webSearchProvider === undefined && input.tavilyApiKeySecretName) {
+    // Pre-upgrade configs set the Tavily key without a provider; they now get agentcore.
+    console.warn(
+      `⚠️  [${env}] tavilyApiKeySecretName is set but webSearchProvider is not, so the default ` +
+        `'agentcore' is used and the Tavily key is ignored. Set webSearchProvider: 'tavily' to keep Tavily.`
     );
   }
 }
@@ -471,6 +494,7 @@ function resolveConfig(env: Environment, input: EnvironmentConfigInput): Environ
   const bedrockModels = input.bedrockModels ?? DEFAULT_CONFIG.bedrockModels;
   validateBedrockModels(bedrockModels, env);
   validateCognitoDomainPrefix(input.cognitoDomainPrefix, env);
+  validateWebSearchConfig(input, env);
 
   return {
     // Spread input first so optional properties are automatically passed through.
@@ -532,7 +556,6 @@ function getPrEnvironmentConfig(env: string): EnvironmentConfigInput {
     cognitoDomainPrefix: `moca-pr-${prNumber}-${accountSuffix}`,
     memoryExpirationDays: 7, // Short retention for PR environments
     logRetentionDays: 3, // Short retention for PR environments
-    tavilyApiKeySecretName: 'agentcore/dev/tavily-api-key', // Use dev secrets
     githubTokenSecretName: 'agentcore/dev/github-token', // Use dev secrets
     allowedSignUpEmailDomains: ['amazon.com', 'amazon.co.jp'],
   };
