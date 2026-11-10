@@ -3,6 +3,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import { MemoryRouter } from 'react-router-dom';
+import { useState } from 'react';
 import type { WorkflowView } from '../../../types/workflow';
 
 vi.mock('react-i18next', () => ({
@@ -61,16 +62,33 @@ const finished: WorkflowView = {
   ...running,
   workflowId: 'wf-done',
   status: 'completed',
-  result: 'All good',
+  result: 'Status: completed\n\nSteps:\n- research (agent-1): done',
   completedAt: base.updatedAt,
   spec: { ...running.spec, goal: 'Weekly digest' },
-  steps: running.steps.map((s) => ({ ...s, status: 'done' as const, feedback: undefined })),
+  steps: running.steps.map((s) => ({
+    ...s,
+    status: 'done' as const,
+    feedback: undefined,
+    output: s.stepId === 'report' ? '## Final report\n\n**All good**' : undefined,
+  })),
 };
 
+const Harness = ({ workflows }: { workflows: WorkflowView[] }) => {
+  const [selectedId, setSelectedId] = useState<string>();
+  return (
+    <WorkflowStatusModal
+      isOpen
+      onClose={() => {}}
+      workflows={workflows}
+      selectedId={selectedId}
+      onSelect={setSelectedId}
+    />
+  );
+};
 const renderModal = (workflows: WorkflowView[]) =>
   render(
     <MemoryRouter>
-      <WorkflowStatusModal isOpen onClose={() => {}} workflows={workflows} />
+      <Harness workflows={workflows} />
     </MemoryRouter>
   );
 
@@ -111,7 +129,11 @@ describe('WorkflowStatusModal', () => {
     expect(screen.getByRole('heading', { name: 'Compare reports' })).toBeInTheDocument();
     expect(useWorkflowStore.getState().seen).toEqual([]);
     fireEvent.click(screen.getByRole('tab', { name: /Weekly digest/ }));
-    expect(screen.getByText('All good')).toBeInTheDocument();
+    // The final step's output is the result, rendered as Markdown; the
+    // agent-facing summary is not shown.
+    expect(screen.getByRole('heading', { name: 'Final report' })).toBeInTheDocument();
+    expect(screen.getByText('All good').tagName).toBe('STRONG');
+    expect(screen.queryByText(/Status: completed/)).toBeNull();
     expect(screen.queryByRole('button', { name: /workflowStatus.stop/ })).toBeNull();
     expect(useWorkflowStore.getState().seen).toEqual(['wf-done']);
   });

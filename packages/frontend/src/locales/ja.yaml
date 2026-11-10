@@ -482,6 +482,13 @@ tool:
 # ストレージ
 workflowStatus:
   separator: ' · '
+  notice:
+    completed: 'ワークフロー「{{goal}}」が完了しました'
+    failed: 'ワークフロー「{{goal}}」が失敗しました'
+    cancelled: 'ワークフロー「{{goal}}」を停止しました'
+    pending: 'ワークフロー「{{goal}}」が終了しました'
+    running: 'ワークフロー「{{goal}}」が終了しました'
+    show: 詳細を表示
   open: ワークフローの状況を表示
   tooltipRunning: 'ワークフロー実行中 · {{done}}/{{total}}'
   tooltipDone: ワークフロー完了

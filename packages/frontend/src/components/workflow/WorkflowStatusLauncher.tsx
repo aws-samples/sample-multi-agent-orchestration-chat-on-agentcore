@@ -4,7 +4,7 @@
  * Renders nothing when the session has started no workflow.
  */
 
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Workflow } from 'lucide-react';
 import { cn } from '../../lib/utils';
@@ -17,6 +17,10 @@ import {
 import { isTerminalWorkflowStatus } from '../../api/workflows';
 import { countDoneSteps } from '../../utils/workflow-status';
 import { WorkflowStatusModal } from './WorkflowStatusModal';
+import {
+  WORKFLOW_STATUS_OPEN_EVENT,
+  type WorkflowStatusOpenDetail,
+} from '../../utils/workflow-events';
 
 const RING_RADIUS = 12;
 const RING_LENGTH = 2 * Math.PI * RING_RADIUS;
@@ -24,6 +28,15 @@ const RING_LENGTH = 2 * Math.PI * RING_RADIUS;
 export const WorkflowStatusLauncher: React.FC<{ sessionId: string | null }> = ({ sessionId }) => {
   const { t } = useTranslation();
   const [isOpen, setIsOpen] = useState(false);
+  const [selectedId, setSelectedId] = useState<string>();
+  useEffect(() => {
+    const onOpen = (e: Event) => {
+      setSelectedId((e as CustomEvent<WorkflowStatusOpenDetail>).detail.workflowId);
+      setIsOpen(true);
+    };
+    window.addEventListener(WORKFLOW_STATUS_OPEN_EVENT, onOpen);
+    return () => window.removeEventListener(WORKFLOW_STATUS_OPEN_EVENT, onOpen);
+  }, []);
   const workflows = useSessionWorkflows(
     sessionId,
     isOpen ? WORKFLOW_POLL_INTERVAL_FOCUSED_MS : WORKFLOW_POLL_INTERVAL_MS
@@ -58,7 +71,10 @@ export const WorkflowStatusLauncher: React.FC<{ sessionId: string | null }> = ({
     <>
       <button
         type="button"
-        onClick={() => setIsOpen(true)}
+        onClick={() => {
+          setSelectedId(undefined);
+          setIsOpen(true);
+        }}
         title={label}
         aria-label={`${t('workflowStatus.open')}: ${label}`}
         className={cn(
@@ -95,7 +111,13 @@ export const WorkflowStatusLauncher: React.FC<{ sessionId: string | null }> = ({
           />
         )}
       </button>
-      <WorkflowStatusModal isOpen={isOpen} onClose={() => setIsOpen(false)} workflows={workflows} />
+      <WorkflowStatusModal
+        isOpen={isOpen}
+        onClose={() => setIsOpen(false)}
+        workflows={workflows}
+        selectedId={selectedId}
+        onSelect={setSelectedId}
+      />
     </>
   );
 };

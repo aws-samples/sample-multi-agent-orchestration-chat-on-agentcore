@@ -1,4 +1,5 @@
 import type { Message } from '../types/index';
+import { WORKFLOW_NOTIFICATION_PREFIX, type WorkflowStatus } from '../types/workflow';
 import { deepParseJsonStrings, toolBaseName } from './tool-steps';
 
 const WORKFLOW_ID_PATTERN = /^wf-[0-9a-f-]{36}$/;
@@ -53,4 +54,32 @@ export function extractSessionWorkflowIds(messages: readonly Message[]): string[
     }
   }
   return ids;
+}
+
+export interface WorkflowNotification {
+  workflowId: string;
+  goal?: string;
+  status?: WorkflowStatus;
+}
+
+const TERMINAL_STATUSES: readonly WorkflowStatus[] = ['completed', 'failed', 'cancelled'];
+
+/**
+ * The prompt the orchestrator sends to resume the parent session when a
+ * workflow finishes. It is stored as a user turn, but the user never typed it.
+ */
+export function parseWorkflowNotification(message: Message): WorkflowNotification | null {
+  if (message.type !== 'user') return null;
+  const text = message.contents.find((c) => c.type === 'text')?.text?.trimStart();
+  if (!text?.startsWith(WORKFLOW_NOTIFICATION_PREFIX)) return null;
+  const firstLine = text.split('\n', 1)[0];
+  const workflowId = firstLine.match(/wf-[0-9a-f-]{36}/)?.[0];
+  if (!workflowId) return null;
+  const goal = text.match(/^Goal: (.+)$/m)?.[1]?.trim();
+  const status = text.match(/^Status: (\w+)/m)?.[1] as WorkflowStatus | undefined;
+  return {
+    workflowId,
+    goal,
+    status: status && TERMINAL_STATUSES.includes(status) ? status : undefined,
+  };
 }

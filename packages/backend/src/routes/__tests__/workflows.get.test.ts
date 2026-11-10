@@ -25,7 +25,13 @@ const repo = {
     workflowId: WORKFLOW_ID,
     userId: 'user-1',
     status: 'running',
-    spec: { goal: 'g', steps: [{ id: 'a', agentId: 'x', prompt: 'p' }] },
+    spec: {
+      goal: 'g',
+      steps: [
+        { id: 'a', agentId: 'x', prompt: 'p' },
+        { id: 'final', agentId: 'x', prompt: 'p', dependsOn: ['a'] },
+      ],
+    },
     createdAt: '2026-11-10T00:00:00Z',
     updatedAt: '2026-11-10T00:00:00Z',
   })),
@@ -40,6 +46,15 @@ const repo = {
       feedback: 'ok',
       startedAt: '2026-11-10T00:00:01Z',
       updatedAt: '2026-11-10T00:01:00Z',
+    },
+    {
+      workflowId: WORKFLOW_ID,
+      stepId: 'final',
+      status: 'done',
+      runs: 1,
+      iteration: 0,
+      output: '# Report',
+      updatedAt: '2026-11-10T00:02:00Z',
     },
   ]),
 };
@@ -93,10 +108,11 @@ describe('GET /workflows/:id', () => {
     expect(step.output).toHaveLength(20_000);
   });
 
-  it('omits step outputs but keeps progress fields with view=summary', async () => {
-    const { status, step } = await getStep('?view=summary');
+  it('omits intermediate outputs but keeps final ones and progress fields with view=summary', async () => {
+    const { status, step, workflow } = await getStep('?view=summary');
     expect(status).toBe(200);
     expect(step).not.toHaveProperty('output');
+    expect(workflow.steps[1]).toMatchObject({ stepId: 'final', output: '# Report' });
     expect(step).toMatchObject({
       status: 'done',
       feedback: 'ok',

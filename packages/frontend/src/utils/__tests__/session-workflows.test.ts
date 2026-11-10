@@ -1,5 +1,9 @@
 import { describe, it, expect } from 'vitest';
-import { extractSessionWorkflowIds, parseStartedWorkflowId } from '../session-workflows';
+import {
+  extractSessionWorkflowIds,
+  parseStartedWorkflowId,
+  parseWorkflowNotification,
+} from '../session-workflows';
 import type { Message } from '../../types/index';
 
 const WF1 = 'wf-01a1c5fd-fbe4-7719-8d8e-24e7004f5495';
@@ -89,5 +93,29 @@ describe('parseStartedWorkflowId', () => {
       parseStartedWorkflowId(JSON.stringify({ success: true, workflowId: '../x' }))
     ).toBeNull();
     expect(parseStartedWorkflowId(undefined)).toBeNull();
+  });
+});
+
+describe('parseWorkflowNotification', () => {
+  const userText = (text: string): Message => ({
+    id: 'u',
+    type: 'user',
+    contents: [{ type: 'text', text }],
+    timestamp: new Date(),
+  });
+
+  it('recognises the orchestrator completion prompt', () => {
+    const text = `[Workflow finished] The background workflow ${WF1} you started has finished.\n\nGoal: Compare habits\n\nStatus: failed\n\nSteps:\n- a: failed`;
+    expect(parseWorkflowNotification(userText(text))).toEqual({
+      workflowId: WF1,
+      goal: 'Compare habits',
+      status: 'failed',
+    });
+  });
+
+  it('ignores ordinary user text and assistant messages', () => {
+    expect(parseWorkflowNotification(userText(`Tell me about ${WF1}`))).toBeNull();
+    const assistant = { ...userText(`[Workflow finished] ${WF1}`), type: 'assistant' as const };
+    expect(parseWorkflowNotification(assistant)).toBeNull();
   });
 });

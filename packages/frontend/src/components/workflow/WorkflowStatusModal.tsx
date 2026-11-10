@@ -25,6 +25,7 @@ import {
   pickDefaultStep,
 } from '../../utils/workflow-status';
 import { WorkflowStatusIcon } from './WorkflowStatusIcon';
+import { WorkflowMarkdown } from './WorkflowMarkdown';
 
 /** Mirrors WORKFLOW_LIMITS.DEFAULT_REVIEW_ITERATIONS in @moca/tool-definitions. */
 const DEFAULT_REVIEW_ROUNDS = 2;
@@ -185,16 +186,23 @@ const WorkflowBody: React.FC<{ workflow: WorkflowView; now: number; onNavigate: 
     [workflow.steps]
   );
   const canGraph = useMemo(() => layoutWorkflow(workflow.spec) !== null, [workflow.spec]);
+  // Only finished final steps carry an output in the summary view.
+  const finalOutputs = workflow.steps.filter((s) => s.output);
   const findStep = (id: string | undefined) => workflow.spec.steps.find((s) => s.id === id);
 
   return (
     <div className="space-y-5">
-      {workflow.status === 'completed' && workflow.result && (
-        <section className="rounded-card border border-border bg-surface-secondary px-4 py-3">
-          <h3 className="mb-1 text-xs font-medium text-fg-muted">{t('workflowStatus.result')}</h3>
-          <p className="max-h-48 overflow-y-auto whitespace-pre-wrap wrap-break-word text-sm text-fg-default">
-            {workflow.result}
-          </p>
+      {finalOutputs.length > 0 && (
+        <section className="space-y-3 rounded-card border border-border bg-surface-secondary px-4 py-3">
+          <h3 className="text-xs font-medium text-fg-muted">{t('workflowStatus.result')}</h3>
+          {finalOutputs.map((s) => (
+            <div key={s.stepId} className="max-h-96 overflow-y-auto">
+              {finalOutputs.length > 1 && (
+                <p className="mb-1 font-mono text-xs font-medium text-fg-secondary">{s.stepId}</p>
+              )}
+              <WorkflowMarkdown text={s.output!} />
+            </div>
+          ))}
         </section>
       )}
       {workflow.error && (
@@ -232,12 +240,17 @@ interface WorkflowStatusModalProps {
   onClose: () => void;
   /** Newest first. */
   workflows: WorkflowView[];
+  /** Workflow to show; defaults to the running one, else the newest. */
+  selectedId?: string;
+  onSelect: (workflowId: string) => void;
 }
 
 export const WorkflowStatusModal: React.FC<WorkflowStatusModalProps> = ({
   isOpen,
   onClose,
   workflows,
+  selectedId,
+  onSelect,
 }) => {
   const { t, i18n } = useTranslation();
   const isMobileView = useUIStore((s) => s.isMobileView);
@@ -245,7 +258,6 @@ export const WorkflowStatusModal: React.FC<WorkflowStatusModalProps> = ({
   const markSeen = useWorkflowStore((s) => s.markSeen);
   const formatDuration = useFormatDuration();
   const now = useNow(isOpen);
-  const [selectedId, setSelectedId] = useState<string>();
   const [confirmStop, setConfirmStop] = useState(false);
   const [stopping, setStopping] = useState(false);
 
@@ -336,7 +348,7 @@ export const WorkflowStatusModal: React.FC<WorkflowStatusModalProps> = ({
                   type="button"
                   role="tab"
                   aria-selected={on}
-                  onClick={() => setSelectedId(w.workflowId)}
+                  onClick={() => onSelect(w.workflowId)}
                   className={cn(
                     'inline-flex max-w-60 shrink-0 items-center gap-1.5 rounded-btn px-2.5 py-1 text-xs',
                     on

@@ -21,6 +21,8 @@ import { S3FileLink } from './S3FileLink';
 import { S3Image } from './S3Image';
 import { S3Video } from './S3Video';
 import { formatBytes } from '../utils/formatBytes';
+import { parseWorkflowNotification } from '../utils/session-workflows';
+import { WorkflowNotice } from './workflow/WorkflowNotice';
 
 interface MessageProps {
   message: MessageType;
@@ -218,6 +220,9 @@ export const Message: React.FC<MessageProps> = ({ message, isInteractive = false
     }),
     [isDark]
   );
+
+  const workflowNotice = useMemo(() => parseWorkflowNotification(message), [message]);
+  if (workflowNotice) return <WorkflowNotice notice={workflowNotice} />;
 
   return (
     <div

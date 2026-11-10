@@ -39,6 +39,8 @@ export interface WorkflowStepView {
   error?: string;
   startedAt?: string;
   updatedAt: string;
+  /** Present only for finished final steps in the polled summary view. */
+  output?: string;
 }
 
 export interface WorkflowView {
@@ -57,3 +59,6 @@ export interface WorkflowView {
 export function isTerminalWorkflowStatus(status: WorkflowStatus): boolean {
   return status === 'completed' || status === 'failed' || status === 'cancelled';
 }
+
+/** Mirrors WORKFLOW_NOTIFICATION_PREFIX in @moca/tool-definitions. */
+export const WORKFLOW_NOTIFICATION_PREFIX = '[Workflow finished]';

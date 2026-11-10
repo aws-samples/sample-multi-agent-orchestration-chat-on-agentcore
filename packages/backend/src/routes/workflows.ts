@@ -48,7 +48,10 @@ function activeWorkflows(records: WorkflowRecord[], now = Date.now()): WorkflowR
 }
 
 const workflowIdParams = z.object({ id: z.string().regex(/^wf-[0-9a-f-]{36}$/) });
-/** `summary` drops step outputs (up to 20 KB each) for UIs that poll status. */
+/**
+ * `summary` is for UIs that poll status: it drops step outputs (up to 20 KB
+ * each) except those of finished final steps, which are the user-facing result.
+ */
 const workflowViewQuery = z.object({ view: z.enum(['full', 'summary']).optional() });
 
 const createWorkflowBody = z.object({
@@ -99,6 +102,13 @@ function serialize(record: WorkflowRecord, steps?: WorkflowStepState[]) {
     ...rest,
     steps: [...steps].sort((a, b) => (order.get(a.stepId) ?? 0) - (order.get(b.stepId) ?? 0)),
   };
+}
+
+function summarizeSteps(record: WorkflowRecord, steps: WorkflowStepState[]) {
+  const upstream = new Set(record.spec.steps.flatMap((s) => s.dependsOn ?? []));
+  return steps.map((s) =>
+    s.status === 'done' && !upstream.has(s.stepId) ? s : { ...s, output: undefined }
+  );
 }
 
 /** POST /workflows — validate, persist, and start the durable execution. */
@@ -214,7 +224,7 @@ router.get(
     if (!record) throw new AppError(ErrorCode.NOT_FOUND, 'Workflow not found');
     const steps = await repo.listSteps(userId, req.params.id);
     const { view } = req.query as z.infer<typeof workflowViewQuery>;
-    const visible = view === 'summary' ? steps.map((s) => ({ ...s, output: undefined })) : steps;
+    const visible = view === 'summary' ? summarizeSteps(record, steps) : steps;
     res.status(200).json(ok(req, { workflow: serialize(record, visible) }, { userId }));
   })
 );

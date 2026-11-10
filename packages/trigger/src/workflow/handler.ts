@@ -17,6 +17,7 @@ import {
 import { generateSessionId } from '@moca/core';
 import {
   isTerminalWorkflowStatus,
+  WORKFLOW_NOTIFICATION_PREFIX,
   type WorkflowOrchestratorEvent,
   type WorkflowRecord,
   type WorkflowStepResult,
@@ -129,7 +130,7 @@ export function buildOps(
 }
 
 function notificationPrompt(record: WorkflowRecord, summary: string): string {
-  return `[Workflow finished] The background workflow ${record.workflowId} you started has finished.
+  return `${WORKFLOW_NOTIFICATION_PREFIX} The background workflow ${record.workflowId} you started has finished.
 
 Goal: ${record.spec.goal}
 

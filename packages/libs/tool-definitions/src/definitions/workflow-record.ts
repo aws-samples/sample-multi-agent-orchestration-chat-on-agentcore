@@ -59,6 +59,13 @@ export interface WorkflowStepState {
 
 export const WORKFLOW_RETENTION_DAYS = 30;
 
+/**
+ * First line of the prompt that resumes the parent session when a workflow
+ * finishes. The frontend keys on it to show the message as a notice instead
+ * of a user turn, so it must stay stable.
+ */
+export const WORKFLOW_NOTIFICATION_PREFIX = '[Workflow finished]';
+
 export const workflowKeys = {
   pk: (userId: string) => `USER#${userId}`,
   header: (workflowId: string) => `WORKFLOW#${workflowId}`,

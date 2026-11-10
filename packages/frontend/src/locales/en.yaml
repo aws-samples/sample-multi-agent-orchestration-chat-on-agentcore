@@ -489,6 +489,13 @@ tool:
 # Storage
 workflowStatus:
   separator: ' · '
+  notice:
+    completed: 'Workflow "{{goal}}" finished'
+    failed: 'Workflow "{{goal}}" failed'
+    cancelled: 'Workflow "{{goal}}" was stopped'
+    pending: 'Workflow "{{goal}}" ended'
+    running: 'Workflow "{{goal}}" ended'
+    show: Show details
   open: Show workflow status
   tooltipRunning: 'Workflow running · {{done}}/{{total}}'
   tooltipDone: Workflow finished
