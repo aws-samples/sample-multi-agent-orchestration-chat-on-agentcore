@@ -8,6 +8,12 @@ export interface SystemPromptOptions {
   tools: Array<{ name: string; description?: string }>;
   storagePath?: string;
   longTermMemories?: string[]; // Array of long-term memories
+  /**
+   * False when no human reads this turn live (EventBridge trigger, sub-agent,
+   * machine client). Reply-choice UI there would block on an answer that never
+   * comes, so the prompt tells the model to proceed on assumptions instead.
+   */
+  interactiveUser?: boolean;
 }
 
 /**
@@ -330,11 +336,58 @@ standard shape and Japanese characters use the fallback font.
     basePrompt += buildWebSearchUsageRules();
   }
 
+  if (options.tools.some((tool) => tool.name === RUNTIME_TOOL_NAMES.GENERATE_UI)) {
+    basePrompt += buildAskingTheUserRules(options.interactiveUser ?? true);
+  }
+
   // Add security guardrails (always applied, regardless of customPrompt or tools)
   basePrompt += buildSecurityGuardrails();
 
   // Add default context
   return basePrompt + generateDefaultContext(options.tools);
+}
+
+/**
+ * When to ask with clickable choices (generate_ui SuggestedReplies /
+ * Questionnaire). Lives in the system prompt rather than only the tool
+ * description because *when* to use a tool is decided at turn level, and
+ * user-written agent prompts would otherwise never mention it.
+ */
+function buildAskingTheUserRules(interactiveUser: boolean): string {
+  if (!interactiveUser) {
+    return `
+
+## Asking the User
+No human is reading this run live (it was started automatically or by another agent), so nobody can answer a question.
+- Do NOT ask questions and do NOT render SuggestedReplies or Questionnaire.
+- When something is ambiguous, pick the most reasonable option, state the assumption in your answer, and continue.
+`;
+  }
+  return `
+
+## Asking the User: Use Clickable Choices
+Whenever you need the user to decide or confirm something, ask with clickable choices via ${RUNTIME_TOOL_NAMES.GENERATE_UI} instead of a plain-text question. Users answer much faster by clicking.
+
+**When to use**
+- You are about to ask a question whose likely answers you can anticipate (preferences, scope, which approach, yes/no confirmation before a significant or irreversible action).
+- You finished a step and there are a few clear next actions the user might want.
+- The request is ambiguous and the choice materially changes the result.
+
+**How**
+1. Write a short explanation or the question context as normal text first.
+2. Call ${RUNTIME_TOOL_NAMES.GENERATE_UI} (mode "spec"):
+   - One question → a \`SuggestedReplies\` root (2-4 options).
+   - Two or more questions → ONE \`Questionnaire\` root (one page per question, 2-5 questions). Never ask several questions as a text list.
+   - Write options in the user's language; set \`value\` to the reply in the user's voice when it should differ from the label; use \`multiSelect\` when several answers can apply.
+3. End your turn immediately after the tool call. Do not add more text, do not call other tools, and do not answer the question yourself.
+
+**When NOT to use**
+- The answer is genuinely open-ended (a name, a description, free text) with no sensible options.
+- The task is clear enough to just do — do not ask for confirmation of obvious steps, and never ask more than once per turn.
+
+Example — user: "Help me plan a trip." → text: "Let me check a few things first." → ${RUNTIME_TOOL_NAMES.GENERATE_UI} with a Questionnaire (dates / budget / style) → end turn.
+Not: "1. When are you going? 2. What is your budget? 3. ..." as plain text.
+`;
 }
 
 /**

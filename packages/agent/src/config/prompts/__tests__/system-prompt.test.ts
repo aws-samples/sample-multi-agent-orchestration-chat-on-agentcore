@@ -144,3 +144,30 @@ describe('web search acceptable-use rules', () => {
     expect(prompt).not.toContain('Cite every result you use');
   });
 });
+
+describe('buildSystemPrompt asking-the-user rules', () => {
+  const withUi = [{ name: RUNTIME_TOOL_NAMES.GENERATE_UI }];
+
+  it('tells interactive sessions to ask with SuggestedReplies / Questionnaire', () => {
+    const prompt = buildSystemPrompt({ tools: withUi, interactiveUser: true });
+    expect(prompt).toContain('## Asking the User: Use Clickable Choices');
+    expect(prompt).toContain('`SuggestedReplies`');
+    expect(prompt).toContain('`Questionnaire`');
+  });
+
+  it('defaults to interactive and also applies to custom agent prompts', () => {
+    const prompt = buildSystemPrompt({ customPrompt: 'You are a travel agent.', tools: withUi });
+    expect(prompt).toContain('## Asking the User: Use Clickable Choices');
+  });
+
+  it('tells non-interactive runs (trigger / sub-agent) not to ask at all', () => {
+    const prompt = buildSystemPrompt({ tools: withUi, interactiveUser: false });
+    expect(prompt).not.toContain('Use Clickable Choices');
+    expect(prompt).toContain('do NOT render SuggestedReplies or Questionnaire');
+  });
+
+  it('is omitted when generate_ui is not enabled', () => {
+    const prompt = buildSystemPrompt({ tools: ALL_TOOLS });
+    expect(prompt).not.toContain('## Asking the User');
+  });
+});

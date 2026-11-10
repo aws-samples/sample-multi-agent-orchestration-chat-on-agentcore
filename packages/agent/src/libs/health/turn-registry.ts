@@ -11,6 +11,8 @@
  * is held until `handleInvocation` returns, i.e. until the agent loop ends.
  */
 
+import { markActivity } from './last-activity.js';
+
 export interface ActiveTurn {
   requestId: string;
   startedAt: Date;
@@ -22,12 +24,17 @@ const activeTurns = new Map<string, ActiveTurn>();
 export function tryBeginTurn(sessionId: string, requestId: string): boolean {
   if (activeTurns.has(sessionId)) return false;
   activeTurns.set(sessionId, { requestId, startedAt: new Date() });
+  markActivity();
   return true;
 }
 
 /** No-op unless `requestId` owns the session's turn. */
 export function endTurn(sessionId: string, requestId: string): void {
-  if (activeTurns.get(sessionId)?.requestId === requestId) activeTurns.delete(sessionId);
+  if (activeTurns.get(sessionId)?.requestId !== requestId) return;
+  activeTurns.delete(sessionId);
+  // A turn can outlive its response (client disconnect), so its end is the
+  // real start of idle time.
+  markActivity();
 }
 
 export function getActiveTurn(sessionId: string): ActiveTurn | undefined {

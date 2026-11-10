@@ -230,3 +230,43 @@ describe('validateUISpec — event binding sanitization', () => {
     expect((result.spec!.elements.table as any).on).toBeUndefined();
   });
 });
+
+// ---------------------------------------------------------------------------
+// Interactive component props
+// ---------------------------------------------------------------------------
+
+describe('validateUISpec – interactive component props', () => {
+  const single = (type: string, props: Record<string, unknown>) => ({
+    root: 'r',
+    elements: { r: { type, props, children: [] } },
+  });
+
+  it('accepts well-formed SuggestedReplies and Questionnaire props', () => {
+    expect(
+      validateUISpec(single('SuggestedReplies', { options: [{ label: 'Yes' }] })).spec
+    ).not.toBeNull();
+    expect(
+      validateUISpec(
+        single('Questionnaire', {
+          questions: [{ question: 'When?', options: [{ label: 'Today' }], multiSelect: true }],
+        })
+      ).spec
+    ).not.toBeNull();
+  });
+
+  it('rejects a Questionnaire question without options, naming the path', () => {
+    const result = validateUISpec(single('Questionnaire', { questions: [{ question: 'Dates?' }] }));
+    expect(result.spec).toBeNull();
+    expect(result.errors.join('\n')).toMatch(/Questionnaire.*questions\.0\.options/);
+  });
+
+  it('rejects SuggestedReplies with empty options', () => {
+    const result = validateUISpec(single('SuggestedReplies', { options: [] }));
+    expect(result.spec).toBeNull();
+  });
+
+  it('keeps display components lenient', () => {
+    const result = validateUISpec(single('DataTable', { columns: 'oops' }));
+    expect(result.spec).not.toBeNull();
+  });
+});

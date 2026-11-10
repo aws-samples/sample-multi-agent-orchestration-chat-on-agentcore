@@ -26,8 +26,13 @@ export const MessageList: React.FC<MessageListProps> = ({
 }) => {
   const { t } = useTranslation();
   const { sessionId } = useParams<{ sessionId?: string }>();
-  const { isLoadingEvents, eventsHasMore, isLoadingOlderEvents, olderEventsError, loadOlderEvents } =
-    useSessionStore();
+  const {
+    isLoadingEvents,
+    eventsHasMore,
+    isLoadingOlderEvents,
+    olderEventsError,
+    loadOlderEvents,
+  } = useSessionStore();
   const isWideView = useUIStore((state) => state.isWideView);
   const sessionState = useChatStore((state) =>
     sessionId ? (state.sessions[sessionId] ?? null) : null
@@ -249,7 +254,18 @@ export const MessageList: React.FC<MessageListProps> = ({
 
         {/* Message list - hidden while loading */}
         {!isLoadingEvents &&
-          messages.map((message) => <Message key={message.id} message={message} />)}
+          messages.map((message, index) => (
+            <Message
+              key={message.id}
+              message={message}
+              isInteractive={
+                index === messages.length - 1 &&
+                message.type === 'assistant' &&
+                !message.isStreaming &&
+                !sessionState?.isLoading
+              }
+            />
+          ))}
 
         {/* Show TypingIndicator when agent is processing via AppSync Events (e.g., after page reload).
             During normal HTTP streaming, TypingIndicator is shown inside Message.tsx via isStreaming flag.

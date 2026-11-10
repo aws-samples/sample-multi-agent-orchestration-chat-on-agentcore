@@ -5,6 +5,7 @@
 
 import { config } from '../config/index.js';
 import { logger } from '../libs/logger/index.js';
+import { beginInvocation, endInvocation } from '../libs/health/in-flight.js';
 import { createAgent } from '../agent.js';
 import { getAgentDefinition } from './agent-registry.js';
 import {
@@ -160,10 +161,15 @@ class SubAgentTaskManager {
     this.tasks.set(taskId, task);
 
     // Start background execution (don't await)
-    this.executeTask(taskId).catch((error) => {
-      logger.error({ taskId, error }, 'Background task execution error:');
-      this.updateTaskStatus(taskId, 'failed', undefined, error.message);
-    });
+    // The task outlives the parent invocation's response, so keep /ping
+    // HealthyBusy until it settles — otherwise idle reclaim can SIGTERM it.
+    beginInvocation();
+    this.executeTask(taskId)
+      .catch((error) => {
+        logger.error({ taskId, error }, 'Background task execution error:');
+        this.updateTaskStatus(taskId, 'failed', undefined, error.message);
+      })
+      .finally(endInvocation);
 
     logger.info(
       {
@@ -438,10 +444,11 @@ class SubAgentTaskManager {
 // Singleton instance
 export const subAgentTaskManager = new SubAgentTaskManager();
 
-// Periodic cleanup (every hour)
+// Periodic cleanup (every hour). unref() so this housekeeping timer alone never
+// keeps the process (and thus the microVM) alive.
 setInterval(
   () => {
     subAgentTaskManager.cleanupOldTasks();
   },
   60 * 60 * 1000
-);
+).unref();

@@ -28,8 +28,13 @@ const {
   applyWindowTruncation,
   repairToolPairing,
   repairRoleAlternation,
+  stripBlankTextBlocks,
   INTERRUPTED_TURN_PLACEHOLDER,
+  TOOL_PAIRING_PLACEHOLDER,
 } = await import('../session-loader.js');
+const { Message: SdkMessage } = await import('@strands-agents/sdk');
+const { messageToAgentCorePayload, agentCorePayloadToMessage } =
+  await import('../../../services/session/converters.js');
 
 /** Create a minimal mock message object for testing (avoids importing ESM SDK) */
 function createMockMessage(role: string, text: string) {
@@ -575,5 +580,134 @@ describe('role alternation', () => {
   it('returns the same array when the history already alternates', () => {
     const messages = [createMockMessage('user', 'q'), createMockMessage('assistant', 'a')];
     expect(repairRoleAlternation(messages as never)).toBe(messages);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Blank text blocks (whitespace-only) in restored history
+// ---------------------------------------------------------------------------
+
+describe('blank text blocks', () => {
+  type Block = { type: string; text?: string; toolUseId?: string };
+  type Msg = { role: string; content: Block[] };
+
+  function storageWith(history: unknown[]): SessionStorage {
+    return {
+      loadMessages: jest.fn<() => Promise<unknown[]>>().mockResolvedValue(history),
+    } as unknown as SessionStorage;
+  }
+  const config = { sessionId: 's' as SessionId, actorId: 'a' as IdentityId };
+
+  function expectNoBlankText(messages: Msg[]) {
+    for (const message of messages) {
+      expect(message.content.length).toBeGreaterThan(0);
+      for (const block of message.content) {
+        if (block.type === 'textBlock') expect(block.text!.trim()).not.toBe('');
+      }
+    }
+  }
+
+  function expectAlternation(messages: Msg[]) {
+    messages.forEach((m, i) => expect(m.role).toBe(i % 2 === 0 ? 'user' : 'assistant'));
+  }
+
+  it.each([' ', '\n', '\t \n', ''])(
+    'drops an assistant message whose only text is %j and keeps alternation',
+    async (blank) => {
+      // A turn whose final model call produced no text (e.g. it ended right
+      // after a tool result) is persisted as a single blank text block.
+      const result = (await loadSessionHistory(
+        storageWith([
+          createMockMessage('user', 'make a video'),
+          createToolUseMessage('t1'),
+          createToolResultMessage('t1'),
+          createMockMessage('assistant', blank),
+          createMockMessage('user', 'continue'),
+          createMockMessage('assistant', 'done'),
+        ]),
+        config
+      )) as unknown as Msg[];
+
+      expectNoBlankText(result);
+      expectAlternation(result);
+      expect(result.at(-1)!.content[0].text).toBe('done');
+      // The tool output and both prompts are kept as context.
+      expect(result.some((m) => m.content.some((b) => b.type === 'toolResultBlock'))).toBe(true);
+      expect(result.filter((m) => m.content[0].text === 'continue')).toHaveLength(1);
+    }
+  );
+
+  it('closes a history whose last assistant message is blank with a placeholder', async () => {
+    const result = (await loadSessionHistory(
+      storageWith([createMockMessage('user', 'q'), createMockMessage('assistant', ' ')]),
+      config
+    )) as unknown as Msg[];
+
+    expectNoBlankText(result);
+    expectAlternation(result);
+    expect(result.at(-1)!.content[0].text).toBe(INTERRUPTED_TURN_PLACEHOLDER);
+  });
+
+  it('strips blank text blocks that sit next to other content', () => {
+    const messages = [
+      createMockMessage('user', 'q'),
+      {
+        role: 'assistant',
+        content: [
+          { type: 'textBlock', text: ' ' },
+          { type: 'toolUseBlock', toolUseId: 't1', name: 'test', input: {} },
+        ],
+      },
+    ];
+    const result = stripBlankTextBlocks(messages as never) as unknown as Msg[];
+    expect(result[1].content.map((b) => b.type)).toEqual(['toolUseBlock']);
+  });
+
+  it('applies before window truncation so the window is filled with usable messages', async () => {
+    const history = [
+      createMockMessage('user', 'q1'),
+      createMockMessage('assistant', 'a1'),
+      createMockMessage('user', 'q2'),
+      createMockMessage('assistant', ' '),
+      createMockMessage('user', 'q3'),
+      createMockMessage('assistant', 'a3'),
+    ];
+    const result = (await loadSessionHistory(storageWith(history), config, 4)) as unknown as Msg[];
+    expectNoBlankText(result);
+    expectAlternation(result);
+    // Stripping first means the 4-message window holds 4 real messages; if the
+    // blank one were counted it would occupy a slot and only 3 would survive.
+    const real = result.filter(
+      (m) => ![INTERRUPTED_TURN_PLACEHOLDER, TOOL_PAIRING_PLACEHOLDER].includes(m.content[0].text!)
+    );
+    expect(real.map((m) => m.content[0].text)).toEqual(['a1', 'q2', 'q3', 'a3']);
+  });
+
+  it('returns the same array when no block is blank', () => {
+    const messages = [createMockMessage('user', 'q'), createMockMessage('assistant', 'a')];
+    expect(stripBlankTextBlocks(messages as never)).toBe(messages);
+  });
+
+  it('heals a blank assistant message written by the AgentCore converter (round trip)', async () => {
+    // Write path: an assistant message with no content is stored as a
+    // single-space conversational payload. Read path must not replay it.
+    const stored = [
+      new SdkMessage({ role: 'user', content: [] }),
+      new SdkMessage({ role: 'assistant', content: [] }),
+    ].map((m) => agentCorePayloadToMessage(messageToAgentCorePayload(m)));
+    // Sanity: this is the shape that the model rejects.
+    expect((stored[1].content[0] as { text: string }).text.trim()).toBe('');
+
+    const result = (await loadSessionHistory(
+      storageWith([
+        ...stored,
+        createMockMessage('user', 'next'),
+        createMockMessage('assistant', 'ok'),
+      ]),
+      config
+    )) as unknown as Msg[];
+
+    expectNoBlankText(result);
+    expectAlternation(result);
   });
 });

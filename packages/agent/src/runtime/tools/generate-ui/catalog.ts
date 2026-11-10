@@ -6,7 +6,7 @@
  */
 
 import type { UISpec, UIElement } from '@moca/generative-ui-catalog';
-import { COMPONENT_NAMES } from '@moca/generative-ui-catalog';
+import { COMPONENT_NAMES, STRICT_PROPS_SCHEMAS } from '@moca/generative-ui-catalog';
 
 /**
  * Components that support "on" event bindings (e.g., on.press).
@@ -81,6 +81,24 @@ export function validateUISpec(spec: unknown): {
         }
       }
     }
+  }
+
+  // Props errors on interactive components are fatal (the rest stay warnings)
+  // so the model gets a concrete error to retry on instead of an empty block.
+  const fatalErrors: string[] = [];
+  for (const [key, element] of Object.entries(elements)) {
+    const propsSchema = STRICT_PROPS_SCHEMAS[element.type];
+    if (!propsSchema) continue;
+    const result = propsSchema.safeParse(element.props ?? {});
+    if (!result.success) {
+      const issues = result.error.issues
+        .map((issue) => `${issue.path.join('.') || '(props)'}: ${issue.message}`)
+        .join('; ');
+      fatalErrors.push(`Invalid props for ${element.type} in element "${key}": ${issues}`);
+    }
+  }
+  if (fatalErrors.length > 0) {
+    return { valid: false, spec: null, errors: [...errors, ...fatalErrors] };
   }
 
   // Allow spec with warnings (unknown types are filtered on frontend)

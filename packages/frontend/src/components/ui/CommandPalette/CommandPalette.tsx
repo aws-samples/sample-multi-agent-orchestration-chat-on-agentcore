@@ -14,6 +14,7 @@ import { useAgentStore, useSelectedAgent } from '../../../stores/agentStore';
 import { useSessionStore } from '../../../stores/sessionStore';
 import type { Agent } from '../../../types/agent';
 import { translateIfKey } from '../../../utils/agent-translation';
+import { focusMessageInput } from '../../../utils/message-input-events';
 
 interface CommandPaletteProps {
   isOpen: boolean;
@@ -41,7 +42,7 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({ isOpen, onClose 
     onClose();
     // Dispatch custom event to focus message input
     setTimeout(() => {
-      window.dispatchEvent(new CustomEvent('focusMessageInput'));
+      focusMessageInput();
     }, 100);
   };
 
@@ -183,7 +184,9 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({ isOpen, onClose 
           <div className="flex items-center justify-between border-t border-border px-4 py-2 text-xs text-fg-disabled">
             <div className="flex items-center gap-4">
               <span className="flex items-center gap-1">
-                <kbd className="px-1.5 py-0.5 bg-surface-secondary rounded-sm text-fg-muted">↑↓</kbd>
+                <kbd className="px-1.5 py-0.5 bg-surface-secondary rounded-sm text-fg-muted">
+                  ↑↓
+                </kbd>
                 {t('commandPalette.toNavigate', 'to navigate')}
               </span>
               <span className="flex items-center gap-1">
@@ -193,19 +196,27 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({ isOpen, onClose 
             </div>
             <div className="flex items-center gap-4">
               <span className="flex items-center gap-1">
-                <kbd className="px-1.5 py-0.5 bg-surface-secondary rounded-sm text-fg-muted">⌘K</kbd>
+                <kbd className="px-1.5 py-0.5 bg-surface-secondary rounded-sm text-fg-muted">
+                  ⌘K
+                </kbd>
                 {t('commandPalette.toToggle', 'to toggle')}
               </span>
               <span className="flex items-center gap-1">
-                <kbd className="px-1.5 py-0.5 bg-surface-secondary rounded-sm text-fg-muted">⌘B</kbd>
+                <kbd className="px-1.5 py-0.5 bg-surface-secondary rounded-sm text-fg-muted">
+                  ⌘B
+                </kbd>
                 {t('commandPalette.toToggleSidebar', 'to toggle sidebar')}
               </span>
               <span className="flex items-center gap-1">
-                <kbd className="px-1.5 py-0.5 bg-surface-secondary rounded-sm text-fg-muted">⇧⌘O</kbd>
+                <kbd className="px-1.5 py-0.5 bg-surface-secondary rounded-sm text-fg-muted">
+                  ⇧⌘O
+                </kbd>
                 {t('commandPalette.toStartNewChat', 'to start new chat')}
               </span>
               <span className="flex items-center gap-1">
-                <kbd className="px-1.5 py-0.5 bg-surface-secondary rounded-sm text-fg-muted">⌘/</kbd>
+                <kbd className="px-1.5 py-0.5 bg-surface-secondary rounded-sm text-fg-muted">
+                  ⌘/
+                </kbd>
                 {t('commandPalette.toShowShortcuts', 'to show shortcuts')}
               </span>
             </div>

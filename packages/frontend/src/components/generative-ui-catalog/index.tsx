@@ -7,6 +7,8 @@ import Grid from './Grid';
 import BarChart from './BarChart';
 import LineChart from './LineChart';
 import PieChart from './PieChart';
+import SuggestedReplies from './SuggestedReplies';
+import Questionnaire from './Questionnaire';
 
 /**
  * Registry maps catalog component definitions to React implementations.
@@ -21,6 +23,8 @@ const { registry } = defineRegistry(catalog, {
     BarChart,
     LineChart,
     PieChart,
+    SuggestedReplies,
+    Questionnaire,
   },
 });
 

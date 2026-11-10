@@ -26,6 +26,7 @@
  */
 
 import { hasActiveTurns } from './turn-registry.js';
+import { markActivity } from './last-activity.js';
 
 /** Number of invocations currently being processed by this container. */
 let inFlight = 0;
@@ -36,6 +37,7 @@ let inFlight = 0;
  */
 export function beginInvocation(): void {
   inFlight += 1;
+  markActivity();
 }
 
 /**
@@ -46,6 +48,7 @@ export function beginInvocation(): void {
  */
 export function endInvocation(): void {
   inFlight = Math.max(0, inFlight - 1);
+  markActivity();
 }
 
 /** Current number of in-flight invocations. */

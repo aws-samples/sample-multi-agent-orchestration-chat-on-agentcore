@@ -15,18 +15,24 @@ structured data would read better as a visual than as prose.
 | `BarChart` | Chart | compare across categories | `data[]`, `xKey`, `bars[]` or `yKey`+`color`, `stacked?`, `height?` |
 | `LineChart` | Chart | trends over time | `data[]`, `xKey`, `lines[]` or `yKey`+`color`, `height?` |
 | `PieChart` | Chart | proportions of a whole | `data[]` (`name`/`value`/`color`), `innerRadius?` (>0 = donut), `showLabels?` |
+| `SuggestedReplies` | Interaction | clickable answers to a question you just asked; a click sends the answer as the user's next message | `question?`, `options[]` (`label`, `description?`, `value?`), `multiSelect?`, `allowOther?` (default true) |
+| `Questionnaire` | Interaction | several questions at once — one page per question, answers sent together as one message | `title?`, `questions[]` (`question`, `header?`, `options[]`, `multiSelect?`, `allowOther?`) |
 
-## Two constraints that trip people up
+## Constraints that trip people up
 
-1. **Only `MetricCard` is interactive.** It supports an `on.press` event (e.g. tab
+1. **Only `MetricCard` takes `on` events.** It supports `on.press` (e.g. tab
    switching via `setState`). Putting `on` handlers on `Stack`, `Grid`, `DataTable`,
-   or any chart does nothing — they simply won't respond. Design interactivity
-   around `MetricCard`.
+   or any chart does nothing — they simply won't respond. (`SuggestedReplies` and
+   `Questionnaire` handle their own clicks — no `on` needed.)
 2. **Never reference data arrays through `$state`.** The streaming layer drops
    `spec.state` when transferring, so a chart's `data` or a table's `rows` must be
    embedded directly in the component's props. Only *scalar* state (e.g. an
    `activeTab` used with `$cond`/`visible`/`setState`) is reliable. Charts/tables
    bound to `$state` data will render empty.
+3. **`SuggestedReplies` / `Questionnaire` must end the turn.** Choices only stay
+   clickable while they are in the latest message, so write the question as text,
+   call `generate_ui` with the component last, and stop. Their props are validated
+   strictly — a question without `options` is rejected with an error to fix.
 
 ## Two ways to provide the UI
 
