@@ -47,6 +47,30 @@ describe('Sonnet 5.5 default model configuration', () => {
   });
 });
 
+describe('Fable 5.2 default model configuration', () => {
+  it('adds Fable 5.2 directly above Fable 5.1 with no region pin, keeping Fable 5.1 / 5', () => {
+    const { bedrockModels } = getEnvironmentConfig('default');
+    expect(bedrockModels[0].id).toBe('global.anthropic.claude-opus-5');
+    const i = bedrockModels.findIndex((m) => m.id === 'global.anthropic.claude-fable-5-2');
+    expect(i).toBeGreaterThan(0);
+    expect(bedrockModels[i]).toEqual({
+      id: 'global.anthropic.claude-fable-5-2',
+      name: 'Claude Fable 5.2',
+      provider: 'Anthropic',
+    });
+    expect(bedrockModels[i + 1].id).toBe('global.anthropic.claude-fable-5-1');
+    expect(bedrockModels[i + 2].id).toBe('global.anthropic.claude-fable-5');
+  });
+
+  it('grants the Fable 5.2 global inference profile ARN in the deploy region', () => {
+    const { bedrockModels } = getEnvironmentConfig('default');
+    const resources = JSON.stringify(deriveBedrockIamResources(bedrockModels, REGION, ACCOUNT));
+    expect(resources).toContain(
+      `arn:aws:bedrock:${REGION}:${ACCOUNT}:inference-profile/global.anthropic.claude-fable-5-2`
+    );
+  });
+});
+
 describe('Haiku 5.5 default model configuration', () => {
   it('adds Haiku 5.5 after Sonnet 4.6 without promoting it', () => {
     const { bedrockModels } = getEnvironmentConfig('default');

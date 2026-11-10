@@ -59,11 +59,63 @@ describe('Claude Sonnet 5.5', () => {
   });
 
   it('leaves off unchanged for every model without offThinkingMode', () => {
+    // Fable 5.2 strips prior reasoning without an offThinkingMode (it sends no
+    // thinking field for `off`), so it is the one exception to the pairing.
+    const STRIP_WITHOUT_OFF_MODE = new Set(['global.anthropic.claude-fable-5-2']);
     for (const m of BEDROCK_MODEL_DEFINITIONS) {
       if (m.offThinkingMode) continue;
       expect(getReasoningConfig(m.id, 'off')).toBeUndefined();
-      expect(shouldStripPriorReasoning(m.id)).toBe(false);
+      expect(shouldStripPriorReasoning(m.id)).toBe(STRIP_WITHOUT_OFF_MODE.has(m.id));
     }
+  });
+});
+
+describe('Claude Fable 5.2', () => {
+  const ID = 'global.anthropic.claude-fable-5-2';
+
+  it('is registered directly above Fable 5.1 without changing the default or dropping older Fables', () => {
+    expect(BEDROCK_MODEL_DEFINITIONS[0].id).toBe('global.anthropic.claude-opus-5');
+    const i = BEDROCK_MODEL_DEFINITIONS.findIndex((m) => m.id === ID);
+    expect(i).toBeGreaterThan(0);
+    expect(BEDROCK_MODEL_DEFINITIONS[i + 1].id).toBe('global.anthropic.claude-fable-5-1');
+    expect(BEDROCK_MODEL_DEFINITIONS[i + 2].id).toBe('global.anthropic.claude-fable-5');
+    expect(BEDROCK_MODEL_DEFINITIONS[i]).toMatchObject({
+      name: 'Claude Fable 5.2',
+      provider: 'Anthropic',
+      reasoningAlwaysOn: true,
+      stripPriorReasoning: true,
+    });
+  });
+
+  it.each(['', 'global.', 'us.'])('resolves metadata for the %s profile prefix', (prefix) => {
+    // Covered Model (aws_review) → no region pin in the OSS default; standard
+    // Converse path; adaptive thinking always on (default effort high), and
+    // `disabled` is rejected, so no offThinkingMode. Thinking blocks are
+    // prefix-bound on all accounts → strip prior reasoning.
+    const modelId = `${prefix}anthropic.claude-fable-5-2`;
+    expect(getMaxOutputTokens(modelId)).toBe(128000);
+    expect(getModelRegion(modelId)).toBeUndefined();
+    expect(getBedrockEndpoint(modelId)).toBeUndefined();
+    expect(isReasoningCapable(modelId)).toBe(true);
+    expect(getMaxReasoningDepth(modelId)).toBe('max');
+    expect(isReasoningAlwaysOn(modelId)).toBe(true);
+    expect(getOffThinkingMode(modelId)).toBeUndefined();
+    expect(shouldStripPriorReasoning(modelId)).toBe(true);
+  });
+
+  it('sends no thinking field for off and adaptive + effort for low/high/max', () => {
+    expect(getReasoningConfig(ID, 'off')).toBeUndefined();
+    for (const effort of ['low', 'high', 'max'] as const) {
+      expect(getReasoningConfig(ID, effort)).toEqual({
+        thinking: { type: 'adaptive', display: 'summarized' },
+        output_config: { effort },
+      });
+    }
+  });
+
+  it('does not change Fable 5.1 / Fable 5 reasoning-history behavior', () => {
+    expect(shouldStripPriorReasoning('global.anthropic.claude-fable-5-1')).toBe(false);
+    expect(shouldStripPriorReasoning('global.anthropic.claude-fable-5')).toBe(false);
   });
 });
 
