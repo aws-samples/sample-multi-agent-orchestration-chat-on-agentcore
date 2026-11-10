@@ -395,6 +395,18 @@ tool:
   refresh: Refresh
   closeError: Close Error
 
+  workflowGraph:
+    view: Input view
+    graph: Graph
+    json: JSON
+    goal: Goal
+    selectHint: Select a step to see its prompt
+    reviewCriteria: Review criteria
+    review: 'Review: {{agent}} (up to {{count}} rounds)'
+    dependsOn: '← {{steps}}'
+    rounds: '×{{count}}'
+    ariaLabel: 'Workflow graph ({{count}} steps)'
+
   # ToolStepsGroup (collapsible tool execution steps)
   steps:
     count_one: '· {{count}} step'
@@ -435,6 +447,7 @@ tool:
       video: Generate video
       knowledge: Search knowledge
       trigger: Manage trigger
+      workflow: Run workflow
       reasoning: Reasoning
       unknown: Tool result
 

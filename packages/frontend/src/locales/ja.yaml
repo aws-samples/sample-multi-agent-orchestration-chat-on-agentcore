@@ -393,6 +393,18 @@ tool:
   refresh: 再読み込み
   closeError: エラーを閉じる
 
+  workflowGraph:
+    view: 入力パラメータの表示
+    graph: グラフ
+    json: JSON
+    goal: 目的
+    selectHint: ステップを選択するとプロンプトを表示します
+    reviewCriteria: レビュー基準
+    review: 'レビュー: {{agent}}（最大 {{count}} ラウンド）'
+    dependsOn: '← {{steps}}'
+    rounds: '×{{count}}'
+    ariaLabel: 'ワークフローのグラフ（{{count}} ステップ）'
+
   # ToolStepsGroup (collapsible tool execution steps)
   steps:
     count: '· {{count}} ステップ'
@@ -428,6 +440,7 @@ tool:
       video: 動画を生成
       knowledge: ナレッジを検索
       trigger: トリガーを管理
+      workflow: ワークフローを実行
       reasoning: 思考
       unknown: ツール結果
 
