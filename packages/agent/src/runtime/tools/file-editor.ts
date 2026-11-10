@@ -90,8 +90,9 @@ To reference this file in chat, use: ${displayPath}`;
         return msg;
       }
 
-      // Replace oldString with newString
-      const updatedContents = fileContents.replace(oldString, newString);
+      // Replacer function, not a string: a string replacement expands `$&`,
+      // `$$`, `` $` `` and `$'`, corrupting newString that contains them.
+      const updatedContents = fileContents.replace(oldString, () => newString);
       await writeFile(filePath, updatedContents, 'utf8');
 
       logger.info(`Successfully edited the file: ${filePath}`);

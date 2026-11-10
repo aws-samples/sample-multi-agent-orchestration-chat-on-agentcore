@@ -106,7 +106,9 @@ class SubAgentTaskManager {
     // Check task limit per session
     if (options.parentSessionId) {
       const sessionTasks = Array.from(this.tasks.values()).filter(
-        (t) => t.parentSessionId === options.parentSessionId && t.status !== 'completed'
+        (t) =>
+          t.parentSessionId === options.parentSessionId &&
+          (t.status === 'pending' || t.status === 'running')
       );
       if (sessionTasks.length >= this.MAX_TASKS_PER_SESSION) {
         throw new Error(
