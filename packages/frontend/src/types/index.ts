@@ -48,8 +48,6 @@ export const IMAGE_ATTACHMENT_CONFIG = {
   ACCEPTED_EXTENSIONS: ['.png', '.jpg', '.jpeg', '.webp', '.gif'] as const,
 } as const;
 
-export type AcceptedImageType = (typeof IMAGE_ATTACHMENT_CONFIG.ACCEPTED_TYPES)[number];
-
 // Reasoning (extended thinking) types. Only the human-readable `text` is ever
 // shown; the cryptographic signature / redactedContent are round-trip-only and
 // never reach the frontend.
@@ -203,11 +201,6 @@ export interface BeforeToolsEvent extends AgentStreamEvent {
       [key: string]: unknown;
     }>;
   };
-}
-
-export interface AfterToolsEvent extends AgentStreamEvent {
-  type: 'afterToolsEvent';
-  [key: string]: unknown;
 }
 
 export interface ServerCompletionEvent extends AgentStreamEvent {
