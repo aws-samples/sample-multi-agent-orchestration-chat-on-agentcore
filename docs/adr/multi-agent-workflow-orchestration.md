@@ -1,5 +1,7 @@
 # Multi-agent workflow orchestration (`run_workflow`)
 
+How it works end to end (architecture, durable state, timeouts): [`docs/guides/run-workflow.md`](../guides/run-workflow.md).
+
 ## Context
 
 `run_workflow` runs a DAG of agent steps (parallel when independent, sequential

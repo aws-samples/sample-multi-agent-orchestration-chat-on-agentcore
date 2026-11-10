@@ -1,0 +1,1057 @@
+{
+ "Events": [
+  {
+   "EventId": 1,
+   "EventType": "ExecutionStarted",
+   "Name": "wf-example",
+   "Id": "c4c1ccca-8935-3233-8c1a-35c7df637fbe",
+   "EventTimestamp": "2026-11-10T19:30:31.724000+09:00"
+  },
+  {
+   "EventId": 2,
+   "EventType": "StepStarted",
+   "SubType": "Step",
+   "Name": "load",
+   "Id": "c4ca4238a0b92382",
+   "EventTimestamp": "2026-11-10T19:30:33.234000+09:00"
+  },
+  {
+   "EventId": 3,
+   "EventType": "StepSucceeded",
+   "SubType": "Step",
+   "Name": "load",
+   "Id": "c4ca4238a0b92382",
+   "EventTimestamp": "2026-11-10T19:30:33.326000+09:00",
+   "summary": {
+    "attempt": 1,
+    "bytes": 1165,
+    "status": "pending"
+   }
+  },
+  {
+   "EventId": 4,
+   "EventType": "StepStarted",
+   "SubType": "Step",
+   "Name": "mark-running",
+   "Id": "c81e728d9d4c2f63",
+   "EventTimestamp": "2026-11-10T19:30:33.399000+09:00"
+  },
+  {
+   "EventId": 5,
+   "EventType": "StepSucceeded",
+   "SubType": "Step",
+   "Name": "mark-running",
+   "Id": "c81e728d9d4c2f63",
+   "EventTimestamp": "2026-11-10T19:30:33.439000+09:00",
+   "summary": {
+    "attempt": 1
+   }
+  },
+  {
+   "EventId": 6,
+   "EventType": "StepStarted",
+   "SubType": "Step",
+   "Name": "init-sessions",
+   "Id": "eccbc87e4b5ce2fe",
+   "EventTimestamp": "2026-11-10T19:30:33.485000+09:00"
+  },
+  {
+   "EventId": 7,
+   "EventType": "StepSucceeded",
+   "SubType": "Step",
+   "Name": "init-sessions",
+   "Id": "eccbc87e4b5ce2fe",
+   "EventTimestamp": "2026-11-10T19:30:33.485000+09:00",
+   "summary": {
+    "attempt": 1,
+    "bytes": 160
+   }
+  },
+  {
+   "EventId": 8,
+   "EventType": "StepStarted",
+   "SubType": "Step",
+   "Name": "cancel-check-0",
+   "Id": "a87ff679a2f3e71d",
+   "EventTimestamp": "2026-11-10T19:30:33.560000+09:00"
+  },
+  {
+   "EventId": 9,
+   "EventType": "StepSucceeded",
+   "SubType": "Step",
+   "Name": "cancel-check-0",
+   "Id": "a87ff679a2f3e71d",
+   "EventTimestamp": "2026-11-10T19:30:33.622000+09:00",
+   "summary": {
+    "attempt": 1,
+    "bytes": 5
+   }
+  },
+  {
+   "EventId": 10,
+   "EventType": "ContextStarted",
+   "SubType": "Map",
+   "Name": "wave-0",
+   "Id": "e4da3b7fbbce2345",
+   "EventTimestamp": "2026-11-10T19:30:33.732000+09:00"
+  },
+  {
+   "EventId": 11,
+   "EventType": "ContextStarted",
+   "SubType": "MapIteration",
+   "Name": "map-item-0",
+   "Id": "19a1de167122a18a",
+   "ParentId": "e4da3b7fbbce2345",
+   "EventTimestamp": "2026-11-10T19:30:33.732000+09:00"
+  },
+  {
+   "EventId": 12,
+   "EventType": "StepStarted",
+   "SubType": "Step",
+   "Name": "fact-r1-start",
+   "Id": "e8afef1e62a03550",
+   "ParentId": "19a1de167122a18a",
+   "EventTimestamp": "2026-11-10T19:30:33.732000+09:00"
+  },
+  {
+   "EventId": 13,
+   "EventType": "StepSucceeded",
+   "SubType": "Step",
+   "Name": "fact-r1-start",
+   "Id": "e8afef1e62a03550",
+   "ParentId": "19a1de167122a18a",
+   "EventTimestamp": "2026-11-10T19:30:33.781000+09:00",
+   "summary": {
+    "attempt": 1
+   }
+  },
+  {
+   "EventId": 14,
+   "EventType": "ContextStarted",
+   "SubType": "WaitForCallback",
+   "Name": "fact-r1-work0",
+   "Id": "4c1c0b55525f6e6a",
+   "ParentId": "19a1de167122a18a",
+   "EventTimestamp": "2026-11-10T19:30:33.816000+09:00"
+  },
+  {
+   "EventId": 15,
+   "EventType": "CallbackStarted",
+   "SubType": "Callback",
+   "Id": "ac922eed3b5ff8e7",
+   "ParentId": "4c1c0b55525f6e6a",
+   "EventTimestamp": "2026-11-10T19:30:33.816000+09:00"
+  },
+  {
+   "EventId": 16,
+   "EventType": "StepStarted",
+   "SubType": "Step",
+   "Id": "d5ee332511149a0b",
+   "ParentId": "4c1c0b55525f6e6a",
+   "EventTimestamp": "2026-11-10T19:30:33.880000+09:00"
+  },
+  {
+   "EventId": 17,
+   "EventType": "StepSucceeded",
+   "SubType": "Step",
+   "Id": "d5ee332511149a0b",
+   "ParentId": "4c1c0b55525f6e6a",
+   "EventTimestamp": "2026-11-10T19:30:36.595000+09:00",
+   "summary": {
+    "attempt": 1
+   }
+  },
+  {
+   "EventId": 18,
+   "EventType": "InvocationCompleted",
+   "EventTimestamp": "2026-11-10T19:30:36.625000+09:00",
+   "summary": {
+    "start": "2026-11-10T19:30:31.811000+09:00",
+    "end": "2026-11-10T19:30:36.619000+09:00"
+   }
+  },
+  {
+   "EventId": 19,
+   "EventType": "CallbackSucceeded",
+   "SubType": "Callback",
+   "Id": "ac922eed3b5ff8e7",
+   "ParentId": "4c1c0b55525f6e6a",
+   "EventTimestamp": "2026-11-10T19:30:38.792000+09:00",
+   "summary": {
+    "bytes": 196,
+    "status": "done"
+   }
+  },
+  {
+   "EventId": 23,
+   "EventType": "StepStarted",
+   "SubType": "Step",
+   "Name": "save-wave-0",
+   "Id": "1679091c5a880faf",
+   "EventTimestamp": "2026-11-10T19:30:38.991000+09:00"
+  },
+  {
+   "EventId": 21,
+   "EventType": "ContextSucceeded",
+   "SubType": "MapIteration",
+   "Name": "map-item-0",
+   "Id": "19a1de167122a18a",
+   "ParentId": "e4da3b7fbbce2345",
+   "EventTimestamp": "2026-11-10T19:30:38.991000+09:00",
+   "summary": {
+    "bytes": 146
+   }
+  },
+  {
+   "EventId": 20,
+   "EventType": "ContextSucceeded",
+   "SubType": "WaitForCallback",
+   "Name": "fact-r1-work0",
+   "Id": "4c1c0b55525f6e6a",
+   "ParentId": "19a1de167122a18a",
+   "EventTimestamp": "2026-11-10T19:30:38.991000+09:00",
+   "summary": {
+    "bytes": 210
+   }
+  },
+  {
+   "EventId": 22,
+   "EventType": "ContextSucceeded",
+   "SubType": "Map",
+   "Name": "wave-0",
+   "Id": "e4da3b7fbbce2345",
+   "EventTimestamp": "2026-11-10T19:30:38.991000+09:00",
+   "summary": {
+    "bytes": 233
+   }
+  },
+  {
+   "EventId": 24,
+   "EventType": "StepSucceeded",
+   "SubType": "Step",
+   "Name": "save-wave-0",
+   "Id": "1679091c5a880faf",
+   "EventTimestamp": "2026-11-10T19:30:39.034000+09:00",
+   "summary": {
+    "attempt": 1
+   }
+  },
+  {
+   "EventId": 25,
+   "EventType": "StepStarted",
+   "SubType": "Step",
+   "Name": "cancel-check-1",
+   "Id": "8f14e45fceea167a",
+   "EventTimestamp": "2026-11-10T19:30:39.077000+09:00"
+  },
+  {
+   "EventId": 26,
+   "EventType": "StepSucceeded",
+   "SubType": "Step",
+   "Name": "cancel-check-1",
+   "Id": "8f14e45fceea167a",
+   "EventTimestamp": "2026-11-10T19:30:39.118000+09:00",
+   "summary": {
+    "attempt": 1,
+    "bytes": 5
+   }
+  },
+  {
+   "EventId": 27,
+   "EventType": "ContextStarted",
+   "SubType": "Map",
+   "Name": "wave-1",
+   "Id": "c9f0f895fb98ab91",
+   "EventTimestamp": "2026-11-10T19:30:39.168000+09:00"
+  },
+  {
+   "EventId": 28,
+   "EventType": "ContextStarted",
+   "SubType": "MapIteration",
+   "Name": "map-item-0",
+   "Id": "9634715ca7e046cd",
+   "ParentId": "c9f0f895fb98ab91",
+   "EventTimestamp": "2026-11-10T19:30:39.168000+09:00"
+  },
+  {
+   "EventId": 29,
+   "EventType": "StepStarted",
+   "SubType": "Step",
+   "Name": "headline-r1-start",
+   "Id": "c64454c0e013e2c4",
+   "ParentId": "9634715ca7e046cd",
+   "EventTimestamp": "2026-11-10T19:30:39.168000+09:00"
+  },
+  {
+   "EventId": 30,
+   "EventType": "StepSucceeded",
+   "SubType": "Step",
+   "Name": "headline-r1-start",
+   "Id": "c64454c0e013e2c4",
+   "ParentId": "9634715ca7e046cd",
+   "EventTimestamp": "2026-11-10T19:30:39.222000+09:00",
+   "summary": {
+    "attempt": 1
+   }
+  },
+  {
+   "EventId": 31,
+   "EventType": "ContextStarted",
+   "SubType": "WaitForCallback",
+   "Name": "headline-r1-work0",
+   "Id": "88642e7ed87b6c98",
+   "ParentId": "9634715ca7e046cd",
+   "EventTimestamp": "2026-11-10T19:30:39.256000+09:00"
+  },
+  {
+   "EventId": 32,
+   "EventType": "CallbackStarted",
+   "SubType": "Callback",
+   "Id": "53c4499331552081",
+   "ParentId": "88642e7ed87b6c98",
+   "EventTimestamp": "2026-11-10T19:30:39.256000+09:00"
+  },
+  {
+   "EventId": 33,
+   "EventType": "StepStarted",
+   "SubType": "Step",
+   "Id": "34e251587e098b58",
+   "ParentId": "88642e7ed87b6c98",
+   "EventTimestamp": "2026-11-10T19:30:39.301000+09:00"
+  },
+  {
+   "EventId": 34,
+   "EventType": "StepSucceeded",
+   "SubType": "Step",
+   "Id": "34e251587e098b58",
+   "ParentId": "88642e7ed87b6c98",
+   "EventTimestamp": "2026-11-10T19:30:40.426000+09:00",
+   "summary": {
+    "attempt": 1
+   }
+  },
+  {
+   "EventId": 35,
+   "EventType": "InvocationCompleted",
+   "EventTimestamp": "2026-11-10T19:30:40.452000+09:00",
+   "summary": {
+    "start": "2026-11-10T19:30:38.843000+09:00",
+    "end": "2026-11-10T19:30:40.446000+09:00"
+   }
+  },
+  {
+   "EventId": 36,
+   "EventType": "CallbackSucceeded",
+   "SubType": "Callback",
+   "Id": "53c4499331552081",
+   "ParentId": "88642e7ed87b6c98",
+   "EventTimestamp": "2026-11-10T19:30:43.696000+09:00",
+   "summary": {
+    "bytes": 397,
+    "status": "blocked",
+    "targetStepId": "fact"
+   }
+  },
+  {
+   "EventId": 40,
+   "EventType": "StepStarted",
+   "SubType": "Step",
+   "Name": "save-wave-1",
+   "Id": "45c48cce2e2d7fbd",
+   "EventTimestamp": "2026-11-10T19:30:43.818000+09:00"
+  },
+  {
+   "EventId": 38,
+   "EventType": "ContextSucceeded",
+   "SubType": "MapIteration",
+   "Name": "map-item-0",
+   "Id": "9634715ca7e046cd",
+   "ParentId": "c9f0f895fb98ab91",
+   "EventTimestamp": "2026-11-10T19:30:43.818000+09:00",
+   "summary": {
+    "bytes": 347
+   }
+  },
+  {
+   "EventId": 37,
+   "EventType": "ContextSucceeded",
+   "SubType": "WaitForCallback",
+   "Name": "headline-r1-work0",
+   "Id": "88642e7ed87b6c98",
+   "ParentId": "9634715ca7e046cd",
+   "EventTimestamp": "2026-11-10T19:30:43.818000+09:00",
+   "summary": {
+    "bytes": 419
+   }
+  },
+  {
+   "EventId": 39,
+   "EventType": "ContextSucceeded",
+   "SubType": "Map",
+   "Name": "wave-1",
+   "Id": "c9f0f895fb98ab91",
+   "EventTimestamp": "2026-11-10T19:30:43.818000+09:00",
+   "summary": {
+    "bytes": 434
+   }
+  },
+  {
+   "EventId": 41,
+   "EventType": "StepSucceeded",
+   "SubType": "Step",
+   "Name": "save-wave-1",
+   "Id": "45c48cce2e2d7fbd",
+   "EventTimestamp": "2026-11-10T19:30:43.872000+09:00",
+   "summary": {
+    "attempt": 1
+   }
+  },
+  {
+   "EventId": 42,
+   "EventType": "StepStarted",
+   "SubType": "Step",
+   "Name": "cancel-check-2",
+   "Id": "d3d9446802a44259",
+   "EventTimestamp": "2026-11-10T19:30:43.909000+09:00"
+  },
+  {
+   "EventId": 43,
+   "EventType": "StepSucceeded",
+   "SubType": "Step",
+   "Name": "cancel-check-2",
+   "Id": "d3d9446802a44259",
+   "EventTimestamp": "2026-11-10T19:30:43.948000+09:00",
+   "summary": {
+    "attempt": 1,
+    "bytes": 5
+   }
+  },
+  {
+   "EventId": 44,
+   "EventType": "ContextStarted",
+   "SubType": "Map",
+   "Name": "wave-2",
+   "Id": "6512bd43d9caa6e0",
+   "EventTimestamp": "2026-11-10T19:30:44+09:00"
+  },
+  {
+   "EventId": 45,
+   "EventType": "ContextStarted",
+   "SubType": "MapIteration",
+   "Name": "map-item-0",
+   "Id": "421d13c7ecd67604",
+   "ParentId": "6512bd43d9caa6e0",
+   "EventTimestamp": "2026-11-10T19:30:44+09:00"
+  },
+  {
+   "EventId": 46,
+   "EventType": "StepStarted",
+   "SubType": "Step",
+   "Name": "fact-r2-start",
+   "Id": "0954205fd7e05bb6",
+   "ParentId": "421d13c7ecd67604",
+   "EventTimestamp": "2026-11-10T19:30:44+09:00"
+  },
+  {
+   "EventId": 47,
+   "EventType": "StepSucceeded",
+   "SubType": "Step",
+   "Name": "fact-r2-start",
+   "Id": "0954205fd7e05bb6",
+   "ParentId": "421d13c7ecd67604",
+   "EventTimestamp": "2026-11-10T19:30:44.036000+09:00",
+   "summary": {
+    "attempt": 1
+   }
+  },
+  {
+   "EventId": 48,
+   "EventType": "ContextStarted",
+   "SubType": "WaitForCallback",
+   "Name": "fact-r2-work0",
+   "Id": "0de302c3bafbb127",
+   "ParentId": "421d13c7ecd67604",
+   "EventTimestamp": "2026-11-10T19:30:44.074000+09:00"
+  },
+  {
+   "EventId": 49,
+   "EventType": "CallbackStarted",
+   "SubType": "Callback",
+   "Id": "ba232f1c49d66986",
+   "ParentId": "0de302c3bafbb127",
+   "EventTimestamp": "2026-11-10T19:30:44.074000+09:00"
+  },
+  {
+   "EventId": 50,
+   "EventType": "StepStarted",
+   "SubType": "Step",
+   "Id": "a04db20b5e89afc7",
+   "ParentId": "0de302c3bafbb127",
+   "EventTimestamp": "2026-11-10T19:30:44.106000+09:00"
+  },
+  {
+   "EventId": 51,
+   "EventType": "StepSucceeded",
+   "SubType": "Step",
+   "Id": "a04db20b5e89afc7",
+   "ParentId": "0de302c3bafbb127",
+   "EventTimestamp": "2026-11-10T19:30:44.877000+09:00",
+   "summary": {
+    "attempt": 1
+   }
+  },
+  {
+   "EventId": 52,
+   "EventType": "InvocationCompleted",
+   "EventTimestamp": "2026-11-10T19:30:44.901000+09:00",
+   "summary": {
+    "start": "2026-11-10T19:30:43.748000+09:00",
+    "end": "2026-11-10T19:30:44.896000+09:00"
+   }
+  },
+  {
+   "EventId": 53,
+   "EventType": "CallbackSucceeded",
+   "SubType": "Callback",
+   "Id": "ba232f1c49d66986",
+   "ParentId": "0de302c3bafbb127",
+   "EventTimestamp": "2026-11-10T19:30:46.908000+09:00",
+   "summary": {
+    "bytes": 157,
+    "status": "done"
+   }
+  },
+  {
+   "EventId": 57,
+   "EventType": "StepStarted",
+   "SubType": "Step",
+   "Name": "save-wave-2",
+   "Id": "c20ad4d76fe97759",
+   "EventTimestamp": "2026-11-10T19:30:47.021000+09:00"
+  },
+  {
+   "EventId": 55,
+   "EventType": "ContextSucceeded",
+   "SubType": "MapIteration",
+   "Name": "map-item-0",
+   "Id": "421d13c7ecd67604",
+   "ParentId": "6512bd43d9caa6e0",
+   "EventTimestamp": "2026-11-10T19:30:47.021000+09:00",
+   "summary": {
+    "bytes": 107
+   }
+  },
+  {
+   "EventId": 54,
+   "EventType": "ContextSucceeded",
+   "SubType": "WaitForCallback",
+   "Name": "fact-r2-work0",
+   "Id": "0de302c3bafbb127",
+   "ParentId": "421d13c7ecd67604",
+   "EventTimestamp": "2026-11-10T19:30:47.021000+09:00",
+   "summary": {
+    "bytes": 171
+   }
+  },
+  {
+   "EventId": 56,
+   "EventType": "ContextSucceeded",
+   "SubType": "Map",
+   "Name": "wave-2",
+   "Id": "6512bd43d9caa6e0",
+   "EventTimestamp": "2026-11-10T19:30:47.021000+09:00",
+   "summary": {
+    "bytes": 194
+   }
+  },
+  {
+   "EventId": 58,
+   "EventType": "StepSucceeded",
+   "SubType": "Step",
+   "Name": "save-wave-2",
+   "Id": "c20ad4d76fe97759",
+   "EventTimestamp": "2026-11-10T19:30:47.058000+09:00",
+   "summary": {
+    "attempt": 1
+   }
+  },
+  {
+   "EventId": 59,
+   "EventType": "StepStarted",
+   "SubType": "Step",
+   "Name": "cancel-check-3",
+   "Id": "c51ce410c124a10e",
+   "EventTimestamp": "2026-11-10T19:30:47.089000+09:00"
+  },
+  {
+   "EventId": 60,
+   "EventType": "StepSucceeded",
+   "SubType": "Step",
+   "Name": "cancel-check-3",
+   "Id": "c51ce410c124a10e",
+   "EventTimestamp": "2026-11-10T19:30:47.118000+09:00",
+   "summary": {
+    "attempt": 1,
+    "bytes": 5
+   }
+  },
+  {
+   "EventId": 61,
+   "EventType": "ContextStarted",
+   "SubType": "Map",
+   "Name": "wave-3",
+   "Id": "aab3238922bcc25a",
+   "EventTimestamp": "2026-11-10T19:30:47.159000+09:00"
+  },
+  {
+   "EventId": 62,
+   "EventType": "ContextStarted",
+   "SubType": "MapIteration",
+   "Name": "map-item-0",
+   "Id": "96ec418403fce800",
+   "ParentId": "aab3238922bcc25a",
+   "EventTimestamp": "2026-11-10T19:30:47.159000+09:00"
+  },
+  {
+   "EventId": 63,
+   "EventType": "StepStarted",
+   "SubType": "Step",
+   "Name": "headline-r2-start",
+   "Id": "5eea1000d12d6dee",
+   "ParentId": "96ec418403fce800",
+   "EventTimestamp": "2026-11-10T19:30:47.159000+09:00"
+  },
+  {
+   "EventId": 64,
+   "EventType": "StepSucceeded",
+   "SubType": "Step",
+   "Name": "headline-r2-start",
+   "Id": "5eea1000d12d6dee",
+   "ParentId": "96ec418403fce800",
+   "EventTimestamp": "2026-11-10T19:30:47.188000+09:00",
+   "summary": {
+    "attempt": 1
+   }
+  },
+  {
+   "EventId": 65,
+   "EventType": "ContextStarted",
+   "SubType": "WaitForCallback",
+   "Name": "headline-r2-work0",
+   "Id": "afd20ab82d597ad2",
+   "ParentId": "96ec418403fce800",
+   "EventTimestamp": "2026-11-10T19:30:47.218000+09:00"
+  },
+  {
+   "EventId": 66,
+   "EventType": "CallbackStarted",
+   "SubType": "Callback",
+   "Id": "04c2aa6cd39af9f3",
+   "ParentId": "afd20ab82d597ad2",
+   "EventTimestamp": "2026-11-10T19:30:47.218000+09:00"
+  },
+  {
+   "EventId": 67,
+   "EventType": "StepStarted",
+   "SubType": "Step",
+   "Id": "ea7aeab6d8b0f687",
+   "ParentId": "afd20ab82d597ad2",
+   "EventTimestamp": "2026-11-10T19:30:47.250000+09:00"
+  },
+  {
+   "EventId": 68,
+   "EventType": "StepSucceeded",
+   "SubType": "Step",
+   "Id": "ea7aeab6d8b0f687",
+   "ParentId": "afd20ab82d597ad2",
+   "EventTimestamp": "2026-11-10T19:30:47.844000+09:00",
+   "summary": {
+    "attempt": 1
+   }
+  },
+  {
+   "EventId": 69,
+   "EventType": "InvocationCompleted",
+   "EventTimestamp": "2026-11-10T19:30:47.867000+09:00",
+   "summary": {
+    "start": "2026-11-10T19:30:46.956000+09:00",
+    "end": "2026-11-10T19:30:47.862000+09:00"
+   }
+  },
+  {
+   "EventId": 70,
+   "EventType": "CallbackSucceeded",
+   "SubType": "Callback",
+   "Id": "04c2aa6cd39af9f3",
+   "ParentId": "afd20ab82d597ad2",
+   "EventTimestamp": "2026-11-10T19:30:50.080000+09:00",
+   "summary": {
+    "bytes": 137,
+    "status": "done"
+   }
+  },
+  {
+   "EventId": 72,
+   "EventType": "StepStarted",
+   "SubType": "Step",
+   "Name": "headline-r2-reviewing1",
+   "Id": "b7df7372e0edcf5c",
+   "ParentId": "96ec418403fce800",
+   "EventTimestamp": "2026-11-10T19:30:50.179000+09:00"
+  },
+  {
+   "EventId": 71,
+   "EventType": "ContextSucceeded",
+   "SubType": "WaitForCallback",
+   "Name": "headline-r2-work0",
+   "Id": "afd20ab82d597ad2",
+   "ParentId": "96ec418403fce800",
+   "EventTimestamp": "2026-11-10T19:30:50.179000+09:00",
+   "summary": {
+    "bytes": 151
+   }
+  },
+  {
+   "EventId": 73,
+   "EventType": "StepSucceeded",
+   "SubType": "Step",
+   "Name": "headline-r2-reviewing1",
+   "Id": "b7df7372e0edcf5c",
+   "ParentId": "96ec418403fce800",
+   "EventTimestamp": "2026-11-10T19:30:50.223000+09:00",
+   "summary": {
+    "attempt": 1
+   }
+  },
+  {
+   "EventId": 74,
+   "EventType": "ContextStarted",
+   "SubType": "WaitForCallback",
+   "Name": "headline-r2-review1",
+   "Id": "1fbd943ec84dd82f",
+   "ParentId": "96ec418403fce800",
+   "EventTimestamp": "2026-11-10T19:30:50.259000+09:00"
+  },
+  {
+   "EventId": 75,
+   "EventType": "CallbackStarted",
+   "SubType": "Callback",
+   "Id": "044ce68efaa73df8",
+   "ParentId": "1fbd943ec84dd82f",
+   "EventTimestamp": "2026-11-10T19:30:50.259000+09:00"
+  },
+  {
+   "EventId": 76,
+   "EventType": "StepStarted",
+   "SubType": "Step",
+   "Id": "09d4b53716d23e03",
+   "ParentId": "1fbd943ec84dd82f",
+   "EventTimestamp": "2026-11-10T19:30:50.290000+09:00"
+  },
+  {
+   "EventId": 77,
+   "EventType": "StepSucceeded",
+   "SubType": "Step",
+   "Id": "09d4b53716d23e03",
+   "ParentId": "1fbd943ec84dd82f",
+   "EventTimestamp": "2026-11-10T19:30:51.819000+09:00",
+   "summary": {
+    "attempt": 1
+   }
+  },
+  {
+   "EventId": 78,
+   "EventType": "InvocationCompleted",
+   "EventTimestamp": "2026-11-10T19:30:51.843000+09:00",
+   "summary": {
+    "start": "2026-11-10T19:30:50.125000+09:00",
+    "end": "2026-11-10T19:30:51.838000+09:00"
+   }
+  },
+  {
+   "EventId": 79,
+   "EventType": "CallbackSucceeded",
+   "SubType": "Callback",
+   "Id": "044ce68efaa73df8",
+   "ParentId": "1fbd943ec84dd82f",
+   "EventTimestamp": "2026-11-10T19:30:55.414000+09:00",
+   "summary": {
+    "bytes": 421,
+    "status": "needs_revision"
+   }
+  },
+  {
+   "EventId": 81,
+   "EventType": "StepStarted",
+   "SubType": "Step",
+   "Name": "headline-r2-revising1",
+   "Id": "d66acb0098040884",
+   "ParentId": "96ec418403fce800",
+   "EventTimestamp": "2026-11-10T19:30:55.520000+09:00"
+  },
+  {
+   "EventId": 80,
+   "EventType": "ContextSucceeded",
+   "SubType": "WaitForCallback",
+   "Name": "headline-r2-review1",
+   "Id": "1fbd943ec84dd82f",
+   "ParentId": "96ec418403fce800",
+   "EventTimestamp": "2026-11-10T19:30:55.520000+09:00",
+   "summary": {
+    "bytes": 439
+   }
+  },
+  {
+   "EventId": 82,
+   "EventType": "StepSucceeded",
+   "SubType": "Step",
+   "Name": "headline-r2-revising1",
+   "Id": "d66acb0098040884",
+   "ParentId": "96ec418403fce800",
+   "EventTimestamp": "2026-11-10T19:30:55.553000+09:00",
+   "summary": {
+    "attempt": 1
+   }
+  },
+  {
+   "EventId": 83,
+   "EventType": "ContextStarted",
+   "SubType": "WaitForCallback",
+   "Name": "headline-r2-work1",
+   "Id": "401ff2ade6c23619",
+   "ParentId": "96ec418403fce800",
+   "EventTimestamp": "2026-11-10T19:30:55.585000+09:00"
+  },
+  {
+   "EventId": 84,
+   "EventType": "CallbackStarted",
+   "SubType": "Callback",
+   "Id": "c003290db9449cbb",
+   "ParentId": "401ff2ade6c23619",
+   "EventTimestamp": "2026-11-10T19:30:55.585000+09:00"
+  },
+  {
+   "EventId": 85,
+   "EventType": "StepStarted",
+   "SubType": "Step",
+   "Id": "fe5b5fa27c0496f4",
+   "ParentId": "401ff2ade6c23619",
+   "EventTimestamp": "2026-11-10T19:30:55.618000+09:00"
+  },
+  {
+   "EventId": 86,
+   "EventType": "StepSucceeded",
+   "SubType": "Step",
+   "Id": "fe5b5fa27c0496f4",
+   "ParentId": "401ff2ade6c23619",
+   "EventTimestamp": "2026-11-10T19:30:56.209000+09:00",
+   "summary": {
+    "attempt": 1
+   }
+  },
+  {
+   "EventId": 87,
+   "EventType": "InvocationCompleted",
+   "EventTimestamp": "2026-11-10T19:30:56.235000+09:00",
+   "summary": {
+    "start": "2026-11-10T19:30:55.477000+09:00",
+    "end": "2026-11-10T19:30:56.230000+09:00"
+   }
+  },
+  {
+   "EventId": 88,
+   "EventType": "CallbackSucceeded",
+   "SubType": "Callback",
+   "Id": "c003290db9449cbb",
+   "ParentId": "401ff2ade6c23619",
+   "EventTimestamp": "2026-11-10T19:30:58.176000+09:00",
+   "summary": {
+    "bytes": 137,
+    "status": "done"
+   }
+  },
+  {
+   "EventId": 90,
+   "EventType": "StepStarted",
+   "SubType": "Step",
+   "Name": "headline-r2-reviewing2",
+   "Id": "0b470f3f46f8f77c",
+   "ParentId": "96ec418403fce800",
+   "EventTimestamp": "2026-11-10T19:30:58.254000+09:00"
+  },
+  {
+   "EventId": 89,
+   "EventType": "ContextSucceeded",
+   "SubType": "WaitForCallback",
+   "Name": "headline-r2-work1",
+   "Id": "401ff2ade6c23619",
+   "ParentId": "96ec418403fce800",
+   "EventTimestamp": "2026-11-10T19:30:58.254000+09:00",
+   "summary": {
+    "bytes": 151
+   }
+  },
+  {
+   "EventId": 91,
+   "EventType": "StepSucceeded",
+   "SubType": "Step",
+   "Name": "headline-r2-reviewing2",
+   "Id": "0b470f3f46f8f77c",
+   "ParentId": "96ec418403fce800",
+   "EventTimestamp": "2026-11-10T19:30:58.325000+09:00",
+   "summary": {
+    "attempt": 1
+   }
+  },
+  {
+   "EventId": 92,
+   "EventType": "ContextStarted",
+   "SubType": "WaitForCallback",
+   "Name": "headline-r2-review2",
+   "Id": "6d6fca233e4a9f1e",
+   "ParentId": "96ec418403fce800",
+   "EventTimestamp": "2026-11-10T19:30:58.355000+09:00"
+  },
+  {
+   "EventId": 93,
+   "EventType": "CallbackStarted",
+   "SubType": "Callback",
+   "Id": "d1ef86bed7dca5b8",
+   "ParentId": "6d6fca233e4a9f1e",
+   "EventTimestamp": "2026-11-10T19:30:58.355000+09:00"
+  },
+  {
+   "EventId": 94,
+   "EventType": "StepStarted",
+   "SubType": "Step",
+   "Id": "b9d612381cb3516f",
+   "ParentId": "6d6fca233e4a9f1e",
+   "EventTimestamp": "2026-11-10T19:30:58.399000+09:00"
+  },
+  {
+   "EventId": 95,
+   "EventType": "StepSucceeded",
+   "SubType": "Step",
+   "Id": "b9d612381cb3516f",
+   "ParentId": "6d6fca233e4a9f1e",
+   "EventTimestamp": "2026-11-10T19:30:58.989000+09:00",
+   "summary": {
+    "attempt": 1
+   }
+  },
+  {
+   "EventId": 96,
+   "EventType": "InvocationCompleted",
+   "EventTimestamp": "2026-11-10T19:30:59.014000+09:00",
+   "summary": {
+    "start": "2026-11-10T19:30:58.216000+09:00",
+    "end": "2026-11-10T19:30:59.009000+09:00"
+   }
+  },
+  {
+   "EventId": 97,
+   "EventType": "CallbackSucceeded",
+   "SubType": "Callback",
+   "Id": "d1ef86bed7dca5b8",
+   "ParentId": "6d6fca233e4a9f1e",
+   "EventTimestamp": "2026-11-10T19:31:01.417000+09:00",
+   "summary": {
+    "bytes": 191,
+    "status": "done"
+   }
+  },
+  {
+   "EventId": 101,
+   "EventType": "StepStarted",
+   "SubType": "Step",
+   "Name": "save-wave-3",
+   "Id": "9bf31c7ff062936a",
+   "EventTimestamp": "2026-11-10T19:31:01.513000+09:00"
+  },
+  {
+   "EventId": 98,
+   "EventType": "ContextSucceeded",
+   "SubType": "WaitForCallback",
+   "Name": "headline-r2-review2",
+   "Id": "6d6fca233e4a9f1e",
+   "ParentId": "96ec418403fce800",
+   "EventTimestamp": "2026-11-10T19:31:01.513000+09:00",
+   "summary": {
+    "bytes": 205
+   }
+  },
+  {
+   "EventId": 99,
+   "EventType": "ContextSucceeded",
+   "SubType": "MapIteration",
+   "Name": "map-item-0",
+   "Id": "96ec418403fce800",
+   "ParentId": "aab3238922bcc25a",
+   "EventTimestamp": "2026-11-10T19:31:01.513000+09:00",
+   "summary": {
+    "bytes": 215
+   }
+  },
+  {
+   "EventId": 100,
+   "EventType": "ContextSucceeded",
+   "SubType": "Map",
+   "Name": "wave-3",
+   "Id": "aab3238922bcc25a",
+   "EventTimestamp": "2026-11-10T19:31:01.513000+09:00",
+   "summary": {
+    "bytes": 302
+   }
+  },
+  {
+   "EventId": 102,
+   "EventType": "StepSucceeded",
+   "SubType": "Step",
+   "Name": "save-wave-3",
+   "Id": "9bf31c7ff062936a",
+   "EventTimestamp": "2026-11-10T19:31:01.549000+09:00",
+   "summary": {
+    "attempt": 1
+   }
+  },
+  {
+   "EventId": 103,
+   "EventType": "StepStarted",
+   "SubType": "Step",
+   "Name": "finalize",
+   "Id": "c74d97b01eae257e",
+   "EventTimestamp": "2026-11-10T19:31:01.579000+09:00"
+  },
+  {
+   "EventId": 104,
+   "EventType": "StepSucceeded",
+   "SubType": "Step",
+   "Name": "finalize",
+   "Id": "c74d97b01eae257e",
+   "EventTimestamp": "2026-11-10T19:31:01.607000+09:00",
+   "summary": {
+    "attempt": 1
+   }
+  },
+  {
+   "EventId": 105,
+   "EventType": "InvocationCompleted",
+   "EventTimestamp": "2026-11-10T19:31:01.629000+09:00",
+   "summary": {
+    "start": "2026-11-10T19:31:01.468000+09:00",
+    "end": "2026-11-10T19:31:01.623000+09:00"
+   }
+  },
+  {
+   "EventId": 106,
+   "EventType": "ExecutionSucceeded",
+   "Name": "wf-01a1c502-677d-7566-b1dc-cc058bc6660b",
+   "Id": "c4c1ccca-8935-3233-8c1a-35c7df637fbe",
+   "EventTimestamp": "2026-11-10T19:31:01.629000+09:00",
+   "summary": {
+    "bytes": 77,
+    "status": "completed"
+   }
+  }
+ ]
+}
