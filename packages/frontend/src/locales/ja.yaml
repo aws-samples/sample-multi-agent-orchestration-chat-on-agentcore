@@ -10,18 +10,13 @@ common:
   saving: 保存中...
   cancel: キャンセル
   delete: 削除
-  deleting: 削除中...
   moreOptions: その他のオプション
   close: 閉じる
   confirm: 確認
   edit: 編集
   view: 表示
-  create: 作成
-  update: 更新
   search: 検索
-  filter: フィルター
   clear: クリア
-  clearStorage: クリアする
   copy: コピー
   copyToClipboard: クリップボードにコピー
   noFolders: フォルダがありません
@@ -35,19 +30,13 @@ common:
   reasoningDepthLow: 低
   reasoningDepthHigh: 高
   reasoningDepthMax: 最大
-  yes: はい
-  no: いいえ
-  back: 戻る
   backArrow: ←
-  next: 次へ
   renderingDiagram: Rendering diagram...
   diagramLoading: Mermaid diagram loading...
-  characters: '{{count}} 文字'
   iconsCount: '{{count}} 個のアイコン'
   noIconsFound: '「{{query}}」に一致するアイコンが見つかりません'
   searchIconsPlaceholder: アイコンを検索...
   clickToSelectIcon: クリックしてアイコンを選択
-  success: 成功
 
 # 認証
 auth:
@@ -55,7 +44,6 @@ auth:
   signInAction: サインイン中...
   signUp: 新規登録
   signUpAction: 登録中...
-  confirmSignUp: アカウント確認
   confirmAction: 確認中...
   signOut: ログアウト
   username: ユーザー名
@@ -63,12 +51,9 @@ auth:
   password: パスワード
   confirmPassword: パスワード（確認）
   email: メールアドレス
-  verificationCode: 確認コード
   authenticated: 認証済み
   noAccount: アカウントをお持ちでない方は
   hasAccount: アカウントをお持ちの方は
-  checkEmail: メールアドレスをご確認ください
-  enterVerificationCode: 確認コードを入力してアカウントを有効化してください
   resendCode: コードを再送信
   welcomeDescription: つくる。つなげる。まかせる。
   welcomeDescriptionLine2: '"あなた" だけの AI エージェントチーム'
@@ -127,7 +112,6 @@ auth:
     changingButton: 変更中...
     successTitle: パスワードを変更しました
     successDescription: 新しいパスワードでログインが完了しました
-    changeFailed: パスワードの変更に失敗しました
     passwordMinLength: パスワードは8文字以上必要です
     passwordUpperCase: パスワードには大文字を含む必要があります
     passwordLowerCase: パスワードには小文字を含む必要があります
@@ -138,17 +122,13 @@ auth:
 navigation:
   returnHome: ホームに戻る
   home: ホーム
-  chat: チャット
   newChat: 新しいチャット
   searchChat: チャットを検索
   searchTools: ツールを検索
   searchAgents: エージェントを検索
-  manageAgents: エージェント管理
-  myAgents: マイエージェント
   events: イベント連携
   settings: 設定
   userMenu: ユーザーメニュー
-  toggleSidebar: サイドバーを切り替え
   openSidebar: サイドバーを開く
   closeSidebar: サイドバーを閉じる
 
@@ -157,8 +137,6 @@ commandPalette:
   placeholder: コマンドを入力または検索...
   noResults: 該当する結果がありません
   switchAgent: エージェントを切り替え
-  quickActions: クイックアクション
-  navigation: ナビゲーション
   recentChats: 最近のチャット
   toNavigate: 移動
   toSelect: 選択
@@ -190,26 +168,13 @@ chat:
   turnInProgress: 'このセッションでは前の指示をまだ実行中です。完了するまでお待ちください。'
   persistenceDegraded: 'サインインの有効期限が切れたため、この会話と作業ファイルを保存できなくなりました。エージェントの実行中はこのタブを開いたままにするか、再読み込みしてやり直してください。'
   sessionName: セッション名
-  sessionNameLabel: セッション名
-  subAgentSessionLabel: サブエージェント
   noConversations: まだ会話がありません
   startNewChat: 新しいチャットを開始しましょう
   loadingSessions: セッション一覧を読み込み中...
-  loadingMoreSessions: 追加のセッションを読み込み中...
-  allSessionsLoaded: すべてのセッションを読み込みました
   sendMessage: メッセージを送信
-  typingMessage: メッセージを入力...
-  thinking: 考え中...
   stopGenerating: 生成を停止
-  selectAgent: エージェントを選択
-  changeAgent: エージェントを変更
   toggleWideView: 画面幅を切り替え
   messageInputPlaceholder: メッセージを入力してください...
-  attachFile: ファイルを添付
-  submit: 送信
-  inputHelp: Shift + Enter で改行、Enter で送信
-  searchChatsDescription: チャット検索機能は今後開発する予定です。
-  searchChatsFeature: 過去の会話履歴をキーワードで検索できるようになります。
   imageAttachment:
     alt: 添付画像
     remove: '{{fileName}} を削除'
@@ -245,7 +210,6 @@ chat:
   sessionsDeleted: '{{count}}件のセッションを削除しました'
   loadEarlierMessages: 以前のメッセージを読み込む
   loadingEarlierMessages: 以前のメッセージを読み込み中...
-  noEarlierMessages: 以前のメッセージはありません
   loadEarlierError: 以前のメッセージの読み込みに失敗しました
   loadEarlierRetry: 再試行
   contentOmitted: 'コンテンツは履歴から省略されました (≈{{size}})'
@@ -259,10 +223,8 @@ agent:
   createAgent: エージェントを作成
   createNewAgent: 新規エージェント作成
   editAgent: エージェントを編集
-  deleteAgent: エージェントを削除
   deleteAgentConfirmTitle: Agent削除の確認
   deleteAgentConfirmMessage: '「{{name}}」を削除しますか？この操作は取り消せません。'
-  clearStorageConfirm: localStorage のエージェントデータをクリアしますか？デフォルトのエージェントが再作成されます。
   noAgentsTitle: Agentがありません
   noAgentsDescription: 最初のAgentを作成してください
   createAgentButton: Agentを作成する
@@ -270,24 +232,7 @@ agent:
   noSearchResults: 検索結果がありません
   noSearchResultsDescription: 検索条件を変更してもう一度お試しください
   clearSearch: 検索をクリア
-  storageNotice: エージェント管理機能は現在開発中で、localStorage に保存されています。アプリケーションのバージョンアップに伴い、不整合が生じる可能性があるため定期的に localStorage をクリアしてください。
-  agentName: エージェント名
-  description: 説明
-  systemPrompt: システムプロンプト
-  model: モデル
-  temperature: Temperature
-  maxTokens: 最大トークン数
-  tools: ツール
-  selectTools: ツールを選択
   noAgents: エージェントがありません
-  createFirstAgent: 最初のエージェントを作成しましょう
-  agentNamePlaceholder: エージェント名を入力
-  descriptionPlaceholder: エージェントの説明を入力
-  systemPromptPlaceholder: システムプロンプトを入力
-  comingSoon: Coming Soon
-  searchAgentsDescription: エージェント検索機能は今後開発する予定です。
-  searchAgentsFeature: 組織内で作成したエージェントを共有・検索できるようになります。
-  backToChat: チャットに戻る
   basicSettings: 基本設定
   toolsSettings: ツール
   mcpSettings: MCP
@@ -297,7 +242,6 @@ agent:
   descriptionLabel: Description
   descriptionDescription: このエージェントの役割や特徴を簡潔に説明してください。
   descriptionPlaceholder2: 例 - プログラミングの基礎から応用まで教えるAIメンター
-  systemPromptLabel: システムプロンプト
   systemPromptRequired: 'システムプロンプト *'
   systemPromptDescription: エージェントの振る舞いを定義するシステムプロンプトを入力してください。どのような役割を果たし、どのように応答すべきかを詳細に記述します。作業するプロジェクトのディレクトリパスを明確に指示することを推奨します。
   systemPromptPlaceholder2: '例 - あなたは親切で知識豊富なAIアシスタントです。'
@@ -365,17 +309,9 @@ agentDirectory:
 # ツール
 tool:
   availableTools: 利用可能なツール
-  selectedTools: 選択されたツール
-  noTools: ツールがありません
   searchTools: ツールを検索...
-  toolName: ツール名
-  toolDescription: 説明
-  selectAll: すべて選択
-  deselectAll: 選択を解除
   parameters: パラメータ
   required: required
-  showDetails: 詳細を表示
-  hideDetails: 詳細を閉じる
   searchPlaceholder: 自然言語でツールを検索... (例 テキストをエコーする)
   searching: ツールを検索しています...
   loadingTools: ツール一覧を読み込んでいます...
@@ -391,7 +327,6 @@ tool:
   allLoaded: 全件表示完了
   searchingFor: 検索中
   refresh: 再読み込み
-  closeError: エラーを閉じる
 
   # ToolStepsGroup (collapsible tool execution steps)
   steps:
@@ -448,7 +383,6 @@ tool:
     configLabel: MCP 設定 (JSON 形式)
     insertSample: サンプルを挿入
     previewTools: ツールをプレビュー
-    fetching: 取得中...
     fetchingMessages:
       - MCPサーバーに接続中...
       - ツール情報を取得中...
@@ -456,7 +390,6 @@ tool:
     emptyConfig: 設定が空です
     fetchError: ツール取得エラー
     fetchFailed: ツール取得に失敗しました
-    availableToolsTitle: 利用可能なツール
     connectionResults: 接続結果
     connectionErrors: 接続エラー
     showDetails: 詳細を表示
@@ -474,7 +407,6 @@ storage:
   imageLoadFailed: 画像の読み込みに失敗しました
   videoLoadFailed: 動画の読み込みに失敗しました
   loadError: フォルダの読み込みに失敗しました
-  title: ストレージ管理
   fileStorage: ファイルストレージ
   loadingImage: 画像を読み込み中...
   failedToLoadImage: 画像の読み込みに失敗しました
@@ -483,31 +415,17 @@ storage:
   videoNotSupported: お使いのブラウザは動画タグをサポートしていません
   failedToLoad: 読み込み失敗
   description: ユーザーごとに Amazon S3 の領域を提供しています。AI エージェントのワークスペース（/tmp/ws）と自動的に同期されるため、エージェントが作成・編集したファイルはこの領域に保存されます。ディレクトリを選択すると、そのディレクトリ内のファイルがエージェントのワークスペースに読み込まれます。⚠️ セッション中に作業パスを変更すると、AIエージェントが以前のコンテキストを正しく解釈できなくなる可能性があります。
-  currentPath: 現在のパス
-  uploadFile: ファイルをアップロード
   upload: アップロード
-  uploadFolder: フォルダをアップロード
   newFolder: 新規フォルダ
-  createFolder: フォルダを作成
   create: 作成
   download: ダウンロード
   downloadFolder: フォルダをダウンロード
-  rename: 名前を変更
-  move: 移動
   copyPath: パスをコピー
   copied: コピーしました
-  size: サイズ
-  lastModified: 最終更新日時
-  type: 種類
-  folder: フォルダ
   folders: フォルダ
   root: ルート
-  file: ファイル
   uploading: アップロード中...
   uploadingProgress: 'アップロード中... ({{completed}}/{{total}})'
-  uploadSuccess: アップロード完了
-  uploadError: アップロードエラー
-  deleteConfirm: 本当に削除しますか？
   deleteDirectoryConfirm: 'ディレクトリ "{{name}}" を削除しますか？ディレクトリ内のすべてのファイルとサブフォルダも削除されます。'
   deleteFileConfirm: 'ファイル "{{name}}" を削除しますか？'
   emptyFolder: フォルダが空です
@@ -517,7 +435,6 @@ storage:
   folderNameSpaceError: フォルダ名にスペースを含めることはできません
   itemCount: '{{count}} 件のアイテム • 最大ファイルサイズ: 500MB'
   setAsWorkingDirectory: 作業ディレクトリに設定
-  currentWorkingDirectory: 現在の作業ディレクトリ
   workingDirectory: 作業ディレクトリ
 
   # 複数選択・一括操作
@@ -552,12 +469,7 @@ memory:
   title: メモリ（長期記憶）
   longTermMemory: 保存されたメモリを参照する
   longTermMemoryDescription: エージェントが回答するときにメモリを保存して使用できるようにします。
-  searchMemory: メモリを検索...
   noMemories: メモリがありません
-  addMemory: メモリを追加
-  deleteMemory: メモリを削除
-  memoryContent: 内容
-  createdAt: 作成日時
   savedMemories: 保存されたメモリ
   description: エージェントは最近のチャットを記憶しようとしますが、時間の経過と共に忘れることもあります。保存されたメモリは決して忘れられることはありません。
   searchPlaceholder: メモリを検索
@@ -570,7 +482,6 @@ memory:
   totalCount: '合計 {{count}} 件のメモリが保存されています'
   created: 作成
   updated: 更新
-  searching: 検索中
   loadMore: さらに読み込む
 
 # 設定
@@ -578,15 +489,9 @@ settings:
   title: 設定
   account: アカウント
   username: ユーザー名
-  email: メールアドレス
   accountLoadError: アカウント情報の取得に失敗しました
   language: 言語
   theme: テーマ
-  notifications: 通知
-  privacy: プライバシー
-  about: このアプリについて
-  version: バージョン
-  logout: ログアウト
   languageJa: 日本語
   languageEn: English
   themeLight: ライト
@@ -601,46 +506,19 @@ settings:
 
 # エラー
 error:
-  generic: エラーが発生しました
-  network: ネットワークエラー
   boundary:
     title: エラーが発生しました
     description: 予期しないエラーが発生しました。ページをリロードしてください。
     reload: ページをリロード
     backToHome: ホームに戻る
     developerInfo: 開発者向け情報
-  notFound: 見つかりませんでした
-  unauthorized: 認証が必要です
   authenticationRequired: 認証が必要です。再ログインしてください。
   sessionExpired: セッションの有効期限が切れました。再度ログインしてください。
   forbidden: アクセスが拒否されました
-  serverError: サーバーエラー
-  apiError: APIエラーが発生しました
-  unexpectedError: 予期しないエラーが発生しました
-  tryAgain: もう一度お試しください
-  contactSupport: サポートにお問い合わせください
-
-# ページタイトル
-page:
-  home: ホーム
-  chat: チャット
-  search: 検索
-  tools: ツール
-  agents: エージェント
-  events: イベント
-  settings: 設定
-
-# イベント
-events:
-  title: イベント連携
-  comingSoon: Coming Soon
-  eventsDescription: イベント連携機能は今後開発する予定です。
-  eventsFeature: 外部カレンダーやイベント管理ツールと連携できるようになります。
 
 # トリガー
 triggers:
   # ページ
-  pageTitle: トリガー管理
   pageDescription: スケジュールや Amazon EventBridge のイベントに基づいてエージェントを自動実行するトリガーを作成・管理できます。定期的なタスクの自動化や、S3へのファイルアップロードなどの外部イベントをきっかけにエージェントを起動して、データ収集やレポート生成などを行うことができます。
 
   # タブ
@@ -652,13 +530,10 @@ triggers:
   create: 新規作成
   edit: 編集
   delete: 削除
-  enable: 有効化
-  disable: 無効化
   viewHistory: 実行履歴を表示
 
   # フォーム
   form:
-    title: トリガー設定
     createTitle: 新規トリガー作成
     editTitle: トリガーを編集
     basicInfo: 基本情報
@@ -671,9 +546,6 @@ triggers:
     agent: 実行するエージェント
     agentPlaceholder: エージェントを選択...
     agentRequired: エージェントを選択してください
-    type: トリガータイプ
-    typeSchedule: スケジュール
-    typeEvent: イベント（準備中）
     scheduleConfig: スケジュール設定
     scheduleConfigDescription: トリガーを実行する日時を設定します
     inputMessage: 入力メッセージ
@@ -683,11 +555,8 @@ triggers:
     inputMessageRequired: 入力メッセージは必須です
     modelId: モデルID
     optional: オプション
-    selectModel: モデルを選択...
-    useDefault: デフォルトを使用
     modelIdHint: 特定のモデルを指定しない場合、エージェントのデフォルトモデルが使用されます
     workingDirectory: 作業ディレクトリ
-    selectDirectory: ディレクトリを選択...
     workingDirectoryHint: エージェントが作業するディレクトリを指定します。指定しない場合、ルートディレクトリ（/）が使用されます
     save: 保存
     saving: 保存中...
@@ -695,7 +564,6 @@ triggers:
 
   # Cron Builder
   cron:
-    title: スケジュール設定
     preset: プリセット
     presetEveryMinute: 毎分
     presetEveryHour: 毎時
@@ -704,12 +572,6 @@ triggers:
     presetEveryMonday: 毎週月曜
     presetEveryMonth: 毎月1日
     presetCustom: カスタム
-    minute: 分
-    hour: 時
-    dayOfMonth: 日
-    month: 月
-    dayOfWeek: 曜日
-    year: 年
     timezone: タイムゾーン
     preview: 設定プレビュー
     nextExecutions: 次回実行予定
@@ -721,52 +583,16 @@ triggers:
       title: 短い実行間隔が設定されています
       body: 1 時間未満の実行間隔では、Lambda 起動、生成 AI モデル呼び出し、Cognito トークン発行などの AWS リソース利用料が想定以上に発生する可能性があります。本当にこの設定で作成しますか？
 
-    # 範囲ラベル
-    minuteRange: '(0-59)'
-    hourRange: '(0-23)'
-    dayOfMonthRange: '(1-31)'
-    # ヘルプヒント
-    dayOfMonthHint: '? または * を使用'
-    dayOfWeekHint: '? または * を使用'
-    yearHint: '通常は * を使用'
-    # ドロップダウンオプション
-    optionAll: 'すべて (*)'
-    optionNotSpecified: '指定なし (?)'
-    optionWeekdays: '平日 (MON-FRI)'
-    # ヒントセクション
-    hintsTitle: '💡 ヒント'
-    hintAll: '* = すべての値'
-    hintNotSpecified: '? = 指定なし（日または曜日で必須）'
-    hintRange: '0-5 = 範囲指定'
-    hintMultiple: '0,15,30 = 複数指定'
-    hintDayWeekExclusive: 日と曜日は同時に指定できません（片方は ? にする必要があります）
-
-  # ステータス
-  status:
-    enabled: 有効
-    disabled: 無効
-
   # 実行履歴
   history:
     title: 実行履歴
     noHistory: 実行履歴がありません
     executedAt: 実行日時
-    duration: 実行時間
-    status: ステータス
-    success: 成功
-    failure: 失敗
-    inProgress: 実行中
-    input: 入力
-    output: 出力
     error: エラー
-    showDetails: 詳細を表示
-    hideDetails: 詳細を閉じる
     loadMore: さらに読み込む
     executionId: 実行ID
     sessionId: セッション
     eventPayload: イベントペイロード
-    startedAt: 開始日時
-    completedAt: 完了日時
 
   # メッセージ
   messages:
@@ -780,7 +606,6 @@ triggers:
     deleteError: トリガーの削除に失敗しました
     enableSuccess: トリガーを有効化しました
     disableSuccess: トリガーを無効化しました
-    toggleError: トリガーの状態変更に失敗しました
     fetchError: トリガーの取得に失敗しました
 
   # 空状態
@@ -808,7 +633,6 @@ triggers:
     label: イベントソース
     loadError: イベントソースの読み込みに失敗しました
     noSourcesAvailable: イベントソースが設定されていません
-    selectPlaceholder: イベントソースを選択...
     helpText: トリガーを発火させるイベントソースを選択してください。新しいイベントソースの追加が必要な場合は、システム管理者にお問い合わせください。
     ruleDetails: EventBridge ルール詳細
 
@@ -825,36 +649,6 @@ triggers:
     enabled: 有効
     disabled: 無効
 
-  # イベントパターン表示
-  eventPattern:
-    source: ソース
-    eventType: イベントタイプ
-    # Detail type mappings
-    detailTypes:
-      objectCreated: オブジェクト作成
-      objectDeleted: オブジェクト削除
-      objectRestoreCompleted: オブジェクト復元完了
-      push: プッシュ
-      pullRequest: プルリクエスト
-      issues: Issue
-      issueComment: Issueコメント
-      ec2StateChange: EC2インスタンス状態変更
-      pipelineStateChange: パイプライン実行状態変更
-      ecsTaskStateChange: ECSタスク状態変更
-    # Detail label mappings
-    labels:
-      bucketName: バケット名
-      objectKey: オブジェクトキー
-      objectSize: サイズ
-      objectEtag: ETag
-      action: アクション
-      repository: リポジトリ
-      branch: ブランチ
-      state: 状態
-      instanceId: インスタンスID
-      detailType: イベントタイプ
-      region: リージョン
-
   # Cron description
   cronDescription:
     minute: '{{value}}分'
@@ -870,19 +664,6 @@ triggers:
       FRI: 金曜
       SAT: 土曜
       SUN: 日曜
-    months:
-      '1': 1月
-      '2': 2月
-      '3': 3月
-      '4': 4月
-      '5': 5月
-      '6': 6月
-      '7': 7月
-      '8': 8月
-      '9': 9月
-      '10': 10月
-      '11': 11月
-      '12': 12月
 
 # Generative UI
 generativeUi:
@@ -911,32 +692,12 @@ app:
 
 # ホームページ
 home:
-  title: AI エージェントを、つくろう。
   description: つくる。つなげる。まかせる。
   descriptionLine2: '"あなた" だけの AI エージェントチーム'
   getStarted: 今すぐ始める
 
-# モーダル
-modal:
-  confirmTitle: 確認
-  confirmMessage: この操作を実行してもよろしいですか？
-  deleteTitle: 削除の確認
-  deleteMessage: この項目を削除してもよろしいですか？この操作は取り消せません。
-
 # バリデーション
 validation:
-  required: この項目は必須です
-  minLength: '{{min}}文字以上で入力してください'
-  maxLength: '{{max}}文字以内で入力してください'
-  email: 有効なメールアドレスを入力してください
-  passwordMismatch: パスワードが一致しません
-  invalidFormat: 入力形式が正しくありません
-  chat:
-    messageIdRequired: メッセージIDは必須です
-    messageContentRequired: メッセージ内容は必須です
-    promptRequired: プロンプトを入力してください
-    promptMaxLength: プロンプトは10000文字以下で入力してください
-    endpointUrlRequired: 有効なエンドポイントURLを入力してください
   auth:
     usernameMinLength: ユーザー名は3文字以上で入力してください
     usernameMaxLength: ユーザー名は50文字以下で入力してください
@@ -953,9 +714,6 @@ validation:
     usernameRequired: ユーザー名が必要です
     codeLength: 確認コードは6桁で入力してください
     codeInvalid: 確認コードは6桁の数字で入力してください
-    userPoolIdRequired: User Pool ID は必須です
-    clientIdRequired: Client ID は必須です
-    regionRequired: リージョンは必須です
 
 # デフォルトエージェント
 defaultAgents:
