@@ -144,7 +144,17 @@ export class BackendApi extends Construct {
    */
   public readonly apiUrl: string;
 
+  /**
+   * Path prefix under which the SPA's own distribution serves this API
+   * (see `addToDistribution`). The frontend calls `/api/...` on its origin.
+   */
+  public static readonly SAME_ORIGIN_PATH_PREFIX = '/api';
+
   private readonly environment: Record<string, string>;
+  private readonly apiCachePolicy: cloudfront.ICachePolicy;
+  private readonly oac: cloudfront.IOriginAccessControl;
+  private readonly timeoutSeconds: number;
+  private readonly invokingDistributionArns: string[] = [];
 
   constructor(scope: Construct, id: string, props: BackendApiProps) {
     super(scope, id);
@@ -154,6 +164,7 @@ export class BackendApi extends Construct {
     const corsAllowedOrigins = props.corsAllowedOrigins || ['*'];
     const retention = props.logRetention || logs.RetentionDays.TWO_WEEKS;
     const timeoutSeconds = props.timeout ?? 30;
+    this.timeoutSeconds = timeoutSeconds;
     if (!Number.isInteger(timeoutSeconds) || timeoutSeconds < 3 || timeoutSeconds > 60) {
       // Above 60 CloudFront would 504 while the Web Function keeps running (and billing).
       throw new Error(`BackendApi timeout must be an integer 3-60 seconds, got ${timeoutSeconds}`);
@@ -369,7 +380,7 @@ export class BackendApi extends Construct {
     // strips it from GET/HEAD. TTL defaults to 0 so nothing is cached unless
     // the app sends Cache-Control; the 1s max is the smallest non-zero value
     // CloudFront accepts when headers are part of the key.
-    const apiCachePolicy = new cloudfront.CachePolicy(this, 'ApiCachePolicy', {
+    this.apiCachePolicy = new cloudfront.CachePolicy(this, 'ApiCachePolicy', {
       comment: 'Backend API: per-Authorization key, no caching by default',
       defaultTtl: cdk.Duration.seconds(0),
       minTtl: cdk.Duration.seconds(0),
@@ -381,7 +392,7 @@ export class BackendApi extends Construct {
       enableAcceptEncodingBrotli: true,
     });
 
-    const oac = new cloudfront.FunctionUrlOriginAccessControl(this, 'WebFunctionOac', {
+    this.oac = new cloudfront.FunctionUrlOriginAccessControl(this, 'WebFunctionOac', {
       description: 'OAC for the Backend API Lambda Web Function',
       // The only signing behavior Web Function origins accept; it keeps the
       // viewer's Authorization header intact for JWT verification.
@@ -390,18 +401,7 @@ export class BackendApi extends Construct {
 
     this.distribution = new cloudfront.Distribution(this, 'ApiDistribution', {
       comment: `${functionName} Backend API`,
-      defaultBehavior: {
-        origin: new origins.HttpOrigin(this.endpoint.attrDomainName, {
-          protocolPolicy: cloudfront.OriginProtocolPolicy.HTTPS_ONLY,
-          readTimeout: cdk.Duration.seconds(timeoutSeconds),
-        }),
-        viewerProtocolPolicy: cloudfront.ViewerProtocolPolicy.HTTPS_ONLY,
-        allowedMethods: cloudfront.AllowedMethods.ALLOW_ALL,
-        cachePolicy: apiCachePolicy,
-        // ExceptHost: the endpoint 404s when Host is the distribution's domain.
-        originRequestPolicy: cloudfront.OriginRequestPolicy.ALL_VIEWER_EXCEPT_HOST_HEADER,
-        compress: true,
-      },
+      defaultBehavior: { origin: this.origin(), ...this.behaviorSettings() },
       // CloudFront caches 4xx/5xx for 10s by default even without
       // Cache-Control, so a 404 right before a resource is created (or a 503
       // during a cold start) would be replayed. The app also sends no-store;
@@ -410,15 +410,13 @@ export class BackendApi extends Construct {
         httpStatus,
         ttl: cdk.Duration.seconds(0),
       })),
-      priceClass: cloudfront.PriceClass.PRICE_CLASS_100,
+      // 200 includes Japan/Asia edges. With 100 (NA/EU only), viewers in Japan land
+      // on LAX/SFO and every request crosses the Pacific to the Tokyo origin.
+      priceClass: cloudfront.PriceClass.PRICE_CLASS_200,
       logBucket: props.serverAccessLogsBucket,
       logFilePrefix: props.serverAccessLogsBucket ? 'cloudfront-api/' : undefined,
     });
-    // HttpOrigin has no OAC option; attach it at the L1 level.
-    (this.distribution.node.defaultChild as cloudfront.CfnDistribution).addPropertyOverride(
-      'DistributionConfig.Origins.0.OriginAccessControlId',
-      oac.originAccessControlId
-    );
+    this.attachOac(this.distribution, 0);
 
     new lambda.CfnResourcePolicy(this, 'WebFunctionResourcePolicy', {
       resourceArn: this.webFunction.attrFunctionArn,
@@ -433,7 +431,7 @@ export class BackendApi extends Construct {
             Resource: this.endpoint.attrEndpointArn,
             Condition: {
               StringEquals: {
-                'aws:SourceArn': this.distribution.distributionArn,
+                'aws:SourceArn': cdk.Lazy.list({ produce: () => this.invokingDistributionArns }),
               },
             },
           },
@@ -470,6 +468,48 @@ export class BackendApi extends Construct {
   }
 
   /**
+   * Serve this API under `pathPrefix` on another distribution (the SPA's),
+   * so browser calls are same-origin and skip CORS preflights.
+   *
+   * The prefix is stripped by a viewer-request CloudFront Function before the
+   * request reaches the Web Function, so routes stay `/agents`, `/sessions`...
+   * The target distribution must not use distribution-wide `errorResponses`
+   * for 403/404: they would rewrite API errors into the SPA's index.html.
+   */
+  public addToDistribution(
+    distribution: cloudfront.Distribution,
+    pathPrefix: string = BackendApi.SAME_ORIGIN_PATH_PREFIX
+  ): void {
+    const stripPrefix = new cloudfront.Function(
+      this,
+      `StripPrefix${distribution.node.addr.slice(0, 8)}`,
+      {
+        runtime: cloudfront.FunctionRuntime.JS_2_0,
+        comment: `Strip ${pathPrefix} before forwarding to the Backend API`,
+        code: cloudfront.FunctionCode.fromInline(
+          [
+            'function handler(event) {',
+            '  var request = event.request;',
+            `  var stripped = request.uri.slice(${pathPrefix.length});`,
+            "  request.uri = stripped === '' ? '/' : stripped;",
+            '  return request;',
+            '}',
+          ].join('\n')
+        ),
+      }
+    );
+
+    const originIndex = this.originCount(distribution);
+    distribution.addBehavior(`${pathPrefix}/*`, this.origin(), {
+      ...this.behaviorSettings(),
+      functionAssociations: [
+        { function: stripPrefix, eventType: cloudfront.FunctionEventType.VIEWER_REQUEST },
+      ],
+    });
+    this.attachOac(distribution, originIndex);
+  }
+
+  /**
    * Set an environment variable on the Web Function revision
    */
   public addEnvironmentVariable(key: string, value: string): void {
@@ -481,6 +521,62 @@ export class BackendApi extends Construct {
    */
   public grantPermissions(statement: iam.PolicyStatement): void {
     this.role.addToPolicy(statement);
+  }
+
+  private origin(): cloudfront.IOrigin {
+    return new origins.HttpOrigin(this.endpoint.attrDomainName, {
+      protocolPolicy: cloudfront.OriginProtocolPolicy.HTTPS_ONLY,
+      readTimeout: cdk.Duration.seconds(this.timeoutSeconds),
+      // CloudFront's 5s default drops the edge→origin connection between
+      // user actions, so most requests paid a new TCP+TLS handshake.
+      keepaliveTimeout: cdk.Duration.seconds(60),
+    });
+  }
+
+  private behaviorSettings(): cloudfront.AddBehaviorOptions {
+    return {
+      viewerProtocolPolicy: cloudfront.ViewerProtocolPolicy.HTTPS_ONLY,
+      allowedMethods: cloudfront.AllowedMethods.ALLOW_ALL,
+      cachePolicy: this.apiCachePolicy,
+      // ExceptHost: the endpoint 404s when Host is the distribution's domain.
+      originRequestPolicy: cloudfront.OriginRequestPolicy.ALL_VIEWER_EXCEPT_HOST_HEADER,
+      compress: true,
+    };
+  }
+
+  private originCount(distribution: cloudfront.Distribution): number {
+    const cfn = distribution.node.defaultChild as cloudfront.CfnDistribution;
+    const config = cdk.Stack.of(distribution).resolve(cfn.distributionConfig) as {
+      origins?: unknown[];
+    };
+    return config.origins?.length ?? 0;
+  }
+
+  /**
+   * HttpOrigin has no OAC option, so the OAC id is set on the L1 origin by
+   * index. The validation fails synth if that index ever stops pointing at
+   * the Web Function endpoint (e.g. origins reordered).
+   */
+  private attachOac(distribution: cloudfront.Distribution, originIndex: number): void {
+    const cfn = distribution.node.defaultChild as cloudfront.CfnDistribution;
+    cfn.addPropertyOverride(
+      `DistributionConfig.Origins.${originIndex}.OriginAccessControlId`,
+      this.oac.originAccessControlId
+    );
+    this.invokingDistributionArns.push(distribution.distributionArn);
+    distribution.node.addValidation({
+      validate: () => {
+        const stack = cdk.Stack.of(distribution);
+        const config = stack.resolve(cfn.distributionConfig) as {
+          origins?: Array<{ domainName?: unknown }>;
+        };
+        const actual = JSON.stringify(config.origins?.[originIndex]?.domainName);
+        const expected = JSON.stringify(stack.resolve(this.endpoint.attrDomainName));
+        return actual === expected
+          ? []
+          : [`OAC override targets origin ${originIndex}, which is not the Web Function endpoint`];
+      },
+    });
   }
 }
 

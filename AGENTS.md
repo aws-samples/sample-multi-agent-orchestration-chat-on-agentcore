@@ -53,6 +53,7 @@ Monorepo using npm workspaces. 8 packages.
 
 - **Changes to libs/ have wide impact**: Changing tool-definitions affects both agent and backend. Changing generative-ui-catalog affects agent, frontend, and backend (via tool-definitions dependency chain). Run tests for all dependent packages before merging.
 - **Do NOT write Lambda-specific code in backend**: Lambda Web Functions run the Express server as-is. It must bind to `AWS_LAMBDA_HTTP_ENDPOINT` (handled by `listenAddress` in `config/index.ts`) and start listening within 10s. The endpoint is `IamAuth` and reachable only via the CloudFront OAC — never switch it to `ApplicationManaged`.
+- **Browser → Backend is same-origin `/api/*` on the frontend CloudFront** (no CORS preflight); server-side callers (Runtime, Trigger) use the API distribution URL. Never add distribution-wide `errorResponses` for 403/404 to the frontend distribution — they would turn API errors into `index.html`; SPA fallback is a CloudFront Function.
 - **Backend runtime is Node.js 24, not 22**: the bundle must not depend on native addons or child processes (no Python/uvx in the runtime; stdio MCP is already rejected by `config-loader.ts`).
 - **agent runs on AgentCore Runtime, NOT Lambda**: It is a Docker container, not a Lambda function. However, it is implemented as an Express server and runs locally with `npm run dev` as-is.
 - **Environment config changes**: Edit `packages/cdk/config/environments.ts`. Types are in `environment-types.ts`, utilities in `environment-utils.ts`.

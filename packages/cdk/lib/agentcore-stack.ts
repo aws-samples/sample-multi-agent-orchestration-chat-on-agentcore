@@ -699,7 +699,9 @@ export class AgentCoreStack extends cdk.Stack {
       userPoolClientId: this.cognitoAuth.clientId,
       runtimeEndpoint: `https://bedrock-agentcore.${this.region}.amazonaws.com/runtimes/${this.agentRuntime.runtimeArn}/invocations?qualifier=DEFAULT`,
       awsRegion: this.region,
-      backendApiUrl: this.backendApi.apiUrl,
+      // Same-origin path on the frontend distribution (no CORS preflight);
+      // wired below via backendApi.addToDistribution().
+      backendApiUrl: BackendApi.SAME_ORIGIN_PATH_PREFIX,
       customDomain: envConfig.customDomain,
       appsyncEventsEndpoint: appsyncEvents.realtimeEndpoint, // AppSync Events WebSocket endpoint for real-time updates
       bedrockModels: envConfig.bedrockModels,
@@ -710,6 +712,9 @@ export class AgentCoreStack extends cdk.Stack {
       selfSignUpEnabled: false,
       runtimeWarmupEnabled: envConfig.runtimeWarmupEnabled,
     });
+    // Browser → /api/* on the SPA's own origin. Server-side callers (Runtime,
+    // Trigger) keep using backendApi.apiUrl, which bypasses the frontend WAF.
+    this.backendApi.addToDistribution(this.frontend.cloudFrontDistribution);
 
     // 10. Additional CloudFormation outputs (authentication related)
     new cdk.CfnOutput(this, 'GatewayMcpEndpoint', {

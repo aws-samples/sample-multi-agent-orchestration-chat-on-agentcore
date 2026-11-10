@@ -311,7 +311,7 @@ Edit generated `.env` files to connect directly to cloud resources:
 ```bash
 # Edit packages/frontend/.env
 # Uncomment the commented lines
-VITE_BACKEND_URL=https://xxxxxxxxxxxxxx.cloudfront.net
+VITE_BACKEND_URL=https://xxxxxxxxxxxxxx.cloudfront.net  # BackendApiUrl output (deployed frontend uses same-origin /api)
 VITE_AGENT_ENDPOINT=https://bedrock-agentcore.us-east-1.amazonaws.com/runtimes/.../invocations
 ```
 
