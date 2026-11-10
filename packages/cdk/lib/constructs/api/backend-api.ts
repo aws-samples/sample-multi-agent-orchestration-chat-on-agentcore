@@ -602,6 +602,7 @@ function backendBundleSource(): s3deploy.ISource {
             platform: 'node',
             target: 'node24',
             format: 'esm',
+            // nosemgrep: path-join-resolve-traversal - outputDir is the CDK-provided bundling directory, not user input
             outfile: path.join(outputDir, 'index.js'),
             // CJS deps (express, ...) call require(); ESM output has none.
             banner: {
@@ -610,6 +611,7 @@ function backendBundleSource(): s3deploy.ISource {
             logLevel: 'warning',
           });
           fs.writeFileSync(
+            // nosemgrep: path-join-resolve-traversal - outputDir is the CDK-provided bundling directory, not user input
             path.join(outputDir, 'package.json'),
             JSON.stringify({ type: 'module' }, null, 2)
           );
