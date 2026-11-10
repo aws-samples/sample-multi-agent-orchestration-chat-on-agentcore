@@ -113,6 +113,39 @@ describe('runWorkflow', () => {
     expect(result.steps.draft.unapproved).toBeUndefined();
   });
 
+  it('stamps startedAt once per run and keeps it on every later save', async () => {
+    const spec: WorkflowSpec = {
+      goal: 'g',
+      steps: [
+        {
+          id: 'draft',
+          agentId: 'writer',
+          prompt: 'write',
+          review: { agentId: 'reviewer', criteria: 'c', maxIterations: 2 },
+        },
+      ],
+    };
+    let reviews = 0;
+    const { ops, saved } = fakeOps((turn) =>
+      turn.role === 'reviewer' && ++reviews < 2
+        ? { status: 'needs_revision', output: 'no', feedback: 'fix' }
+        : done('ok')
+    );
+    await runWorkflow(null, 'wf-1', spec, ops);
+
+    const draft = saved.filter((s) => s.stepId === 'draft');
+    expect(draft.map((s) => s.status)).toEqual([
+      'running',
+      'reviewing',
+      'running',
+      'reviewing',
+      'done',
+    ]);
+    const startedAt = draft[0].startedAt;
+    expect(startedAt).toMatch(/^\d{4}-\d{2}-\d{2}T/);
+    expect(draft.every((s) => s.startedAt === startedAt)).toBe(true);
+  });
+
   it('accepts the last output as unapproved when maxIterations is exhausted', async () => {
     const spec: WorkflowSpec = {
       goal: 'g',

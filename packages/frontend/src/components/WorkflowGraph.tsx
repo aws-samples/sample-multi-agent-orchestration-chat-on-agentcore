@@ -2,13 +2,15 @@ import React, { useId, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Bot, RefreshCw } from 'lucide-react';
 import { cn } from '../lib/utils';
-import { useAgentStore } from '../stores/agentStore';
-import { translateIfKey } from '../utils/agent-translation';
+import { useAgentName } from '../hooks/useAgentName';
 import {
   layoutWorkflow,
   type WorkflowGraphSpec,
   type WorkflowGraphStep,
 } from '../utils/workflow-layout';
+import type { WorkflowStepView } from '../api/workflows';
+import { WorkflowStatusIcon } from './workflow/WorkflowStatusIcon';
+import { isActiveStatus } from '../utils/workflow-status';
 
 const NODE_W = 168;
 const NODE_H = 58;
@@ -20,15 +22,6 @@ const DEFAULT_REVIEW_ROUNDS = 2;
 function edgePath(x1: number, y1: number, x2: number, y2: number): string {
   const mx = (x1 + x2) / 2;
   return `M${x1},${y1} C${mx},${y1} ${mx},${y2} ${x2},${y2}`;
-}
-
-function useAgentName(): (agentId: string) => string {
-  const { t } = useTranslation();
-  const agents = useAgentStore((state) => state.agents);
-  return (agentId) => {
-    const agent = agents.find((a) => a.agentId === agentId);
-    return agent ? translateIfKey(agent.name, t) : `${agentId.slice(0, 8)}…`;
-  };
 }
 
 const ReviewBadge: React.FC<{ step: WorkflowGraphStep; agentName: (id: string) => string }> = ({
@@ -50,6 +43,26 @@ const ReviewBadge: React.FC<{ step: WorkflowGraphStep; agentName: (id: string) =
     >
       <RefreshCw className="size-2.5" aria-hidden />
       {t('tool.workflowGraph.rounds', { count: rounds })}
+    </span>
+  );
+};
+
+/** Live status line of a node: status label, plus the review round when the step has a reviewer. */
+const LiveStatus: React.FC<{ step: WorkflowGraphStep; state: WorkflowStepView }> = ({
+  step,
+  state,
+}) => {
+  const { t } = useTranslation();
+  return (
+    <span className="flex items-center gap-1 text-[11px] text-fg-secondary">
+      <WorkflowStatusIcon status={state.status} className="size-3" />
+      <span className="truncate">{t(`workflowStatus.step.${state.status}`)}</span>
+      {step.review && state.iteration > 0 && (
+        <span className="ml-auto inline-flex shrink-0 items-center gap-0.5 text-[10px] text-fg-muted">
+          <RefreshCw className="size-2.5" aria-hidden />
+          {state.iteration}/{step.review.maxIterations ?? DEFAULT_REVIEW_ROUNDS}
+        </span>
+      )}
     </span>
   );
 };
@@ -91,18 +104,34 @@ const StepDetail: React.FC<{
   );
 };
 
+interface WorkflowGraphProps {
+  spec: WorkflowGraphSpec;
+  /** Live per-step state; when present, nodes show progress instead of the review badge. */
+  stepStates?: Record<string, WorkflowStepView>;
+  /** Replaces the spec-only detail shown under the graph for the selected step. */
+  renderDetail?: (step: WorkflowGraphStep | undefined) => React.ReactNode;
+  defaultSelected?: string;
+  /** Hide the goal line (when the caller already shows it as a title). */
+  hideGoal?: boolean;
+  className?: string;
+}
+
 /**
  * Left-to-right DAG of a run_workflow spec. Returns null when the spec cannot
  * be laid out (cycle / unknown dependency) so the caller can fall back to JSON.
  */
-export const WorkflowGraph: React.FC<{ spec: WorkflowGraphSpec; className?: string }> = ({
+export const WorkflowGraph: React.FC<WorkflowGraphProps> = ({
   spec,
+  stepStates,
+  renderDetail,
+  defaultSelected,
+  hideGoal,
   className,
 }) => {
   const { t } = useTranslation();
   const agentName = useAgentName();
   const layout = useMemo(() => layoutWorkflow(spec), [spec]);
-  const [selected, setSelected] = useState<string>();
+  const [selected, setSelected] = useState<string | undefined>(defaultSelected);
   const markerId = useId();
   if (!layout) return null;
 
@@ -124,7 +153,7 @@ export const WorkflowGraph: React.FC<{ spec: WorkflowGraphSpec; className?: stri
 
   return (
     <div className={cn('space-y-2', className)}>
-      {spec.goal && (
+      {spec.goal && !hideGoal && (
         <p className="text-xs text-fg-secondary">
           <span className="font-medium">{t('tool.workflowGraph.goal')}</span> {spec.goal}
         </p>
@@ -159,15 +188,20 @@ export const WorkflowGraph: React.FC<{ spec: WorkflowGraphSpec; className?: stri
               const a = pos.get(e.from)!;
               const b = pos.get(e.to)!;
               const hot = selected === e.from || selected === e.to;
+              // An edge whose output is being consumed right now.
+              const flowing =
+                stepStates?.[e.from]?.status === 'done' &&
+                isActiveStatus(stepStates?.[e.to]?.status ?? 'pending');
               return (
                 <path
                   key={`${e.from}->${e.to}`}
                   d={edgePath(a.x + NODE_W, a.y + NODE_H / 2, b.x - 2, b.y + NODE_H / 2)}
                   className={cn(
                     'fill-none',
-                    hot ? 'stroke-action-primary' : 'stroke-border-strong'
+                    hot || flowing ? 'stroke-action-primary' : 'stroke-border-strong'
                   )}
                   strokeWidth={hot ? 2 : 1.5}
+                  strokeDasharray={flowing && !hot ? '4 3' : undefined}
                   markerEnd={`url(#${markerId})`}
                 />
               );
@@ -176,6 +210,7 @@ export const WorkflowGraph: React.FC<{ spec: WorkflowGraphSpec; className?: stri
           {layout.nodes.map(({ step }) => {
             const p = pos.get(step.id)!;
             const isSelected = selected === step.id;
+            const state = stepStates?.[step.id];
             return (
               <button
                 key={step.id}
@@ -183,11 +218,14 @@ export const WorkflowGraph: React.FC<{ spec: WorkflowGraphSpec; className?: stri
                 aria-pressed={isSelected}
                 onClick={() => setSelected(isSelected ? undefined : step.id)}
                 className={cn(
-                  'absolute rounded-btn border bg-surface-primary px-2 py-1.5 text-left text-xs shadow-elevation-1 transition-colors',
+                  'absolute rounded-btn border px-2 py-1.5 text-left text-xs shadow-elevation-1 transition-colors',
                   'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-border-focus',
+                  state?.status === 'pending' ? 'bg-surface-secondary' : 'bg-surface-primary',
                   isSelected
                     ? 'border-action-primary ring-1 ring-action-primary'
-                    : 'border-border hover:border-border-strong'
+                    : state && isActiveStatus(state.status)
+                      ? 'border-action-primary'
+                      : 'border-border hover:border-border-strong'
                 )}
                 style={{ left: p.x, top: p.y, width: NODE_W, height: NODE_H }}
               >
@@ -197,14 +235,22 @@ export const WorkflowGraph: React.FC<{ spec: WorkflowGraphSpec; className?: stri
                   <span className="truncate">{agentName(step.agentId)}</span>
                 </div>
                 <div className="mt-0.5 h-4">
-                  <ReviewBadge step={step} agentName={agentName} />
+                  {state ? (
+                    <LiveStatus step={step} state={state} />
+                  ) : (
+                    <ReviewBadge step={step} agentName={agentName} />
+                  )}
                 </div>
               </button>
             );
           })}
         </div>
       </div>
-      <StepDetail step={spec.steps.find((s) => s.id === selected)} agentName={agentName} />
+      {renderDetail ? (
+        renderDetail(spec.steps.find((s) => s.id === selected))
+      ) : (
+        <StepDetail step={spec.steps.find((s) => s.id === selected)} agentName={agentName} />
+      )}
     </div>
   );
 };

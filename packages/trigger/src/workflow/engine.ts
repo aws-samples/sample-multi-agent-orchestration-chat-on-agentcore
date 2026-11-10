@@ -59,14 +59,16 @@ export interface StepRuntime {
   feedback?: string;
   unapproved?: boolean;
   error?: string;
+  startedAt?: string;
   /** Why the next run happens; consumed when the step is scheduled. */
   nextReason?: WorkerRunReason;
 }
 
-export type StepOutcome =
+export type StepOutcome = (
   | { kind: 'done'; output: string; unapproved?: boolean; feedback?: string }
   | { kind: 'blocked'; output: string; feedback: string; targetStepId?: string }
-  | { kind: 'failed'; error: string };
+  | { kind: 'failed'; error: string }
+) & { startedAt?: string };
 
 export interface WorkflowRunResult {
   status: 'completed' | 'failed' | 'cancelled';
@@ -87,6 +89,7 @@ function toState(workflowId: string, stepId: string, rt: StepRuntime, iteration 
     feedback: rt.feedback,
     unapproved: rt.unapproved,
     error: rt.error,
+    startedAt: rt.startedAt,
     updatedAt: new Date().toISOString(),
   } satisfies WorkflowStepState;
 }
@@ -178,6 +181,7 @@ export async function runWorkflow<C>(
       const outcome = results[i];
       const rt = steps[job.step.id];
       changed.add(job.step.id);
+      rt.startedAt = outcome.startedAt;
       if (outcome.kind === 'done') {
         Object.assign(rt, {
           status: 'done',
@@ -274,6 +278,27 @@ async function runStep<C>(
   outputs: Record<string, string | undefined>,
   ops: WorkflowOps<C>
 ): Promise<StepOutcome> {
+  // Stamped inside the durable step so replay reuses the original time.
+  rt.startedAt = await ops.step(ctx, `${job.step.id}-r${job.run}-start`, async () => {
+    const startedAt = new Date().toISOString();
+    await ops.saveStep(
+      toState(workflowId, job.step.id, { ...rt, startedAt, status: 'running', error: undefined })
+    );
+    return startedAt;
+  });
+  const outcome = await runStepTurns(ctx, workflowId, spec, job, rt, outputs, ops);
+  return { ...outcome, startedAt: rt.startedAt };
+}
+
+async function runStepTurns<C>(
+  ctx: C,
+  workflowId: string,
+  spec: WorkflowSpec,
+  job: { step: WorkflowStep; run: number; reason: WorkerRunReason },
+  rt: StepRuntime,
+  outputs: Record<string, string | undefined>,
+  ops: WorkflowOps<C>
+): Promise<StepOutcome> {
   const { step, run } = job;
   const base = `${step.id}-r${run}`;
   const save = (name: string, status: WorkflowStepStatus, iteration: number, extra = {}) =>
@@ -298,7 +323,6 @@ async function runStep<C>(
       prompt: buildWorkerPrompt(spec, step, outputs, reason),
     });
 
-  await save('start', 'running', 0, { error: undefined });
   let res = await work(job.reason, 0);
   if (!res.ok) return { kind: 'failed', error: res.error };
   if (res.result.status === 'blocked') {

@@ -4,21 +4,9 @@
  * position of their parents to keep edges from crossing.
  */
 
-export interface WorkflowGraphStep {
-  id: string;
-  agentId: string;
-  prompt: string;
-  dependsOn?: string[];
-  modelId?: string;
-  review?: { agentId: string; criteria: string; maxIterations?: number };
-}
+import type { WorkflowGraphSpec, WorkflowGraphStep } from '../types/workflow';
 
-export interface WorkflowGraphSpec {
-  goal: string;
-  steps: WorkflowGraphStep[];
-  maxConcurrency?: number;
-  notifyOnComplete?: boolean;
-}
+export type { WorkflowGraphSpec, WorkflowGraphStep };
 
 export interface LaidOutStep {
   step: WorkflowGraphStep;

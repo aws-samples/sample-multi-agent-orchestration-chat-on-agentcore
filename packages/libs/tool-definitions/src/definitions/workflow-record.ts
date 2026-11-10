@@ -52,6 +52,8 @@ export interface WorkflowStepState {
   /** True when the review loop hit maxIterations without approval. */
   unapproved?: boolean;
   error?: string;
+  /** When the current run of the step started (reset on each re-run). */
+  startedAt?: string;
   updatedAt: string;
 }
 

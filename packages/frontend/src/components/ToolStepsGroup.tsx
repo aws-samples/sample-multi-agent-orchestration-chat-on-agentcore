@@ -30,6 +30,8 @@ import {
 import { cn } from '../lib/utils';
 import { WorkflowGraph } from './WorkflowGraph';
 import { layoutWorkflow, parseWorkflowInput } from '../utils/workflow-layout';
+import { parseStartedWorkflowId } from '../utils/session-workflows';
+import { useWorkflowStore } from '../stores/workflowStore';
 import {
   formatToolResult,
   stepSummary,
@@ -175,9 +177,21 @@ const DetailBlock: React.FC<{
 );
 
 /** run_workflow start input: graph (default) ⇄ JSON. Falls back to JSON when unrenderable. */
-const WorkflowInputBlock: React.FC<{ input: Record<string, unknown> }> = ({ input }) => {
+const WorkflowInputBlock: React.FC<{ input: Record<string, unknown>; resultContent?: string }> = ({
+  input,
+  resultContent,
+}) => {
   const { t } = useTranslation();
   const [view, setView] = useState<'graph' | 'json'>('graph');
+  // Live state comes from the composer's status launcher, which does the polling.
+  const workflowId = useMemo(() => parseStartedWorkflowId(resultContent), [resultContent]);
+  const liveSteps = useWorkflowStore((s) =>
+    workflowId ? s.workflows[workflowId]?.data?.steps : undefined
+  );
+  const stepStates = useMemo(
+    () => (liveSteps ? Object.fromEntries(liveSteps.map((st) => [st.stepId, st])) : undefined),
+    [liveSteps]
+  );
   const json = JSON.stringify(input, null, 2);
   const spec = useMemo(() => {
     const parsed = parseWorkflowInput(input);
@@ -218,7 +232,7 @@ const WorkflowInputBlock: React.FC<{ input: Record<string, unknown> }> = ({ inpu
         </div>
       </div>
       {view === 'graph' ? (
-        <WorkflowGraph spec={spec} />
+        <WorkflowGraph spec={spec} stepStates={stepStates} />
       ) : (
         <pre className="max-h-64 overflow-auto whitespace-pre-wrap wrap-break-word rounded-btn border border-border bg-surface-secondary p-2 font-mono text-xs text-fg-default">
           {json}
@@ -238,7 +252,7 @@ const ToolStepDetail: React.FC<{ step: ToolStep }> = ({ step }) => {
           {t('tool.steps.inputOmitted', { size: formatBytes(step.truncated.byteSize) })}
         </p>
       ) : toolBaseName(step.name) === 'run_workflow' && step.input.action === 'start' ? (
-        <WorkflowInputBlock input={step.input} />
+        <WorkflowInputBlock input={step.input} resultContent={step.result?.content} />
       ) : (
         Object.keys(step.input).length > 0 && (
           <DetailBlock

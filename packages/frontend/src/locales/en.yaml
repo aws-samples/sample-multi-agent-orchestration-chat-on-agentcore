@@ -487,6 +487,53 @@ tool:
       deepwiki: DeepWiki (Remote MCP)
 
 # Storage
+workflowStatus:
+  separator: ' · '
+  open: Show workflow status
+  tooltipRunning: 'Workflow running · {{done}}/{{total}}'
+  tooltipDone: Workflow finished
+  tooltipUnseen: Workflow finished (new)
+  progress: '{{done}} / {{total}} steps done'
+  stepCount: '{{count}} steps'
+  elapsed: '{{duration}} elapsed'
+  took: 'Took {{duration}}'
+  duration:
+    lessThanMinute: under a minute
+    minutes: '{{m}} min'
+    hours: '{{h}} h {{m}} min'
+  autoUpdating: Updating automatically
+  finishedAt: 'Finished at {{time}}'
+  stop: Stop
+  stopping: Stopping…
+  stopConfirmTitle: Stop this workflow?
+  stopConfirmMessage: Running steps are interrupted as well. This cannot be undone.
+  stopFailed: Could not stop the workflow
+  result: Result
+  error: Error
+  loadFailed: Could not load the workflow status
+  openSession: Open step session
+  waitingFor: 'Waiting for {{steps}}'
+  waiting: Waiting to start
+  reviewer: 'Review: {{agent}} (up to {{count}} rounds)'
+  feedback: Reviewer comment
+  unapproved: Reached the review limit and continued without approval
+  instruction: Instruction
+  workflows: Workflows in this session
+  status:
+    pending: Starting
+    running: Running
+    completed: Completed
+    failed: Failed
+    cancelled: Stopped
+  step:
+    pending: Waiting
+    running: Running
+    reviewing: In review
+    done: Done
+    failed: Failed
+    skipped: Skipped
+    cancelled: Stopped
+
 storage:
   workingDirectoryTooltip: 'Storage: {{path}}'
   downloadTooltip: 'Download: {{fileName}}'
@@ -1282,7 +1329,7 @@ defaultAgents:
         prompt: "Please visit the following URL and take screenshots.\n\nURL: https://example.com\n\nScroll through the entire page and capture multiple screenshots."
       webSearch:
         title: Web Search + Browse
-        prompt: "Search for the latest information about \"Amazon Bedrock AgentCore\", then open the top results in the browser to verify the details. Report back with screenshots."
+        prompt: 'Search for the latest information about "Amazon Bedrock AgentCore", then open the top results in the browser to verify the details. Report back with screenshots.'
       formOperation:
         title: Form Operations
         prompt: "Please visit the following website and fill in the form with the specified information. Show screenshots at each step.\n\nURL: \nInput data: "

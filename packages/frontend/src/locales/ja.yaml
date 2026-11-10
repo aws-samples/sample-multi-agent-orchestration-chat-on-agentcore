@@ -480,6 +480,53 @@ tool:
       deepwiki: DeepWiki (リモート MCP)
 
 # ストレージ
+workflowStatus:
+  separator: ' · '
+  open: ワークフローの状況を表示
+  tooltipRunning: 'ワークフロー実行中 · {{done}}/{{total}}'
+  tooltipDone: ワークフロー完了
+  tooltipUnseen: ワークフロー完了（未確認）
+  progress: '{{done}} / {{total}} ステップ完了'
+  stepCount: '{{count}} ステップ'
+  elapsed: '{{duration}}経過'
+  took: '所要 {{duration}}'
+  duration:
+    lessThanMinute: 1 分未満
+    minutes: '{{m}} 分'
+    hours: '{{h}} 時間 {{m}} 分'
+  autoUpdating: 自動で更新しています
+  finishedAt: '{{time}} に終了'
+  stop: 停止
+  stopping: 停止しています…
+  stopConfirmTitle: ワークフローを停止しますか？
+  stopConfirmMessage: 実行中のステップも中断されます。この操作は取り消せません。
+  stopFailed: ワークフローを停止できませんでした
+  result: 結果
+  error: エラー
+  loadFailed: ワークフローの状態を取得できませんでした
+  openSession: ステップのセッションを開く
+  waitingFor: '{{steps}} の完了を待っています'
+  waiting: 開始を待っています
+  reviewer: 'レビュー: {{agent}}（最大 {{count}} 回）'
+  feedback: レビュアーのコメント
+  unapproved: レビューの上限回数に達したため、承認されないまま次に進みました
+  instruction: 指示
+  workflows: このセッションのワークフロー
+  status:
+    pending: 開始待ち
+    running: 実行中
+    completed: 完了
+    failed: 失敗
+    cancelled: 停止
+  step:
+    pending: 待機中
+    running: 実行中
+    reviewing: レビュー中
+    done: 完了
+    failed: 失敗
+    skipped: スキップ
+    cancelled: 停止
+
 storage:
   workingDirectoryTooltip: 'ストレージ: {{path}}'
   downloadTooltip: 'ダウンロード: {{fileName}}'
@@ -1274,7 +1321,7 @@ defaultAgents:
         prompt: "以下のURLにアクセスしてスクリーンショットを撮ってください。\n\nURL: https://example.com\n\nページ全体をスクロールしながら複数のスクリーンショットを撮影してください。"
       webSearch:
         title: ウェブ検索＋閲覧
-        prompt: "「Amazon Bedrock AgentCore」について最新情報を検索し、上位結果のページを実際にブラウザで開いて詳細を確認してください。スクリーンショット付きでレポートしてください。"
+        prompt: '「Amazon Bedrock AgentCore」について最新情報を検索し、上位結果のページを実際にブラウザで開いて詳細を確認してください。スクリーンショット付きでレポートしてください。'
       formOperation:
         title: フォーム操作
         prompt: "以下のウェブサイトにアクセスし、指定された情報をフォームに入力してください。各ステップのスクリーンショットを表示してください。\n\nURL: \n入力情報: "

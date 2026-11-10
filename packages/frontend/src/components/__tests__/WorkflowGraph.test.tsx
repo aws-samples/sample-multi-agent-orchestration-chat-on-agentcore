@@ -2,7 +2,6 @@
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import '@testing-library/jest-dom';
-import React from 'react';
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
@@ -57,5 +56,47 @@ describe('WorkflowGraph', () => {
       />
     );
     expect(container).toBeEmptyDOMElement();
+  });
+});
+
+describe('WorkflowGraph with live step states', () => {
+  const step = (stepId: string, status: string, iteration = 0) => ({
+    stepId,
+    status: status as 'done',
+    runs: 1,
+    iteration,
+    updatedAt: '2026-11-10T00:00:00Z',
+  });
+
+  it('shows each step status and the review round instead of the review badge', () => {
+    render(
+      <WorkflowGraph
+        spec={spec}
+        stepStates={{ research: step('research', 'done'), report: step('report', 'reviewing', 2) }}
+      />
+    );
+    expect(screen.getByRole('button', { name: /research/ })).toHaveTextContent(
+      'workflowStatus.step.done'
+    );
+    const report = screen.getByRole('button', { name: /report/ });
+    expect(report).toHaveTextContent('workflowStatus.step.reviewing');
+    expect(report).toHaveTextContent('2/3');
+    expect(screen.queryByText('tool.workflowGraph.rounds:{"count":3}')).toBeNull();
+    // The edge into the running step is highlighted as in-flight.
+    expect(document.querySelector('svg path[stroke-dasharray]')).not.toBeNull();
+  });
+
+  it('renders a custom detail for the default selection', () => {
+    render(
+      <WorkflowGraph
+        spec={spec}
+        stepStates={{}}
+        defaultSelected="report"
+        renderDetail={(s) => <p>detail:{s?.id ?? 'none'}</p>}
+      />
+    );
+    expect(screen.getByText('detail:report')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: /report/ }));
+    expect(screen.getByText('detail:none')).toBeInTheDocument();
   });
 });

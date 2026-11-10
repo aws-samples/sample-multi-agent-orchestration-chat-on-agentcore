@@ -48,6 +48,8 @@ function activeWorkflows(records: WorkflowRecord[], now = Date.now()): WorkflowR
 }
 
 const workflowIdParams = z.object({ id: z.string().regex(/^wf-[0-9a-f-]{36}$/) });
+/** `summary` drops step outputs (up to 20 KB each) for UIs that poll status. */
+const workflowViewQuery = z.object({ view: z.enum(['full', 'summary']).optional() });
 
 const createWorkflowBody = z.object({
   workflow: workflowSpecSchema,
@@ -204,14 +206,16 @@ router.get(
 router.get(
   '/:id',
   resolveTargetUser,
-  validate({ params: workflowIdParams }),
+  validate({ params: workflowIdParams, query: workflowViewQuery }),
   asyncHandler(async (req: AuthenticatedRequest<{ id: string }>, res) => {
     const userId = req.targetUserId!;
     const repo = getRepository();
     const record = await repo.get(userId, req.params.id);
     if (!record) throw new AppError(ErrorCode.NOT_FOUND, 'Workflow not found');
     const steps = await repo.listSteps(userId, req.params.id);
-    res.status(200).json(ok(req, { workflow: serialize(record, steps) }, { userId }));
+    const { view } = req.query as z.infer<typeof workflowViewQuery>;
+    const visible = view === 'summary' ? steps.map((s) => ({ ...s, output: undefined })) : steps;
+    res.status(200).json(ok(req, { workflow: serialize(record, visible) }, { userId }));
   })
 );
 
