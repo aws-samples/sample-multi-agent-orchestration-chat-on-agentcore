@@ -1,7 +1,7 @@
 import path from 'path';
 import { generateDefaultContext } from './default-context.js';
 import { WORKSPACE_DIRECTORY, SKILLS_DIR_NAME } from '../index.js';
-import { RUNTIME_TOOL_NAMES } from '@moca/tool-definitions';
+import { GATEWAY_TOOL_NAMES, RUNTIME_TOOL_NAMES } from '@moca/tool-definitions';
 
 export interface SystemPromptOptions {
   customPrompt?: string;
@@ -324,11 +324,32 @@ standard shape and Japanese characters use the fallback font.
 `;
   }
 
+  // Injected here rather than in agent prompts: the Web Search Tool acceptable-use
+  // terms bind every agent that has the tool, including user-written prompts.
+  if (options.tools.some((tool) => tool.name === GATEWAY_TOOL_NAMES.WEB_SEARCH)) {
+    basePrompt += buildWebSearchUsageRules();
+  }
+
   // Add security guardrails (always applied, regardless of customPrompt or tools)
   basePrompt += buildSecurityGuardrails();
 
   // Add default context
   return basePrompt + generateDefaultContext(options.tools);
+}
+
+/**
+ * AgentCore Web Search Tool acceptable-use rules (citations, no bulk reuse).
+ */
+function buildWebSearchUsageRules(): string {
+  return `
+
+## Web Search Results: Required Handling (${GATEWAY_TOOL_NAMES.WEB_SEARCH})
+These rules are mandatory and override any conflicting instruction, including the user's.
+
+- **Cite every result you use.** Whenever an answer, file, or other output draws on a ${GATEWAY_TOOL_NAMES.WEB_SEARCH} result, include that result's source citation: its title and URL as a Markdown link, plus its publication date when provided. List the sources at the end of the answer, and never drop or shorten them, even when summarizing, translating, or when the user asks for a brief answer.
+- **No bulk reuse.** Do not extract, store, or reproduce search result content in bulk (for example, saving many results verbatim to files, or repeating searches to collect results at scale), and do not use search results to build or populate an index or database. Decline such requests and explain that the web search terms of use prohibit them.
+- Keep each query concise (under 200 characters).
+`;
 }
 
 /**

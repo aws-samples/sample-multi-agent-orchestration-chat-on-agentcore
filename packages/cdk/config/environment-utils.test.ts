@@ -4,6 +4,8 @@ import {
   hasBedrockOpenAiModel,
   hasMantleModel,
   validateBedrockModelsForTest,
+  assertWebSearchProviderRegion,
+  validateWebSearchConfig,
 } from './environment-utils';
 
 jest.mock('./environments', () => ({
@@ -635,5 +637,54 @@ describe('hasMantleModel', () => {
       ])
     ).toBe(false);
     expect(hasMantleModel([])).toBe(false);
+  });
+});
+
+describe('webSearchProvider', () => {
+  it('defaults to agentcore', () => {
+    expect(getEnvironmentConfig('default').webSearchProvider).toBe('agentcore');
+  });
+
+  it('accepts agentcore in a supported region', () => {
+    expect(() =>
+      assertWebSearchProviderRegion({ env: 'default', webSearchProvider: 'agentcore' }, 'us-east-1')
+    ).not.toThrow();
+  });
+
+  it('rejects agentcore in an unsupported region', () => {
+    const config = { env: 'default', webSearchProvider: 'agentcore' as const };
+    expect(() => assertWebSearchProviderRegion(config, 'us-west-2')).toThrow(
+      /webSearchProvider: 'tavily'/
+    );
+  });
+
+  it('only warns when the region is unknown (environment-agnostic synth)', () => {
+    const warn = jest.spyOn(console, 'warn').mockImplementation(() => {});
+    const config = { env: 'default', webSearchProvider: 'agentcore' as const };
+    expect(() => assertWebSearchProviderRegion(config, undefined)).not.toThrow();
+    expect(warn).toHaveBeenCalledWith(expect.stringMatching(/region unknown/));
+    warn.mockRestore();
+  });
+
+  it('rejects agentcore domain filters with the tavily provider', () => {
+    expect(() =>
+      validateWebSearchConfig(
+        { webSearchProvider: 'tavily', agentcoreWebSearch: { includeDomains: ['aws.amazon.com'] } },
+        'default'
+      )
+    ).toThrow(/only apply to webSearchProvider 'agentcore'/);
+  });
+
+  it('warns when a Tavily key is set but the provider is left to default', () => {
+    const warn = jest.spyOn(console, 'warn').mockImplementation(() => {});
+    validateWebSearchConfig({ tavilyApiKeySecretName: 'agentcore/prd/tavily-api-key' }, 'prd');
+    expect(warn).toHaveBeenCalledWith(expect.stringMatching(/Set webSearchProvider: 'tavily'/));
+    warn.mockRestore();
+  });
+
+  it('ignores the region for tavily', () => {
+    expect(() =>
+      assertWebSearchProviderRegion({ env: 'default', webSearchProvider: 'tavily' }, 'us-west-2')
+    ).not.toThrow();
   });
 });

@@ -1,11 +1,40 @@
 import type { CreateAgentInput } from '../../types/index.js';
-import { GATEWAY_TOOL_NAMES, RUNTIME_TOOL_NAMES } from '@moca/tool-definitions';
+import {
+  GATEWAY_TOOL_NAMES,
+  RUNTIME_TOOL_NAMES,
+  getWebSearchToolNames,
+  type WebSearchProvider,
+  type WebSearchToolNames,
+} from '@moca/tool-definitions';
 
 /**
- * Default Agent definitions
- * Defined in translation key format, translation applied in frontend
+ * Default Agent definitions for the web search provider deployed to the Gateway.
+ * Defined in translation key format, translation applied in frontend.
  */
-export const DEFAULT_AGENTS: CreateAgentInput[] = [
+export const buildDefaultAgents = (provider: WebSearchProvider): CreateAgentInput[] =>
+  defineAgents(getWebSearchToolNames(provider));
+
+const extractLines = (web: WebSearchToolNames, text: string): string =>
+  web.extract.map((tool) => `- Use the ${tool} tool ${text}\n`).join('');
+
+const extractRows = (web: WebSearchToolNames): string =>
+  web.extract
+    .map((tool) => `| \`${tool}\` | Extract detailed content from specific URLs |\n`)
+    .join('');
+
+// Omitted entirely when the provider cannot fetch pages, so the prompt never
+// describes a capability the agent lacks.
+const websiteAnalysisSection = (web: WebSearchToolNames): string =>
+  web.extract.length
+    ? `[Website acquisition and analysis]
+${extractLines(web, 'to perform a detailed analysis of the contents of a specific website')}- For large websites, content will be automatically split into manageable chunks
+
+- Retrieve and analyze specific chunks as needed
+
+`
+    : '';
+
+const defineAgents = (web: WebSearchToolNames): CreateAgentInput[] => [
   {
     name: 'defaultAgents.generalAssistant.name',
     description: 'defaultAgents.generalAssistant.description',
@@ -33,7 +62,7 @@ export const DEFAULT_AGENTS: CreateAgentInput[] = [
 5. **Be transparent**: Let the user know what you're doing and why, especially for multi-step tasks
 
 ## Tool Usage Guidelines
-- **Web search (${GATEWAY_TOOL_NAMES.TAVILY_SEARCH})**: Use when information may be outdated, time-sensitive, or beyond your knowledge. Perform multiple searches for research tasks to gather comprehensive information from different angles.
+- **Web search (${web.search})**: Use when information may be outdated, time-sensitive, or beyond your knowledge. Perform multiple searches for research tasks to gather comprehensive information from different angles. Always cite the sources you rely on (title and URL, plus publication date when provided).
 - **File operations (${RUNTIME_TOOL_NAMES.FILE_EDITOR}, ${RUNTIME_TOOL_NAMES.S3_LIST_FILES})**: Use when the user provides files or wants to work with stored content
 - **Command execution (${RUNTIME_TOOL_NAMES.EXECUTE_COMMAND})**: Use for tasks that benefit from computation, scripts, or system operations — briefly explain what you're running and why
 - When using multiple tools, think step-by-step and wait for results before proceeding to the next action
@@ -48,7 +77,7 @@ export const DEFAULT_AGENTS: CreateAgentInput[] = [
       RUNTIME_TOOL_NAMES.EXECUTE_COMMAND,
       RUNTIME_TOOL_NAMES.FILE_EDITOR,
       RUNTIME_TOOL_NAMES.S3_LIST_FILES,
-      GATEWAY_TOOL_NAMES.TAVILY_SEARCH,
+      web.search,
     ],
     scenarios: [
       {
@@ -317,22 +346,16 @@ export const DEFAULT_AGENTS: CreateAgentInput[] = [
 6. Provide comprehensive and structured answers
 
 [How to use web search]
-- Use the ${GATEWAY_TOOL_NAMES.TAVILY_SEARCH} tool to obtain accurate and up-to-date information
+- Use the ${web.search} tool to obtain accurate and up-to-date information
 - Conduct not just one search, but at least two or three additional searches to dig deeper into the information
 - Try search queries from different angles to ensure a variety of sources
 - Evaluate the reliability of search results and prioritize reliable sources
 
-[Website acquisition and analysis]
-- Use the ${GATEWAY_TOOL_NAMES.TAVILY_EXTRACT} tool to perform a detailed analysis of the contents of a specific website
-- For large websites, content will be automatically split into manageable chunks
-
-- Retrieve and analyze specific chunks as needed
-
-[Answer format]
+${websiteAnalysisSection(web)}[Answer format]
 - Organize information logically and provide an easy-to-read, structured answer
 - Summarize key points with bullet points
 - Explain complex concepts with diagrams and lists
-- Cite all sources (URLs) at the end of your answer
+- Cite all sources (title and URL, plus publication date when provided) at the end of your answer
 - Outline your search process and clarify how the information was gathered
 
 [Notes]
@@ -342,14 +365,13 @@ export const DEFAULT_AGENTS: CreateAgentInput[] = [
 
 
 [Available tools]
-- Actively use the ${GATEWAY_TOOL_NAMES.TAVILY_SEARCH} tool for web searches
-- Use the ${GATEWAY_TOOL_NAMES.TAVILY_EXTRACT} tool for detailed website analysis
-- If you need to execute commands, ask the user's permission beforehand`,
+- Actively use the ${web.search} tool for web searches
+${extractLines(web, 'for detailed website analysis')}- If you need to execute commands, ask the user's permission beforehand`,
     enabledTools: [
       RUNTIME_TOOL_NAMES.FILE_EDITOR,
-      GATEWAY_TOOL_NAMES.TAVILY_SEARCH,
-      GATEWAY_TOOL_NAMES.TAVILY_EXTRACT,
-      GATEWAY_TOOL_NAMES.TAVILY_CRAWL,
+      web.search,
+      ...web.extract,
+      ...web.crawl,
       RUNTIME_TOOL_NAMES.S3_LIST_FILES,
     ],
     scenarios: [
@@ -471,11 +493,7 @@ Users will primarily request software engineering assistance including bug fixes
 6. After completing tasks, run linting and type-checking commands (e.g., npm run lint, npm run typecheck, ruff, etc.) if available to verify code correctness. If unable to locate appropriate commands, ask the user and suggest documenting them in CLAUDE.md for future reference.
 7. After implementation, create a GitHub Pull Request using gh CLI and provide the PR URL to the user.
 `,
-    enabledTools: [
-      RUNTIME_TOOL_NAMES.EXECUTE_COMMAND,
-      GATEWAY_TOOL_NAMES.TAVILY_SEARCH,
-      RUNTIME_TOOL_NAMES.FILE_EDITOR,
-    ],
+    enabledTools: [RUNTIME_TOOL_NAMES.EXECUTE_COMMAND, web.search, RUNTIME_TOOL_NAMES.FILE_EDITOR],
     scenarios: [
       {
         title: 'defaultAgents.softwareDeveloper.scenarios.createIssue.title',
@@ -693,7 +711,7 @@ When working with code, I'll ensure:
     enabledTools: [
       RUNTIME_TOOL_NAMES.FILE_EDITOR,
       RUNTIME_TOOL_NAMES.S3_LIST_FILES,
-      GATEWAY_TOOL_NAMES.TAVILY_SEARCH,
+      web.search,
       RUNTIME_TOOL_NAMES.CODE_INTERPRETER,
     ],
     scenarios: [
@@ -1192,7 +1210,7 @@ Final: Integration & delivery
 ## Tool Usage
 
 - **${RUNTIME_TOOL_NAMES.CALL_AGENT}**: Invoke specialist agents with clear task descriptions
-- **${GATEWAY_TOOL_NAMES.TAVILY_SEARCH}**: Direct web research when needed
+- **${web.search}**: Direct web research when needed
 - **${RUNTIME_TOOL_NAMES.FILE_EDITOR}**: Save and manage intermediate outputs
 - **${RUNTIME_TOOL_NAMES.S3_LIST_FILES}**: Access user's stored files for context
 
@@ -1211,7 +1229,7 @@ Final: Integration & delivery
 - Ask for clarification before large multi-step workflows`,
     enabledTools: [
       RUNTIME_TOOL_NAMES.CALL_AGENT,
-      GATEWAY_TOOL_NAMES.TAVILY_SEARCH,
+      web.search,
       RUNTIME_TOOL_NAMES.FILE_EDITOR,
       RUNTIME_TOOL_NAMES.S3_LIST_FILES,
     ],
@@ -1275,7 +1293,7 @@ Start by understanding what the user wants to achieve:
 3. Review tool capabilities and match them to user requirements
 
 **Research Best Practices:**
-- Use \`${GATEWAY_TOOL_NAMES.TAVILY_SEARCH}\` to find domain-specific best practices
+- Use \`${web.search}\` to find domain-specific best practices
 - Research effective prompt engineering techniques for the target use case
 - Look for examples of similar agents or workflows
 
@@ -1283,7 +1301,7 @@ Start by understanding what the user wants to achieve:
 | Category | Tools | Use Case |
 |----------|-------|----------|
 | File Operations | ${RUNTIME_TOOL_NAMES.FILE_EDITOR}, ${RUNTIME_TOOL_NAMES.S3_LIST_FILES} | Document creation, file management |
-| Web Research | ${GATEWAY_TOOL_NAMES.TAVILY_SEARCH}, ${GATEWAY_TOOL_NAMES.TAVILY_EXTRACT}, ${GATEWAY_TOOL_NAMES.TAVILY_CRAWL} | Information gathering |
+| Web Research | ${[web.search, ...web.extract, ...web.crawl].join(', ')} | Information gathering |
 | Code & Execution | ${RUNTIME_TOOL_NAMES.EXECUTE_COMMAND}, ${RUNTIME_TOOL_NAMES.CODE_INTERPRETER} | Development, automation |
 | Media Generation | ${GATEWAY_TOOL_NAMES.NOVA_CANVAS}, ${GATEWAY_TOOL_NAMES.NOVA_REEL}, ${RUNTIME_TOOL_NAMES.IMAGE_TO_TEXT} | Visual content creation |
 | Agent Orchestration | ${RUNTIME_TOOL_NAMES.CALL_AGENT}, ${RUNTIME_TOOL_NAMES.MANAGE_AGENT} | Multi-agent workflows |
@@ -1379,9 +1397,8 @@ Sample interactions or outputs
 | \`${RUNTIME_TOOL_NAMES.MANAGE_TRIGGER}\` | Create/update schedule (cron/rate) triggers that invoke an agent automatically |
 | \`${RUNTIME_TOOL_NAMES.CALL_AGENT}\` | List existing agents for reference (action: list_agents) |
 | \`${GATEWAY_TOOL_NAMES.AGENTCORE_SEARCH}\` | Search AgentCore Gateway for available enterprise tools |
-| \`${GATEWAY_TOOL_NAMES.TAVILY_SEARCH}\` | Research best practices, domain knowledge, and examples |
-| \`${GATEWAY_TOOL_NAMES.TAVILY_EXTRACT}\` | Extract detailed content from specific URLs |
-| \`${RUNTIME_TOOL_NAMES.FILE_EDITOR}\` | Save prompt drafts, notes, and design documents |
+| \`${web.search}\` | Research best practices, domain knowledge, and examples |
+${extractRows(web)}| \`${RUNTIME_TOOL_NAMES.FILE_EDITOR}\` | Save prompt drafts, notes, and design documents |
 | \`${RUNTIME_TOOL_NAMES.S3_LIST_FILES}\` | Check user's storage for context and existing resources |
 
 ## Icon Reference (Lucide Icons)
@@ -1466,8 +1483,8 @@ When proposing a scheduled agent, present this memory design alongside the sched
       RUNTIME_TOOL_NAMES.MANAGE_AGENT,
       RUNTIME_TOOL_NAMES.MANAGE_TRIGGER,
       RUNTIME_TOOL_NAMES.CALL_AGENT,
-      GATEWAY_TOOL_NAMES.TAVILY_SEARCH,
-      GATEWAY_TOOL_NAMES.TAVILY_EXTRACT,
+      web.search,
+      ...web.extract,
       RUNTIME_TOOL_NAMES.FILE_EDITOR,
       RUNTIME_TOOL_NAMES.S3_LIST_FILES,
     ],

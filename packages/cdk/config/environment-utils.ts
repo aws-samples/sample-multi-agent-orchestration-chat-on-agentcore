@@ -76,6 +76,7 @@ const DEFAULT_CONFIG = {
   // Default geo restriction: Japan and United States
   // Override per-environment in environments.ts if needed
   cloudFrontGeoRestriction: ['JP', 'US'] as string[],
+  webSearchProvider: 'agentcore' as const,
   /**
    * CDK intentionally does not depend on @moca/core to keep infrastructure free
    * of runtime library dependencies. Keep this list in sync with
@@ -413,6 +414,64 @@ export function validateBedrockModelsForTest(models: BedrockModelConfig[]): void
 }
 
 /**
+ * Regions where the AgentCore Gateway built-in `web-search` connector is offered.
+ * Update when AWS expands availability.
+ */
+export const AGENTCORE_WEB_SEARCH_REGIONS: readonly string[] = [
+  'us-east-1',
+  'eu-west-1',
+  'ap-northeast-1',
+];
+
+/**
+ * Fail synth fast when webSearchProvider is 'agentcore' in a region without the connector.
+ * Without this, CreateGatewayTarget fails mid-deploy and the stack rolls back.
+ * @param region Concrete deploy region, or undefined when the stack is environment-agnostic
+ */
+export function assertWebSearchProviderRegion(
+  config: Pick<EnvironmentConfig, 'env' | 'webSearchProvider'>,
+  region: string | undefined
+): void {
+  if (config.webSearchProvider !== 'agentcore') return;
+  if (!region || cdk.Token.isUnresolved(region)) {
+    // Environment-agnostic synth stays possible; CreateGatewayTarget rejects
+    // an unsupported region at deploy time instead.
+    console.warn(
+      `⚠️  [${config.env}] Deploy region unknown at synth time; the AgentCore Web Search ` +
+        `connector only works in ${AGENTCORE_WEB_SEARCH_REGIONS.join(', ')}.`
+    );
+    return;
+  }
+  if (!AGENTCORE_WEB_SEARCH_REGIONS.includes(region)) {
+    throw new Error(
+      `[${config.env}] webSearchProvider 'agentcore' is not available in ${region}. ` +
+        `The AgentCore Web Search connector is offered only in ${AGENTCORE_WEB_SEARCH_REGIONS.join(', ')}. ` +
+        `Deploy to one of those regions, or opt into Tavily with webSearchProvider: 'tavily' in packages/cdk/config/environments.ts.`
+    );
+  }
+}
+
+/**
+ * Catch web search settings that would otherwise be silently ignored.
+ */
+export function validateWebSearchConfig(input: EnvironmentConfigInput, env: Environment): void {
+  const provider = input.webSearchProvider ?? DEFAULT_CONFIG.webSearchProvider;
+  if (provider !== 'agentcore' && input.agentcoreWebSearch) {
+    throw new Error(
+      `[${env}] agentcoreWebSearch domain filters only apply to webSearchProvider 'agentcore' ` +
+        `(got '${provider}'). Remove agentcoreWebSearch or switch the provider.`
+    );
+  }
+  if (input.webSearchProvider === undefined && input.tavilyApiKeySecretName) {
+    // Pre-upgrade configs set the Tavily key without a provider; they now get agentcore.
+    console.warn(
+      `⚠️  [${env}] tavilyApiKeySecretName is set but webSearchProvider is not, so the default ` +
+        `'agentcore' is used and the Tavily key is ignored. Set webSearchProvider: 'tavily' to keep Tavily.`
+    );
+  }
+}
+
+/**
  * Generate default resource prefix from environment name
  * @param env Environment name
  * @returns Resource prefix (e.g., 'moca', 'mocadev', 'mocapr123')
@@ -435,6 +494,7 @@ function resolveConfig(env: Environment, input: EnvironmentConfigInput): Environ
   const bedrockModels = input.bedrockModels ?? DEFAULT_CONFIG.bedrockModels;
   validateBedrockModels(bedrockModels, env);
   validateCognitoDomainPrefix(input.cognitoDomainPrefix, env);
+  validateWebSearchConfig(input, env);
 
   return {
     // Spread input first so optional properties are automatically passed through.
@@ -460,6 +520,7 @@ function resolveConfig(env: Environment, input: EnvironmentConfigInput): Environ
       input.githubWebhookSecretName ?? DEFAULT_CONFIG.githubWebhookSecretName,
     cloudFrontGeoRestriction:
       input.cloudFrontGeoRestriction ?? DEFAULT_CONFIG.cloudFrontGeoRestriction,
+    webSearchProvider: input.webSearchProvider ?? DEFAULT_CONFIG.webSearchProvider,
     bedrockModels,
   };
 }
@@ -495,7 +556,6 @@ function getPrEnvironmentConfig(env: string): EnvironmentConfigInput {
     cognitoDomainPrefix: `moca-pr-${prNumber}-${accountSuffix}`,
     memoryExpirationDays: 7, // Short retention for PR environments
     logRetentionDays: 3, // Short retention for PR environments
-    tavilyApiKeySecretName: 'agentcore/dev/tavily-api-key', // Use dev secrets
     githubTokenSecretName: 'agentcore/dev/github-token', // Use dev secrets
     allowedSignUpEmailDomains: ['amazon.com', 'amazon.co.jp'],
   };

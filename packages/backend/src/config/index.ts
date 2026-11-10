@@ -7,6 +7,7 @@ import { config as loadEnv } from 'dotenv';
 import { z } from 'zod';
 import { logger } from '../libs/logger/index.js';
 import { parseHttpEndpoint } from './listen-address.js';
+import { WEB_SEARCH_PROVIDERS } from '@moca/tool-definitions';
 
 // Load environment variables
 loadEnv();
@@ -103,6 +104,11 @@ const envSchema = z.object({
   AGENTCORE_GATEWAY_ENDPOINT: z.string({
     error: 'AGENTCORE_GATEWAY_ENDPOINT is required for MCP tool integration',
   }),
+  /**
+   * Web search provider deployed to the Gateway (`webSearchProvider` in CDK config).
+   * Selects which web search tool names the default agents enable.
+   */
+  WEB_SEARCH_PROVIDER: z.enum(WEB_SEARCH_PROVIDERS).default('agentcore'),
 
   // User Storage configuration (required)
   USER_STORAGE_BUCKET_NAME: z.string({

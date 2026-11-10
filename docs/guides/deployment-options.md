@@ -46,7 +46,9 @@ export const environments: Record<Environment, EnvironmentConfigInput> = {
 | `s3AutoDeleteObjects` | boolean | `true` | Auto-delete S3 objects on stack deletion |
 | `cognitoDeletionProtection` | boolean | `false` | Cognito User Pool deletion protection. When `false`, the UserPool, UserPoolDomain, and ResourceServer are destroyed together with the stack. |
 | `logRetentionDays` | number | `7` | Lambda log retention period (days) |
-| `tavilyApiKeySecretName` | string | `'agentcore/default/tavily-api-key'` | Secrets Manager secret name for Tavily API key |
+| `tavilyApiKeySecretName` | string | `'agentcore/default/tavily-api-key'` | Secrets Manager secret name for Tavily API key (used only with `webSearchProvider: 'tavily'`) |
+| `webSearchProvider` | `'agentcore'` \| `'tavily'` | `'agentcore'` | Web search backend. `'agentcore'` is the AgentCore Gateway built-in Web Search connector (region-limited); `'tavily'` opts into Tavily. See [Web Search Provider](#web-search-provider). |
+| `agentcoreWebSearch` | object | - | Domain filters (`includeDomains` / `excludeDomains`) for the `'agentcore'` provider |
 | `githubTokenSecretName` | string | `'agentcore/default/github-token'` | Secrets Manager secret name for GitHub token |
 | `githubWebhookSecretName` | string | `'agentcore/default/github-webhook-secret'` | Secrets Manager secret name for GitHub webhook HMAC secret |
 | `allowedSignUpEmailDomains` | string[] | - | Allowed email domains for sign-up |
@@ -298,6 +300,7 @@ npm run seed-system-agents -- --env dev
 | `--table <name>` | DynamoDB table name (auto-detected from CloudFormation if omitted) |
 | `--force` | Delete existing system agents and re-seed |
 | `--dry-run` | Preview changes without writing to DynamoDB |
+| `--web-search-provider <agentcore\|tavily>` | Web search tools to enable on the default agents (default: the stack's `WebSearchProvider` output). Required together with `--table` to skip CloudFormation entirely |
 
 ### Examples
 
@@ -309,7 +312,7 @@ npm run seed-system-agents -- --env dev --dry-run
 npm run seed-system-agents -- --env prd --force
 
 # Specify table name directly (when CloudFormation access is unavailable)
-npm run seed-system-agents -- --env dev --table mocadev-agents
+npm run seed-system-agents -- --env dev --table mocadev-agents --web-search-provider agentcore
 ```
 
 > **Note:** This is a one-time operation per environment. The script is idempotent — if system agents already exist, it skips unless `--force` is specified.
@@ -391,6 +394,57 @@ echo "Save this secret for GitHub configuration: $WEBHOOK_SECRET"
 ### 3. Create Event Triggers
 
 In the Moca UI, create triggers that subscribe to the `github-issue-created` or `github-pr` event sources. When a matching GitHub event occurs, the subscribed agent will be automatically invoked with the event context.
+
+## Web Search Provider
+
+Agents get web search from exactly one provider per environment, selected by `webSearchProvider`:
+
+| Provider | Gateway target | Tools | Requirements |
+|----------|----------------|-------|--------------|
+| `agentcore` (default) | Built-in `web-search` connector | `web-search___WebSearch` | Deploy region must offer the connector |
+| `tavily` (opt-in) | `tavily-tools` Lambda | `tavily-tools___tavily_search`, `___tavily_extract`, `___tavily_crawl` | Tavily API key in Secrets Manager (`tavilyApiKeySecretName`) |
+
+Only the selected provider's target is deployed, so the agent never sees two web search tools.
+
+### AgentCore Web Search (default)
+
+No configuration is needed. Domain filters are optional:
+
+```typescript
+dev: {
+  agentcoreWebSearch: {
+    excludeDomains: ['example.com'],   // optional, enforced server-side
+    // includeDomains: ['aws.amazon.com'], // optional, restricts every search
+  },
+},
+```
+
+- **Region**: the connector is offered only in the regions listed in `AGENTCORE_WEB_SEARCH_REGIONS` (`packages/cdk/config/environment-utils.ts`). In any other region `cdk synth` fails with an error telling you to opt into Tavily; it does not silently fall back.
+- **No API key**: queries are served within AWS. The Gateway service role is granted `bedrock-agentcore:InvokeWebSearch` on the service-owned `tool/web-search.v1` ARN.
+- **No page extraction**: the connector returns titled, dated snippets with URLs but has no extract/crawl equivalent. Use Tavily if your agents need full-page extraction or crawling.
+- **Acceptable use**: results include title, URL, and publication date. You must keep and display these citations in any output shown to end users, and must not bulk-extract results or build a competing index. Every agent with the tool gets these rules injected into its system prompt.
+
+### Using Tavily instead
+
+Store the API key (see the README) and opt in per environment:
+
+```typescript
+dev: {
+  webSearchProvider: 'tavily',
+  tavilyApiKeySecretName: 'agentcore/dev/tavily-api-key', // default: 'agentcore/default/tavily-api-key'
+},
+```
+
+Required for deployments outside the connector regions above.
+
+### Switching providers on an existing deployment
+
+Deployments created before `webSearchProvider` existed ran Tavily. Upgrading switches them to `agentcore` on the next deploy unless you set `webSearchProvider: 'tavily'` to keep the previous behavior.
+
+Agents store tool names in `enabledTools`, so switching does not update agents that already exist:
+
+- **System agents**: re-seed with `npm run seed-system-agents -- --env <env> --force` (picks up the stack's `WebSearchProvider` output).
+- **Per-user default agents and user-created agents**: still reference the old provider's tools, and those tools silently stop resolving. Users must edit the agent's tools in the UI.
 
 ## Knowledge Base Tools Integration
 

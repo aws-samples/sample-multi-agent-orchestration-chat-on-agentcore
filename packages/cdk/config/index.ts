@@ -14,6 +14,8 @@ export type {
   EnvironmentConfigInput,
   BedrockModelConfig,
   EventRuleConfig,
+  WebSearchProvider,
+  AgentCoreWebSearchConfig,
 } from './environment-types';
 
 // Export configurations
@@ -25,4 +27,6 @@ export {
   deriveBedrockIamResources,
   hasBedrockOpenAiModel,
   hasMantleModel,
+  assertWebSearchProviderRegion,
+  AGENTCORE_WEB_SEARCH_REGIONS,
 } from './environment-utils';

@@ -266,6 +266,31 @@ export interface EnvironmentConfig {
    * When NOT set, the Knowledge Base Tools Lambda target is NOT deployed at all.
    */
   knowledgeBaseIds?: string[];
+
+  /**
+   * Web search provider (exactly one is deployed so the agent never sees two web search tools)
+   * - 'agentcore' : AgentCore Gateway built-in `web-search` connector. No API key, queries stay
+   *                 within AWS. Only offered in AGENTCORE_WEB_SEARCH_REGIONS — synth fails elsewhere,
+   *                 so deployments in other regions must opt into 'tavily'.
+   * - 'tavily'    : Tavily Lambda target (search/extract/crawl). Requires tavilyApiKeySecretName.
+   * @default 'agentcore'
+   */
+  webSearchProvider: WebSearchProvider;
+
+  /**
+   * Target-level domain filters for the 'agentcore' provider (optional).
+   * Enforced server-side by the connector and invisible to the calling agent.
+   */
+  agentcoreWebSearch?: AgentCoreWebSearchConfig;
+}
+
+export type WebSearchProvider = 'tavily' | 'agentcore';
+
+export interface AgentCoreWebSearchConfig {
+  /** Domains excluded from every search (e.g. ['example.com']) */
+  excludeDomains?: string[];
+  /** Restrict every search to these domains */
+  includeDomains?: string[];
 }
 
 /**

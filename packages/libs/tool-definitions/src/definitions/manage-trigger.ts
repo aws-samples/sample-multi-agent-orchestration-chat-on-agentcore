@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { zodToJsonSchema } from '../utils/schema-converter.js';
-import { GATEWAY_TOOL_NAMES, RUNTIME_TOOL_NAMES } from '../tool-names.js';
+import { RUNTIME_TOOL_NAMES } from '../tool-names.js';
 import type { ToolDefinition } from '../types.js';
 
 /**
@@ -48,7 +48,7 @@ export const manageTriggerSchema = z.object({
     .array(z.string())
     .optional()
     .describe(
-      `Array of tool names the invoked agent may use (e.g. ["${RUNTIME_TOOL_NAMES.EXECUTE_COMMAND}", "${GATEWAY_TOOL_NAMES.TAVILY_SEARCH}"])`
+      `Array of tool names the invoked agent may use (e.g. ["${RUNTIME_TOOL_NAMES.EXECUTE_COMMAND}", "${RUNTIME_TOOL_NAMES.FILE_EDITOR}"])`
     ),
   modelId: z.string().optional().describe('Model ID override for the invocation (optional)'),
   workingDirectory: z

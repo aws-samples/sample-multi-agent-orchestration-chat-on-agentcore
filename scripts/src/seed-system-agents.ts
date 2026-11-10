@@ -7,6 +7,7 @@
  *   npm run seed-system-agents -- --env dev
  *   npm run seed-system-agents -- --env prd --force
  *   npm run seed-system-agents -- --env dev --table mocadev-agents
+ *   npm run seed-system-agents -- --env dev --web-search-provider agentcore
  *
  * Options:
  *   --env      Environment name (default|dev|stg|prd)     [default: default]
@@ -14,6 +15,7 @@
  *   --table    DynamoDB table name (auto-detected from CloudFormation if omitted)
  *   --force    Delete existing system agents and re-seed
  *   --dry-run  Show what would be done without making changes
+ *   --web-search-provider  agentcore|tavily (default: WebSearchProvider stack output)
  */
 
 import {
@@ -29,7 +31,11 @@ import {
 import { marshall, unmarshall } from '@aws-sdk/util-dynamodb';
 import { v7 as uuidv7 } from 'uuid';
 import { SYSTEM_USER_ID } from '../../packages/libs/core/src/system-ids.js';
-import { DEFAULT_AGENTS } from '../../packages/backend/src/config/data/default-agents.js';
+import { buildDefaultAgents } from '../../packages/backend/src/config/data/default-agents.js';
+import {
+  WEB_SEARCH_PROVIDERS,
+  isWebSearchProvider,
+} from '../../packages/libs/tool-definitions/src/tool-names.js';
 
 // ---------------------------------------------------------------------------
 // CLI argument parsing
@@ -48,6 +54,8 @@ function parseArgs() {
       opts.region = args[++i];
     } else if (args[i] === '--table' && args[i + 1]) {
       opts.table = args[++i];
+    } else if (args[i] === '--web-search-provider' && args[i + 1]) {
+      opts.webSearchProvider = args[++i];
     } else if (args[i] === '--force') {
       opts.force = true;
     } else if (args[i] === '--dry-run') {
@@ -62,6 +70,7 @@ Options:
   --table    DynamoDB table name (auto-detected from CloudFormation if omitted)
   --force    Delete existing system agents and re-seed
   --dry-run  Show what would be done without making changes
+  --web-search-provider  agentcore|tavily (default: WebSearchProvider stack output)
 `);
       process.exit(0);
     }
@@ -82,6 +91,7 @@ Options:
     table: opts.table as string | undefined,
     force: !!opts.force,
     dryRun: !!opts.dryRun,
+    webSearchProvider: opts.webSearchProvider as string | undefined,
   };
 }
 
@@ -218,21 +228,41 @@ async function main() {
   );
   if (opts.dryRun) console.log('📋 DRY RUN — no changes will be made\n');
 
-  // 1. Resolve table name (from --table flag or CloudFormation outputs)
-  let tableName: string;
-  if (opts.table) {
-    tableName = opts.table;
-  } else {
-    const outputs = await getStackOutputs(stackName, opts.region);
-    tableName = outputs.AgentsTableName;
-    if (!tableName) {
-      throw new Error('AgentsTableName not found in stack outputs');
+  // 1. Resolve table name and web search provider (flags win over CloudFormation outputs)
+  // Guessing the provider would seed tool names that don't exist on the Gateway
+  // (after --force already deleted the good agents), so a failed lookup is fatal.
+  let outputs: Record<string, string> = {};
+  if (!(opts.table && opts.webSearchProvider)) {
+    try {
+      outputs = await getStackOutputs(stackName, opts.region);
+    } catch (err) {
+      const hint = opts.table
+        ? ' Without CloudFormation access, also pass --web-search-provider <agentcore|tavily>.'
+        : '';
+      throw new Error(
+        `Failed to read outputs of stack "${stackName}": ${err instanceof Error ? err.message : err}.${hint}`,
+        { cause: err }
+      );
     }
+  }
+  const tableName = opts.table ?? outputs.AgentsTableName;
+  if (!tableName) {
+    throw new Error('AgentsTableName not found in stack outputs');
   }
   console.log(`📦 Agents table: ${tableName}`);
 
-  // 2. (DEFAULT_AGENTS loaded via static import at top of file)
-  console.log(`📝 Default agents defined: ${DEFAULT_AGENTS.length}`);
+  // 2. Build default agents for the deployed web search provider
+  // Stacks deployed before the WebSearchProvider output existed always ran Tavily.
+  const webSearchProvider = opts.webSearchProvider ?? outputs.WebSearchProvider ?? 'tavily';
+  if (!isWebSearchProvider(webSearchProvider)) {
+    throw new Error(
+      `Invalid web search provider "${webSearchProvider}". Expected one of: ${WEB_SEARCH_PROVIDERS.join(', ')}`
+    );
+  }
+  const DEFAULT_AGENTS = buildDefaultAgents(webSearchProvider);
+  console.log(
+    `📝 Default agents defined: ${DEFAULT_AGENTS.length} (web search: ${webSearchProvider})`
+  );
 
   // 3. Check existing system agents
   const dynamoClient = new DynamoDBClient(opts.region ? { region: opts.region } : {});
