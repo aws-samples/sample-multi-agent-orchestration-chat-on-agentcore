@@ -12,6 +12,7 @@ AgentCore Gateway Lambda Tools — npm workspace collection.
 | `@moca/lambda-tools-athena` | `tools/athena-tools/` | Athena S3 query tools |
 | `@moca/lambda-tools-nova-canvas` | `tools/nova-canvas-tools/` | Nova Canvas image generation tools |
 | `@moca/lambda-tools-nova-reel` | `tools/nova-reel-tools/` | Nova Reel video generation tools |
+| `@moca/lambda-tools-tavily` | `tools/tavily-tools/` | Tavily web search tools (search, extract, crawl) |
 
 ## Build
 

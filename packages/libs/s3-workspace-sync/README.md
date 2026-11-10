@@ -1,6 +1,6 @@
 # @moca/s3-workspace-sync
 
-Bidirectional file sync between **Amazon S3** and a **local workspace directory** with MD5-hash-based diff detection, `.syncignore` support, and configurable concurrent transfers.
+Bidirectional file sync between **Amazon S3** and a **local workspace directory** with SHA-256-hash-based diff detection, `.syncignore` support, and configurable concurrent transfers.
 
 ## Why — The Ephemeral Filesystem Problem
 
@@ -10,7 +10,7 @@ AI Agents that perform file operations — code generation, data analysis, repor
 |---|---|
 | **AWS Lambda** | `/tmp` is wiped between cold starts. Max 512 MB (10 GB with ephemeral storage). |
 | **AWS Fargate / ECS** | Container filesystem is destroyed when the task stops or scales down. |
-| **Serverless Containers** (AgentCore Runtime, App Runnter, etc.) | Same — no persistent local state across invocations. |
+| **Serverless Containers** (AgentCore Runtime, App Runner, etc.) | Same — no persistent local state across invocations. |
 
 This means that every file an agent creates or modifies during a session **will be lost** when the execution environment is recycled. For AI agents that build up project context over multiple interactions (e.g., iteratively refining code, accumulating research data), this is a critical problem.
 
@@ -39,7 +39,7 @@ This package treats **Amazon S3 as the durable source of truth** and the local f
 ```
 
 On every agent invocation:
-1. **`pull()`** restores the workspace from S3 (only downloading changed files via MD5 hash comparison)
+1. **`pull()`** restores the workspace from S3 (only downloading changed files via SHA-256 hash comparison)
 2. The agent performs file operations on the local filesystem at full speed
 3. **`push()`** persists only the changed files back to S3
 
@@ -68,7 +68,7 @@ sequenceDiagram
     Agent->>Local: Read/write files<br/>(code generation, data analysis, etc.)
 
     Note over Agent,S3: ③ Persist changes
-    Agent->>Local: Scan files + compute MD5 hashes
+    Agent->>Local: Scan files + compute SHA-256 hashes
     Local-->>Agent: Changed files detected
     Agent->>S3: push() — PutObject (only diffs)
 
@@ -107,7 +107,7 @@ This pattern reduces perceived latency — in production, a 2,116-file workspace
 ## Features
 
 - **`pull()`** — Download from S3 to local (S3 as source of truth). Deletes local-only files.
-- **`push()`** — Upload changed/new files to S3 using in-memory MD5 hash snapshot for fast diff.
+- **`push()`** — Upload changed/new files to S3 using in-memory SHA-256 hash snapshot for fast diff.
 - **Background pull** — `startBackgroundPull()` + `waitForPull()` for non-blocking initialization.
 - **`.syncignore`** — `.gitignore`-style pattern file for excluding paths from sync.
 - **Concurrent transfers** — Configurable parallelism via `p-limit` (default: 50 downloads, 10 uploads).
