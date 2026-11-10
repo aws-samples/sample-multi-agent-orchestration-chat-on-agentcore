@@ -102,6 +102,11 @@ function convertZodType(zodType: z.ZodTypeAny): Record<string, unknown> {
     result.type = 'object';
     result.properties = nested.properties;
     if (nested.required) result.required = nested.required;
+  } else if (innerType instanceof z.ZodRecord) {
+    // A record is a free-form object; without this branch it falls through to
+    // the string fallback and clients are told to send a JSON string.
+    result.type = 'object';
+    result.additionalProperties = true;
   } else if (innerType instanceof z.ZodUnion) {
     // Handle union types (oneOf)
     // eslint-disable-next-line @typescript-eslint/no-explicit-any

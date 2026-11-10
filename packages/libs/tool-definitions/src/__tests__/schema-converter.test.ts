@@ -59,4 +59,12 @@ describe('zodToJsonSchema (Zod 4 internals)', () => {
     });
     expect(zodToJsonSchema(schema).required).toBeUndefined();
   });
+
+  it('converts a record to a free-form object, not the string fallback', () => {
+    const schema = z.object({ spec: z.record(z.string(), z.unknown()).optional() });
+    const json = zodToJsonSchema(schema);
+    const spec = json.properties.spec as Record<string, unknown>;
+    expect(spec.type).toBe('object');
+    expect(json.required ?? []).not.toContain('spec');
+  });
 });

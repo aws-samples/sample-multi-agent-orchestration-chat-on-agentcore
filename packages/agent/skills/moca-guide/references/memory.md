@@ -15,7 +15,7 @@ enabled for the session.
 
 ## The three modes
 
-`memory_search` takes an `action`:
+`memory_search` takes a `mode`:
 
 1. **`search`** (default) — semantic search over long-term memory: the user's
    preferences, habits, and past context. Params: `query` (required), `topK`
