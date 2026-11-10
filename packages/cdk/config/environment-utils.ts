@@ -106,6 +106,15 @@ const DEFAULT_CONFIG = {
     },
     {
       // Covered Model: requires Bedrock Data Retention mode `aws_review` in the
+      // deployment region, same as Fable 5.1. No region pin in this OSS default
+      // (invoked in the deploy region); see the Fable 5.1 note below for how to
+      // pin one per environment.
+      id: 'global.anthropic.claude-fable-5-2',
+      name: 'Claude Fable 5.2',
+      provider: 'Anthropic',
+    },
+    {
+      // Covered Model: requires Bedrock Data Retention mode `aws_review` in the
       // deployment region (NOT provider_data_share — Fable 5.1 does not require
       // sharing with the model provider). See the registry note in
       // packages/libs/core/src/bedrock-models.ts and the README. No region pin
