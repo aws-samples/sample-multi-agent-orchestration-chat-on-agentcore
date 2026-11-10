@@ -65,6 +65,52 @@ export function repairToolPairing(messages: Message[]): Message[] {
 }
 
 /**
+ * Remove blank (empty or whitespace-only) text blocks from restored history,
+ * and drop messages that are left with no content.
+ *
+ * Anthropic models reject them on every later request ("text content blocks
+ * must contain non-whitespace text"). They reach storage when a turn ends with
+ * no text: e.g. the final model call after a tool result returns nothing, and
+ * the AgentCore converter persists the empty assistant message as `' '`. The
+ * live-turn {@link EmptyTextBlockHook} cannot help there, because it keeps a
+ * message whose only block is blank. Without this step the session fails on
+ * every following prompt.
+ *
+ * Must run before {@link repairToolPairing} and {@link repairRoleAlternation}:
+ * dropping a message can leave two same-role messages next to each other,
+ * which role alternation then closes with a placeholder.
+ *
+ * @returns The original array when nothing needed repair.
+ */
+export function stripBlankTextBlocks(messages: Message[]): Message[] {
+  const isBlank = (block: ContentBlock) =>
+    block.type === 'textBlock' && (block as { text?: string }).text?.trim() === '';
+
+  let stripped = 0;
+  let dropped = 0;
+  const repaired: Message[] = [];
+  for (const message of messages) {
+    const kept = message.content.filter((block) => !isBlank(block));
+    if (kept.length === message.content.length) {
+      repaired.push(message);
+      continue;
+    }
+    stripped += message.content.length - kept.length;
+    if (kept.length === 0) {
+      dropped++;
+      continue;
+    }
+    repaired.push(new Message({ ...message, content: kept }));
+  }
+
+  if (stripped === 0) return messages;
+  logger.warn(
+    `Session history: removed ${stripped} blank text block(s), dropped ${dropped} empty message(s)`
+  );
+  return repaired;
+}
+
+/**
  * Enforce the Converse role invariant on restored history: starts with `user`,
  * strictly alternates, and ends with `assistant` (the SDK appends the next
  * prompt as a new user message without merging).
@@ -200,8 +246,10 @@ export async function loadSessionHistory(
   if (!sessionStorage || !sessionConfig) {
     return [];
   }
-  const messages = await sessionStorage.loadMessages(sessionConfig);
-  logger.info(`Session history restored: ${messages.length} messages`);
+  const loaded = await sessionStorage.loadMessages(sessionConfig);
+  logger.info(`Session history restored: ${loaded.length} messages`);
+  // First, so the window below is measured on messages the model will accept.
+  const messages = stripBlankTextBlocks(loaded);
 
   const windowed =
     windowSize !== undefined ? applyWindowTruncation(messages, windowSize) : messages;
