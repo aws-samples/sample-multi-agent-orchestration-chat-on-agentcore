@@ -190,6 +190,38 @@ export const BEDROCK_MODEL_DEFINITIONS = [
     reasoningCapable: true, // adaptive thinking + output_config.effort; max OK (Opus-tier)
   },
   {
+    // GA on Bedrock 2026-11-09 (AWS ML blog: "Introducing Claude Fable 5.2 on
+    // AWS"). Successor to Fable 5.1 — same Mythos-class family, 1M context,
+    // 128k max output. Standard bedrock-runtime Converse/ConverseStream path, so
+    // no `endpoint` override. Global profile verified ACTIVE via
+    // `aws bedrock get-inference-profile` in ap-northeast-1 / us-east-1.
+    //
+    // ⚠️ Data retention: Covered Model, like Fable 5.1 — it can ONLY be invoked
+    // when the account's Bedrock Data Retention mode is `aws_review` in the
+    // invocation region. No region pin in this OSS default (invoked in the
+    // deploy region); override `bedrockModels` in environments.ts to pin one.
+    //
+    // Adaptive thinking is always on (default effort: high) and
+    // `thinking.type: 'disabled'` is rejected with a 400, so there is no
+    // offThinkingMode: depth `off` sends no thinking field (model default).
+    //
+    // Thinking blocks are prefix-bound on ALL accounts (on Fable 5.1 only on
+    // accounts created on or after 2026-08-31): replaying one after the system
+    // prompt, tools or earlier messages change returns a 400. Moca's system
+    // prompt changes hourly (<current_time>) and with memories, so prior
+    // reasoning is stripped before each invocation (stripPriorReasoning).
+    //
+    // Non-default temperature / top_p / top_k are rejected — do not add this
+    // model to image_to_text VISION_MODELS as-is.
+    id: 'global.anthropic.claude-fable-5-2',
+    name: 'Claude Fable 5.2',
+    provider: 'Anthropic',
+    maxOutputTokens: 128000,
+    reasoningCapable: true, // max OK (Opus-tier)
+    reasoningAlwaysOn: true,
+    stripPriorReasoning: true,
+  },
+  {
     // GA on Bedrock 2026-09-01 (AWS ML blog: "Introducing Claude Fable 5.1 on
     // AWS"). Successor to Fable 5 — same Mythos-class family, stronger on the
     // hardest reasoning / agentic-coding work. Standard bedrock-runtime path:

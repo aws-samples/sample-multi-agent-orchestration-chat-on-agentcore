@@ -70,6 +70,7 @@ describe('ReasoningHistoryStripHook', () => {
     'global.anthropic.claude-sonnet-5-5',
     'global.anthropic.claude-haiku-5-5',
     'jp.anthropic.claude-haiku-5-5',
+    'global.anthropic.claude-fable-5-2',
   ])('strips prior-turn reasoning for %s', (modelId) => {
     const handler = register(new ReasoningHistoryStripHook(modelId));
     expect(handler).toBeDefined();
@@ -87,6 +88,7 @@ describe('ReasoningHistoryStripHook', () => {
     'global.anthropic.claude-opus-5-5',
     'global.anthropic.claude-sonnet-5',
     'global.anthropic.claude-fable-5',
+    'global.anthropic.claude-fable-5-1',
   ])('does not register for %s', (modelId) => {
     expect(register(new ReasoningHistoryStripHook(modelId))).toBeUndefined();
   });

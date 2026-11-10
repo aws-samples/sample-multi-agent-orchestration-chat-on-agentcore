@@ -5,7 +5,7 @@
  * invocation, for models whose thinking blocks are bound to the request prefix.
  *
  * Why this is needed:
- * Claude Sonnet 5.5 and Haiku 5.5 record, in every thinking block, a binding
+ * Claude Sonnet 5.5, Haiku 5.5 and Fable 5.2 record, in every thinking block, a binding
  * to everything before it — the system prompt, the tools and earlier messages.
  * On accounts created on or after 2026-08-31 (Claude API, Amazon Bedrock,
  * Google Cloud) a request that replays such a block after the prefix changed is
