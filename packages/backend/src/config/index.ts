@@ -108,7 +108,7 @@ const envSchema = z.object({
    * Web search provider deployed to the Gateway (`webSearchProvider` in CDK config).
    * Selects which web search tool names the default agents enable.
    */
-  WEB_SEARCH_PROVIDER: z.enum(WEB_SEARCH_PROVIDERS).default('tavily'),
+  WEB_SEARCH_PROVIDER: z.enum(WEB_SEARCH_PROVIDERS).default('agentcore'),
 
   // User Storage configuration (required)
   USER_STORAGE_BUCKET_NAME: z.string({

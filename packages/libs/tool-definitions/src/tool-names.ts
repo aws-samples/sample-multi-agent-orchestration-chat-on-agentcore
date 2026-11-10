@@ -55,7 +55,7 @@ export const GATEWAY_TOOL_NAMES = {
   /** nova-reel-tools__nova_reel */
   NOVA_REEL: 'nova-reel-tools___nova_reel',
 
-  // ── Tavily Tools (webSearchProvider 'tavily' (default) + tavilyApiKeySecretName) ──
+  // ── Tavily Tools (opt-in: webSearchProvider 'tavily' + tavilyApiKeySecretName) ──
   /** tavily-tools___tavily_search */
   TAVILY_SEARCH: 'tavily-tools___tavily_search',
   /** tavily-tools___tavily_extract */
@@ -63,7 +63,7 @@ export const GATEWAY_TOOL_NAMES = {
   /** tavily-tools___tavily_crawl */
   TAVILY_CRAWL: 'tavily-tools___tavily_crawl',
 
-  // ── AgentCore Web Search connector (webSearchProvider 'agentcore' in environments.ts) ──
+  // ── AgentCore Web Search connector (webSearchProvider 'agentcore', the default) ──
   // Mutually exclusive with the Tavily tools: only one provider is deployed per environment.
   /** web-search___WebSearch */
   WEB_SEARCH: 'web-search___WebSearch',

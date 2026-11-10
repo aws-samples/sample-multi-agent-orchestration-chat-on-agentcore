@@ -76,7 +76,7 @@ const DEFAULT_CONFIG = {
   // Default geo restriction: Japan and United States
   // Override per-environment in environments.ts if needed
   cloudFrontGeoRestriction: ['JP', 'US'] as string[],
-  webSearchProvider: 'tavily' as const,
+  webSearchProvider: 'agentcore' as const,
   /**
    * CDK intentionally does not depend on @moca/core to keep infrastructure free
    * of runtime library dependencies. Keep this list in sync with
@@ -443,7 +443,7 @@ export function assertWebSearchProviderRegion(
     throw new Error(
       `[${config.env}] webSearchProvider 'agentcore' is not available in ${region}. ` +
         `The AgentCore Web Search connector is offered only in ${AGENTCORE_WEB_SEARCH_REGIONS.join(', ')}. ` +
-        `Deploy to one of those regions, or set webSearchProvider: 'tavily' in packages/cdk/config/environments.ts.`
+        `Deploy to one of those regions, or opt into Tavily with webSearchProvider: 'tavily' in packages/cdk/config/environments.ts.`
     );
   }
 }

@@ -29,17 +29,8 @@ const targetNames = (template: Template): string[] =>
   );
 
 describe('web search provider targets', () => {
-  it('deploys only the Tavily target by default', () => {
-    const names = targetNames(synth({}));
-    expect(names).toContain('tavily-tools');
-    expect(names).not.toContain('web-search');
-  });
-
-  it('deploys only the AgentCore Web Search connector for provider "agentcore"', () => {
-    const template = synth({
-      webSearchProvider: 'agentcore',
-      agentcoreWebSearch: { excludeDomains: ['example.com'] },
-    });
+  it('deploys only the AgentCore Web Search connector by default', () => {
+    const template = synth({ agentcoreWebSearch: { excludeDomains: ['example.com'] } });
     const names = targetNames(template);
     expect(names).toContain('web-search');
     expect(names).not.toContain('tavily-tools');
@@ -73,9 +64,17 @@ describe('web search provider targets', () => {
     });
   });
 
-  it('fails synth for provider "agentcore" in a region without the connector', () => {
-    expect(() => synth({ webSearchProvider: 'agentcore' }, 'us-west-2')).toThrow(
-      /not available in us-west-2/
-    );
+  it('deploys only the Tavily target when opted in', () => {
+    const names = targetNames(synth({ webSearchProvider: 'tavily' }));
+    expect(names).toContain('tavily-tools');
+    expect(names).not.toContain('web-search');
+  });
+
+  it('fails synth by default in a region without the connector', () => {
+    expect(() => synth({}, 'us-west-2')).toThrow(/not available in us-west-2/);
+  });
+
+  it('allows regions without the connector when Tavily is opted in', () => {
+    expect(() => synth({ webSearchProvider: 'tavily' }, 'us-west-2')).not.toThrow();
   });
 });

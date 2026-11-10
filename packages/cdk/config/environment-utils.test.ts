@@ -640,8 +640,8 @@ describe('hasMantleModel', () => {
 });
 
 describe('webSearchProvider', () => {
-  it('defaults to tavily', () => {
-    expect(getEnvironmentConfig('default').webSearchProvider).toBe('tavily');
+  it('defaults to agentcore', () => {
+    expect(getEnvironmentConfig('default').webSearchProvider).toBe('agentcore');
   });
 
   it('accepts agentcore in a supported region', () => {

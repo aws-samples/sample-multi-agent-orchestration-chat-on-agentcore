@@ -98,7 +98,9 @@ npm ci
 
 必要に応じて、対象環境のAWS Secrets ManagerにAPIキーとトークンを保存します。
 
-**Tavily APIキー**（Web検索ツール用）
+Web 検索は、標準では API キー不要のマネージドな AgentCore Web Search コネクタを使います（`us-east-1`、`eu-west-1`、`ap-northeast-1` で利用可能）。Tavily を使う場合（それ以外のリージョンでは必須）は `webSearchProvider: 'tavily'` を設定し、API キーを保存してください。詳しくは [Web Search Provider](docs/guides/deployment-options.md#web-search-provider) を参照してください。
+
+**Tavily APIキー**（`webSearchProvider: 'tavily'` の場合のみ）
 
 ```bash
 aws secretsmanager create-secret \
@@ -108,8 +110,6 @@ aws secretsmanager create-secret \
 ```
 
 APIキーは[Tavily](https://tavily.com/)から取得できます。
-
-> Tavily の代わりに `webSearchProvider: 'agentcore'` を設定すると、API キー不要のマネージドな AgentCore Web Search コネクタを使えます（`us-east-1`、`eu-west-1`、`ap-northeast-1` のみ）。詳しくは [Web Search Provider](docs/guides/deployment-options.md#web-search-provider) を参照してください。
 
 **GitHubトークン**（GitHub CLI統合用）
 

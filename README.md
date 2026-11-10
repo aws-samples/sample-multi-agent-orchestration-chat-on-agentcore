@@ -97,7 +97,9 @@ npm ci
 
 If needed, store API keys and tokens in AWS Secrets Manager for your target environment.
 
-**Tavily API Key** (for web search tools)
+Web search uses the managed AgentCore Web Search connector by default, with no API key (available in `us-east-1`, `eu-west-1`, `ap-northeast-1`). To use Tavily instead, which is required in other regions, set `webSearchProvider: 'tavily'` and store its API key. See [Web Search Provider](docs/guides/deployment-options.md#web-search-provider).
+
+**Tavily API Key** (only with `webSearchProvider: 'tavily'`)
 
 ```bash
 aws secretsmanager create-secret \
@@ -107,8 +109,6 @@ aws secretsmanager create-secret \
 ```
 
 You can get your API key from [Tavily](https://tavily.com/).
-
-> Alternatively, set `webSearchProvider: 'agentcore'` to use the managed AgentCore Web Search connector, which needs no API key (only available in `us-east-1`, `eu-west-1`, `ap-northeast-1`). See [Web Search Provider](docs/guides/deployment-options.md#web-search-provider).
 
 **GitHub Token** (for GitHub CLI integration)
 

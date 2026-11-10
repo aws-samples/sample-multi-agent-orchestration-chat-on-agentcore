@@ -27,8 +27,9 @@ export const BASE_PREFIX = 'moca';
  *   - cognitoDomainPrefix: required per environment — Cognito's domain namespace
  *     is GLOBAL across all AWS accounts, so each environment must pick a unique value.
  *   - logRetentionDays: 7
- *   - tavilyApiKeySecretName: 'agentcore/default/tavily-api-key'
- *   - webSearchProvider: 'tavily' ('agentcore' = AgentCore Web Search connector, region-limited)
+ *   - webSearchProvider: 'agentcore' (AgentCore Web Search connector, region-limited;
+ *     set 'tavily' to use Tavily instead)
+ *   - tavilyApiKeySecretName: 'agentcore/default/tavily-api-key' (used only with 'tavily')
  *   - githubTokenSecretName: 'agentcore/default/github-token'
  *   - githubWebhookSecretName: 'agentcore/default/github-webhook-secret'
  *   - cloudFrontGeoRestriction: ['JP', 'US']

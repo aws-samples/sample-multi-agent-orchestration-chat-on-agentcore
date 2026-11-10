@@ -269,10 +269,11 @@ export interface EnvironmentConfig {
 
   /**
    * Web search provider (exactly one is deployed so the agent never sees two web search tools)
-   * - 'tavily'    : Tavily Lambda target (search/extract/crawl). Requires tavilyApiKeySecretName.
    * - 'agentcore' : AgentCore Gateway built-in `web-search` connector. No API key, queries stay
-   *                 within AWS. Only offered in AGENTCORE_WEB_SEARCH_REGIONS — synth fails elsewhere.
-   * @default 'tavily'
+   *                 within AWS. Only offered in AGENTCORE_WEB_SEARCH_REGIONS — synth fails elsewhere,
+   *                 so deployments in other regions must opt into 'tavily'.
+   * - 'tavily'    : Tavily Lambda target (search/extract/crawl). Requires tavilyApiKeySecretName.
+   * @default 'agentcore'
    */
   webSearchProvider: WebSearchProvider;
 

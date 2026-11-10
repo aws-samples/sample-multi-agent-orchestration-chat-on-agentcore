@@ -15,7 +15,7 @@
  *   --table    DynamoDB table name (auto-detected from CloudFormation if omitted)
  *   --force    Delete existing system agents and re-seed
  *   --dry-run  Show what would be done without making changes
- *   --web-search-provider  tavily|agentcore (default: WebSearchProvider stack output, else tavily)
+ *   --web-search-provider  agentcore|tavily (default: WebSearchProvider stack output)
  */
 
 import {
@@ -70,7 +70,7 @@ Options:
   --table    DynamoDB table name (auto-detected from CloudFormation if omitted)
   --force    Delete existing system agents and re-seed
   --dry-run  Show what would be done without making changes
-  --web-search-provider  tavily|agentcore (default: WebSearchProvider stack output, else tavily)
+  --web-search-provider  agentcore|tavily (default: WebSearchProvider stack output)
 `);
       process.exit(0);
     }
@@ -240,7 +240,7 @@ async function main() {
   console.log(`📦 Agents table: ${tableName}`);
 
   // 2. Build default agents for the deployed web search provider
-  // Stacks deployed before the WebSearchProvider output existed are always tavily.
+  // Stacks deployed before the WebSearchProvider output existed always ran Tavily.
   const webSearchProvider = opts.webSearchProvider ?? outputs.WebSearchProvider ?? 'tavily';
   if (!isWebSearchProvider(webSearchProvider)) {
     throw new Error(
