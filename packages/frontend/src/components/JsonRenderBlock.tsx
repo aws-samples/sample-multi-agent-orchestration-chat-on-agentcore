@@ -3,12 +3,19 @@ import { Renderer, JSONUIProvider } from '@json-render/react';
 import type { Spec } from '@json-render/core';
 import { registry } from './generative-ui-catalog';
 import { extractUISpec } from '../utils/generative-ui';
+import { GenerativeUiInteractionContext } from './generative-ui-catalog/interaction-context';
 
 interface JsonRenderBlockProps {
   content: string;
+  /** Whether interactive components (e.g. SuggestedReplies) may send messages. */
+  interactive?: boolean;
 }
 
-export const JsonRenderBlock: React.FC<JsonRenderBlockProps> = ({ content }) => {
+export const JsonRenderBlock: React.FC<JsonRenderBlockProps> = ({
+  content,
+  interactive = false,
+}) => {
+  const interaction = React.useMemo(() => ({ interactive }), [interactive]);
   const spec = React.useMemo<Spec | null>(() => extractUISpec(content) as Spec | null, [content]);
 
   if (!spec) {
@@ -21,9 +28,11 @@ export const JsonRenderBlock: React.FC<JsonRenderBlockProps> = ({ content }) => 
 
   return (
     <div className="generative-ui-render p-3">
-      <JSONUIProvider registry={registry} initialState={spec.state}>
-        <Renderer spec={spec} registry={registry} />
-      </JSONUIProvider>
+      <GenerativeUiInteractionContext.Provider value={interaction}>
+        <JSONUIProvider registry={registry} initialState={spec.state}>
+          <Renderer spec={spec} registry={registry} />
+        </JSONUIProvider>
+      </GenerativeUiInteractionContext.Provider>
     </div>
   );
 };

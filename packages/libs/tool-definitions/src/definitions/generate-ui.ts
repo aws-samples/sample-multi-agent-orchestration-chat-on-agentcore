@@ -64,12 +64,16 @@ const catalogPrompt = generateComponentPrompt({
     'Only MetricCard supports "on" event bindings (e.g., on.press for setState). Layout components (Stack, Grid) and display components (DataTable, BarChart, LineChart, PieChart) do NOT support "on" events — never attach "on" to them.',
     // Rule 2: Prevent AI from using $state for data arrays (lost during streaming)
     'Do NOT use {"$state": "/path"} to reference data arrays in component props (e.g., chart data, table rows). Always embed data directly in props. The "state" field and $state expressions are ONLY reliable for simple scalar values used in $cond, visible, and setState (e.g., tracking the active tab name). For chart/table data, put the arrays directly in the "data"/"rows" prop.',
+    // Rule 3: SuggestedReplies only works as the last thing in a turn — the
+    // frontend disables it once a newer message exists.
+    "Use SuggestedReplies when you ask the user a question with a few likely answers, or when there are clear next steps the user may want to take. Write your question/explanation as normal text first, then call generate_ui with a SuggestedReplies root as the LAST action of your turn and end the turn right after it (do not call more tools or keep talking). Offer 2-4 concise, mutually distinct options in the user's language. Do not use it when the answer is open-ended free text. When you need answers to 2 or more questions, use ONE Questionnaire (one page per question) instead of several SuggestedReplies or a list of questions in text; the same end-the-turn rule applies.",
   ],
 });
 
 const toolDescription =
   'Generate rich UI components for display in the chat interface. ' +
-  'Use this tool to render structured data as tables, metric cards, charts, and other visual components. ' +
+  'Use this tool to render structured data as tables, metric cards, charts, and other visual components, ' +
+  'and to offer clickable reply choices (SuggestedReplies for one question, Questionnaire for several) when asking the user questions. ' +
   'Two modes are available:\n' +
   '- "spec" mode: Provide a json-render UI spec directly (for simple/static UI)\n' +
   '- "code" mode: Provide code that reads data files and generates a UI spec (for data-heavy scenarios like CSV/DB queries - saves tokens)\n\n' +

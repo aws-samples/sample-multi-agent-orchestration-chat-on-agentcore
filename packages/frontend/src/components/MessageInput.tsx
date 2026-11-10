@@ -17,6 +17,8 @@ import { ImagePreview } from './ImagePreview';
 import type { ImageAttachment } from '../types/index';
 import { IMAGE_ATTACHMENT_CONFIG } from '../types/index';
 import { logger } from '../utils/logger';
+import { MESSAGE_INPUT_SUBMIT_EVENT } from '../utils/message-input-events';
+import type { MessageInputSubmitDetail } from '../utils/message-input-events';
 
 interface MessageInputProps {
   sessionId: string | null;
@@ -393,22 +395,25 @@ export const MessageInput: React.FC<MessageInputProps> = ({
     // Error cleared on send or new message, so delete here
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-
-    const hasContent = input.trim() || attachedImages.length > 0;
+  // `fromDraft: false` (generative UI reply choice) sends only `text` and
+  // leaves the user's in-progress draft and attachments untouched.
+  const submitText = async (text: string, { fromDraft }: { fromDraft: boolean }) => {
+    const images = fromDraft ? attachedImages : [];
+    const hasContent = text.trim() || images.length > 0;
     if (!hasContent || isLoading || isAgentStoreLoading) {
       return;
     }
 
     try {
       // Save message to send
-      const messageToSend = input.trim();
-      const imagesToSend = [...attachedImages];
+      const messageToSend = text.trim();
+      const imagesToSend = [...images];
 
       // Clear input field immediately
-      setInput('');
-      setAttachedImages([]);
+      if (fromDraft) {
+        setInput('');
+        setAttachedImages([]);
+      }
 
       // Return focus to textarea after sending
       textareaRef.current?.focus();
@@ -433,6 +438,28 @@ export const MessageInput: React.FC<MessageInputProps> = ({
       logger.error('Message send error:', err);
     }
   };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    await submitText(input, { fromDraft: true });
+  };
+
+  // Generative UI reply choices send through the same path as typed input.
+  // The ref keeps the window listener stable while seeing the latest state.
+  const submitTextRef = useRef(submitText);
+  useEffect(() => {
+    submitTextRef.current = submitText;
+  });
+  useEffect(() => {
+    const handleSubmitEvent = (e: Event) => {
+      const { text } = (e as CustomEvent<MessageInputSubmitDetail>).detail;
+      void submitTextRef.current(text, { fromDraft: false });
+    };
+    window.addEventListener(MESSAGE_INPUT_SUBMIT_EVENT, handleSubmitEvent);
+    return () => {
+      window.removeEventListener(MESSAGE_INPUT_SUBMIT_EVENT, handleSubmitEvent);
+    };
+  }, []);
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     // Do nothing during IME composition

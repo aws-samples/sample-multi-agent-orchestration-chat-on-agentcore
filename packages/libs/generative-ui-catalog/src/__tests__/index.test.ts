@@ -156,6 +156,8 @@ describe('COMPONENT_NAMES', () => {
     'BarChart',
     'LineChart',
     'PieChart',
+    'SuggestedReplies',
+    'Questionnaire',
   ];
 
   it.each(expectedComponents)('includes "%s"', (name) => {
