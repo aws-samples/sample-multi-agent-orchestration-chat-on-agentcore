@@ -109,6 +109,9 @@ VITE_APPSYNC_EVENTS_HTTP_ENDPOINT=https://xxx.appsync-api.us-east-1.amazonaws.co
 ```bash
 # Server Configuration
 PORT=3000
+# Binds to loopback by default. Set HOST=0.0.0.0 only if a container (e.g. the
+# agent via host.docker.internal) must reach the dev server.
+# HOST=127.0.0.1
 NODE_ENV=development
 
 # CORS Configuration
@@ -308,7 +311,7 @@ Edit generated `.env` files to connect directly to cloud resources:
 ```bash
 # Edit packages/frontend/.env
 # Uncomment the commented lines
-VITE_BACKEND_URL=https://xxx.execute-api.us-east-1.amazonaws.com
+VITE_BACKEND_URL=https://xxxxxxxxxxxxxx.cloudfront.net
 VITE_AGENT_ENDPOINT=https://bedrock-agentcore.us-east-1.amazonaws.com/runtimes/.../invocations
 ```
 

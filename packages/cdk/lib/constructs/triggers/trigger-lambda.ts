@@ -92,6 +92,14 @@ export interface TriggerLambdaProps {
  */
 export class TriggerLambda extends Construct {
   /**
+   * Fixed function name for a resource prefix. Exposed so callers can build
+   * the ARN without a token reference (see agentcore-stack.ts).
+   */
+  public static functionNameFor(resourcePrefix: string): string {
+    return `${resourcePrefix}-trigger-executor`;
+  }
+
+  /**
    * The Lambda function
    */
   public readonly lambdaFunction: nodejs.NodejsFunction;
@@ -143,14 +151,14 @@ export class TriggerLambda extends Construct {
     // Explicit log group so stack deletion cleans it up and redeploys don't
     // collide with a previously auto-created group of the same name.
     const logGroup = new logs.LogGroup(this, 'FunctionLogGroup', {
-      logGroupName: `/aws/lambda/${props.resourcePrefix}-trigger-executor`,
+      logGroupName: `/aws/lambda/${TriggerLambda.functionNameFor(props.resourcePrefix)}`,
       retention: logs.RetentionDays.TWO_WEEKS,
       removalPolicy: cdk.RemovalPolicy.DESTROY,
     });
 
     // Create Lambda function
     this.lambdaFunction = new nodejs.NodejsFunction(this, 'Function', {
-      functionName: `${props.resourcePrefix}-trigger-executor`,
+      functionName: TriggerLambda.functionNameFor(props.resourcePrefix),
       runtime: props.runtime || lambda.Runtime.NODEJS_22_X,
       // ARM64 (Graviton2) — pure Node.js + AWS SDK workload with no native
       // bindings, so we take the ~20% cost reduction and comparable perf.
@@ -230,7 +238,7 @@ export class TriggerLambda extends Construct {
       new iam.PolicyStatement({
         actions: ['logs:CreateLogGroup', 'logs:CreateLogStream', 'logs:PutLogEvents'],
         resources: [
-          `arn:aws:logs:${cdk.Stack.of(this).region}:${cdk.Stack.of(this).account}:log-group:/aws/lambda/${props.resourcePrefix}-trigger-executor:*`,
+          `arn:aws:logs:${cdk.Stack.of(this).region}:${cdk.Stack.of(this).account}:log-group:/aws/lambda/${TriggerLambda.functionNameFor(props.resourcePrefix)}:*`,
         ],
       })
     );

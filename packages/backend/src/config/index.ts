@@ -6,6 +6,7 @@
 import { config as loadEnv } from 'dotenv';
 import { z } from 'zod';
 import { logger } from '../libs/logger/index.js';
+import { parseHttpEndpoint } from './listen-address.js';
 
 // Load environment variables
 loadEnv();
@@ -22,6 +23,13 @@ loadEnv();
 const envSchema = z.object({
   // Server configuration
   PORT: z.string().default('3000').transform(Number),
+  // Loopback by default so a local `npm run dev` is not reachable from the LAN.
+  HOST: z.string().default('127.0.0.1'),
+  /**
+   * `host:port` assigned by the Lambda Web Functions runtime. When set it
+   * overrides HOST/PORT; requests sent anywhere else never reach the app.
+   */
+  AWS_LAMBDA_HTTP_ENDPOINT: z.string().optional(),
   NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
 
   // Cognito configuration (required for JWT verification)
@@ -145,23 +153,6 @@ const envSchema = z.object({
 
   // Logging
   LOG_LEVEL: z.enum(['debug', 'info', 'warn', 'error', 'silent']).default('info'),
-
-  /**
-   * Lambda runtime trace context. Populated by the Lambda runtime itself with
-   * the X-Ray header value (`Root=…;Parent=…;Sampled=…`) and consumed by
-   * `middleware/request-logger` as a fallback when the inbound request lacks
-   * the `x-amzn-trace-id` header. Optional — absent in local dev and outside
-   * Lambda. Underscore-prefixed because the Lambda runtime defines it that way.
-   *
-   * NOTE: config is parsed once at cold start, so this captures the env value
-   * fixed at process startup. That is correct under the current Lambda Web
-   * Adapter setup — Express runs as a long-lived child process and the live
-   * per-invocation trace context arrives via the request header (the primary
-   * source); this env is only a startup fallback. If we ever move to an
-   * in-process adapter (e.g. serverless-http), this fallback would go stale
-   * across invocations and should be read from process.env per request.
-   */
-  _X_AMZN_TRACE_ID: z.string().optional(),
 });
 
 /**
@@ -187,12 +178,17 @@ export const corsAllowedOrigins: string[] = config.CORS_ALLOWED_ORIGINS.split(',
   o.trim()
 );
 
+/** Address the HTTP server binds to (Web Functions endpoint wins over HOST/PORT). */
+export const listenAddress: { host: string; port: number } = config.AWS_LAMBDA_HTTP_ENDPOINT
+  ? parseHttpEndpoint(config.AWS_LAMBDA_HTTP_ENDPOINT)
+  : { host: config.HOST, port: config.PORT };
+
 /** Convenience flags derived from `NODE_ENV`. */
 export const isDevelopment = config.NODE_ENV === 'development';
 
 logger.info(
   {
-    port: config.PORT,
+    listenAddress,
     nodeEnv: config.NODE_ENV,
     hasCognitoUserPoolId: !!config.COGNITO_USER_POOL_ID,
     hasCognitoUserPoolClientId: !!config.COGNITO_USER_POOL_CLIENT_ID,

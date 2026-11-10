@@ -14,7 +14,7 @@
  *     longer thread `requestId` through every message — replacing the per-route
  *     "started/completed" boilerplate that used to repeat in every handler.
  *
- * ## requestId ownership — aligned with API Gateway for cross-hop tracing
+ * ## requestId ownership — the Lambda-minted id, shared with the client
  *
  * This middleware OWNS request-id generation (previously done in
  * `authMiddleware`). Running before the routers, it assigns ONE id that is
@@ -23,23 +23,27 @@
  *   - the response envelope (`libs/http/responses.ts` reads `req.requestId`),
  *     and the `x-request-id` response header for client-side correlation.
  *
- * The backend runs as API Gateway (HTTP API v2) → Lambda + Lambda Web Adapter →
- * Express. The Web Adapter forwards the API Gateway event context as the
- * `x-amzn-request-context` header (JSON). We adopt that context's `requestId`
- * as our id so the Lambda's structured logs join up with the API Gateway access
- * logs (`$context.requestId`) on the SAME value — one grep spans both hops. We
- * deliberately do NOT trust a client-supplied `x-request-id` (it is forgeable
- * and would poison correlation); only the AWS-minted API Gateway id is honoured,
- * with a locally-generated `req_…` fallback for non-Lambda runs (local dev,
- * `app.listen`, tests).
+ * The backend runs as CloudFront → Lambda Web Function → Express. Lambda adds a
+ * `lambda-web-request-id` header to every forwarded request and returns the
+ * same value as a response header, so adopting it as our id lets a client-side
+ * response header, the Lambda platform logs and our structured logs join up on
+ * one value. We deliberately do NOT trust a client-supplied `x-request-id` (it
+ * is forgeable and would poison correlation); only the Lambda-minted id is
+ * honoured (verified: Lambda replaces any client-sent `lambda-web-request-id`
+ * with its own), with a locally-generated `req_…` fallback for non-Lambda runs
+ * (local dev, tests).
  *
  * ## traceId — X-Ray end-to-end correlation
  *
- * The Web Adapter also forwards `x-amzn-trace-id` (`Root=1-…;Parent=…;Sampled=1`)
- * and the Lambda runtime exposes `_X_AMZN_TRACE_ID`. We extract the X-Ray `Root`
- * id and bind it as `traceId` on the access log and `req.log`, so a log line ties
- * to the X-Ray trace (ServiceLens) and the downstream AWS SDK calls on it. (Needs
- * Lambda Active Tracing enabled in CDK for the trace to be sampled/populated.)
+ * When a caller sends `x-amzn-trace-id` (`Root=1-…;Parent=…;Sampled=1`), we
+ * extract the X-Ray `Root` id and bind it as `traceId` on the access log and
+ * `req.log`, so a server-side caller that propagates its trace (e.g. AgentCore
+ * Runtime) can be joined to these lines. Nothing in front of the app mints or
+ * overwrites this header, so treat `traceId` as caller-supplied correlation
+ * only — `requestId` is the authoritative, Lambda-minted id. There is
+ * deliberately no `_X_AMZN_TRACE_ID` env fallback: Web Functions serve many
+ * concurrent requests per process, so an env value would stamp one stale id on
+ * unrelated requests.
  *
  * pino-http stores the id at `req.id` and, with `customAttributeKeys`, logs it
  * under the top-level `requestId` key — the SAME key the response body uses — so
@@ -55,7 +59,6 @@
 import { pinoHttp, stdSerializers } from 'pino-http';
 import type { Request, Response, NextFunction } from 'express';
 import type { IncomingMessage } from 'http';
-import { config } from '../config/index.js';
 import { logger } from '../libs/logger/index.js';
 import type { AuthenticatedRequest } from '../types/index.js';
 
@@ -71,36 +74,41 @@ function headerValue(req: IncomingMessage, name: string): string | undefined {
 }
 
 /**
- * Extract the API Gateway `requestId` from the `x-amzn-request-context` header
- * that Lambda Web Adapter forwards (a JSON-encoded API GW v2 event context).
- * Returns undefined when absent or unparseable (local dev / direct HTTP), so the
- * caller falls back to a locally-minted id.
+ * The Lambda Web Functions request id (`lambda-web-request-id` header).
+ * Undefined outside Lambda (local dev / tests), so the caller falls back to a
+ * locally-minted id.
  */
-function extractApiGatewayRequestId(req: IncomingMessage): string | undefined {
-  const raw = headerValue(req, 'x-amzn-request-context');
-  if (!raw) return undefined;
-  try {
-    const ctx = JSON.parse(raw) as { requestId?: unknown };
-    return typeof ctx.requestId === 'string' ? ctx.requestId : undefined;
-  } catch {
-    return undefined;
-  }
+function extractLambdaWebRequestId(req: IncomingMessage): string | undefined {
+  return headerValue(req, 'lambda-web-request-id') || undefined;
 }
 
 /**
  * Extract the X-Ray trace id (the `Root=` segment) from the request's
- * `x-amzn-trace-id` header, falling back to the Lambda runtime's
- * `_X_AMZN_TRACE_ID` env var. Returns undefined when there is no trace context
- * (e.g. local dev without X-Ray), so `traceId` is simply omitted from the logs.
+ * `x-amzn-trace-id` header. Returns undefined when absent, so `traceId` is
+ * simply omitted from the logs.
  */
 export function extractTraceId(req: IncomingMessage): string | undefined {
-  const raw = headerValue(req, 'x-amzn-trace-id') ?? config._X_AMZN_TRACE_ID;
+  const raw = headerValue(req, 'x-amzn-trace-id');
   if (!raw) return undefined;
   for (const part of raw.split(';')) {
     const trimmed = part.trim();
     if (trimmed.startsWith('Root=')) return trimmed.slice('Root='.length);
   }
   return undefined;
+}
+
+/**
+ * Drop CloudFront-added `cloudfront-*` headers from the logged request.
+ * The origin request policy must forward all viewer headers (an allow-list
+ * would cap at 10 and silently break webhooks/CORS), and CloudFront then also
+ * injects ~20 `CloudFront-Viewer-*` headers — city, latitude, postal code, ...
+ * Logging them would store per-request location PII and roughly double each
+ * access-log line. The app never reads them.
+ */
+export function omitCloudFrontHeaders<T extends Record<string, unknown>>(headers: T): T {
+  return Object.fromEntries(
+    Object.entries(headers ?? {}).filter(([name]) => !name.toLowerCase().startsWith('cloudfront-'))
+  ) as T;
 }
 
 export const requestLoggerMiddleware = pinoHttp({
@@ -118,15 +126,16 @@ export const requestLoggerMiddleware = pinoHttp({
     req(req) {
       const serialized = stdSerializers.req(req);
       delete serialized.id;
+      serialized.headers = omitCloudFrontHeaders(serialized.headers);
       return serialized;
     },
   },
-  // Own request-id generation. Prefer the AWS-minted API Gateway requestId (so
-  // Lambda logs join the API GW access logs), else mint one locally. Mirror it
+  // Own request-id generation. Prefer the Lambda-minted request id (also
+  // returned to the client as a response header), else mint one locally. Mirror it
   // onto `req.requestId` (read by the response envelope) and the `x-request-id`
   // response header.
   genReqId: (req, res) => {
-    const id = extractApiGatewayRequestId(req) ?? generateRequestId();
+    const id = extractLambdaWebRequestId(req) ?? generateRequestId();
     (req as AuthenticatedRequest).requestId = id;
     res.setHeader('x-request-id', id);
     return id;

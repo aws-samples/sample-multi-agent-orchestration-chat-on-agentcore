@@ -12,14 +12,7 @@
     "lint": "eslint src",
     "lint:fix": "eslint src --fix && prettier --write \"src/**/*.{ts,tsx,js,jsx}\"",
     "test": "jest --passWithNoTests",
-    "test:integration": "NODE_OPTIONS='--experimental-vm-modules' jest --config jest.integration.config.js",
-    "docker:build": "docker build -t agentcore-backend .",
-    "docker:run": "docker run -p 3000:3000 agentcore-backend",
-    "docker:dev": "docker-compose up --build",
-    "docker:dev:detach": "docker-compose up -d --build",
-    "docker:stop": "docker-compose down",
-    "docker:logs": "docker-compose logs -f",
-    "docker:test": "docker-compose exec agentcore-backend curl http://localhost:3000/ping"
+    "test:integration": "NODE_OPTIONS='--experimental-vm-modules' jest --config jest.integration.config.js"
   },
   "keywords": [
     "agentcore",

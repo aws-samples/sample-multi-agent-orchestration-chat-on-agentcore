@@ -363,7 +363,6 @@ export class AgentCoreStack extends cdk.Stack {
       pointInTimeRecovery: true,
     });
 
-    // 6. Create Backend API (Lambda Web Adapter) - Create before Runtime to pass URL
     // 6. Create Trigger Lambda (before Backend API to get ARN)
     const triggerLambda = new TriggerLambda(this, 'TriggerLambda', {
       resourcePrefix,
@@ -390,7 +389,7 @@ export class AgentCoreStack extends cdk.Stack {
       });
     }
 
-    // 7. Create Backend API (Lambda Web Adapter) - Create before Runtime to pass URL
+    // 7. Create Backend API (Lambda Web Function + CloudFront) - Create before Runtime to pass URL
     this.backendApi = new BackendApi(this, 'BackendApi', {
       apiName: `${resourcePrefix}backendapi`,
       cognitoAuth: this.cognitoAuth,
@@ -400,7 +399,7 @@ export class AgentCoreStack extends cdk.Stack {
       corsAllowedOrigins: envConfig.corsAllowedOrigins,
 
       timeout: 30,
-      memorySize: 1024,
+      serverAccessLogsBucket: this.accessLogsBucket,
       userStorageBucketName: this.userStorage.bucketName,
       agentsTableName: this.agentsTable.tableName,
       sessionsTableName: this.sessionsTable.tableName,
@@ -410,7 +409,7 @@ export class AgentCoreStack extends cdk.Stack {
 
     // Backend API user-scoped S3 access via STS AssumeRole with Session Policy
     const backendUserScopedS3Role = new cdk.aws_iam.Role(this, 'BackendUserScopedS3Role', {
-      assumedBy: new cdk.aws_iam.ArnPrincipal(this.backendApi.lambdaFunction.role!.roleArn),
+      assumedBy: new cdk.aws_iam.ArnPrincipal(this.backendApi.role.roleArn),
       description: 'Role assumed by Backend API with per-user session policies to scope S3 access',
       maxSessionDuration: cdk.Duration.hours(1),
     });
@@ -433,7 +432,7 @@ export class AgentCoreStack extends cdk.Stack {
       })
     );
 
-    this.backendApi.lambdaFunction.addToRolePolicy(
+    this.backendApi.grantPermissions(
       new cdk.aws_iam.PolicyStatement({
         sid: 'AssumeUserScopedS3Role',
         effect: cdk.aws_iam.Effect.ALLOW,
@@ -451,7 +450,7 @@ export class AgentCoreStack extends cdk.Stack {
     this.backendApi.addEnvironmentVariable('SSM_PARAMETER_PREFIX', ssmParameterPrefix);
 
     // Grant Backend API SSM read/write access for MCP env values
-    this.backendApi.lambdaFunction.addToRolePolicy(
+    this.backendApi.grantPermissions(
       new cdk.aws_iam.PolicyStatement({
         sid: 'SsmMcpEnvReadWrite',
         effect: cdk.aws_iam.Effect.ALLOW,
@@ -463,17 +462,17 @@ export class AgentCoreStack extends cdk.Stack {
     );
 
     // Grant Agents Table read/write access to Backend API
-    this.agentsTable.grantReadWrite(this.backendApi.lambdaFunction);
+    this.agentsTable.grantReadWrite(this.backendApi.role);
 
     // Grant Sessions Table read/write access to Backend API
-    this.sessionsTable.grantReadWrite(this.backendApi.lambdaFunction);
+    this.sessionsTable.grantReadWrite(this.backendApi.role);
 
     // Grant Triggers Table read/write access to Backend API
-    triggersTable.grantReadWrite(this.backendApi.lambdaFunction);
+    triggersTable.grantReadWrite(this.backendApi.role);
 
     // Grant EventBridge Scheduler permissions to Backend API
     // Scoped to the 'default' schedule group only.
-    this.backendApi.lambdaFunction.addToRolePolicy(
+    this.backendApi.grantPermissions(
       new cdk.aws_iam.PolicyStatement({
         sid: 'SchedulerManageSchedules',
         effect: cdk.aws_iam.Effect.ALLOW,
@@ -490,7 +489,7 @@ export class AgentCoreStack extends cdk.Stack {
 
     // Grant Backend API permission to pass the Scheduler role to EventBridge Scheduler.
     // Scoped to the specific SchedulerRole ARN to prevent privilege escalation.
-    this.backendApi.lambdaFunction.addToRolePolicy(
+    this.backendApi.grantPermissions(
       new cdk.aws_iam.PolicyStatement({
         sid: 'PassSchedulerRole',
         effect: cdk.aws_iam.Effect.ALLOW,
@@ -505,14 +504,25 @@ export class AgentCoreStack extends cdk.Stack {
     );
 
     // Add environment variables for trigger management to Backend API
-    this.backendApi.lambdaFunction.addEnvironment('TRIGGERS_TABLE_NAME', triggersTable.tableName);
-    this.backendApi.lambdaFunction.addEnvironment('TRIGGER_LAMBDA_ARN', triggerLambda.functionArn);
-    this.backendApi.lambdaFunction.addEnvironment('SCHEDULER_ROLE_ARN', schedulerRole.roleArn);
-    this.backendApi.lambdaFunction.addEnvironment('SCHEDULE_GROUP_NAME', 'default');
+    this.backendApi.addEnvironmentVariable('TRIGGERS_TABLE_NAME', triggersTable.tableName);
+    // Built from the fixed function name, not `triggerLambda.functionArn`: a
+    // token reference would close a cycle (Trigger Lambda → Runtime → Backend
+    // URL → Web Function revision env → Trigger Lambda).
+    this.backendApi.addEnvironmentVariable(
+      'TRIGGER_LAMBDA_ARN',
+      cdk.Stack.of(this).formatArn({
+        service: 'lambda',
+        resource: 'function',
+        resourceName: TriggerLambda.functionNameFor(resourcePrefix),
+        arnFormat: cdk.ArnFormat.COLON_RESOURCE_NAME,
+      })
+    );
+    this.backendApi.addEnvironmentVariable('SCHEDULER_ROLE_ARN', schedulerRole.roleArn);
+    this.backendApi.addEnvironmentVariable('SCHEDULE_GROUP_NAME', 'default');
 
     // Add event sources config if event rules are configured
     if (triggerEventSources) {
-      this.backendApi.lambdaFunction.addEnvironment(
+      this.backendApi.addEnvironmentVariable(
         'EVENT_SOURCES_CONFIG',
         triggerEventSources.eventSourcesConfig
       );
@@ -527,13 +537,13 @@ export class AgentCoreStack extends cdk.Stack {
 
     // Add GitHub Webhook Secret Name and permissions for webhook endpoint
     if (envConfig.githubWebhookSecretName) {
-      this.backendApi.lambdaFunction.addEnvironment(
+      this.backendApi.addEnvironmentVariable(
         'GITHUB_WEBHOOK_SECRET_NAME',
         envConfig.githubWebhookSecretName
       );
 
       // Grant Secrets Manager read access for webhook secret
-      this.backendApi.lambdaFunction.addToRolePolicy(
+      this.backendApi.grantPermissions(
         new cdk.aws_iam.PolicyStatement({
           actions: ['secretsmanager:GetSecretValue'],
           resources: [
@@ -543,7 +553,7 @@ export class AgentCoreStack extends cdk.Stack {
       );
 
       // Grant EventBridge PutEvents for forwarding webhook events
-      this.backendApi.lambdaFunction.addToRolePolicy(
+      this.backendApi.grantPermissions(
         new cdk.aws_iam.PolicyStatement({
           actions: ['events:PutEvents'],
           resources: [`arn:aws:events:${this.region}:${this.account}:event-bus/default`],
@@ -584,7 +594,7 @@ export class AgentCoreStack extends cdk.Stack {
     // IdentityId must match the UserPool idToken, so the blast radius of a stolen
     // Backend execution-role credential remains limited to tokens the attacker
     // already possesses.
-    this.backendApi.lambdaFunction.addToRolePolicy(
+    this.backendApi.grantPermissions(
       new cdk.aws_iam.PolicyStatement({
         sid: 'CognitoIdentityDeveloperAuthLink',
         effect: cdk.aws_iam.Effect.ALLOW,
@@ -795,19 +805,19 @@ export class AgentCoreStack extends cdk.Stack {
     });
 
     new cdk.CfnOutput(this, 'BackendApiFunctionName', {
-      value: this.backendApi.lambdaFunction.functionName,
-      description: 'Backend API Lambda Function Name',
+      value: this.backendApi.webFunction.functionName,
+      description: 'Backend API Lambda Web Function Name',
       exportName: `${id}-BackendApiFunctionName`,
     });
 
     new cdk.CfnOutput(this, 'BackendApiFunctionArn', {
-      value: this.backendApi.lambdaFunction.functionArn,
-      description: 'Backend API Lambda Function ARN',
+      value: this.backendApi.webFunction.attrFunctionArn,
+      description: 'Backend API Lambda Web Function ARN',
       exportName: `${id}-BackendApiFunctionArn`,
     });
 
     new cdk.CfnOutput(this, 'BackendApiConfiguration', {
-      value: `Backend API: ${this.backendApi.apiUrl} (Lambda Web Adapter + Express.js)`,
+      value: `Backend API: ${this.backendApi.apiUrl} (Lambda Web Function + CloudFront + Express.js)`,
       description: 'Backend API configuration summary',
     });
 
@@ -938,11 +948,10 @@ export class AgentCoreStack extends cdk.Stack {
     new OperationsDashboard(this, 'OperationsDashboard', {
       resourcePrefix,
       stackName: id,
-      backendApiFunction: this.backendApi.lambdaFunction,
+      backendApi: this.backendApi,
       sessionStreamHandlerFunction: sessionStreamHandler.handler,
       triggerExecutorFunction: triggerLambda.lambdaFunction,
       gatewayInterceptorFunction: this.gateway.interceptorLambda,
-      httpApi: this.backendApi.httpApi,
       agentsTable: this.agentsTable.table,
       sessionsTable: this.sessionsTable.table,
       triggersTable: triggersTable.table,
@@ -968,16 +977,6 @@ export class AgentCoreStack extends cdk.Stack {
         id: 'AwsSolutions-CB4',
         reason:
           'CodeBuild projects created by deploy-time-build (@cdklabs/deploy-time-build) do not expose KMS encryption configuration.',
-      },
-      {
-        id: 'AwsSolutions-APIG4',
-        reason:
-          'HTTP API v2 does not use API Gateway authorizers. JWT authentication is implemented at the Express.js application layer.',
-      },
-      {
-        id: 'AwsSolutions-APIG1',
-        reason:
-          'Access logging is configured via CfnStage escape hatch (AccessLogSettings property override). cdk-nag may not detect escape hatch modifications.',
       },
       {
         id: 'AwsSolutions-COG2',
@@ -1075,7 +1074,7 @@ export class AgentCoreStack extends cdk.Stack {
     );
 
     // Backend API execution role: all addToRolePolicy and grantReadWrite calls land here
-    // because BackendApiFunction uses an explicit role (BackendApiExecutionRole).
+    // (BackendApiExecutionRole, shared by every Web Function revision).
     // Wildcards: DynamoDB GSI index/*, SSM parameters/agents/*,
     // Scheduler schedule/default/*, Secrets Manager random suffix.
     NagSuppressions.addResourceSuppressionsByPath(

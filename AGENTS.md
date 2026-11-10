@@ -18,7 +18,7 @@ Monorepo using npm workspaces. 8 packages.
 | Package | Responsibility | Runtime | Entry Point |
 |---|---|---|---|
 | packages/agent | AgentCore Runtime agent. Built with Strands Agents SDK (TypeScript). Runs as a Docker container on AgentCore Runtime | Express (8080) | src/index.ts |
-| packages/backend | REST API. Agent management, session persistence, file operations | Express + Lambda Web Adapter (8080) | src/index.ts |
+| packages/backend | REST API. Agent management, session persistence, file operations | Express on Lambda Web Functions, behind CloudFront | src/index.ts |
 | packages/frontend | React SPA | Vite + Tailwind | index.html |
 | packages/cdk | CDK infrastructure. Manages all AWS resources. Environment config in `config/environments.ts` | CDK | lib/agentcore-stack.ts |
 | packages/session-stream-handler | DynamoDB Streams → AppSync Events relay | Lambda | src/ |
@@ -47,12 +47,13 @@ Monorepo using npm workspaces. 8 packages.
 
 - `npm run deploy` → CDK deploy. Run `npm run build` beforehand so the shared libs (`@moca/*`) have been compiled and `ts-node`-based CDK synth can resolve them. `npm run build` also produces `dist/` for agent/backend/client/trigger/session-stream-handler; CDK bundles each Lambda via esbuild from `src/handler.ts`, so per-`lambda-tools/tools/*` `dist/` is not generated.
 - Environments: default / dev / stg / prd (defined in `packages/cdk/config/environments.ts`)
-- backend and agent are Docker images (multi-stage build). Dockerfiles live in `docker/`
+- agent is a Docker image (multi-stage build, `docker/`). backend is an esbuild single-file bundle zipped for Lambda Web Functions (`nodejs24.x`), built at `cdk synth` by `constructs/api/backend-api.ts`
 
 ## Important Rules
 
 - **Changes to libs/ have wide impact**: Changing tool-definitions affects both agent and backend. Changing generative-ui-catalog affects agent, frontend, and backend (via tool-definitions dependency chain). Run tests for all dependent packages before merging.
-- **Do NOT write Lambda-specific code in backend**: Lambda Web Adapter handles HTTP translation. Implement as a standard Express server with `app.listen(8080)`.
+- **Do NOT write Lambda-specific code in backend**: Lambda Web Functions run the Express server as-is. It must bind to `AWS_LAMBDA_HTTP_ENDPOINT` (handled by `listenAddress` in `config/index.ts`) and start listening within 10s. The endpoint is `IamAuth` and reachable only via the CloudFront OAC — never switch it to `ApplicationManaged`.
+- **Backend runtime is Node.js 24, not 22**: the bundle must not depend on native addons or child processes (no Python/uvx in the runtime; stdio MCP is already rejected by `config-loader.ts`).
 - **agent runs on AgentCore Runtime, NOT Lambda**: It is a Docker container, not a Lambda function. However, it is implemented as an Express server and runs locally with `npm run dev` as-is.
 - **Environment config changes**: Edit `packages/cdk/config/environments.ts`. Types are in `environment-types.ts`, utilities in `environment-utils.ts`.
 - **Secrets**: Stored in Secrets Manager. Naming convention: `agentcore/{env}/{secret-name}`.

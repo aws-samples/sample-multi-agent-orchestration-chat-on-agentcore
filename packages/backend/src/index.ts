@@ -5,7 +5,7 @@
 
 import express, { Request, Response } from 'express';
 import cors from 'cors';
-import { config, corsAllowedOrigins } from './config/index.js';
+import { config, corsAllowedOrigins, listenAddress } from './config/index.js';
 import { authMiddleware, AuthenticatedRequest, getCurrentAuth } from './middleware/auth.js';
 import { errorHandlerMiddleware, notFoundMiddleware } from './middleware/error-handler.js';
 import { hydrateJWKS } from './libs/auth/index.js';
@@ -68,6 +68,12 @@ app.use(requestLoggerMiddleware);
 app.use(traceContextMiddleware);
 
 app.use(cors(corsOptions));
+// Per-user API responses must never be cached by CloudFront (it caches error
+// statuses for 10s by default even without Cache-Control).
+app.use((_req: Request, res: Response, next) => {
+  res.setHeader('Cache-Control', 'no-store');
+  next();
+});
 app.use(
   express.json({
     limit: '100mb',
@@ -172,38 +178,48 @@ app.use(notFoundMiddleware);
 // by the chain (AppError, ZodError, JSON parse errors, unexpected 500s).
 app.use(errorHandlerMiddleware);
 
+/** Upper bound for draining in-flight requests (matches the 30s request timeout). */
+const SHUTDOWN_GRACE_MS = 30_000;
+
 /**
  * Start server
  */
 async function startServer(): Promise<void> {
   try {
-    // Pre-load JWKS cache for faster first verification
-    await hydrateJWKS();
-
-    app.listen(config.PORT, () => {
-      logger.info(`AgentCore Backend API server listening on port ${config.PORT}`);
-      logger.info(`Health check: http://localhost:${config.PORT}/ping`);
-      logger.info(`User info: GET http://localhost:${config.PORT}/me`);
+    const { host, port } = listenAddress;
+    // Listen first: the Web Functions runtime fails init if the server is not
+    // listening within 10s, and JWKS hydration is a network round trip.
+    const server = app.listen(port, host, (err?: Error) => {
+      if (err) {
+        // Express 5 routes bind errors here instead of throwing.
+        logger.error({ err, host, port }, 'Failed to bind HTTP server');
+        process.exit(1);
+      }
+      logger.info(`AgentCore Backend API server listening on ${host}:${port}`);
       logger.info(`Environment: ${config.NODE_ENV}`);
       logger.info(`Cognito configured: ${config.COGNITO_USER_POOL_ID ? 'yes' : 'no'}`);
       logger.info(`CORS origins: ${corsAllowedOrigins.join(', ')}`);
     });
+
+    // Pre-load JWKS cache for faster first verification (never throws)
+    void hydrateJWKS();
+
+    // Graceful shutdown: Web Functions send SIGTERM while draining an
+    // environment, so let in-flight requests finish instead of exiting.
+    const shutdown = (signal: string) => {
+      logger.info(`Received ${signal}, shutting down gracefully`);
+      server.close(() => process.exit(0));
+      server.closeIdleConnections();
+      // A stuck request must not hold the process past the drain window.
+      setTimeout(() => process.exit(0), SHUTDOWN_GRACE_MS).unref();
+    };
+    process.on('SIGTERM', () => shutdown('SIGTERM'));
+    process.on('SIGINT', () => shutdown('SIGINT'));
   } catch (error) {
     logger.error({ err: error }, 'Server start failed:');
     process.exit(1);
   }
 }
-
-// Graceful shutdown
-process.on('SIGTERM', () => {
-  logger.info('Received SIGTERM, shutting down gracefully');
-  process.exit(0);
-});
-
-process.on('SIGINT', () => {
-  logger.info('Received SIGINT, shutting down gracefully');
-  process.exit(0);
-});
 
 // Error handling on process termination
 process.on('uncaughtException', (error) => {

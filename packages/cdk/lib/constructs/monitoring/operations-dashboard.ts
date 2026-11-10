@@ -4,25 +4,26 @@
  * CloudWatch dashboard providing operational visibility into all Moca resources.
  * Designed from automated operational monitoring insights across active service metrics.
  *
- * Widget layout (37 widgets total):
+ * Widget layout (33 widgets total):
  *  Row 0: Header text (1 widget)
  *  Row 1: Executive KPIs — 6 SingleValue widgets
  *  Row 2: Lambda Core Functions — 6 metric widgets (2 visual rows of 3 each)
- *  Row 3: API Gateway HTTP v2 — 4 metric widgets
+ *  Row 3: Backend API (Lambda Web Function + API CloudFront) — 4 metric widgets
  *  Row 4: DynamoDB — 6 metric widgets (2 visual rows of 3 each)
  *  Row 5: CloudFront & S3 — 4 metric widgets
  *  Row 6: Error Logs — 2 Log Insights widgets
+ *  Row 6b: Backend API latency & cold starts — 2 Log Insights widgets
  *  Row 7: Cost Note text (1 widget)
  *  Row 8: Operational Insights text (1 widget)
  */
 import * as cdk from 'aws-cdk-lib';
 import * as cloudwatch from 'aws-cdk-lib/aws-cloudwatch';
 import * as lambda from 'aws-cdk-lib/aws-lambda';
-import * as apigatewayv2 from 'aws-cdk-lib/aws-apigatewayv2';
 import * as cloudfront from 'aws-cdk-lib/aws-cloudfront';
 import * as s3 from 'aws-cdk-lib/aws-s3';
 import { Construct } from 'constructs';
 import * as dynamodb from 'aws-cdk-lib/aws-dynamodb';
+import type { BackendApi } from '../api/backend-api';
 
 export interface OperationsDashboardProps {
   /** Dashboard name override (default: '{resourcePrefix}-operations') */
@@ -31,16 +32,14 @@ export interface OperationsDashboardProps {
   readonly resourcePrefix: string;
   /** Stack name for display in the dashboard header */
   readonly stackName: string;
-  /** Main backend API Lambda function */
-  readonly backendApiFunction: lambda.IFunction;
+  /** Backend API (Lambda Web Function behind its own CloudFront distribution) */
+  readonly backendApi: BackendApi;
   /** Session Stream Handler Lambda (DynamoDB Streams → AppSync Events) */
   readonly sessionStreamHandlerFunction: lambda.IFunction;
   /** Trigger Executor Lambda */
   readonly triggerExecutorFunction: lambda.IFunction;
   /** Gateway Interceptor Lambda (optional) */
   readonly gatewayInterceptorFunction?: lambda.IFunction;
-  /** HTTP API v2 */
-  readonly httpApi: apigatewayv2.IHttpApi;
   /** Agents DynamoDB table */
   readonly agentsTable: dynamodb.ITable;
   /** Sessions DynamoDB table */
@@ -63,11 +62,10 @@ export class OperationsDashboard extends Construct {
     const {
       resourcePrefix,
       stackName,
-      backendApiFunction,
+      backendApi,
       sessionStreamHandlerFunction,
       triggerExecutorFunction,
       gatewayInterceptorFunction,
-      httpApi,
       agentsTable,
       sessionsTable,
       triggersTable,
@@ -81,15 +79,42 @@ export class OperationsDashboard extends Construct {
     // ── Helpers ──────────────────────────────────────────────────
 
     /** CloudFront metrics must target us-east-1 (global service). */
-    const cfMetric = (metricName: string, stat: string, period?: cdk.Duration) =>
+    const cfMetric = (
+      metricName: string,
+      stat: string,
+      period?: cdk.Duration,
+      distribution: cloudfront.IDistribution = cloudFrontDistribution,
+      label?: string
+    ) =>
       new cloudwatch.Metric({
         namespace: 'AWS/CloudFront',
         metricName,
-        dimensionsMap: { DistributionId: cloudFrontDistribution.distributionId, Region: 'Global' },
+        dimensionsMap: { DistributionId: distribution.distributionId, Region: 'Global' },
         statistic: stat,
         period: period ?? cdk.Duration.hours(1),
         region: 'us-east-1',
+        label,
       });
+
+    /** Backend API Web Function metric (AWS/Lambda/Web, home Region). */
+    const backendFunctionName = backendApi.webFunction.functionName;
+    const webMetric = (
+      metricName: string,
+      stat: string,
+      opts: { period?: cdk.Duration; label?: string; perEndpoint?: boolean } = {}
+    ) =>
+      new cloudwatch.Metric({
+        namespace: 'AWS/Lambda/Web',
+        metricName,
+        dimensionsMap: {
+          FunctionName: backendFunctionName,
+          ...(opts.perEndpoint === false ? {} : { EndpointName: backendApi.endpoint.endpointName }),
+        },
+        statistic: stat,
+        period: opts.period ?? cdk.Duration.hours(1),
+        label: opts.label,
+      });
+    const apiDistribution = backendApi.distribution;
 
     /** Raw DynamoDB metric with optional extra dimensions. */
     const ddbMetric = (
@@ -121,7 +146,6 @@ export class OperationsDashboard extends Construct {
       });
 
     const activeFunctions: lambda.IFunction[] = [
-      backendApiFunction,
       sessionStreamHandlerFunction,
       triggerExecutorFunction,
       ...(gatewayInterceptorFunction ? [gatewayInterceptorFunction] : []),
@@ -148,7 +172,7 @@ export class OperationsDashboard extends Construct {
       width: 4,
       height: 4,
       sparkline: true,
-      metrics: [httpApi.metricCount({ statistic: 'Sum', period: cdk.Duration.days(1) })],
+      metrics: [webMetric('ExecutedRequests', 'Sum', { period: cdk.Duration.days(1) })],
     });
 
     const kpiLambdaErrors = new cloudwatch.SingleValueWidget({
@@ -157,11 +181,6 @@ export class OperationsDashboard extends Construct {
       height: 4,
       sparkline: true,
       metrics: [
-        backendApiFunction.metricErrors({
-          statistic: 'Sum',
-          period: cdk.Duration.days(1),
-          label: 'BackendAPI',
-        }),
         sessionStreamHandlerFunction.metricErrors({
           statistic: 'Sum',
           period: cdk.Duration.days(1),
@@ -181,25 +200,20 @@ export class OperationsDashboard extends Construct {
       height: 4,
       sparkline: true,
       metrics: [
-        httpApi.metric('5XXError', {
-          statistic: 'Sum',
+        webMetric('HTTPResponseStatusClass5XX', 'Sum', {
           period: cdk.Duration.days(1),
           label: '5xx Errors',
         }),
       ],
     });
 
-    const kpiApiP99 = new cloudwatch.SingleValueWidget({
-      title: 'API p99 Latency (ms)',
+    const kpiApiCf5xx = new cloudwatch.SingleValueWidget({
+      title: 'API CloudFront 5xx Rate (%)',
       width: 4,
       height: 4,
       sparkline: true,
       metrics: [
-        httpApi.metricLatency({
-          statistic: 'p99',
-          period: cdk.Duration.days(1),
-          label: 'p99 Latency',
-        }),
+        cfMetric('5xxErrorRate', 'Average', cdk.Duration.days(1), apiDistribution, 'API 5xx %'),
       ],
     });
 
@@ -256,22 +270,10 @@ export class OperationsDashboard extends Construct {
     });
 
     const wLambdaDuration = new cloudwatch.GraphWidget({
-      title: 'Lambda Duration — BackendAPI & SessionStream (p50/p99)',
+      title: 'Lambda Duration — SessionStream (p50/p99)',
       width: 8,
       height: 6,
       left: [
-        backendApiFunction.metricDuration({
-          statistic: 'p50',
-          period: cdk.Duration.hours(1),
-          label: 'BackendAPI p50',
-        }),
-        backendApiFunction.metricDuration({
-          statistic: 'p99',
-          period: cdk.Duration.hours(1),
-          label: 'BackendAPI p99',
-        }),
-      ],
-      right: [
         sessionStreamHandlerFunction.metricDuration({
           statistic: 'p50',
           period: cdk.Duration.hours(1),
@@ -283,7 +285,6 @@ export class OperationsDashboard extends Construct {
           label: 'SessionStream p99',
         }),
       ],
-      leftAnnotations: [{ label: 'Baseline avg ~699 ms', value: 699, color: '#1f77b4' }],
     });
 
     const wLambdaConcurrent = new cloudwatch.GraphWidget({
@@ -335,73 +336,53 @@ export class OperationsDashboard extends Construct {
       rightAnnotations: [{ label: 'Baseline avg 2,629 ms', value: 2629, color: '#1f77b4' }],
     });
 
-    // ── Row 3: API Gateway HTTP v2 (6×6) ─────────────────────────
+    // ── Row 3: Backend API — Web Function + API CloudFront (6×6) ──
     const wApiRequests = new cloudwatch.GraphWidget({
       title: 'API Requests (hourly)',
       width: 6,
       height: 6,
-      left: [
-        httpApi.metricCount({
-          statistic: 'Sum',
-          period: cdk.Duration.hours(1),
-          label: 'Requests/hr',
-        }),
-      ],
+      left: [webMetric('ExecutedRequests', 'Sum', { label: 'Requests/hr' })],
       leftAnnotations: [{ label: 'Baseline ~16/hr', value: 16, color: '#1f77b4' }],
     });
 
     const wApiErrors = new cloudwatch.GraphWidget({
-      title: '🔴 API 4xx / 5xx Errors',
+      title: '🔴 API 4xx / 5xx Responses',
       width: 6,
       height: 6,
       left: [
-        httpApi.metric('4XXError', {
-          statistic: 'Sum',
-          period: cdk.Duration.hours(1),
-          label: '4xx Errors',
-        }),
-        httpApi.metric('5XXError', {
-          statistic: 'Sum',
-          period: cdk.Duration.hours(1),
-          label: '5xx Errors',
-        }),
+        webMetric('HTTPResponseStatusClass4XX', 'Sum', { label: '4xx' }),
+        webMetric('HTTPResponseStatusClass5XX', 'Sum', { label: '5xx' }),
       ],
       leftAnnotations: [{ label: '🔴 CRITICAL — Any 5xx', value: 1, color: '#d62728' }],
     });
 
     const wApiLatency = new cloudwatch.GraphWidget({
-      title: 'API Latency Distribution (avg / p50 / p99)',
+      title: 'Web Function Environments — active time vs CPU time (ms)',
       width: 6,
       height: 6,
       left: [
-        httpApi.metricLatency({
-          statistic: 'Average',
-          period: cdk.Duration.hours(1),
-          label: 'Avg',
+        webMetric('EnvironmentActiveTime', 'Sum', {
+          label: 'Active (billed memory)',
+          perEndpoint: false,
         }),
-        httpApi.metricLatency({ statistic: 'p50', period: cdk.Duration.hours(1), label: 'p50' }),
-        httpApi.metricLatency({ statistic: 'p99', period: cdk.Duration.hours(1), label: 'p99' }),
-      ],
-      leftAnnotations: [
-        { label: '🟡 WARNING 8,000 ms', value: 8000, color: '#ff9900' },
-        { label: 'Baseline avg 616 ms', value: 616, color: '#1f77b4' },
+        webMetric('EnvironmentCPUTime', 'Sum', { label: 'CPU (billed vCPU)', perEndpoint: false }),
       ],
     });
 
     const wApiIntegrationLatency = new cloudwatch.GraphWidget({
-      title: 'Integration Latency (avg / p99)',
+      title: 'Web Function Concurrency & Memory',
       width: 6,
       height: 6,
       left: [
-        httpApi.metricIntegrationLatency({
-          statistic: 'Average',
-          period: cdk.Duration.hours(1),
-          label: 'Avg',
+        webMetric('EnvironmentConcurrentRequests', 'Maximum', {
+          label: 'Max concurrent req / env',
+          perEndpoint: false,
         }),
-        httpApi.metricIntegrationLatency({
-          statistic: 'p99',
-          period: cdk.Duration.hours(1),
-          label: 'p99',
+      ],
+      right: [
+        webMetric('EnvironmentMaxMemoryUsage', 'Maximum', {
+          label: 'Max memory (MB)',
+          perEndpoint: false,
         }),
       ],
     });
@@ -568,12 +549,40 @@ export class OperationsDashboard extends Construct {
       ],
     });
 
+    // ── Row 6b: Backend API latency & cold starts (12×6) ─────────
+    // Web Functions publish no latency metric, and CloudFront OriginLatency
+    // needs paid additional metrics; the app's access log already records
+    // per-request `responseTime`, so percentiles come from Logs Insights.
+    const wBackendLatency = new cloudwatch.LogQueryWidget({
+      title: 'Backend API Latency (ms, from access log responseTime)',
+      width: 12,
+      height: 6,
+      logGroupNames: [backendApi.logGroup.logGroupName],
+      queryLines: [
+        'filter msg = "request completed" and req.method != "OPTIONS"',
+        'stats pct(responseTime, 50) as p50, pct(responseTime, 99) as p99, count(*) as requests by bin(1h)',
+      ],
+      view: cloudwatch.LogQueryVisualizationType.LINE,
+    });
+
+    const wBackendColdStarts = new cloudwatch.LogQueryWidget({
+      title: 'Backend Web Function Cold Starts (count / avg init ms)',
+      width: 12,
+      height: 6,
+      logGroupNames: [backendApi.logGroup.logGroupName],
+      queryLines: [
+        'filter type = "platform.initReport"',
+        'stats count(*) as coldStarts, avg(record.metrics.totalDurationMs) as avgInitMs by bin(1h)',
+      ],
+      view: cloudwatch.LogQueryVisualizationType.LINE,
+    });
+
     // ── Row 6: Error Log Insights (12×6) ─────────────────────────
     const wBackendApiLogs = new cloudwatch.LogQueryWidget({
       title: 'BackendAPI — Error / Exception / WARN Logs',
       width: 12,
       height: 6,
-      logGroupNames: [`/aws/lambda/${backendApiFunction.functionName}`],
+      logGroupNames: [backendApi.logGroup.logGroupName],
       queryLines: [
         'fields @timestamp, @message, @logStream',
         'filter @message like /(?i)(error|exception|warn)/',
@@ -626,9 +635,8 @@ export class OperationsDashboard extends Construct {
         '| Metric | Baseline (mean) | Std Dev | Notes |',
         '|---|---|---|---|',
         '| API Requests/day | ~431 avg / 1,824 peak | ±199 | Weekday peak; weekend ~40% lower. Peak record 4/3 |',
-        '| API avg Latency | ~616 ms | ±180 ms | Lambda cold-starts excluded |',
+        '| API avg Latency | ~616 ms | ±180 ms | Measured on the former API Gateway; now see Backend API Latency (access-log responseTime) |',
         '| API p99 Latency | ~3,935 ms | — | Bedrock inference dominates tail |',
-        '| Lambda BackendAPI avg Duration | ~699 ms | — | Per invocation |',
         '| Trigger Executor avg Duration | ~2,629 ms | ±400 ms | 2–3 executions/day |',
         '| DDB agents RCU/day | ~2,990 | ±1,491 | Primary read table |',
         '| DDB sessions WCU/day | ~632 | ±279 | Primary write table; trending toward ~1,390 on peak days |',
@@ -666,7 +674,7 @@ export class OperationsDashboard extends Construct {
       kpiApiRequests,
       kpiLambdaErrors,
       kpiApi5xx,
-      kpiApiP99,
+      kpiApiCf5xx,
       kpiCf5xx,
       kpiDdbThrottles
     ); // Row 1
@@ -677,6 +685,7 @@ export class OperationsDashboard extends Construct {
     this.dashboard.addWidgets(wDdbGetItemLatency, wDdbPutQueryLatency, wDdbAccountLimits); // Row 4b
     this.dashboard.addWidgets(wCfRequests, wCfErrors, wCfDataTransfer, wS3Storage); // Row 5
     this.dashboard.addWidgets(wBackendApiLogs, wSessionStreamLogs); // Row 6
+    this.dashboard.addWidgets(wBackendLatency, wBackendColdStarts); // Row 6b
     this.dashboard.addWidgets(wCostNote); // Row 7
     this.dashboard.addWidgets(wOperationalInsights); // Row 8
 

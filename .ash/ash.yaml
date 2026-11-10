@@ -36,7 +36,5 @@ global_settings:
       reason: 'fs.readdirSync results and server config, not user input - false positive'
     - path: 'docs/guides/deployment-options.md'
       reason: 'Documentation examples with Secrets Manager reference names, not actual secrets'
-    - path: 'docker/backend.Dockerfile'
-      reason: 'AWS Lambda container - HEALTHCHECK added for compliance but Lambda Web Adapter handles health via AWS_LWA_READINESS_CHECK_PATH'
     - path: 'packages/cdk/schemas/microsoft-graph-onedrive.json'
       reason: 'AgentCore Gateway OpenAPI target - security/securitySchemes are intentionally omitted because CDK L2 Construct explicitly prohibits them in OpenAPI schemas. Authentication is managed via Gateway outbound authorization configuration (credentialProviderConfigurations in CDK).'

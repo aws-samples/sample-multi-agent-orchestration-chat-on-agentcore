@@ -42,7 +42,7 @@ export interface FrontendProps {
   runtimeEndpoint: string;
 
   /**
-   * Backend API URL (API Gateway + Lambda)
+   * Backend API URL (CloudFront in front of the Lambda Web Function)
    */
   backendApiUrl?: string;
 
