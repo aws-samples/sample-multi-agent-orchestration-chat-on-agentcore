@@ -87,7 +87,7 @@ Each line is a separate JSON event:
 
 ### Local Tools
 
-Built-in tools are located at `./src/runtime/tools/`. The following 12 tools are available locally in the runtime:
+Built-in tools are located at `./src/runtime/tools/`. The following tools are available locally in the runtime:
 
 | Tool | Description |
 |------|-------------|
@@ -98,6 +98,7 @@ Built-in tools are located at `./src/runtime/tools/`. The following 12 tools are
 | `image_to_text` | Analyze images |
 | `call_agent` | Invoke other agents |
 | `manage_agent` | Manage agent configurations |
+| `manage_trigger` | Manage schedule triggers |
 | `memory_search` | Search long-term memory |
 | `browser` | Browser automation |
 | `todo` | Task management |
@@ -502,7 +503,7 @@ packages/agent/
 │   ├── libs/             # MCP client, middleware, utilities
 │   ├── runtime/
 │   │   ├── agent/        # Agent runtime (tools-builder, mcp-clients-builder)
-│   │   └── tools/        # 15 built-in tools (execute-command, file-editor, etc.)
+│   │   └── tools/        # Built-in tools (execute-command, file-editor, etc.)
 │   ├── services/         # Workspace sync, session persistence, AppSync publisher
 │   ├── tests/            # Test files
 │   └── types/            # TypeScript type definitions
