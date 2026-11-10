@@ -71,9 +71,12 @@ const catalogPrompt = generateComponentPrompt({
 });
 
 const toolDescription =
-  'Generate rich UI components for display in the chat interface. ' +
-  'Use this tool to render structured data as tables, metric cards, charts, and other visual components, ' +
-  'and to offer clickable reply choices (SuggestedReplies for one question, Questionnaire for several) when asking the user questions. ' +
+  'Generate rich UI components for display in the chat interface. Two primary uses:\n' +
+  '1. ASK THE USER: whenever you would ask the user a question or for confirmation, render clickable choices instead of a plain-text question — ' +
+  'a SuggestedReplies root for one question, ONE Questionnaire root for two or more. Example spec: ' +
+  '{"root":"q","elements":{"q":{"type":"SuggestedReplies","props":{"question":"Which format?","options":[{"label":"PDF"},{"label":"Slides"}]},"children":[]}}}. ' +
+  'Call it as the last action of your turn and stop.\n' +
+  '2. SHOW DATA: render structured data as tables, metric cards and charts.\n\n' +
   'Two modes are available:\n' +
   '- "spec" mode: Provide a json-render UI spec directly (for simple/static UI)\n' +
   '- "code" mode: Provide code that reads data files and generates a UI spec (for data-heavy scenarios like CSV/DB queries - saves tokens)\n\n' +
