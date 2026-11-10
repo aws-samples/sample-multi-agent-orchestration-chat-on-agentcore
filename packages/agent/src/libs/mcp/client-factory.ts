@@ -6,19 +6,23 @@
 
 import { McpClient } from '@strands-agents/sdk';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
-import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
 import { SSEClientTransport } from '@modelcontextprotocol/sdk/client/sse.js';
 import type { Transport } from '@modelcontextprotocol/sdk/shared/transport.js';
 import { logger } from '../logger/index.js';
 import type { MCPServerConfig, StdioMCPServer, HttpMCPServer, SseMCPServer } from './types.js';
 import { MCPConfigError } from './types.js';
 
+interface CachedClient {
+  name: string;
+  config: MCPServerConfig;
+  client: McpClient;
+}
+
 /**
  * In-memory cache for MCP clients
  * Key: Normalized JSON string of server configurations
- * Value: Array of McpClient instances
  */
-const clientCache = new Map<string, McpClient[]>();
+const clientCache = new Map<string, CachedClient[]>();
 
 /**
  * Generate cache key from server configurations
@@ -83,6 +87,7 @@ function createStdioClient(name: string, config: StdioMCPServer): McpClient {
   return new McpClient({
     transport: transport as Transport,
     applicationName: `AgentCore-${name}`,
+    continueOnError: true,
   });
 }
 
@@ -98,18 +103,15 @@ function createHttpClient(name: string, config: HttpMCPServer): McpClient {
   );
 
   try {
-    const url = new URL(config.url);
-    const transport = new StreamableHTTPClientTransport(url, {
-      requestInit: config.headers
-        ? {
-            headers: config.headers,
-          }
-        : undefined,
-    });
-
+    // Pass `url`, not a v1 transport instance: Strands then builds the v2 transport, whose
+    // SdkHttpError lets a 429 on the server/discover probe fall back to legacy initialize,
+    // and `_rebuildForRetry()` can create a fresh transport on reconnect (a reused
+    // Streamable HTTP transport fails with "already started!").
     return new McpClient({
-      transport: transport as Transport,
+      url: new URL(config.url),
+      ...(config.headers && { headers: config.headers }),
       applicationName: `AgentCore-${name}`,
+      continueOnError: true,
     });
   } catch (error) {
     throw new MCPConfigError(
@@ -137,6 +139,7 @@ function createSseClient(name: string, config: SseMCPServer): McpClient {
     return new McpClient({
       transport: transport as Transport,
       applicationName: `AgentCore-${name}`,
+      continueOnError: true,
     });
   } catch (error) {
     throw new MCPConfigError(
@@ -185,6 +188,28 @@ export function createMCPClient(name: string, config: MCPServerConfig): McpClien
 }
 
 /**
+ * A client that failed to connect under `continueOnError` stays `'failed'` and silently
+ * exposes no tools, so a cached one is replaced to let the next turn retry the server.
+ */
+function replaceFailedClients(entries: CachedClient[]): void {
+  for (const entry of entries) {
+    if (entry.client.connectionState !== 'failed') continue;
+    logger.warn(
+      { event: 'mcp_client_recreated', server: entry.name, transport: entry.config.transport },
+      `Recreating MCP client that failed to connect: ${entry.name}`
+    );
+    entry.client.disconnect().catch((err: unknown) => {
+      logger.debug({ err }, `Failed to dispose MCP client: ${entry.name}`);
+    });
+    try {
+      entry.client = createMCPClient(entry.name, entry.config);
+    } catch (error) {
+      logger.error({ err: error }, `Failed to recreate MCP client: ${entry.name}`);
+    }
+  }
+}
+
+/**
  * Generate McpClient array from multiple MCP server configurations
  * Uses in-memory caching to reuse clients for identical configurations
  *
@@ -194,26 +219,23 @@ export function createMCPClient(name: string, config: MCPServerConfig): McpClien
 export function createMCPClients(
   servers: Array<{ name: string; config: MCPServerConfig }>
 ): McpClient[] {
-  // Generate cache key from configuration
   const cacheKey = generateCacheKey(servers);
 
-  // Check cache first
   const cached = clientCache.get(cacheKey);
   if (cached) {
+    replaceFailedClients(cached);
     logger.debug(
       `Reusing cached MCP clients (${cached.length} items, cache key: ${cacheKey.substring(0, 50)}...)`
     );
-    return cached;
+    return cached.map((entry) => entry.client);
   }
 
-  // Create new clients if cache miss
   logger.debug('Creating new MCP clients (cache miss)');
-  const clients: McpClient[] = [];
+  const entries: CachedClient[] = [];
 
   for (const { name, config } of servers) {
     try {
-      const client = createMCPClient(name, config);
-      clients.push(client);
+      entries.push({ name, config, client: createMCPClient(name, config) });
       logger.debug(`MCP client created: ${name} (${config.transport})`);
     } catch (error) {
       logger.error({ err: error }, `Failed to create MCP client: ${name}`);
@@ -221,11 +243,10 @@ export function createMCPClients(
     }
   }
 
-  // Store in cache
-  clientCache.set(cacheKey, clients);
+  clientCache.set(cacheKey, entries);
   logger.debug(
-    `Cached MCP clients (${clients.length} items, cache key: ${cacheKey.substring(0, 50)}...)`
+    `Cached MCP clients (${entries.length} items, cache key: ${cacheKey.substring(0, 50)}...)`
   );
 
-  return clients;
+  return entries.map((entry) => entry.client);
 }
