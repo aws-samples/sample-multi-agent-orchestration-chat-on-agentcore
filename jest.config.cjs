@@ -5,6 +5,8 @@ module.exports = {
   passWithNoTests: true,
   testPathIgnorePatterns: ['/node_modules/', '/cdk\\.out/', '/packages/'],
   testMatch: ['**/*.test.ts'],
+  // scripts/ is ESM and imports its own files with a .js extension.
+  moduleNameMapper: { '^(\\.{1,2}/.*)\\.js$': '$1' },
   transform: {
     '^.+\\.ts$': [
       'ts-jest',
