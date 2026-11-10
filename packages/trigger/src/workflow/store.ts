@@ -52,21 +52,33 @@ export class WorkflowStore {
     return (res.Items ?? []).map((i) => unmarshall(i) as WorkflowStepState);
   }
 
+  /**
+   * A cancelled step is final: writes still in flight from the main
+   * execution (stopped mid-invocation) must not resurrect it.
+   */
   async saveStep(userId: string, state: WorkflowStepState): Promise<void> {
-    await this.client.send(
-      new PutItemCommand({
-        TableName: this.tableName,
-        Item: marshall(
-          {
-            PK: workflowKeys.pk(userId),
-            SK: workflowKeys.step(state.workflowId, state.stepId),
-            ...state,
-            ttl: workflowTtl(),
-          },
-          { removeUndefinedValues: true }
-        ),
-      })
-    );
+    try {
+      await this.client.send(
+        new PutItemCommand({
+          TableName: this.tableName,
+          Item: marshall(
+            {
+              PK: workflowKeys.pk(userId),
+              SK: workflowKeys.step(state.workflowId, state.stepId),
+              ...state,
+              ttl: workflowTtl(),
+            },
+            { removeUndefinedValues: true }
+          ),
+          ConditionExpression: 'attribute_not_exists(PK) OR #status <> :cancelled',
+          ExpressionAttributeNames: { '#status': 'status' },
+          ExpressionAttributeValues: marshall({ ':cancelled': 'cancelled' }),
+        })
+      );
+    } catch (error) {
+      if ((error as { name?: string }).name === 'ConditionalCheckFailedException') return;
+      throw error;
+    }
   }
 
   /**

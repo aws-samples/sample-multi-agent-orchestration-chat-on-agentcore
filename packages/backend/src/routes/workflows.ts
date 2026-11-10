@@ -33,6 +33,19 @@ const router = Router();
 
 /** Bounds Runtime sessions and model spend a single user can fan out at once. */
 export const MAX_ACTIVE_WORKFLOWS_PER_USER = 3;
+const ACTIVE_SCAN_LIMIT = 50;
+/**
+ * Matches the orchestrator's durable executionTimeout. A record still
+ * non-terminal after that never finished (timeout, crash before the catch
+ * block) and must not hold a slot until its 30-day TTL.
+ */
+const ACTIVE_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
+
+function activeWorkflows(records: WorkflowRecord[], now = Date.now()): WorkflowRecord[] {
+  return records.filter(
+    (w) => !isTerminalWorkflowStatus(w.status) && now - Date.parse(w.createdAt) < ACTIVE_WINDOW_MS
+  );
+}
 
 const workflowIdParams = z.object({ id: z.string().regex(/^wf-[0-9a-f-]{36}$/) });
 
@@ -116,14 +129,13 @@ router.post(
       throw new AppError(ErrorCode.VALIDATION_ERROR, `Unknown agentId(s): ${missing.join(', ')}`);
     }
 
-    const recent = await repo.list(userId, 20);
-    const active = recent.filter((w) => !isTerminalWorkflowStatus(w.status)).length;
-    if (active >= MAX_ACTIVE_WORKFLOWS_PER_USER) {
-      throw new AppError(
+    const tooMany = (active: number) =>
+      new AppError(
         ErrorCode.CONFLICT,
         `Too many running workflows (${active}/${MAX_ACTIVE_WORKFLOWS_PER_USER}). Wait for one to finish or cancel it.`
       );
-    }
+    const before = activeWorkflows(await repo.list(userId, ACTIVE_SCAN_LIMIT));
+    if (before.length >= MAX_ACTIVE_WORKFLOWS_PER_USER) throw tooMany(before.length);
 
     const now = new Date().toISOString();
     const workflowId = `wf-${uuidv7()}`;
@@ -149,6 +161,18 @@ router.post(
       updatedAt: now,
     }));
     await repo.create(record, steps);
+
+    // Re-check after the write: concurrent starts all pass the first check.
+    // Ids are UUIDv7 (time-ordered), so the earliest MAX keep their slot and
+    // only the late ones are rejected.
+    const after = activeWorkflows(
+      await repo.list(userId, ACTIVE_SCAN_LIMIT, { consistentRead: true })
+    ).map((w) => w.workflowId);
+    after.sort();
+    if (after.indexOf(workflowId) >= MAX_ACTIVE_WORKFLOWS_PER_USER) {
+      await repo.markFailed(userId, workflowId, 'Too many running workflows');
+      throw tooMany(after.length - 1);
+    }
 
     try {
       await invokeOrchestrator({ action: 'run', workflowId, userId }, workflowId);

@@ -88,7 +88,11 @@ export class WorkflowsRepository {
   }
 
   /** Newest first — workflow ids are UUIDv7, so SK order is creation order. */
-  async list(userId: UserId, limit: number): Promise<WorkflowRecord[]> {
+  async list(
+    userId: UserId,
+    limit: number,
+    options: { consistentRead?: boolean } = {}
+  ): Promise<WorkflowRecord[]> {
     const res = await this.client.send(
       new QueryCommand({
         TableName: this.tableName,
@@ -99,6 +103,7 @@ export class WorkflowsRepository {
         }),
         ScanIndexForward: false,
         Limit: limit,
+        ConsistentRead: options.consistentRead,
       })
     );
     return (res.Items ?? []).map((i) => strip<WorkflowRecord>(unmarshall(i)));

@@ -34,8 +34,19 @@ const log = createLogger('WorkflowOrchestrator');
 const STEP_TIMEOUT = { hours: 8 } as const;
 /** The Runtime heartbeats every 5 min; three missed beats mean the microVM is gone. */
 const STEP_HEARTBEAT_TIMEOUT = { minutes: 20 } as const;
+/** A failed turn (model error, dead microVM) is retried once on the same session. */
+const STEP_TURN_ATTEMPTS = 2;
+const STEP_RETRY_DELAY = { seconds: 30 } as const;
 const NOTIFY_ATTEMPTS = 30;
 const NOTIFY_RETRY_DELAY = { seconds: 60 } as const;
+
+/** The submitter's error may arrive wrapped by the SDK, so match the message too. */
+function isAgentNotFound(error: unknown): boolean {
+  return (
+    error instanceof AgentNotFoundError ||
+    (error instanceof Error && error.message.includes('Agent not found'))
+  );
+}
 
 let deps: { store: WorkflowStore; runtime: RuntimeClient } | undefined;
 function getDeps() {
@@ -50,38 +61,50 @@ function getDeps() {
   return deps;
 }
 
-function buildOps(record: WorkflowRecord): WorkflowOps<DurableContext> {
-  const { store, runtime } = getDeps();
+export function buildOps(
+  record: WorkflowRecord,
+  { store, runtime }: { store: WorkflowStore; runtime: RuntimeClient } = getDeps()
+): WorkflowOps<DurableContext> {
   const { userId, workflowId } = record;
   return {
     step: (c, name, fn) => c.step(name, () => fn()),
     runAgent: async (c, name, turn) => {
-      const raw = await c.waitForCallback<string>(
-        name,
-        async (callbackId) => {
-          await runtime.startTurn({
-            userId,
-            sessionId: turn.sessionId,
-            sessionType: 'subagent',
-            agentId: turn.agentId,
-            modelId: turn.modelId,
-            prompt: turn.prompt,
-            storagePath: record.parent?.storagePath,
-            workflowStep: { workflowId, stepId: turn.stepId, role: turn.role, callbackId },
-          });
-        },
-        {
-          timeout: STEP_TIMEOUT,
-          heartbeatTimeout: STEP_HEARTBEAT_TIMEOUT,
-          // One retry covers a transient model / runtime failure; a missing
-          // agent will not appear on retry.
-          retryStrategy: (error, attempt) => ({
-            shouldRetry: attempt < 2 && !(error instanceof AgentNotFoundError),
-            delay: { seconds: 30 },
-          }),
+      const submit = async (callbackId: string) => {
+        await runtime.startTurn({
+          userId,
+          sessionId: turn.sessionId,
+          sessionType: 'subagent',
+          agentId: turn.agentId,
+          modelId: turn.modelId,
+          prompt: turn.prompt,
+          storagePath: record.parent?.storagePath,
+          workflowStep: { workflowId, stepId: turn.stepId, role: turn.role, callbackId },
+        });
+      };
+      // waitForCallback's retryStrategy only covers the submitter (starting
+      // the turn). A turn that fails or stops heartbeating rejects the
+      // callback without retry, so the whole turn is retried here.
+      for (let attempt = 1; ; attempt++) {
+        try {
+          const raw = await c.waitForCallback<string>(
+            attempt === 1 ? name : `${name}-retry${attempt - 1}`,
+            submit,
+            {
+              timeout: STEP_TIMEOUT,
+              heartbeatTimeout: STEP_HEARTBEAT_TIMEOUT,
+              retryStrategy: (error, submitAttempt) => ({
+                shouldRetry: submitAttempt < 3 && !isAgentNotFound(error),
+                delay: { seconds: 10 },
+              }),
+            }
+          );
+          return JSON.parse(raw) as WorkflowStepResult;
+        } catch (error) {
+          if (attempt >= STEP_TURN_ATTEMPTS || isAgentNotFound(error)) throw error;
+          log.warn({ err: error, workflowId, stepId: turn.stepId, attempt }, 'Retrying step turn');
+          await c.wait(`${name}-backoff${attempt}`, STEP_RETRY_DELAY);
         }
-      );
-      return JSON.parse(raw) as WorkflowStepResult;
+      }
     },
     map: async (c, name, items, fn, maxConcurrency) => {
       const batch = await c.map(name, items, (child, item) => fn(child, item), {
@@ -156,7 +179,14 @@ async function cancelWorkflow(userId: string, workflowId: string): Promise<void>
     })
   );
   for (const execution of executions.DurableExecutions ?? []) {
-    if (!execution.DurableExecutionArn || execution.Status !== 'RUNNING') continue;
+    // The name filter is not documented as exact; never stop `<id>-cancel` (ourselves).
+    if (
+      !execution.DurableExecutionArn ||
+      execution.Status !== 'RUNNING' ||
+      execution.DurableExecutionName !== workflowId
+    ) {
+      continue;
+    }
     await lambda.send(
       new StopDurableExecutionCommand({
         DurableExecutionArn: execution.DurableExecutionArn,

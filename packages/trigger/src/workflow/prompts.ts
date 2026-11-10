@@ -12,7 +12,7 @@ import {
 export type WorkerRunReason =
   | { kind: 'initial' }
   | { kind: 'review'; feedback: string; round: number }
-  | { kind: 'downstream'; fromStepId: string; feedback: string }
+  | { kind: 'downstream'; requests: Array<{ fromStepId: string; feedback: string }> }
   | { kind: 'upstreamChanged'; changedStepIds: string[] };
 
 /** Replace {{step_id.output}} placeholders with upstream outputs. */
@@ -64,7 +64,9 @@ export function buildWorkerPrompt(
         : '',
     downstream:
       reason.kind === 'downstream'
-        ? `\n\n## Feedback from downstream step "${reason.fromStepId}"\nYour previous output could not be used. Redo the task addressing this:\n${reason.feedback}`
+        ? `\n\n## Feedback from downstream steps\nYour previous output could not be used. Redo the task addressing all of this:\n${reason.requests
+            .map((r) => `### From "${r.fromStepId}"\n${r.feedback}`)
+            .join('\n\n')}`
         : '',
     upstreamChanged:
       reason.kind === 'upstreamChanged'

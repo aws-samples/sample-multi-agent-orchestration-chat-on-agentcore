@@ -38,6 +38,17 @@ describe('layoutWorkflow', () => {
 });
 
 describe('parseWorkflowInput', () => {
+  it.each([
+    ['dependsOn as a string', { ...step('b'), dependsOn: 'a' }],
+    ['dependsOn with a non-string', { ...step('b'), dependsOn: [1] }],
+    ['review without criteria', { ...step('b'), review: { agentId: 'r' } }],
+    ['review as null', { ...step('b'), review: null }],
+  ])('rejects malformed steps the model may emit: %s', (_label, bad) => {
+    expect(
+      parseWorkflowInput({ action: 'start', workflow: { goal: 'g', steps: [step('a'), bad] } })
+    ).toBeNull();
+  });
+
   it('accepts only a complete start action', () => {
     expect(
       parseWorkflowInput({ action: 'start', workflow: { goal: 'g', steps: [step('a')] } })

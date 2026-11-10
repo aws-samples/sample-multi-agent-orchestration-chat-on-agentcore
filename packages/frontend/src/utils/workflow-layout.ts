@@ -42,10 +42,24 @@ export function parseWorkflowInput(input: unknown): WorkflowGraphSpec | null {
   if (action !== 'start' || !workflow || typeof workflow !== 'object') return null;
   const spec = workflow as Partial<WorkflowGraphSpec>;
   if (!Array.isArray(spec.steps) || spec.steps.length === 0) return null;
-  const valid = spec.steps.every(
-    (s) =>
-      s && typeof s.id === 'string' && typeof s.agentId === 'string' && typeof s.prompt === 'string'
-  );
+  // The input is whatever the model emitted, even when zod rejected it, so
+  // every field the layout dereferences is checked.
+  const isString = (v: unknown): v is string => typeof v === 'string';
+  const valid = spec.steps.every((raw) => {
+    if (!raw || typeof raw !== 'object') return false;
+    const s = raw as unknown as Record<string, unknown>;
+    if (!isString(s.id) || !isString(s.agentId) || !isString(s.prompt)) return false;
+    if (s.dependsOn !== undefined && !(Array.isArray(s.dependsOn) && s.dependsOn.every(isString))) {
+      return false;
+    }
+    if (s.review !== undefined) {
+      const r = s.review as Record<string, unknown> | null;
+      if (!r || typeof r !== 'object' || !isString(r.agentId) || !isString(r.criteria))
+        return false;
+      if (r.maxIterations !== undefined && typeof r.maxIterations !== 'number') return false;
+    }
+    return true;
+  });
   return valid ? (spec as WorkflowGraphSpec) : null;
 }
 

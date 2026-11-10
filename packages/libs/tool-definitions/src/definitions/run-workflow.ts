@@ -17,6 +17,13 @@ export const WORKFLOW_LIMITS = {
   MAX_PROMPT_LENGTH: 20_000,
   /** Step output kept in the workflow record and passed to dependants. */
   MAX_OUTPUT_LENGTH: 20_000,
+  /**
+   * Serialized spec, in UTF-8 bytes. The spec lives in the workflow header
+   * item next to the final summary; both must fit DynamoDB's 400 KB item.
+   */
+  MAX_SPEC_BYTES: 100_000,
+  /** Final summary written to the header item and sent to the parent agent. */
+  MAX_SUMMARY_LENGTH: 60_000,
 } as const;
 
 const STEP_ID_PATTERN = /^[a-z][a-z0-9_]{0,39}$/;
@@ -96,6 +103,12 @@ export type WorkflowSpec = z.infer<typeof workflowSpecSchema>;
  */
 export function validateWorkflowSpec(spec: WorkflowSpec): string[] {
   const problems: string[] = [];
+  const bytes = new TextEncoder().encode(JSON.stringify(spec)).length;
+  if (bytes > WORKFLOW_LIMITS.MAX_SPEC_BYTES) {
+    problems.push(
+      `Workflow definition is too large (${bytes} bytes, max ${WORKFLOW_LIMITS.MAX_SPEC_BYTES}); shorten the prompts`
+    );
+  }
   const ids = new Set<string>();
   for (const step of spec.steps) {
     if (ids.has(step.id)) problems.push(`Duplicate step id "${step.id}"`);

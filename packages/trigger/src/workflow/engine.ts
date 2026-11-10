@@ -93,6 +93,7 @@ function toState(workflowId: string, stepId: string, rt: StepRuntime, iteration 
 
 /** Keeps the parent notification prompt bounded while showing every step. */
 const INTERMEDIATE_OUTPUT_CHARS = 1500;
+const FINAL_OUTPUT_CHARS_WHEN_LARGE = 5000;
 
 export function descendantsOf(spec: WorkflowSpec, stepId: string): Set<string> {
   const result = new Set<string>();
@@ -207,22 +208,35 @@ export async function runWorkflow<C>(
         });
         continue;
       }
-      escalations += 1;
-      Object.assign(steps[target], {
-        status: 'pending',
-        feedback: outcome.feedback,
-        nextReason: { kind: 'downstream', fromStepId: step.id, feedback: outcome.feedback },
-      });
+      // nextReason is cleared when a step is scheduled, so a 'downstream'
+      // reason here was set earlier in this wave: merge into one re-run.
+      const request = { fromStepId: step.id, feedback: outcome.feedback };
+      const pending = steps[target].nextReason;
+      if (pending?.kind === 'downstream') {
+        pending.requests.push(request);
+        steps[target].feedback = pending.requests.map((r) => r.feedback).join('\n\n');
+      } else {
+        escalations += 1;
+        Object.assign(steps[target], {
+          status: 'pending',
+          feedback: outcome.feedback,
+          nextReason: { kind: 'downstream', requests: [request] },
+        });
+      }
       changed.add(target);
       for (const id of descendantsOf(spec, target)) {
         const d = steps[id];
-        if (id === step.id || d.status === 'done') {
-          Object.assign(d, {
-            status: 'pending',
-            nextReason: { kind: 'upstreamChanged', changedStepIds: [target] },
-          });
-          changed.add(id);
+        if (id !== step.id && d.status !== 'done') continue;
+        d.status = 'pending';
+        // A step that is itself an escalation target keeps that reason; its
+        // prompt carries the updated upstream outputs anyway.
+        if (d.nextReason?.kind === 'upstreamChanged') {
+          if (!d.nextReason.changedStepIds.includes(target))
+            d.nextReason.changedStepIds.push(target);
+        } else if (d.nextReason?.kind !== 'downstream') {
+          d.nextReason = { kind: 'upstreamChanged', changedStepIds: [target] };
         }
+        changed.add(id);
       }
     }
 
@@ -341,6 +355,18 @@ export function summarize(spec: WorkflowSpec, result: WorkflowRunResult): string
     ].filter(Boolean);
     return `- ${s.id} (${s.agentId}): ${rt.status}${notes.length ? ` — ${notes.join('; ')}` : ''}`;
   });
+  const build = (finalMax?: number) => {
+    const text = `Status: ${result.status}\n\nSteps:\n${lines.join('\n')}${section(
+      'Final outputs',
+      spec.steps.filter((s) => !hasDependants.has(s.id)),
+      finalMax
+    )}${section(
+      `Intermediate outputs (truncated to ${INTERMEDIATE_OUTPUT_CHARS} chars; use run_workflow status for full text)`,
+      spec.steps.filter((s) => hasDependants.has(s.id)),
+      INTERMEDIATE_OUTPUT_CHARS
+    )}`;
+    return text;
+  };
   const section = (title: string, ids: WorkflowStep[], max?: number) => {
     const parts = ids
       .filter((s) => result.steps[s.id].output)
@@ -350,12 +376,10 @@ export function summarize(spec: WorkflowSpec, result: WorkflowRunResult): string
       });
     return parts.length ? `\n\n${title}:\n${parts.join('\n\n')}` : '';
   };
-  return `Status: ${result.status}\n\nSteps:\n${lines.join('\n')}${section(
-    'Final outputs',
-    spec.steps.filter((s) => !hasDependants.has(s.id))
-  )}${section(
-    `Intermediate outputs (truncated to ${INTERMEDIATE_OUTPUT_CHARS} chars; use run_workflow status for full text)`,
-    spec.steps.filter((s) => hasDependants.has(s.id)),
-    INTERMEDIATE_OUTPUT_CHARS
-  )}`;
+  // The summary is stored in the header item (400 KB with the spec) and sent
+  // to the parent agent, so final outputs are cut when they would not fit.
+  const max = WORKFLOW_LIMITS.MAX_SUMMARY_LENGTH;
+  let text = build();
+  if (text.length > max) text = build(FINAL_OUTPUT_CHARS_WHEN_LARGE);
+  return text.length > max ? `${text.slice(0, max)}…` : text;
 }

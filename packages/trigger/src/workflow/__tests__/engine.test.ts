@@ -1,5 +1,10 @@
 import { describe, expect, it } from '@jest/globals';
-import type { WorkflowSpec, WorkflowStepResult, WorkflowStepState } from '@moca/tool-definitions';
+import {
+  WORKFLOW_LIMITS,
+  type WorkflowSpec,
+  type WorkflowStepResult,
+  type WorkflowStepState,
+} from '@moca/tool-definitions';
 import { runWorkflow, summarize, type AgentTurn, type WorkflowOps } from '../engine.js';
 
 type Responder = (turn: AgentTurn, name: string) => WorkflowStepResult | Error;
@@ -159,6 +164,38 @@ describe('runWorkflow', () => {
     expect(result.steps.b.runs).toBe(1); // untouched sibling is not redone
   });
 
+  it('merges same-wave escalations to one upstream into a single re-run', async () => {
+    const spec: WorkflowSpec = {
+      goal: 'g',
+      steps: [
+        { id: 'research', agentId: 'r', prompt: 'research' },
+        { id: 'write_a', agentId: 'w', prompt: 'a', dependsOn: ['research'] },
+        { id: 'write_b', agentId: 'w', prompt: 'b', dependsOn: ['research'] },
+      ],
+    };
+    const runs: Record<string, number> = {};
+    const { ops, turns } = fakeOps((turn) => {
+      runs[turn.stepId] = (runs[turn.stepId] ?? 0) + 1;
+      if (turn.stepId !== 'research' && runs[turn.stepId] === 1) {
+        return {
+          status: 'blocked',
+          output: '',
+          feedback: `need more for ${turn.stepId}`,
+          targetStepId: 'research',
+        };
+      }
+      return done(turn.stepId);
+    });
+    const result = await runWorkflow(null, 'wf-1', spec, ops);
+
+    expect(result.status).toBe('completed');
+    expect(result.escalations).toBe(1);
+    expect(runs.research).toBe(2);
+    const rerun = turns.filter((t) => t.stepId === 'research')[1].prompt;
+    expect(rerun).toContain('need more for write_a');
+    expect(rerun).toContain('need more for write_b');
+  });
+
   it('fails a blocked step whose target is not an upstream step', async () => {
     const { ops } = fakeOps((turn) =>
       turn.stepId === 'report'
@@ -208,6 +245,17 @@ describe('runWorkflow', () => {
     expect(result.status).toBe('cancelled');
     expect(turns.map((t) => t.stepId)).toEqual(['a', 'b']);
     expect(result.steps.report.status).toBe('cancelled');
+  });
+
+  it('keeps the summary within MAX_SUMMARY_LENGTH for large final outputs', async () => {
+    const spec: WorkflowSpec = {
+      goal: 'g',
+      steps: Array.from({ length: 6 }, (_, i) => ({ id: `s${i}`, agentId: 'a', prompt: 'p' })),
+    };
+    const { ops } = fakeOps(() => done('x'.repeat(20_000)));
+    const summary = summarize(spec, await runWorkflow(null, 'wf-1', spec, ops));
+    expect(summary.length).toBeLessThanOrEqual(WORKFLOW_LIMITS.MAX_SUMMARY_LENGTH + 1);
+    expect(summary).toContain('### s5');
   });
 
   it('uses unique, deterministic durable operation names', async () => {

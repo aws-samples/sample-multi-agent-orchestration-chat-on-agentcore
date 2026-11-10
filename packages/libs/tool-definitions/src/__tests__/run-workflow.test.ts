@@ -33,6 +33,13 @@ describe('validateWorkflowSpec', () => {
     ]);
   });
 
+  it('rejects a spec too large for the workflow record', () => {
+    // 10 prompts of 20k Japanese chars ≈ 600 KB — passes zod, overflows DynamoDB.
+    const prompt = 'あ'.repeat(20_000);
+    const steps = Array.from({ length: 10 }, (_, i) => ({ id: `s${i}`, agentId: 'x', prompt }));
+    expect(validateWorkflowSpec(spec(steps))[0]).toMatch(/too large/);
+  });
+
   it('rejects cycles', () => {
     const problems = validateWorkflowSpec(
       spec([
