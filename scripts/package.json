@@ -8,9 +8,6 @@
     "setup-env": "tsx src/setup-env.ts",
     "seed-system-agents": "tsx src/seed-system-agents.ts"
   },
-  "devDependencies": {
-    "ts-morph": "^28.0.0"
-  },
   "dependencies": {
     "@aws-sdk/client-cloudformation": "^3.1156.0",
     "@aws-sdk/client-cognito-identity-provider": "^3.1156.0",
