@@ -132,7 +132,6 @@ VITE_AGENT_ENDPOINT=http://localhost:8080/invocations
 
 # AppSync Events Configuration (for real-time session updates)
 VITE_APPSYNC_EVENTS_ENDPOINT=${outputs.AppSyncEventsRealtimeEndpoint || ''}
-VITE_APPSYNC_EVENTS_HTTP_ENDPOINT=${outputs.AppSyncEventsHttpEndpoint || ''}
 
 # Note: In local development mode, Backend/Agent must be running locally.
 # To use cloud connection mode, uncomment the following:

@@ -8,7 +8,6 @@ import {
   ListObjectsV2Command,
   PutObjectCommand,
   DeleteObjectCommand,
-  HeadObjectCommand,
   GetObjectCommand,
 } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
@@ -442,32 +441,6 @@ export async function generateDownloadUrl(storageKey: string, filePath: string):
   logger.info(`Download URL generated`);
 
   return downloadUrl;
-}
-
-/**
- * Check if a file exists
- */
-export async function checkFileExists(storageKey: string, filePath: string): Promise<boolean> {
-  const bucketName = config.USER_STORAGE_BUCKET_NAME;
-  if (!bucketName) {
-    throw new Error('USER_STORAGE_BUCKET_NAME is not configured');
-  }
-
-  const normalizedPath = normalizePath(filePath);
-  const key = `${getUserStoragePrefix(storageKey)}/${normalizedPath}`;
-
-  try {
-    const s3Client = await getS3Client(storageKey);
-    const command = new HeadObjectCommand({
-      Bucket: bucketName,
-      Key: key,
-    });
-
-    await s3Client.send(command);
-    return true;
-  } catch {
-    return false;
-  }
 }
 
 /**

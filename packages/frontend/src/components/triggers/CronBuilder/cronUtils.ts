@@ -85,13 +85,6 @@ export function parseCronExpression(expression: string): CronFields | null {
 }
 
 /**
- * Build cron expression from fields
- */
-export function buildCronExpression(fields: CronFields): string {
-  return `${fields.minute} ${fields.hour} ${fields.dayOfMonth} ${fields.month} ${fields.dayOfWeek} ${fields.year}`;
-}
-
-/**
  * Validate cron expression
  */
 export function validateCronExpression(expression: string): boolean {
@@ -502,65 +495,3 @@ export const TIMEZONES = [
   { value: 'Europe/London', label: 'Europe/London (GMT)' },
   { value: 'UTC', label: 'UTC' },
 ];
-
-/**
- * Day of week option keys for i18n
- */
-export const DAY_OF_WEEK_OPTION_KEYS = [
-  { value: 'MON', labelKey: 'MON' },
-  { value: 'TUE', labelKey: 'TUE' },
-  { value: 'WED', labelKey: 'WED' },
-  { value: 'THU', labelKey: 'THU' },
-  { value: 'FRI', labelKey: 'FRI' },
-  { value: 'SAT', labelKey: 'SAT' },
-  { value: 'SUN', labelKey: 'SUN' },
-];
-
-/**
- * Get day of week options with translated labels
- */
-export function getDayOfWeekOptions(t: TFunction): Array<{ value: string; label: string }> {
-  return DAY_OF_WEEK_OPTION_KEYS.map(({ value, labelKey }) => ({
-    value,
-    label: t(`triggers.cronDescription.days.${labelKey}`),
-  }));
-}
-
-/**
- * Month option keys for i18n
- */
-export const MONTH_OPTION_KEYS = [
-  { value: '1', labelKey: '1' },
-  { value: '2', labelKey: '2' },
-  { value: '3', labelKey: '3' },
-  { value: '4', labelKey: '4' },
-  { value: '5', labelKey: '5' },
-  { value: '6', labelKey: '6' },
-  { value: '7', labelKey: '7' },
-  { value: '8', labelKey: '8' },
-  { value: '9', labelKey: '9' },
-  { value: '10', labelKey: '10' },
-  { value: '11', labelKey: '11' },
-  { value: '12', labelKey: '12' },
-];
-
-/**
- * Get month options with translated labels
- */
-export function getMonthOptions(t: TFunction): Array<{ value: string; label: string }> {
-  return MONTH_OPTION_KEYS.map(({ value, labelKey }) => ({
-    value,
-    label: t(`triggers.cronDescription.months.${labelKey}`),
-  }));
-}
-
-// Legacy exports for backward compatibility
-export const DAY_OF_WEEK_OPTIONS = DAY_OF_WEEK_OPTION_KEYS.map(({ value }) => ({
-  value,
-  label: value, // Will be translated at usage
-}));
-
-export const MONTH_OPTIONS = MONTH_OPTION_KEYS.map(({ value }) => ({
-  value,
-  label: value, // Will be translated at usage
-}));

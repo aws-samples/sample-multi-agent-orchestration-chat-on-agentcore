@@ -149,5 +149,3 @@ export const kbRetrieveTool: Tool = {
   version: '1.0.0',
   tags: ['knowledge-base', 'search', 'retrieval', 'bedrock'],
 };
-
-export default kbRetrieveTool;

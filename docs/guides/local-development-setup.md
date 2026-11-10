@@ -101,7 +101,6 @@ VITE_AGENT_ENDPOINT=http://localhost:8080/invocations
 
 # AppSync Events Configuration (for real-time session updates)
 VITE_APPSYNC_EVENTS_ENDPOINT=wss://xxx.appsync-realtime-api.us-east-1.amazonaws.com
-VITE_APPSYNC_EVENTS_HTTP_ENDPOINT=https://xxx.appsync-api.us-east-1.amazonaws.com
 ```
 
 #### Backend (packages/backend/.env)

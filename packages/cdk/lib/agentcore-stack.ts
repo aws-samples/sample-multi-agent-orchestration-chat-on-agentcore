@@ -711,7 +711,6 @@ export class AgentCoreStack extends cdk.Stack {
       serverAccessLogsBucket: this.accessLogsBucket,
       geoRestriction: envConfig.cloudFrontGeoRestriction, // Geo restriction (all envs)
       webAclArn: props.webAclArn, // WAF WebACL ARN from WafStack (us-east-1)
-      identityPoolId: cognitoIdentityPool.identityPoolId, // Identity Pool ID for per-user credentials
       selfSignUpEnabled: false,
       runtimeWarmupEnabled: envConfig.runtimeWarmupEnabled,
     });

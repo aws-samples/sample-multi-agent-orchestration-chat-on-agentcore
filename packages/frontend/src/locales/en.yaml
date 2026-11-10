@@ -14,12 +14,8 @@ common:
   confirm: Confirm
   edit: Edit
   view: View
-  create: Create
-  update: Update
   search: Search
-  filter: Filter
   clear: Clear
-  clearStorage: Clear
   copy: Copy
   copyToClipboard: Copy to clipboard
   noFolders: No folders
@@ -33,21 +29,14 @@ common:
   reasoningDepthLow: Low
   reasoningDepthHigh: High
   reasoningDepthMax: Max
-  yes: Yes
-  no: No
-  back: Back
   backArrow: ←
-  next: Next
   renderingDiagram: Rendering diagram...
   diagramLoading: Mermaid diagram loading...
-  characters: '{{count}} characters'
   iconsCount: '{{count}} icons'
   noIconsFound: 'No icons found matching "{{query}}"'
   searchIconsPlaceholder: Search icons...
   clickToSelectIcon: Click to select an icon
-  success: Success
   moreOptions: More options
-  deleting: Deleting...
 
 # Authentication
 # pragma: allowlist secret - All entries in this section are UI labels for authentication forms, not actual credentials or secrets
@@ -56,7 +45,6 @@ auth:
   signInAction: Signing in...
   signUp: Sign Up
   signUpAction: Signing up...
-  confirmSignUp: Confirm Account
   confirmAction: Confirming...
   signOut: Sign Out
   username: Username
@@ -64,12 +52,9 @@ auth:
   password: Password
   confirmPassword: Confirm Password
   email: Email Address
-  verificationCode: Verification Code
   authenticated: Authenticated
   noAccount: Don't have an account?
   hasAccount: Already have an account?
-  checkEmail: Please check your email
-  enterVerificationCode: Enter the verification code to activate your account
   resendCode: Resend Code
   welcomeDescription: Create. Connect. Delegate.
   welcomeDescriptionLine2: Your own AI agent team
@@ -128,7 +113,6 @@ auth:
     changingButton: Changing...
     successTitle: Password Changed
     successDescription: Login completed with your new password
-    changeFailed: Failed to change password
     passwordMinLength: Password must be at least 8 characters
     passwordUpperCase: Password must contain an uppercase letter
     passwordLowerCase: Password must contain a lowercase letter
@@ -139,17 +123,13 @@ auth:
 navigation:
   returnHome: Return to home page
   home: Home
-  chat: Chat
   newChat: New Chat
   searchChat: Search Chats
   searchTools: Search Tools
   searchAgents: Search Agents
-  manageAgents: Manage Agents
-  myAgents: My Agents
   events: Event Integration
   settings: Settings
   userMenu: User Menu
-  toggleSidebar: Toggle Sidebar
   openSidebar: Open Sidebar
   closeSidebar: Close Sidebar
 
@@ -158,8 +138,6 @@ commandPalette:
   placeholder: Type a command or search...
   noResults: No results found
   switchAgent: Switch Agent
-  quickActions: Quick Actions
-  navigation: Navigation
   recentChats: Recent Chats
   toNavigate: to navigate
   toSelect: to select
@@ -192,26 +170,13 @@ chat:
   turnInProgress: 'The previous request in this session is still running. Please wait for it to finish.'
   persistenceDegraded: 'Your sign-in expired, so this conversation and its workspace files are no longer being saved. Keep this tab open while the agent runs, or reload and retry.'
   sessionName: Session Name
-  sessionNameLabel: Session
-  subAgentSessionLabel: Sub Agent
   noConversations: No conversations yet
   startNewChat: Start a new chat
   loadingSessions: Loading sessions...
-  loadingMoreSessions: Loading more sessions...
-  allSessionsLoaded: All sessions loaded
   sendMessage: Send Message
-  typingMessage: Type a message...
-  thinking: Thinking...
   stopGenerating: Stop Generating
-  selectAgent: Select Agent
-  changeAgent: Change Agent
   toggleWideView: Toggle wide view
   messageInputPlaceholder: Type your message...
-  attachFile: Attach File
-  submit: Submit
-  inputHelp: Shift + Enter for new line, Enter to send
-  searchChatsDescription: Chat search functionality is under development.
-  searchChatsFeature: You will be able to search past conversation history by keywords.
   imageAttachment:
     alt: Attached image
     remove: 'Remove {{fileName}}'
@@ -247,7 +212,6 @@ chat:
   sessionsDeleted: '{{count}} sessions deleted'
   loadEarlierMessages: Load earlier messages
   loadingEarlierMessages: Loading earlier messages...
-  noEarlierMessages: No earlier messages
   loadEarlierError: Failed to load earlier messages
   loadEarlierRetry: Retry
   contentOmitted: 'Content omitted from history (≈{{size}})'
@@ -261,10 +225,8 @@ agent:
   createAgent: Create Agent
   createNewAgent: Create New Agent
   editAgent: Edit Agent
-  deleteAgent: Delete Agent
   deleteAgentConfirmTitle: Confirm Agent Deletion
   deleteAgentConfirmMessage: 'Delete "{{name}}"? This action cannot be undone.'
-  clearStorageConfirm: Clear agent data in localStorage? Default agents will be recreated.
   noAgentsTitle: No Agents Available
   noAgentsDescription: Create your first Agent
   createAgentButton: Create an Agent
@@ -272,24 +234,7 @@ agent:
   noSearchResults: No search results
   noSearchResultsDescription: Try changing your search criteria and try again
   clearSearch: Clear search
-  storageNotice: Agent management is currently under development and stored in localStorage. Due to application version upgrades, inconsistencies may occur, so please periodically clear localStorage.
-  agentName: Agent Name
-  description: Description
-  systemPrompt: System Prompt
-  model: Model
-  temperature: Temperature
-  maxTokens: Max Tokens
-  tools: Tools
-  selectTools: Select Tools
   noAgents: No agents available
-  createFirstAgent: Create your first agent
-  agentNamePlaceholder: Enter agent name
-  descriptionPlaceholder: Enter agent description
-  systemPromptPlaceholder: Enter system prompt
-  comingSoon: Coming Soon
-  searchAgentsDescription: Agent search functionality is under development.
-  searchAgentsFeature: You will be able to share and search agents created within your organization.
-  backToChat: Back to Chat
   basicSettings: Basic Settings
   toolsSettings: Tools
   mcpSettings: MCP
@@ -299,7 +244,6 @@ agent:
   descriptionLabel: Description
   descriptionDescription: Briefly describe the role and characteristics of this agent.
   descriptionPlaceholder2: 'e.g. - An AI mentor teaching programming from basics to advanced'
-  systemPromptLabel: System Prompt
   systemPromptRequired: 'System Prompt *'
   systemPromptDescription: Enter the system prompt that defines the agent's behavior. Describe in detail what role it should play and how it should respond. It is recommended to clearly specify the project directory path.
   systemPromptPlaceholder2: 'e.g. - You are a helpful and knowledgeable AI assistant.'
@@ -367,17 +311,9 @@ agentDirectory:
 # Tools
 tool:
   availableTools: Available Tools
-  selectedTools: Selected Tools
-  noTools: No tools available
   searchTools: Search tools...
-  toolName: Tool Name
-  toolDescription: Description
-  selectAll: Select All
-  deselectAll: Deselect All
   parameters: Parameters
   required: required
-  showDetails: Show Details
-  hideDetails: Hide Details
   searchPlaceholder: Search tools in natural language... (e.g. 'echo text')
   searching: Searching tools...
   loadingTools: Loading tools...
@@ -393,7 +329,6 @@ tool:
   allLoaded: all loaded
   searchingFor: Searching
   refresh: Refresh
-  closeError: Close Error
 
   # ToolStepsGroup (collapsible tool execution steps)
   steps:
@@ -455,7 +390,6 @@ tool:
     configLabel: MCP Configuration (JSON format)
     insertSample: Insert Sample
     previewTools: Preview Tools
-    fetching: Fetching...
     fetchingMessages:
       - Connecting to MCP server...
       - Fetching tool information...
@@ -463,7 +397,6 @@ tool:
     emptyConfig: Configuration is empty
     fetchError: Tool fetch error
     fetchFailed: Failed to fetch tools
-    availableToolsTitle: Available Tools
     connectionResults: Connection Results
     connectionErrors: Connection Errors
     showDetails: Show Details
@@ -481,7 +414,6 @@ storage:
   imageLoadFailed: Failed to load image
   videoLoadFailed: Failed to load video
   loadError: Failed to load folders
-  title: Storage Management
   fileStorage: File Storage
   loadingImage: Loading image...
   failedToLoadImage: Failed to load image
@@ -490,31 +422,17 @@ storage:
   videoNotSupported: Your browser does not support the video tag
   failedToLoad: Failed to load
   description: We provide Amazon S3 storage space for each user. It automatically syncs with the AI agent's workspace (/tmp/ws), so files created or edited by the agent are saved in this space. When you select a directory, files in that directory are loaded into the agent's workspace.
-  currentPath: Current Path
-  uploadFile: Upload File
   upload: Upload
-  uploadFolder: Upload Folder
   newFolder: New Folder
   download: Download
   downloadFolder: Download Folder
-  createFolder: Create Folder
   create: Create
-  rename: Rename
-  move: Move
   copyPath: Copy Path
   copied: Copied
-  size: Size
-  lastModified: Last Modified
-  type: Type
-  folder: Folder
   folders: Folders
   root: Root
-  file: File
   uploading: Uploading...
   uploadingProgress: 'Uploading... ({{completed}}/{{total}})'
-  uploadSuccess: Upload Successful
-  uploadError: Upload Error
-  deleteConfirm: Are you sure you want to delete?
   deleteDirectoryConfirm: 'Delete directory "{{name}}"? All files and subfolders in the directory will also be deleted.'
   deleteFileConfirm: 'Delete file "{{name}}"?'
   emptyFolder: Folder is empty
@@ -524,7 +442,6 @@ storage:
   folderNameSpaceError: Folder name cannot contain spaces
   itemCount: '{{count}} items • Max file size: 500MB'
   setAsWorkingDirectory: Set as working directory
-  currentWorkingDirectory: Current working directory
   workingDirectory: Working directory
 
   # Multi-select / bulk operations
@@ -559,12 +476,7 @@ memory:
   title: Memory Management
   longTermMemory: Long-term Memory
   longTermMemoryDescription: Allows agents to save and use memory when answering.
-  searchMemory: Search memory...
   noMemories: No memories available
-  addMemory: Add Memory
-  deleteMemory: Delete Memory
-  memoryContent: Content
-  createdAt: Created At
   savedMemories: Saved Memories
   description: The agent tries to remember recent chats, but may forget over time. Saved memories will never be forgotten.
   searchPlaceholder: Search memory
@@ -577,7 +489,6 @@ memory:
   totalCount: 'Total {{count}} memories saved'
   created: Created
   updated: Updated
-  searching: Searching
   loadMore: Load More
 
 # Settings
@@ -585,15 +496,9 @@ settings:
   title: Settings
   account: Account
   username: Username
-  email: Email
   accountLoadError: Failed to load account information
   language: Language
   theme: Theme
-  notifications: Notifications
-  privacy: Privacy
-  about: About
-  version: Version
-  logout: Logout
   languageJa: 日本語
   languageEn: English
   themeLight: Light
@@ -608,46 +513,19 @@ settings:
 
 # Error
 error:
-  generic: An error occurred
-  network: Network error
   boundary:
     title: An Error Occurred
     description: An unexpected error occurred. Please reload the page.
     reload: Reload Page
     backToHome: Back to Home
     developerInfo: Developer Information
-  notFound: Not found
-  unauthorized: Authentication required
   authenticationRequired: Authentication required. Please log in again.
   sessionExpired: Your session has expired. Please log in again.
   forbidden: Access denied
-  serverError: Server error
-  apiError: An API error occurred
-  unexpectedError: An unexpected error occurred
-  tryAgain: Please try again
-  contactSupport: Contact support
-
-# Page Titles
-page:
-  home: Home
-  chat: Chat
-  search: Search
-  tools: Tools
-  agents: Agents
-  events: Events
-  settings: Settings
-
-# Events
-events:
-  title: Event Integration
-  comingSoon: Coming Soon
-  eventsDescription: Event integration functionality is under development.
-  eventsFeature: You will be able to integrate with external calendars and event management tools.
 
 # Triggers
 triggers:
   # Page
-  pageTitle: Trigger Management
   pageDescription: Create and manage triggers to automatically execute agents based on schedules or Amazon EventBridge events. Automate recurring tasks or trigger agents on external events such as S3 file uploads to perform data collection, report generation, and more.
 
   # Tabs
@@ -659,13 +537,10 @@ triggers:
   create: Create New
   edit: Edit
   delete: Delete
-  enable: Enable
-  disable: Disable
   viewHistory: Execution History
 
   # Form
   form:
-    title: Trigger Settings
     createTitle: Create New Trigger
     editTitle: Edit Trigger
     basicInfo: Basic Information
@@ -680,9 +555,6 @@ triggers:
     agent: Agent to Execute
     agentPlaceholder: Select an agent...
     agentRequired: Please select an agent
-    type: Trigger Type
-    typeSchedule: Schedule
-    typeEvent: Event (Coming Soon)
     inputMessage: Input Message
     inputMessageDescription: Enter the message to send to the agent
     eventSourceRequired: Please select an event source
@@ -690,11 +562,8 @@ triggers:
     inputMessageRequired: Input message is required
     modelId: Model ID
     optional: Optional
-    selectModel: Select a model...
-    useDefault: Use Default
     modelIdHint: If no specific model is specified, the agent's default model will be used
     workingDirectory: Working Directory
-    selectDirectory: Select a directory...
     workingDirectoryHint: Specify the directory for the agent to work in. If not specified, the root directory (/) will be used
     save: Save
     saving: Saving...
@@ -702,7 +571,6 @@ triggers:
 
   # Cron Builder
   cron:
-    title: Schedule Settings
     preset: Preset
     presetEveryMinute: Every Minute
     presetEveryHour: Every Hour
@@ -711,12 +579,6 @@ triggers:
     presetEveryMonday: Every Monday
     presetEveryMonth: 1st of Every Month
     presetCustom: Custom
-    minute: Minute
-    hour: Hour
-    dayOfMonth: Day of Month
-    month: Month
-    dayOfWeek: Day of Week
-    year: Year
     timezone: Timezone
     preview: Preview
     nextExecutions: Next Executions
@@ -728,48 +590,12 @@ triggers:
       title: Short schedule interval
       body: Running this schedule more than once per hour may incur unexpectedly high AWS costs (Lambda invocations, generative AI model calls, and Cognito token issuance). Are you sure you want to create this schedule?
 
-    # Range labels
-    minuteRange: (0-59)
-    hourRange: (0-23)
-    dayOfMonthRange: (1-31)
-    # Help hints
-    dayOfMonthHint: Use ? or *
-    dayOfWeekHint: Use ? or *
-    yearHint: Usually use *
-    # Dropdown options
-    optionAll: All (*)
-    optionNotSpecified: Not specified (?)
-    optionWeekdays: Weekdays (MON-FRI)
-    # Hints section
-    hintsTitle: 💡 Tips
-    hintAll: '* = All values'
-    hintNotSpecified: '? = Not specified (required for day or weekday)'
-    hintRange: '0-5 = Range specification'
-    hintMultiple: '0,15,30 = Multiple values'
-    hintDayWeekExclusive: Day and weekday cannot be specified at the same time (one must be ?)
-
-  # Status
-  status:
-    enabled: Enabled
-    disabled: Disabled
-
   # Execution History
   history:
     title: Execution History
     noHistory: No execution history
     executedAt: Executed At
-    duration: Duration
-    status: Status
-    startedAt: Started At
-    completedAt: Completed At
-    success: Success
-    failure: Failure
-    inProgress: In Progress
-    input: Input
-    output: Output
     error: Error
-    showDetails: Show Details
-    hideDetails: Hide Details
     loadMore: Load More
     executionId: Execution ID
     sessionId: Session
@@ -787,7 +613,6 @@ triggers:
     deleteError: Failed to delete trigger
     enableSuccess: Trigger enabled successfully
     disableSuccess: Trigger disabled successfully
-    toggleError: Failed to change trigger status
     fetchError: Failed to fetch triggers
 
   # Empty State
@@ -813,7 +638,6 @@ triggers:
   # Event Source Selection
   eventSource:
     label: Event Source
-    selectPlaceholder: Select event source...
     noSourcesAvailable: No event sources configured
     loadError: Failed to load event sources
     helpText: Select which event should trigger this agent. To add new event sources, please contact your system administrator.
@@ -832,36 +656,6 @@ triggers:
     enabled: Enabled
     disabled: Disabled
 
-  # Event Pattern Display
-  eventPattern:
-    source: Source
-    eventType: Event Type
-    # Detail type mappings
-    detailTypes:
-      objectCreated: Object Created
-      objectDeleted: Object Deleted
-      objectRestoreCompleted: Object Restore Completed
-      push: Push
-      pullRequest: Pull Request
-      issues: Issue
-      issueComment: Issue Comment
-      ec2StateChange: EC2 Instance State Change
-      pipelineStateChange: Pipeline Execution State Change
-      ecsTaskStateChange: ECS Task State Change
-    # Detail label mappings
-    labels:
-      bucketName: Bucket Name
-      objectKey: Object Key
-      objectSize: Size
-      objectEtag: ETag
-      action: Action
-      repository: Repository
-      branch: Branch
-      state: State
-      instanceId: Instance ID
-      detailType: Event Type
-      region: Region
-
   # Cron description
   cronDescription:
     minute: '{{value}} min'
@@ -877,19 +671,6 @@ triggers:
       FRI: Friday
       SAT: Saturday
       SUN: Sunday
-    months:
-      '1': January
-      '2': February
-      '3': March
-      '4': April
-      '5': May
-      '6': June
-      '7': July
-      '8': August
-      '9': September
-      '10': October
-      '11': November
-      '12': December
 
 # Generative UI
 generativeUi:
@@ -919,32 +700,12 @@ app:
 
 # Home Page
 home:
-  title: Build your AI agents.
   description: Create. Connect. Delegate.
   descriptionLine2: Your own AI agent team
   getStarted: Get Started
 
-# Modal
-modal:
-  confirmTitle: Confirm
-  confirmMessage: Are you sure you want to proceed?
-  deleteTitle: Confirm Deletion
-  deleteMessage: Are you sure you want to delete this item? This action cannot be undone.
-
 # Validation
 validation:
-  required: This field is required
-  minLength: 'Please enter at least {{min}} characters'
-  maxLength: 'Please enter no more than {{max}} characters'
-  email: Please enter a valid email address
-  passwordMismatch: Passwords do not match
-  invalidFormat: Invalid format
-  chat:
-    messageIdRequired: Message ID is required
-    messageContentRequired: Message content is required
-    promptRequired: Please enter a prompt
-    promptMaxLength: Prompt must be 10000 characters or less
-    endpointUrlRequired: Please enter a valid endpoint URL
   auth:
     usernameMinLength: Username must be at least 3 characters
     usernameMaxLength: Username must be 50 characters or less
@@ -961,9 +722,6 @@ validation:
     usernameRequired: Username is required
     codeLength: Verification code must be 6 digits
     codeInvalid: Verification code must be 6 numeric digits
-    userPoolIdRequired: User Pool ID is required
-    clientIdRequired: Client ID is required
-    regionRequired: Region is required
 
 # Default Agents
 defaultAgents:
