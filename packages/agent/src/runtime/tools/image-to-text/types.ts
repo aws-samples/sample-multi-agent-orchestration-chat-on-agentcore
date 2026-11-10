@@ -3,15 +3,6 @@
  */
 
 /**
- * Input parameters for image analysis
- */
-export interface ImageToTextInput {
-  imagePath: string;
-  prompt?: string;
-  modelId?: string;
-}
-
-/**
  * Result of image analysis
  */
 export interface ImageToTextResult {

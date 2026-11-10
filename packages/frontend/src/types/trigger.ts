@@ -5,7 +5,6 @@
 import type { AgentId, ReasoningDepth, SessionId, TriggerId, UserId } from '@moca/core';
 
 export type TriggerType = 'schedule' | 'event';
-export type TriggerStatus = 'enabled' | 'disabled';
 
 export interface Trigger {
   /** Branded trigger identifier (UUID), kept in sync with backend `TriggerId`. */
