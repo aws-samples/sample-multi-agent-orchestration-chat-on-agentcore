@@ -22,6 +22,7 @@
     "lint": "npm run lint --workspaces --if-present",
     "lint:fix": "npm run lint:fix --workspaces --if-present",
     "format:check": "npm run format:check --workspaces --if-present",
+    "knip": "knip",
     "dev": "npm run build:ts && concurrently -n \"frontend,backend,agent\" -c \"cyan,magenta,yellow\" \"npm:dev:frontend\" \"npm:dev:backend\" \"npm:dev:agent\"",
     "devw": "npm run setup-env && npm run dev",
     "dev:frontend": "npm run dev -w packages/frontend",
@@ -45,6 +46,7 @@
   "devDependencies": {
     "@eslint/compat": "^2.1.1",
     "@eslint/js": "^10.0.0",
+    "@jest/globals": "^30.5.2",
     "@types/jest": "^30.0.0",
     "@types/node": "^22.0.0",
     "concurrently": "^9.2.5",
@@ -56,6 +58,7 @@
     "eslint-plugin-react-refresh": "^0.5.7",
     "globals": "^16.5.0",
     "jest": "^30.5.2",
+    "knip": "^6.44.2",
     "prettier": "^3.9.10",
     "rimraf": "^6.1.4",
     "ts-jest": "^29.4.15",

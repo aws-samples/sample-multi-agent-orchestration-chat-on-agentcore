@@ -332,10 +332,3 @@ export const useAgentStore = create<ExtendedAgentStore>()(
 export const useSelectedAgent = () => {
   return useAgentStore((state) => state.selectedAgent);
 };
-
-/**
- * Helper hook to get the agent list
- */
-export const useAgents = () => {
-  return useAgentStore((state) => state.agents);
-};

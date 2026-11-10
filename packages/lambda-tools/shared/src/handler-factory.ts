@@ -12,7 +12,7 @@
  * by AgentCore Gateway (not via API Gateway).
  */
 
-import { Context } from 'aws-lambda';
+import type { Context } from 'aws-lambda';
 import { logger } from './logger.js';
 import { extractToolName, getContextSummary } from './context-parser.js';
 import { ToolInput, AgentCoreResponse } from './types.js';

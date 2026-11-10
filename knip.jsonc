@@ -1,0 +1,32 @@
+{
+  "$schema": "https://unpkg.com/knip@6/schema-jsonc.json",
+  // An export that is only used inside its own file is not dead code.
+  "ignoreExportsUsedInFile": true,
+  // Unused re-exports in barrels are not reported; unused declarations still are.
+  "preprocessor": "./scripts/src/knip-ignore-reexports.ts",
+  // pino loads pino-pretty by name (`transport.target`) when NODE_ENV=development.
+  "ignoreDependencies": ["pino-pretty"],
+  "workspaces": {
+    ".": {
+      // cdk.json starts the app with `npx ts-node`.
+      "ignoreDependencies": ["ts-node"],
+    },
+    "packages/agent": {
+      // scripts/startup.sh loads the ADOT agent with `node --require`.
+      "ignoreDependencies": ["@aws/aws-distro-opentelemetry-node-autoinstrumentation"],
+      "ignoreBinaries": ["docker-compose"],
+    },
+    "packages/cdk": {
+      // Lambda handlers reach NodejsFunction as file paths, not imports.
+      "entry": ["bin/app.ts", "lambda/*/index.ts"],
+    },
+    "packages/frontend": {
+      // Imported by an inline, dev-only <script> in index.html.
+      "ignoreDependencies": ["react-grab"],
+    },
+    "packages/lambda-tools/tools/tavily-tools": {
+      // Setup file for jest.integration.config.js, which is not in the tree yet.
+      "ignore": ["jest.integration.setup.cjs"],
+    },
+  },
+}

@@ -205,24 +205,3 @@ export const useTriggerStore = create<TriggerStore>()(
     }
   )
 );
-
-/**
- * Helper hook to get triggers list
- */
-export const useTriggers = () => {
-  return useTriggerStore((state) => state.triggers);
-};
-
-/**
- * Helper hook to get loading state
- */
-export const useTriggersLoading = () => {
-  return useTriggerStore((state) => state.isLoading);
-};
-
-/**
- * Helper hook to get error state
- */
-export const useTriggersError = () => {
-  return useTriggerStore((state) => state.error);
-};
