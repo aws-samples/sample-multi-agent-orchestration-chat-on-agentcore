@@ -343,8 +343,8 @@ which correctly restricts access to items where the partition key equals the use
 
 > **Implementation note — Backend API CORS**:
 > `BaseApiClient` attaches the ID Token header to all requests.
-> The Backend API's API Gateway `corsPreflight.allowHeaders` must include this header,
-> otherwise CORS preflight fails with a 403.
+> The Backend API's Express `cors` `allowedHeaders` (`packages/backend/src/index.ts`) must include
+> this header, otherwise CORS preflight fails.
 
 ---
 

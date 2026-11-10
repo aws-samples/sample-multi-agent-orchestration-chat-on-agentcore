@@ -56,6 +56,23 @@ export class WafStack extends cdk.Stack {
             managedRuleGroupStatement: {
               vendorName: 'AWS',
               name: 'AWSManagedRulesCommonRuleSet',
+              // Not for the Backend API under /api/*: its 8 KB body limit and
+              // XSS/LFI body rules block legitimate JSON (long system prompts,
+              // code in messages). The API authenticates every route itself and
+              // had no WAF before it moved onto this distribution; the IP
+              // reputation rule below still applies to it.
+              scopeDownStatement: {
+                notStatement: {
+                  statement: {
+                    byteMatchStatement: {
+                      fieldToMatch: { uriPath: {} },
+                      positionalConstraint: 'STARTS_WITH',
+                      searchString: '/api/',
+                      textTransformations: [{ priority: 0, type: 'NONE' }],
+                    },
+                  },
+                },
+              },
             },
           },
           visibilityConfig: {

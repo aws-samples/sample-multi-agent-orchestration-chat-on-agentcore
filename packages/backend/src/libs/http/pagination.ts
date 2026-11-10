@@ -41,8 +41,8 @@ export const EVENTS_MAX_PAGE_SIZE = 200;
  * Maximum serialized byte size of the `events` array in a single
  * event-history response.
  *
- * Rationale: Lambda Web Adapter (buffered mode) enforces a 6 MB synchronous
- * response limit. This budget leaves ≈1.25 MB of headroom for:
+ * Rationale: keeps each page under 6 MB (the synchronous Lambda response limit
+ * this API was originally sized for). This budget leaves ≈1.25 MB of headroom for:
  *   - The `ok()` envelope wrapper (metadata JSON + field names)
  *   - JSON string-escaping overhead
  *   - Any future response fields

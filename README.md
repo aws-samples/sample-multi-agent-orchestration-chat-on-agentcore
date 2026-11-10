@@ -63,7 +63,7 @@ This application uses a fully serverless architecture built on Amazon Bedrock Ag
 |-------|----------|
 | Frontend | CloudFront + S3 (React SPA) |
 | Auth | Amazon Cognito (JWT) |
-| API | Lambda + API Gateway (Express.js) |
+| API | Lambda Web Functions + CloudFront (Express.js) |
 | Agent | AgentCore Runtime + Gateway + Memory + CodeInterpreter + Browser|
 | Storage | DynamoDB + S3 |
 | Real-time | AppSync Events (WebSocket) |
@@ -275,7 +275,7 @@ Here we assume **100 chat sessions per month** using the default model (**Claude
 | S3 | Storage: ~10 GB (user files) | 0.50 |
 | Cognito | 11 MAU (Essentials tier) | 0.40 |
 | AppSync | ~20 operations/session | 0.12 |
-| API Gateway | ~10 requests/session | 0.02 |
+| Lambda Web Functions | ~10 requests/session; memory billed for environment lifetime (assumes ~10 min/session at 2 GB) | 0.45 |
 | Lambda | ~30 invocations/session, 128MB, 1s avg | < 0.01 |
 | CloudFront | ~300 requests/day | < 0.01 |
 | **TOTAL** | | **~84** |

@@ -1,6 +1,6 @@
 # Backend API Server
 
-Express API server with JWT authentication support. Supports Amazon Cognito User Pool JWKS verification and is compatible with API Gateway + Lambda deployment.
+Express API server with JWT authentication support. Supports Amazon Cognito User Pool JWKS verification and is deployed as an AWS Lambda Web Function behind CloudFront.
 
 ## 📋 Table of Contents
 
@@ -15,8 +15,7 @@ Express API server with JWT authentication support. Supports Amazon Cognito User
 - **Express API**: RESTful API server
 - **CORS Support**: Frontend integration
 - **TypeScript**: Type-safe implementation
-- **Docker Support**: Containerized execution environment
-- **Health Check**: API Gateway / Lambda compatible
+- **Health Check**: `GET /ping`
 - **Development Mode**: JWKS verification skip feature
 
 ## 🔌 API Endpoints

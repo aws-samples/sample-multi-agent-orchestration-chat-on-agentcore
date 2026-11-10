@@ -42,7 +42,7 @@ export interface FrontendProps {
   runtimeEndpoint: string;
 
   /**
-   * Backend API URL (API Gateway + Lambda)
+   * Backend API URL (CloudFront in front of the Lambda Web Function)
    */
   backendApiUrl?: string;
 
@@ -226,6 +226,27 @@ export class Frontend extends Construct {
       originAccessControl: originAccessControl,
     });
 
+    // SPA fallback: extensionless paths (client-side routes) serve index.html.
+    // Not distribution-wide errorResponses (403/404 -> index.html): the
+    // distribution also serves the Backend API under /api/*, and those would
+    // turn API 403/404s into a 200 HTML page.
+    const spaFallback = new cloudfront.Function(this, 'SpaFallbackFunction', {
+      runtime: cloudfront.FunctionRuntime.JS_2_0,
+      comment: 'Rewrite client-side routes to /index.html',
+      code: cloudfront.FunctionCode.fromInline(
+        [
+          'function handler(event) {',
+          '  var request = event.request;',
+          "  var last = request.uri.split('/').pop();",
+          "  if (last.indexOf('.') === -1) {",
+          "    request.uri = '/index.html';",
+          '  }',
+          '  return request;',
+          '}',
+        ].join('\n')
+      ),
+    });
+
     // CloudFront Distribution
     this.cloudFrontDistribution = new cloudfront.Distribution(
       this,
@@ -240,6 +261,9 @@ export class Frontend extends Construct {
           cachePolicy: cloudfront.CachePolicy.CACHING_OPTIMIZED,
           responseHeadersPolicy: responseHeadersPolicy,
           compress: true,
+          functionAssociations: [
+            { function: spaFallback, eventType: cloudfront.FunctionEventType.VIEWER_REQUEST },
+          ],
         },
         // Static assets behavior (JS, CSS, fonts, images) with aggressive caching
         additionalBehaviors: {
@@ -252,21 +276,9 @@ export class Frontend extends Construct {
           },
         },
         defaultRootObject: 'index.html',
-        errorResponses: [
-          {
-            httpStatus: 404,
-            responseHttpStatus: 200,
-            responsePagePath: '/index.html',
-            ttl: cdk.Duration.minutes(30),
-          },
-          {
-            httpStatus: 403,
-            responseHttpStatus: 200,
-            responsePagePath: '/index.html',
-            ttl: cdk.Duration.minutes(30),
-          },
-        ],
-        priceClass: cloudfront.PriceClass.PRICE_CLASS_100,
+        // 200 includes Japan/Asia edges. With 100 (NA/EU only), viewers in Japan land
+        // on LAX/SFO and every request crosses the Pacific to the Tokyo origin.
+        priceClass: cloudfront.PriceClass.PRICE_CLASS_200,
         // Custom domain settings
         domainNames: domainNames,
         certificate: certificate,

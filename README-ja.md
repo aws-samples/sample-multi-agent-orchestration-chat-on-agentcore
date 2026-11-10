@@ -64,7 +64,7 @@ Amazon Bedrock AgentCore を活用したマルチエージェント協調チャ�
 |---------|---------|
 | フロントエンド | CloudFront + S3 (React SPA) |
 | 認証 | Amazon Cognito (JWT) |
-| API | Lambda + API Gateway (Express.js) |
+| API | Lambda Web Functions + CloudFront (Express.js) |
 | エージェント | AgentCore Runtime + Gateway + Memory + CodeInterpreter|
 | ストレージ | DynamoDB + S3 |
 | リアルタイム | AppSync Events (WebSocket) |
@@ -265,7 +265,7 @@ npm run seed-system-agents -- --env default --force
 | S3 | ストレージ: ~10 GB（ユーザーファイル） | 0.50 |
 | Cognito | 11 MAU（Essentials ティア） | 0.40 |
 | AppSync | ~20 operations/セッション | 0.12 |
-| API Gateway | ~10 requests/セッション | 0.02 |
+| Lambda Web Functions | ~10 requests/セッション。メモリは実行環境の存続時間で課金（1 セッションあたり 2 GB × 約 10 分と仮定） | 0.45 |
 | Lambda | ~30 invocations/セッション, 128MB, 平均1秒 | < 0.01 |
 | CloudFront | ~300 requests/日 | < 0.01 |
 | **合計** | | **~84** |
