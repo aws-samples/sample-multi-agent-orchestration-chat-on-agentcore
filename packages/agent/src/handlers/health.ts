@@ -38,14 +38,3 @@ export function handleRoot(req: Request, res: Response): void {
     status: 'running',
   });
 }
-
-/**
- * 404 handler
- */
-export function handleNotFound(req: Request, res: Response): void {
-  res.status(404).json({
-    error: 'Not Found',
-    message: `Endpoint ${req.method} ${req.path} not found`,
-    availableEndpoints: ['GET /', 'GET /ping', 'POST /invocations'],
-  });
-}
