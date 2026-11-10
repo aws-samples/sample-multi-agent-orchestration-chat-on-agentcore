@@ -6,6 +6,8 @@ import { createApp } from './app.js';
 import { config } from './config/index.js';
 import { hydrateJwtVerifiers } from './libs/auth/jwt-verifier.js';
 import { logger } from './libs/logger/index.js';
+import { getInFlightCount, isBusy } from './libs/health/in-flight.js';
+import { getTimeOfLastUpdate } from './libs/health/last-activity.js';
 import { installStrandsSpanKindFixer } from './libs/observability/install-strands-span-kind-fixer.js';
 
 // Adapt Strands TS SDK 1.2.0 spans to the shape AgentCore Observability
@@ -66,7 +68,17 @@ startServer();
 
 // Graceful shutdown handling
 process.on('SIGTERM', () => {
-  logger.info('Received SIGTERM, shutting down gracefully');
+  // Activity at SIGTERM time lets ops detect a reclaim during in-flight work.
+  const timeOfLastUpdate = getTimeOfLastUpdate();
+  logger.info(
+    {
+      busy: isBusy(),
+      inFlight: getInFlightCount(),
+      timeOfLastUpdate,
+      idleSeconds: Math.floor(Date.now() / 1000) - timeOfLastUpdate,
+    },
+    'Received SIGTERM, shutting down gracefully'
+  );
   process.exit(0);
 });
 

@@ -4,6 +4,7 @@
 
 import { Request, Response } from 'express';
 import { isBusy } from '../libs/health/in-flight.js';
+import { getTimeOfLastUpdate } from '../libs/health/last-activity.js';
 
 /**
  * Health check endpoint.
@@ -12,11 +13,14 @@ import { isBusy } from '../libs/health/in-flight.js';
  * keeps the session Active instead of reclaiming the microVM (SIGTERM) mid-turn.
  * When idle it reports `Healthy`, letting the platform's idle timeout reclaim
  * the container normally. See libs/health/in-flight.ts for the full rationale.
+ *
+ * `time_of_last_update` is the last busy-state change, not the poll time —
+ * see libs/health/last-activity.ts.
  */
 export function handlePing(req: Request, res: Response): void {
   res.json({
     status: isBusy() ? 'HealthyBusy' : 'Healthy',
-    time_of_last_update: Math.floor(Date.now() / 1000),
+    time_of_last_update: getTimeOfLastUpdate(),
   });
 }
 
