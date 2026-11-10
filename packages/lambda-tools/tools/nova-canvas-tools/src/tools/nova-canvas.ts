@@ -222,5 +222,3 @@ export const novaCanvasTool: Tool = {
   version: '1.0.0',
   tags: ['image-generation', 'nova-canvas', 'bedrock'],
 };
-
-export default novaCanvasTool;
