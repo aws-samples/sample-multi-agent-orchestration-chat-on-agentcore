@@ -15,6 +15,32 @@ const log = createLogger('WorkflowRuntimeClient');
 
 /** How long to wait for the first stream line when probing for a running turn. */
 const FIRST_LINE_TIMEOUT_MS = 20_000;
+/**
+ * Bound on waiting for response headers. The Runtime sends them once the agent
+ * is built (cold start + MCP/tool discovery, typically < 1 min). Without a bound
+ * a hung connection runs the orchestrator invocation into its Lambda timeout,
+ * and the retried submitter would start the same turn twice.
+ */
+const HEADERS_TIMEOUT_MS = 120_000;
+const STOP_SESSION_TIMEOUT_MS = 30_000;
+
+/** fetch that aborts only while waiting for headers, never the body stream. */
+async function fetchWithHeadersTimeout(
+  url: string,
+  init: RequestInit,
+  timeoutMs: number
+): Promise<Response> {
+  const controller = new AbortController();
+  const timer = setTimeout(
+    () => controller.abort(new Error(`No response headers within ${timeoutMs} ms`)),
+    timeoutMs
+  );
+  try {
+    return await fetch(url, { ...init, signal: controller.signal });
+  } finally {
+    clearTimeout(timer);
+  }
+}
 
 export interface StartTurnParams {
   userId: string;
@@ -57,15 +83,19 @@ export class RuntimeClient {
   async stopSession(sessionId: string): Promise<StopSessionResult> {
     const accessToken = await this.getMachineToken();
     const url = encodeAgentUrl(this.agentApiUrl).replace('/invocations', '/stopruntimesession');
-    const response = await fetch(url, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${accessToken}`,
-        'X-Amzn-Bedrock-AgentCore-Runtime-Session-Id': sessionId,
+    const response = await fetchWithHeadersTimeout(
+      url,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${accessToken}`,
+          'X-Amzn-Bedrock-AgentCore-Runtime-Session-Id': sessionId,
+        },
+        body: '{}',
       },
-      body: '{}',
-    });
+      STOP_SESSION_TIMEOUT_MS
+    );
     if (!response.ok) {
       log.warn(
         { sessionId, status: response.status, body: (await response.text()).slice(0, 300) },
@@ -97,27 +127,31 @@ export class RuntimeClient {
       this.auth.getOpenIdTokenForUser(params.userId),
     ]);
 
-    const response = await fetch(encodeAgentUrl(this.agentApiUrl), {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${accessToken}`,
-        'X-Amzn-Bedrock-AgentCore-Runtime-Session-Id': params.sessionId,
-        'X-Amzn-Bedrock-AgentCore-Runtime-Session-Type': params.sessionType,
-        'X-Amzn-Bedrock-AgentCore-Runtime-Custom-Id-Token': openIdToken,
+    const response = await fetchWithHeadersTimeout(
+      encodeAgentUrl(this.agentApiUrl),
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${accessToken}`,
+          'X-Amzn-Bedrock-AgentCore-Runtime-Session-Id': params.sessionId,
+          'X-Amzn-Bedrock-AgentCore-Runtime-Session-Type': params.sessionType,
+          'X-Amzn-Bedrock-AgentCore-Runtime-Custom-Id-Token': openIdToken,
+        },
+        body: JSON.stringify({
+          prompt: params.prompt,
+          targetUserId: params.userId,
+          agentId: params.agentId,
+          modelId: params.modelId,
+          storagePath: params.storagePath ?? '/',
+          systemPrompt: agent.systemPrompt,
+          enabledTools,
+          mcpConfig: agent.mcpConfig,
+          workflowStep: params.workflowStep,
+        }),
       },
-      body: JSON.stringify({
-        prompt: params.prompt,
-        targetUserId: params.userId,
-        agentId: params.agentId,
-        modelId: params.modelId,
-        storagePath: params.storagePath ?? '/',
-        systemPrompt: agent.systemPrompt,
-        enabledTools,
-        mcpConfig: agent.mcpConfig,
-        workflowStep: params.workflowStep,
-      }),
-    });
+      HEADERS_TIMEOUT_MS
+    );
 
     if (!response.ok) {
       const text = await response.text();

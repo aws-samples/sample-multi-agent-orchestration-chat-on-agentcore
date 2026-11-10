@@ -10,6 +10,6 @@
     "types": ["node", "jest", "aws-lambda"]
   },
   "include": ["src/**/*"],
-  "exclude": ["node_modules", "dist", "**/*.test.ts", "**/*.spec.ts"],
+  "exclude": ["node_modules", "dist", "src/tests", "**/*.test.ts", "**/*.spec.ts"],
   "references": [{ "path": "../libs/core" }, { "path": "../libs/tool-definitions" }]
 }
