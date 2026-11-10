@@ -29,6 +29,9 @@ jobs:
       - name: Run ESLint
         run: npm run lint
 
+      - name: Check for unused code
+        run: npm run knip
+
       - name: Check code formatting
         run: npm run format:check
 

@@ -42,6 +42,7 @@ Monorepo using npm workspaces. 8 packages.
 - Linter: eslint + prettier
 - Build: `npm run build` runs `tsc -b tsconfig.build.json` (Solution Style, a single dependency-ordered pass across all TS packages) + `vite build` for the frontend.
 - **`cdk synth` / `cdk deploy` requires `npm run build` to have been run first** (libs `dist/` must exist for `ts-node` to resolve `@moca/*` imports in CDK).
+- `npm run knip` fails on unused files, exported declarations and dependencies. Exceptions live in `knip.jsonc`, each with its reason.
 
 ## Deployment
 

@@ -29,6 +29,7 @@ lint:check:
   stage: lint
   script:
     - npm run lint
+    - npm run knip
     - npm run format:check
   rules:
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
