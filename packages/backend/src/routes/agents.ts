@@ -21,7 +21,8 @@ import { validate } from '../middleware/validate.js';
 import { parseUserId, parseAgentId } from '@moca/core';
 import { createAgentsService, UpdateAgentInput } from '../services/agents-service.js';
 import { AgentNotFoundError } from '../types/index.js';
-import { DEFAULT_AGENTS } from '../config/data/default-agents.js';
+import { buildDefaultAgents } from '../config/data/default-agents.js';
+import { config } from '../config/index.js';
 import {
   AppError,
   ErrorCode,
@@ -31,6 +32,9 @@ import {
   zAgentId,
   zUserId,
 } from '../libs/http/index.js';
+
+// The provider is fixed per deployment, so build the (multi-KB) prompts once.
+const DEFAULT_AGENTS = buildDefaultAgents(config.WEB_SEARCH_PROVIDER);
 
 const router = Router();
 

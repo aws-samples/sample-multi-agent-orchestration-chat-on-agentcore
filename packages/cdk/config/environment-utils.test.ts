@@ -4,6 +4,7 @@ import {
   hasBedrockOpenAiModel,
   hasMantleModel,
   validateBedrockModelsForTest,
+  assertWebSearchProviderRegion,
 } from './environment-utils';
 
 jest.mock('./environments', () => ({
@@ -635,5 +636,33 @@ describe('hasMantleModel', () => {
       ])
     ).toBe(false);
     expect(hasMantleModel([])).toBe(false);
+  });
+});
+
+describe('webSearchProvider', () => {
+  it('defaults to tavily', () => {
+    expect(getEnvironmentConfig('default').webSearchProvider).toBe('tavily');
+  });
+
+  it('accepts agentcore in a supported region', () => {
+    expect(() =>
+      assertWebSearchProviderRegion({ env: 'default', webSearchProvider: 'agentcore' }, 'us-east-1')
+    ).not.toThrow();
+  });
+
+  it('rejects agentcore in an unsupported or unresolved region', () => {
+    const config = { env: 'default', webSearchProvider: 'agentcore' as const };
+    expect(() => assertWebSearchProviderRegion(config, 'us-west-2')).toThrow(
+      /webSearchProvider: 'tavily'/
+    );
+    expect(() => assertWebSearchProviderRegion(config, undefined)).toThrow(
+      /concrete deploy region/
+    );
+  });
+
+  it('ignores the region for tavily', () => {
+    expect(() =>
+      assertWebSearchProviderRegion({ env: 'default', webSearchProvider: 'tavily' }, 'us-west-2')
+    ).not.toThrow();
   });
 });

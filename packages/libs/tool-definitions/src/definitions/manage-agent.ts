@@ -29,7 +29,7 @@ export const manageAgentSchema = z.object({
     .array(z.string())
     .optional()
     .describe(
-      `Array of tool names to enable (e.g., ["${RUNTIME_TOOL_NAMES.EXECUTE_COMMAND}", "${RUNTIME_TOOL_NAMES.FILE_EDITOR}", "${GATEWAY_TOOL_NAMES.TAVILY_SEARCH}"])`
+      `Array of tool names to enable (e.g., ["${RUNTIME_TOOL_NAMES.EXECUTE_COMMAND}", "${RUNTIME_TOOL_NAMES.FILE_EDITOR}", "${RUNTIME_TOOL_NAMES.S3_LIST_FILES}"])`
     ),
   icon: z.string().optional().describe('Lucide icon name (e.g., "Bot", "Code", "Brain", "Search")'),
   scenarios: z
@@ -66,9 +66,9 @@ export const manageAgentDefinition: ToolDefinition<typeof manageAgentSchema> = {
 **Available Tools for enabledTools:**
 - ${RUNTIME_TOOL_NAMES.EXECUTE_COMMAND}: Run shell commands
 - ${RUNTIME_TOOL_NAMES.FILE_EDITOR}: Create and edit files
-- ${GATEWAY_TOOL_NAMES.TAVILY_SEARCH}: Web search
-- ${GATEWAY_TOOL_NAMES.TAVILY_EXTRACT}: Extract content from URLs
-- ${GATEWAY_TOOL_NAMES.TAVILY_CRAWL}: Crawl websites
+- Web search: each deployment has exactly ONE provider. Use the names that appear in your own tool list:
+  - ${GATEWAY_TOOL_NAMES.WEB_SEARCH}: Web search (AgentCore Web Search), or
+  - ${GATEWAY_TOOL_NAMES.TAVILY_SEARCH} / ${GATEWAY_TOOL_NAMES.TAVILY_EXTRACT} / ${GATEWAY_TOOL_NAMES.TAVILY_CRAWL}: Tavily search / URL extraction / site crawl
 - ${RUNTIME_TOOL_NAMES.S3_LIST_FILES}: List S3 files
 - ${RUNTIME_TOOL_NAMES.CODE_INTERPRETER}: Execute Python code
 - ${GATEWAY_TOOL_NAMES.NOVA_CANVAS}: Generate images

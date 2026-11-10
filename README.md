@@ -108,6 +108,8 @@ aws secretsmanager create-secret \
 
 You can get your API key from [Tavily](https://tavily.com/).
 
+> Alternatively, set `webSearchProvider: 'agentcore'` to use the managed AgentCore Web Search connector, which needs no API key (only available in `us-east-1`, `eu-west-1`, `ap-northeast-1`). See [Web Search Provider](docs/guides/deployment-options.md#web-search-provider).
+
 **GitHub Token** (for GitHub CLI integration)
 
 ```bash

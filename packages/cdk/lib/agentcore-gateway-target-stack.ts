@@ -5,7 +5,7 @@ import * as agentcore from 'aws-cdk-lib/aws-bedrockagentcore';
 import { Construct } from 'constructs';
 import { NagSuppressions } from 'cdk-nag';
 import { AgentCoreLambdaTarget } from './constructs/agentcore';
-import { EnvironmentConfig } from '../config';
+import { EnvironmentConfig, assertWebSearchProviderRegion } from '../config';
 import * as path from 'path';
 
 export interface AgentCoreGatewayTargetStackProps extends cdk.StackProps {
@@ -81,9 +81,16 @@ export class AgentCoreGatewayTargetStack extends cdk.Stack {
 
   /**
    * Tavily Tools Lambda Target.
-   * Undefined when envConfig.tavilyApiKeySecretName is not configured.
+   * Undefined when envConfig.tavilyApiKeySecretName is not configured or
+   * webSearchProvider is not 'tavily'.
    */
   public readonly tavilyToolsTarget: AgentCoreLambdaTarget | undefined;
+
+  /**
+   * AgentCore built-in Web Search connector target.
+   * Undefined unless envConfig.webSearchProvider is 'agentcore'.
+   */
+  public readonly webSearchTarget: agentcore.CfnGatewayTarget | undefined;
 
   /**
    * Nova Canvas Tools Lambda Target
@@ -106,6 +113,9 @@ export class AgentCoreGatewayTargetStack extends cdk.Stack {
 
     const envConfig = props.envConfig;
     const resourcePrefix = envConfig.resourcePrefix;
+    assertWebSearchProviderRegion(envConfig, this.region);
+    const tavilyApiKeySecretName =
+      envConfig.webSearchProvider === 'tavily' ? envConfig.tavilyApiKeySecretName : undefined;
 
     // Resolve Gateway attributes (direct specification or cross-stack import)
     const gatewayArn = props.gatewayArn || this.importValue(props.coreStackName, 'GatewayArn');
@@ -343,11 +353,12 @@ export class AgentCoreGatewayTargetStack extends cdk.Stack {
       }
     }
 
-    // ── Tavily Tools Target (opt-in: requires tavilyApiKeySecretName in environment config) ──
+    // ── Tavily Tools Target (webSearchProvider 'tavily' + tavilyApiKeySecretName) ──
     // Tavily Tools Lambda is only deployed when tavilyApiKeySecretName is explicitly
     // configured. This isolates `secretsmanager:GetSecretValue` for the Tavily API key
     // inside a dedicated Lambda execution role, keeping the AgentCore Runtime role clean.
-    if (envConfig.tavilyApiKeySecretName) {
+    // Skipped for the 'agentcore' provider so the agent never sees two web search tools.
+    if (tavilyApiKeySecretName) {
       this.tavilyToolsTarget = new AgentCoreLambdaTarget(this, 'TavilyToolsTarget', {
         resourcePrefix,
         targetName: 'tavily-tools',
@@ -362,7 +373,7 @@ export class AgentCoreGatewayTargetStack extends cdk.Stack {
         memorySize: 512,
         environment: {
           LOG_LEVEL: 'INFO',
-          TAVILY_API_KEY_SECRET_NAME: envConfig.tavilyApiKeySecretName,
+          TAVILY_API_KEY_SECRET_NAME: tavilyApiKeySecretName,
         },
       });
       this.tavilyToolsTarget.addToImportedGateway(importedGateway, 'TavilyToolsGatewayTarget');
@@ -376,7 +387,7 @@ export class AgentCoreGatewayTargetStack extends cdk.Stack {
           sid: 'TavilySecretsManagerRead',
           actions: ['secretsmanager:GetSecretValue'],
           resources: [
-            `arn:aws:secretsmanager:${this.region}:${this.account}:secret:${envConfig.tavilyApiKeySecretName}-*`,
+            `arn:aws:secretsmanager:${this.region}:${this.account}:secret:${tavilyApiKeySecretName}-*`,
           ],
         })
       );
@@ -389,6 +400,59 @@ export class AgentCoreGatewayTargetStack extends cdk.Stack {
       new cdk.CfnOutput(this, 'TavilyToolsLambdaName', {
         value: this.tavilyToolsTarget.lambdaFunction.functionName,
         description: 'Tavily Tools Lambda Function Name',
+      });
+    }
+
+    // ── AgentCore Web Search connector target (webSearchProvider 'agentcore') ──
+    // L1 because the L2 GatewayTarget has no built-in connector factory. The tool
+    // name the agent sees is fixed by the connector: GATEWAY_TOOL_NAMES.WEB_SEARCH.
+    if (envConfig.webSearchProvider === 'agentcore') {
+      // Granted here (not in the core stack) so the permission lives and dies with the
+      // target; the target depends on it because CreateGatewayTarget checks the role.
+      // The tool ARN's account segment is literally `aws`: the resource is service-owned.
+      const webSearchPolicy = new iam.Policy(this, 'WebSearchInvokePolicy', {
+        roles: [importedGateway.role],
+        statements: [
+          new iam.PolicyStatement({
+            sid: 'InvokeWebSearch',
+            actions: ['bedrock-agentcore:InvokeWebSearch'],
+            resources: [`arn:aws:bedrock-agentcore:${this.region}:aws:tool/web-search.v1`],
+          }),
+        ],
+      });
+
+      const { includeDomains, excludeDomains } = envConfig.agentcoreWebSearch ?? {};
+      const domainFilter = {
+        ...(includeDomains?.length ? { include: includeDomains } : {}),
+        ...(excludeDomains?.length ? { exclude: excludeDomains } : {}),
+      };
+
+      this.webSearchTarget = new agentcore.CfnGatewayTarget(this, 'WebSearchTarget', {
+        gatewayIdentifier: gatewayId,
+        name: 'web-search',
+        description: 'AgentCore managed Web Search connector',
+        targetConfiguration: {
+          mcp: {
+            connector: {
+              // No `version` key: the CFN ConnectorSource schema rejects it
+              // (surfaces as the misleading "extraneous key [Mcp]").
+              source: { connectorId: 'web-search' },
+              configurations: [
+                {
+                  name: 'WebSearch',
+                  parameterValues: Object.keys(domainFilter).length ? { domainFilter } : {},
+                },
+              ],
+            },
+          },
+        },
+        credentialProviderConfigurations: [{ credentialProviderType: 'GATEWAY_IAM_ROLE' }],
+      });
+      this.webSearchTarget.node.addDependency(webSearchPolicy);
+
+      new cdk.CfnOutput(this, 'WebSearchTargetId', {
+        value: this.webSearchTarget.attrTargetId,
+        description: 'AgentCore Web Search connector Gateway Target ID',
       });
     }
 
@@ -645,7 +709,7 @@ export class AgentCoreGatewayTargetStack extends cdk.Stack {
     // time (e.g., `arn:...:secret:NAME-abcdef`), so a wildcard is mandatory to scope the policy
     // to the exact configured secret name. The policy is NOT wildcarded across secrets — it is
     // narrowed to the single `${tavilyApiKeySecretName}-*` prefix defined in environments.ts.
-    if (envConfig.tavilyApiKeySecretName) {
+    if (tavilyApiKeySecretName) {
       NagSuppressions.addResourceSuppressionsByPath(
         this,
         [`/${id}/TavilyToolsTarget/Function/ServiceRole/DefaultPolicy/Resource`],

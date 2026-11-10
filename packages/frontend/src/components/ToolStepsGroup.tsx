@@ -64,6 +64,7 @@ const TOOL_META: Record<string, { icon: LucideIcon; label: LabelKey }> = {
   x_amz_bedrock_agentcore_search: { icon: Search, label: 'search' },
   tavily_extract: { icon: Globe, label: 'browse' },
   tavily_crawl: { icon: Globe, label: 'browse' },
+  WebSearch: { icon: Search, label: 'search' },
   browser: { icon: Globe, label: 'browse' },
   code_interpreter: { icon: Code2, label: 'code' },
   file_editor: { icon: FileEdit, label: 'file' },

@@ -15,7 +15,7 @@
 import { describe, it, expect } from '@jest/globals';
 import { buildSystemPrompt, toDisplayPath } from '../system-prompt.js';
 import { generateDefaultContext } from '../default-context.js';
-import { RUNTIME_TOOL_NAMES } from '@moca/tool-definitions';
+import { GATEWAY_TOOL_NAMES, RUNTIME_TOOL_NAMES } from '@moca/tool-definitions';
 
 const ALL_TOOLS = [
   { name: RUNTIME_TOOL_NAMES.S3_LIST_FILES },
@@ -126,5 +126,21 @@ describe('generateDefaultContext', () => {
   it('omits the storage section entirely when no storage tool is enabled', () => {
     const context = generateDefaultContext([{ name: RUNTIME_TOOL_NAMES.THINK }]);
     expect(context).not.toContain('<user_storage>');
+  });
+});
+
+describe('web search acceptable-use rules', () => {
+  it('requires citations whenever the AgentCore Web Search tool is enabled', () => {
+    const prompt = buildSystemPrompt({
+      customPrompt: 'You are a custom agent.',
+      tools: [{ name: GATEWAY_TOOL_NAMES.WEB_SEARCH }],
+    });
+    expect(prompt).toContain('Cite every result you use');
+    expect(prompt).toContain('No bulk reuse');
+  });
+
+  it('is omitted when the tool is not enabled', () => {
+    const prompt = buildSystemPrompt({ tools: [{ name: GATEWAY_TOOL_NAMES.TAVILY_SEARCH }] });
+    expect(prompt).not.toContain('Cite every result you use');
   });
 });

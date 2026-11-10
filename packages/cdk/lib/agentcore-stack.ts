@@ -443,6 +443,9 @@ export class AgentCoreStack extends cdk.Stack {
 
     this.backendApi.addEnvironmentVariable('USER_SCOPED_ROLE_ARN', backendUserScopedS3Role.roleArn);
 
+    // Default agents enable the tool names of the provider the Target stack deploys.
+    this.backendApi.addEnvironmentVariable('WEB_SEARCH_PROVIDER', envConfig.webSearchProvider);
+
     // SSM Parameter Store prefix for MCP env values
     const ssmParameterPrefix = `/agentcore/${resourcePrefix}`;
 
@@ -842,6 +845,12 @@ export class AgentCoreStack extends cdk.Stack {
     new cdk.CfnOutput(this, 'UserStorageConfiguration', {
       value: `User Storage: ${this.userStorage.bucketName} - User file storage`,
       description: 'User Storage configuration summary',
+    });
+
+    // Read by scripts/src/seed-system-agents.ts to pick the default agents' web search tools.
+    new cdk.CfnOutput(this, 'WebSearchProvider', {
+      value: envConfig.webSearchProvider,
+      description: 'Web search provider deployed to the Gateway (tavily | agentcore)',
     });
 
     // Agents Table-related outputs

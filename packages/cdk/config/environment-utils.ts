@@ -76,6 +76,7 @@ const DEFAULT_CONFIG = {
   // Default geo restriction: Japan and United States
   // Override per-environment in environments.ts if needed
   cloudFrontGeoRestriction: ['JP', 'US'] as string[],
+  webSearchProvider: 'tavily' as const,
   /**
    * CDK intentionally does not depend on @moca/core to keep infrastructure free
    * of runtime library dependencies. Keep this list in sync with
@@ -413,6 +414,41 @@ export function validateBedrockModelsForTest(models: BedrockModelConfig[]): void
 }
 
 /**
+ * Regions where the AgentCore Gateway built-in `web-search` connector is offered.
+ * Update when AWS expands availability.
+ */
+export const AGENTCORE_WEB_SEARCH_REGIONS: readonly string[] = [
+  'us-east-1',
+  'eu-west-1',
+  'ap-northeast-1',
+];
+
+/**
+ * Fail synth fast when webSearchProvider is 'agentcore' in a region without the connector.
+ * Without this, CreateGatewayTarget fails mid-deploy and the stack rolls back.
+ * @param region Concrete deploy region, or undefined when the stack is environment-agnostic
+ */
+export function assertWebSearchProviderRegion(
+  config: Pick<EnvironmentConfig, 'env' | 'webSearchProvider'>,
+  region: string | undefined
+): void {
+  if (config.webSearchProvider !== 'agentcore') return;
+  if (!region || cdk.Token.isUnresolved(region)) {
+    throw new Error(
+      `[${config.env}] webSearchProvider 'agentcore' requires a concrete deploy region ` +
+        `(set CDK_DEFAULT_REGION / AWS_REGION). Supported: ${AGENTCORE_WEB_SEARCH_REGIONS.join(', ')}.`
+    );
+  }
+  if (!AGENTCORE_WEB_SEARCH_REGIONS.includes(region)) {
+    throw new Error(
+      `[${config.env}] webSearchProvider 'agentcore' is not available in ${region}. ` +
+        `The AgentCore Web Search connector is offered only in ${AGENTCORE_WEB_SEARCH_REGIONS.join(', ')}. ` +
+        `Deploy to one of those regions, or set webSearchProvider: 'tavily' in packages/cdk/config/environments.ts.`
+    );
+  }
+}
+
+/**
  * Generate default resource prefix from environment name
  * @param env Environment name
  * @returns Resource prefix (e.g., 'moca', 'mocadev', 'mocapr123')
@@ -460,6 +496,7 @@ function resolveConfig(env: Environment, input: EnvironmentConfigInput): Environ
       input.githubWebhookSecretName ?? DEFAULT_CONFIG.githubWebhookSecretName,
     cloudFrontGeoRestriction:
       input.cloudFrontGeoRestriction ?? DEFAULT_CONFIG.cloudFrontGeoRestriction,
+    webSearchProvider: input.webSearchProvider ?? DEFAULT_CONFIG.webSearchProvider,
     bedrockModels,
   };
 }

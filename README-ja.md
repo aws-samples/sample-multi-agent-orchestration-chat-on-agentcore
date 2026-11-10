@@ -109,6 +109,8 @@ aws secretsmanager create-secret \
 
 APIキーは[Tavily](https://tavily.com/)から取得できます。
 
+> Tavily の代わりに `webSearchProvider: 'agentcore'` を設定すると、API キー不要のマネージドな AgentCore Web Search コネクタを使えます（`us-east-1`、`eu-west-1`、`ap-northeast-1` のみ）。詳しくは [Web Search Provider](docs/guides/deployment-options.md#web-search-provider) を参照してください。
+
 **GitHubトークン**（GitHub CLI統合用）
 
 ```bash

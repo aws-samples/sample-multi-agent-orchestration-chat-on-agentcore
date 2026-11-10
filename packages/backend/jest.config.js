@@ -24,10 +24,12 @@ export default {
     ],
   },
   moduleNameMapper: {
-    // Resolve the @moca/core workspace package to its TS source so jest can
-    // load its runtime values (parseUserId, isAgentId, …). Without this, the
-    // package's `exports` map is not understood by jest-resolve.
+    // Resolve @moca/* workspace packages to their TS source so jest can
+    // load their runtime values (parseUserId, isAgentId, …). Without this, the
+    // packages' `exports` maps are not understood by jest-resolve.
     '^@moca/core$': '<rootDir>/../libs/core/src/index.ts',
+    '^@moca/tool-definitions$': '<rootDir>/../libs/tool-definitions/src/index.ts',
+    '^@moca/generative-ui-catalog$': '<rootDir>/../libs/generative-ui-catalog/src/index.ts',
     '^(\\.{1,2}/.*)\\.js$': '$1',
   },
   setupFilesAfterEnv: ['<rootDir>/src/tests/setup.ts'],

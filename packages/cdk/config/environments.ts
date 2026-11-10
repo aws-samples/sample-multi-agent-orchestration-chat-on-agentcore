@@ -28,6 +28,7 @@ export const BASE_PREFIX = 'moca';
  *     is GLOBAL across all AWS accounts, so each environment must pick a unique value.
  *   - logRetentionDays: 7
  *   - tavilyApiKeySecretName: 'agentcore/default/tavily-api-key'
+ *   - webSearchProvider: 'tavily' ('agentcore' = AgentCore Web Search connector, region-limited)
  *   - githubTokenSecretName: 'agentcore/default/github-token'
  *   - githubWebhookSecretName: 'agentcore/default/github-webhook-secret'
  *   - cloudFrontGeoRestriction: ['JP', 'US']

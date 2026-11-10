@@ -55,13 +55,18 @@ export const GATEWAY_TOOL_NAMES = {
   /** nova-reel-tools__nova_reel */
   NOVA_REEL: 'nova-reel-tools___nova_reel',
 
-  // ── Tavily Tools (opt-in: requires tavilyApiKeySecretName in environments.ts) ──
+  // ── Tavily Tools (webSearchProvider 'tavily' (default) + tavilyApiKeySecretName) ──
   /** tavily-tools___tavily_search */
   TAVILY_SEARCH: 'tavily-tools___tavily_search',
   /** tavily-tools___tavily_extract */
   TAVILY_EXTRACT: 'tavily-tools___tavily_extract',
   /** tavily-tools___tavily_crawl */
   TAVILY_CRAWL: 'tavily-tools___tavily_crawl',
+
+  // ── AgentCore Web Search connector (webSearchProvider 'agentcore' in environments.ts) ──
+  // Mutually exclusive with the Tavily tools: only one provider is deployed per environment.
+  /** web-search___WebSearch */
+  WEB_SEARCH: 'web-search___WebSearch',
 
   // ── Athena Tools (opt-in: requires athenaSourceBuckets in environments.ts) ──
   // Tool names are defined by the athena-tools Lambda package (athena-tools__*)
@@ -74,3 +79,38 @@ export const GATEWAY_TOOL_NAMES = {
 } as const;
 
 export type GatewayToolName = (typeof GATEWAY_TOOL_NAMES)[keyof typeof GATEWAY_TOOL_NAMES];
+
+/**
+ * Web search provider deployed to the Gateway. Mirrors `webSearchProvider` in
+ * packages/cdk/config (CDK does not depend on this package, so the union is duplicated).
+ */
+export const WEB_SEARCH_PROVIDERS = ['tavily', 'agentcore'] as const;
+export type WebSearchProvider = (typeof WEB_SEARCH_PROVIDERS)[number];
+
+export interface WebSearchToolNames {
+  /** The single web search tool */
+  search: string;
+  /** URL content extraction tools (empty when the provider has none) */
+  extract: string[];
+  /** Site crawl tools (empty when the provider has none) */
+  crawl: string[];
+}
+
+/**
+ * Gateway tool names exposed by the given web search provider.
+ * Only one provider's target exists on the Gateway, so tools of the other one never resolve.
+ */
+export function getWebSearchToolNames(provider: WebSearchProvider): WebSearchToolNames {
+  if (provider === 'agentcore') {
+    return { search: GATEWAY_TOOL_NAMES.WEB_SEARCH, extract: [], crawl: [] };
+  }
+  return {
+    search: GATEWAY_TOOL_NAMES.TAVILY_SEARCH,
+    extract: [GATEWAY_TOOL_NAMES.TAVILY_EXTRACT],
+    crawl: [GATEWAY_TOOL_NAMES.TAVILY_CRAWL],
+  };
+}
+
+export function isWebSearchProvider(value: string): value is WebSearchProvider {
+  return (WEB_SEARCH_PROVIDERS as readonly string[]).includes(value);
+}

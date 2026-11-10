@@ -124,6 +124,8 @@ COGNITO_REGION=us-east-1
 # AgentCore Memory Configuration
 AGENTCORE_MEMORY_ID=memory-id
 AGENTCORE_GATEWAY_ENDPOINT=https://xxx.gateway.bedrock-agentcore.us-east-1.amazonaws.com/mcp
+# Must match the stack's webSearchProvider (tavily | agentcore)
+WEB_SEARCH_PROVIDER=tavily
 
 # User Storage Configuration
 USER_STORAGE_BUCKET_NAME=bucket-name
