@@ -12,6 +12,54 @@ import { defineCatalog } from '@json-render/core';
 import { schema } from '@json-render/react';
 import { z } from 'zod';
 
+// --- Interaction component props (shared with the frontend via z.infer) ---
+
+const replyOptionSchema = z.object({
+  label: z.string(),
+  description: z.string().optional(),
+  value: z.string().optional(),
+});
+
+const replyQuestionFields = {
+  options: z.array(replyOptionSchema).min(1),
+  multiSelect: z.boolean().optional(),
+  allowOther: z.boolean().optional(),
+};
+
+const suggestedRepliesPropsSchema = z.object({
+  question: z.string().optional(),
+  ...replyQuestionFields,
+});
+
+const questionnairePropsSchema = z.object({
+  title: z.string().optional(),
+  questions: z
+    .array(
+      z.object({
+        header: z.string().optional(),
+        question: z.string(),
+        ...replyQuestionFields,
+      })
+    )
+    .min(1),
+});
+
+export type ReplyOption = z.infer<typeof replyOptionSchema>;
+export type SuggestedRepliesProps = z.infer<typeof suggestedRepliesPropsSchema>;
+export type QuestionnaireProps = z.infer<typeof questionnairePropsSchema>;
+export type QuestionnaireQuestion = QuestionnaireProps['questions'][number];
+
+/**
+ * Props schemas the agent enforces before returning a spec. Limited to the
+ * interactive components: they index into their props unconditionally, so a
+ * malformed spec renders an empty block, whereas the display components have
+ * always been lenient and tightening them could reject specs that render fine.
+ */
+export const STRICT_PROPS_SCHEMAS: Record<string, z.ZodType> = {
+  SuggestedReplies: suggestedRepliesPropsSchema,
+  Questionnaire: questionnairePropsSchema,
+};
+
 export const catalog = defineCatalog(schema, {
   components: {
     // --- Layout ---
@@ -125,47 +173,13 @@ export const catalog = defineCatalog(schema, {
 
     // --- Interaction ---
     SuggestedReplies: {
-      props: z.object({
-        question: z.string().optional(),
-        options: z
-          .array(
-            z.object({
-              label: z.string(),
-              description: z.string().optional(),
-              value: z.string().optional(),
-            })
-          )
-          .min(1),
-        multiSelect: z.boolean().optional(),
-        allowOther: z.boolean().optional(),
-      }),
+      props: suggestedRepliesPropsSchema,
       slots: [],
       description:
         'Clickable reply choices for the user\'s NEXT message. Clicking an option sends its "value" (defaults to "label") as the user\'s reply immediately. Each option: short "label" (shown on the button), optional "description" (one-line explanation), optional "value" (the exact message text to send, when it should differ from the label; write it in the user\'s voice). Set multiSelect=true to let the user pick several options and send them together. An "Other" entry that lets the user type a free-form answer is shown unless allowOther=false. Handles clicks itself — does NOT support "on" events.',
     },
     Questionnaire: {
-      props: z.object({
-        title: z.string().optional(),
-        questions: z
-          .array(
-            z.object({
-              header: z.string().optional(),
-              question: z.string(),
-              options: z
-                .array(
-                  z.object({
-                    label: z.string(),
-                    description: z.string().optional(),
-                    value: z.string().optional(),
-                  })
-                )
-                .min(1),
-              multiSelect: z.boolean().optional(),
-              allowOther: z.boolean().optional(),
-            })
-          )
-          .min(1),
-      }),
+      props: questionnairePropsSchema,
       slots: [],
       description:
         'Multi-step form for asking the user SEVERAL questions at once (use SuggestedReplies for a single question). Shows one question per page with Back/Next, then a review page; all answers are sent together as ONE user message formatted as "Q. <question>" followed by "- <answer>" lines per question. Each question: "question" text, optional short "header" (1-3 word tab label, e.g. "Dates"), "options" (same shape as SuggestedReplies: label / description / value), optional multiSelect=true for pick-several, and an inline free-text "Other" entry unless allowOther=false. Keep it to 2-5 questions with 2-4 options each. Handles clicks itself — does NOT support "on" events.',

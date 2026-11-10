@@ -24,10 +24,17 @@ const OPTIONS = [
 describe('SuggestedReplies', () => {
   const submitted: string[] = [];
   const focused = vi.fn();
-  const onSubmit = (e: Event) => submitted.push((e as CustomEvent<{ text: string }>).detail.text);
+  // Plays MessageInput: record the text and accept it (unless told to refuse).
+  let refuse = false;
+  const onSubmit = (e: Event) => {
+    if (refuse) return;
+    submitted.push((e as CustomEvent<{ text: string }>).detail.text);
+    e.preventDefault();
+  };
 
   beforeEach(() => {
     submitted.length = 0;
+    refuse = false;
     focused.mockReset();
     window.addEventListener(MESSAGE_INPUT_SUBMIT_EVENT, onSubmit);
     window.addEventListener('focusMessageInput', focused);
@@ -97,10 +104,46 @@ describe('SuggestedReplies', () => {
     render(
       <JsonRenderBlock content={toolResult({ options: OPTIONS, multiSelect: true })} interactive />
     );
-    expect(screen.getAllByRole('checkbox')).toHaveLength(3);
+    // 3 options + the inline "Other" checkbox
+    expect(screen.getAllByRole('checkbox')).toHaveLength(4);
     expect(screen.queryByRole('radio')).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole('checkbox', { name: /Tokyo/ }));
     expect(screen.getByRole('checkbox', { name: /Tokyo/ })).toHaveAttribute('aria-checked', 'true');
+  });
+
+  it('stays usable when MessageInput refuses the send', () => {
+    render(<JsonRenderBlock content={toolResult({ options: OPTIONS })} interactive />);
+
+    refuse = true;
+    fireEvent.click(screen.getByRole('radio', { name: /Tokyo/ }));
+    expect(screen.getByRole('radio', { name: /Tokyo/ })).not.toBeDisabled();
+    expect(screen.getByRole('radio', { name: /Tokyo/ })).toHaveAttribute('aria-checked', 'false');
+
+    refuse = false;
+    fireEvent.click(screen.getByRole('radio', { name: /Tokyo/ }));
+    expect(submitted).toEqual(['Tokyo']);
+  });
+
+  it('multiSelect "Other" is inline and sent together with the ticked options', () => {
+    render(
+      <JsonRenderBlock content={toolResult({ options: OPTIONS, multiSelect: true })} interactive />
+    );
+
+    fireEvent.click(screen.getByRole('checkbox', { name: /Tokyo/ }));
+    fireEvent.click(screen.getByRole('checkbox', { name: 'generativeUi.suggestedReplies.other' }));
+    const send = screen.getByRole('button', { name: 'generativeUi.suggestedReplies.send' });
+    expect(send).toBeDisabled(); // Other ticked but empty
+    fireEvent.change(screen.getByRole('textbox'), { target: { value: 'Osaka' } });
+    fireEvent.click(send);
+
+    expect(submitted).toEqual(['Tokyo\nOsaka']);
+  });
+
+  it('shows no send button on a non-interactive multiSelect', () => {
+    render(<JsonRenderBlock content={toolResult({ options: OPTIONS, multiSelect: true })} />);
+    expect(
+      screen.queryByRole('button', { name: 'generativeUi.suggestedReplies.send' })
+    ).not.toBeInTheDocument();
   });
 
   it('hides "Other" when allowOther=false', () => {

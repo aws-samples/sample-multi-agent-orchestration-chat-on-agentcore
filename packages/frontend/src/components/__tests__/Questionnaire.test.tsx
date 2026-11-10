@@ -35,10 +35,17 @@ const submit = () => screen.getByRole('button', { name: /generativeUi.questionna
 
 describe('Questionnaire', () => {
   const submitted: string[] = [];
-  const onSubmit = (e: Event) => submitted.push((e as CustomEvent<{ text: string }>).detail.text);
+  // Plays MessageInput: record the text and accept it (unless told to refuse).
+  let refuse = false;
+  const onSubmit = (e: Event) => {
+    if (refuse) return;
+    submitted.push((e as CustomEvent<{ text: string }>).detail.text);
+    e.preventDefault();
+  };
 
   beforeEach(() => {
     submitted.length = 0;
+    refuse = false;
     window.addEventListener(MESSAGE_INPUT_SUBMIT_EVENT, onSubmit);
   });
 
@@ -120,13 +127,47 @@ describe('Questionnaire', () => {
     expect(submitted[0]).not.toContain('Hot spring');
   });
 
-  it('is read-only (but browsable) when not interactive', () => {
+  it('keeps the answers editable when MessageInput refuses the send', () => {
+    render(<JsonRenderBlock content={toolResult({ questions: QUESTIONS })} interactive />);
+
+    fireEvent.click(screen.getByRole('radio', { name: /City/ }));
+    fireEvent.click(screen.getByRole('checkbox', { name: /Sushi/ }));
+    fireEvent.click(toReview());
+    refuse = true;
+    fireEvent.click(submit());
+    expect(screen.queryByText('generativeUi.questionnaire.sent')).not.toBeInTheDocument();
+
+    refuse = false;
+    fireEvent.click(submit());
+    expect(submitted).toHaveLength(1);
+  });
+
+  it('skips questions without options instead of crashing', () => {
+    render(
+      <JsonRenderBlock
+        content={toolResult({ questions: [{ question: 'Broken?' }, QUESTIONS[0]] })}
+        interactive
+      />
+    );
+    expect(screen.queryByText('Broken?')).not.toBeInTheDocument();
+    expect(screen.getByText('What kind of trip?')).toBeInTheDocument();
+  });
+
+  it('is read-only (but browsable) when not interactive, without a review step', () => {
     render(<JsonRenderBlock content={toolResult({ questions: QUESTIONS })} />);
+
+    expect(
+      screen.queryByRole('button', { name: 'generativeUi.questionnaire.review' })
+    ).not.toBeInTheDocument();
 
     expect(screen.getByRole('radio', { name: /City/ })).toBeDisabled();
     fireEvent.click(screen.getByRole('button', { name: 'Food' }));
     expect(screen.getByText('What do you want to eat?')).toBeInTheDocument();
     expect(screen.getByRole('checkbox', { name: /Sushi/ })).toBeDisabled();
+    // Last page of a history view: nowhere further to go
+    expect(
+      screen.queryByRole('button', { name: /generativeUi.questionnaire.toReview/ })
+    ).not.toBeInTheDocument();
     expect(submitted).toEqual([]);
   });
 });

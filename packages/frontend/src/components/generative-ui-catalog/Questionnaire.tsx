@@ -4,22 +4,12 @@ import { Check, ChevronLeft, ChevronRight, Send } from 'lucide-react';
 import type { BaseComponentProps } from '@json-render/react';
 import { useGenerativeUiInteraction } from './interaction-context';
 import { submitMessageInput } from '../../utils/message-input-events';
-import { ReplyOptionRow } from './reply-options';
+import type {
+  QuestionnaireProps,
+  QuestionnaireQuestion as QuestionItem,
+} from '@moca/generative-ui-catalog';
+import { OtherAnswerInput, ReplyOptionRow } from './reply-options';
 import { replyText } from './reply-option';
-import type { ReplyOption } from './reply-option';
-
-interface QuestionItem {
-  header?: string;
-  question: string;
-  options: ReplyOption[];
-  multiSelect?: boolean;
-  allowOther?: boolean;
-}
-
-interface QuestionnaireProps {
-  title?: string;
-  questions: QuestionItem[];
-}
 
 interface Answer {
   /** Option indices; `options.length` stands for the free-form "Other" entry. */
@@ -50,12 +40,17 @@ const formatAnswers = (questions: QuestionItem[], answers: Answer[]) =>
 const Questionnaire = ({ props }: BaseComponentProps<QuestionnaireProps>): React.ReactNode => {
   const { t } = useTranslation();
   const { interactive } = useGenerativeUiInteraction();
-  const { title, questions = [] } = props;
+  const { title } = props;
+  // The agent validates props, but stay renderable for older stored specs.
+  const questions = (props.questions ?? []).filter((q) => Array.isArray(q?.options));
   const total = questions.length;
   const [step, setStep] = useState(0);
   const [answers, setAnswers] = useState<Answer[]>(() => questions.map(() => EMPTY_ANSWER));
   const [sent, setSent] = useState(false);
   const locked = !interactive || sent;
+  // A history view (no local answers) has nothing to review — hide that step
+  // instead of showing every answer as empty with a call to send.
+  const showReview = !locked || sent;
 
   if (total === 0) return null;
 
@@ -91,8 +86,8 @@ const Questionnaire = ({ props }: BaseComponentProps<QuestionnaireProps>): React
 
   const submit = () => {
     if (locked || !allAnswered) return;
-    setSent(true);
-    submitMessageInput(formatAnswers(questions, answers));
+    // Lock only once MessageInput accepts; a refused send keeps the answers editable.
+    if (submitMessageInput(formatAnswers(questions, answers))) setSent(true);
   };
 
   const tabLabel = (q: QuestionItem, i: number) =>
@@ -122,7 +117,7 @@ const Questionnaire = ({ props }: BaseComponentProps<QuestionnaireProps>): React
               key={i}
               label={option.label}
               description={option.description}
-              multiSelect={multiSelect}
+              kind={multiSelect ? 'checkbox' : 'radio'}
               checked={answer.selected.includes(i)}
               disabled={locked}
               onClick={() => handleOptionClick(qIndex, i)}
@@ -132,32 +127,19 @@ const Questionnaire = ({ props }: BaseComponentProps<QuestionnaireProps>): React
             <ReplyOptionRow
               variant="other"
               label={t('generativeUi.suggestedReplies.other')}
-              multiSelect={multiSelect}
+              kind={multiSelect ? 'checkbox' : 'radio'}
               checked={otherSelected}
               disabled={locked}
               onClick={() => handleOptionClick(qIndex, otherIndex(q))}
             />
           )}
           {otherSelected && (
-            <input
-              type="text"
-              autoFocus={!locked}
-              disabled={locked}
+            <OtherAnswerInput
               value={answer.other}
               placeholder={t('generativeUi.questionnaire.otherPlaceholder')}
-              aria-label={t('generativeUi.questionnaire.otherPlaceholder')}
-              onChange={(e) => {
-                const other = e.target.value;
-                updateAnswer(qIndex, (current) => ({ ...current, other }));
-              }}
-              onKeyDown={(e) => {
-                if (e.nativeEvent.isComposing) return;
-                if (e.key === 'Enter' && isAnswered(q, answer)) {
-                  e.preventDefault();
-                  setStep(qIndex + 1);
-                }
-              }}
-              className="w-full rounded-md border border-border bg-surface-primary px-3 py-2 text-sm text-fg-default placeholder:text-fg-muted focus:outline-none focus:ring-2 focus:ring-action-primary disabled:opacity-60"
+              disabled={locked}
+              onChange={(other) => updateAnswer(qIndex, (current) => ({ ...current, other }))}
+              onEnter={() => isAnswered(q, answer) && setStep(qIndex + 1)}
             />
           )}
         </div>
@@ -193,28 +175,29 @@ const Questionnaire = ({ props }: BaseComponentProps<QuestionnaireProps>): React
       {title && <p className="m-0 text-sm font-semibold text-fg-default">{title}</p>}
 
       <nav className="flex flex-wrap gap-1.5" aria-label={title}>
-        {[...questions.map((q, i) => tabLabel(q, i)), t('generativeUi.questionnaire.review')].map(
-          (label, s) => {
-            const done = s < total && isAnswered(questions[s], answerAt(s));
-            return (
-              <button
-                key={s}
-                type="button"
-                disabled={!canVisit(s)}
-                aria-current={s === step ? 'step' : undefined}
-                onClick={() => setStep(s)}
-                className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-xs transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${
-                  s === step
-                    ? 'border-action-primary bg-action-primary text-action-primary-fg'
-                    : 'border-border bg-surface-primary text-fg-secondary hover:bg-surface-secondary'
-                }`}
-              >
-                {done && <Check size={12} aria-hidden="true" />}
-                {label}
-              </button>
-            );
-          }
-        )}
+        {[
+          ...questions.map((q, i) => tabLabel(q, i)),
+          ...(showReview ? [t('generativeUi.questionnaire.review')] : []),
+        ].map((label, s) => {
+          const done = s < total && isAnswered(questions[s], answerAt(s));
+          return (
+            <button
+              key={s}
+              type="button"
+              disabled={!canVisit(s)}
+              aria-current={s === step ? 'step' : undefined}
+              onClick={() => setStep(s)}
+              className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-xs transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${
+                s === step
+                  ? 'border-action-primary bg-action-primary text-action-primary-fg'
+                  : 'border-border bg-surface-primary text-fg-secondary hover:bg-surface-secondary'
+              }`}
+            >
+              {done && <Check size={12} aria-hidden="true" />}
+              {label}
+            </button>
+          );
+        })}
       </nav>
 
       {onReview ? renderReview() : renderQuestion(step)}
@@ -241,7 +224,7 @@ const Questionnaire = ({ props }: BaseComponentProps<QuestionnaireProps>): React
               {t('generativeUi.questionnaire.submit')}
             </button>
           )
-        ) : (
+        ) : showReview || step < total - 1 ? (
           <button
             type="button"
             disabled={!(locked || currentAnswered)}
@@ -253,7 +236,7 @@ const Questionnaire = ({ props }: BaseComponentProps<QuestionnaireProps>): React
               : t('generativeUi.questionnaire.next')}
             <ChevronRight size={14} aria-hidden="true" />
           </button>
-        )}
+        ) : null}
       </div>
     </div>
   );

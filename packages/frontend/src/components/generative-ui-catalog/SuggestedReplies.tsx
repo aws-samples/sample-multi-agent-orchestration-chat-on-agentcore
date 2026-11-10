@@ -1,19 +1,12 @@
 import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { PencilLine, Send } from 'lucide-react';
+import { Send } from 'lucide-react';
 import type { BaseComponentProps } from '@json-render/react';
+import type { SuggestedRepliesProps } from '@moca/generative-ui-catalog';
 import { useGenerativeUiInteraction } from './interaction-context';
 import { focusMessageInput, submitMessageInput } from '../../utils/message-input-events';
-import { ReplyOptionRow } from './reply-options';
+import { OtherAnswerInput, ReplyOptionRow } from './reply-options';
 import { replyText } from './reply-option';
-import type { ReplyOption } from './reply-option';
-
-interface SuggestedRepliesProps {
-  question?: string;
-  options: ReplyOption[];
-  multiSelect?: boolean;
-  allowOther?: boolean;
-}
 
 const SuggestedReplies = ({
   props,
@@ -22,26 +15,37 @@ const SuggestedReplies = ({
   const { interactive } = useGenerativeUiInteraction();
   const { question, options = [], multiSelect = false, allowOther = true } = props;
   const [selected, setSelected] = useState<number[]>([]);
+  const [otherChecked, setOtherChecked] = useState(false);
+  const [otherText, setOtherText] = useState('');
   const [sent, setSent] = useState(false);
   const disabled = !interactive || sent;
 
-  const send = (indices: number[]) => {
-    if (disabled || indices.length === 0) return;
+  const send = (texts: string[]) => {
+    if (disabled || texts.length === 0) return false;
+    // Lock only once MessageInput accepts; a refused send leaves the choices usable.
+    if (!submitMessageInput(texts.join('\n'))) return false;
     setSent(true);
-    submitMessageInput(indices.map((i) => replyText(options[i])).join('\n'));
+    return true;
   };
 
   const handleOptionClick = (index: number) => {
     if (disabled) return;
     if (!multiSelect) {
-      setSelected([index]);
-      send([index]);
+      if (send([replyText(options[index])])) setSelected([index]);
       return;
     }
     setSelected((prev) =>
       prev.includes(index) ? prev.filter((i) => i !== index) : [...prev, index]
     );
   };
+
+  // Multi-select keeps "Other" inline so the ticked options go out with it;
+  // single-select hands off to the chat input, where a typed reply is natural.
+  const multiTexts = [
+    ...[...selected].sort((a, b) => a - b).map((i) => replyText(options[i])),
+    ...(otherChecked && otherText.trim() ? [otherText.trim()] : []),
+  ];
+  const canSendMulti = multiTexts.length > 0 && (!otherChecked || otherText.trim() !== '');
 
   return (
     <div className="w-full rounded-lg border border-border bg-surface-primary p-3 flex flex-col gap-2">
@@ -55,45 +59,58 @@ const SuggestedReplies = ({
         role={multiSelect ? 'group' : 'radiogroup'}
         aria-label={question}
       >
-        {options.map((option, index) => {
-          return (
-            <ReplyOptionRow
-              key={index}
-              label={option.label}
-              description={option.description}
-              multiSelect={multiSelect}
-              checked={selected.includes(index)}
-              disabled={disabled}
-              onClick={() => handleOptionClick(index)}
-            />
-          );
-        })}
-
-        {allowOther && (
-          <button
-            type="button"
+        {options.map((option, index) => (
+          <ReplyOptionRow
+            key={index}
+            label={option.label}
+            description={option.description}
+            kind={multiSelect ? 'checkbox' : 'radio'}
+            checked={selected.includes(index)}
             disabled={disabled}
-            onClick={focusMessageInput}
-            className={`flex items-center gap-3 w-full text-left rounded-md border border-dashed border-border px-3 py-2 text-sm text-fg-muted transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-action-primary ${
-              disabled ? 'cursor-default opacity-60' : 'cursor-pointer hover:bg-surface-secondary'
-            }`}
-          >
-            <PencilLine size={14} className="mx-0.5 shrink-0" aria-hidden="true" />
-            {t('generativeUi.suggestedReplies.other')}
-          </button>
+            onClick={() => handleOptionClick(index)}
+          />
+        ))}
+
+        {allowOther &&
+          (multiSelect ? (
+            <ReplyOptionRow
+              variant="other"
+              kind="checkbox"
+              label={t('generativeUi.suggestedReplies.other')}
+              checked={otherChecked}
+              disabled={disabled}
+              onClick={() => setOtherChecked((v) => !v)}
+            />
+          ) : (
+            <ReplyOptionRow
+              variant="other"
+              kind="action"
+              label={t('generativeUi.suggestedReplies.other')}
+              disabled={disabled}
+              onClick={focusMessageInput}
+            />
+          ))}
+        {multiSelect && otherChecked && (
+          <OtherAnswerInput
+            value={otherText}
+            placeholder={t('generativeUi.questionnaire.otherPlaceholder')}
+            disabled={disabled}
+            onChange={setOtherText}
+            onEnter={() => canSendMulti && send(multiTexts)}
+          />
         )}
       </div>
 
-      {multiSelect && !sent && (
+      {multiSelect && !disabled && (
         <div className="flex justify-end">
           <button
             type="button"
-            disabled={disabled || selected.length === 0}
-            onClick={() => send([...selected].sort((a, b) => a - b))}
+            disabled={!canSendMulti}
+            onClick={() => send(multiTexts)}
             className="inline-flex items-center gap-1.5 rounded-md bg-action-primary px-3 py-1.5 text-sm font-medium text-action-primary-fg transition-colors hover:bg-action-primary-hover disabled:cursor-not-allowed disabled:opacity-50"
           >
             <Send size={14} aria-hidden="true" />
-            {t('generativeUi.suggestedReplies.send', { count: selected.length })}
+            {t('generativeUi.suggestedReplies.send', { count: multiTexts.length })}
           </button>
         </div>
       )}

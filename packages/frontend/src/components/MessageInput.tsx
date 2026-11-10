@@ -17,7 +17,10 @@ import { ImagePreview } from './ImagePreview';
 import type { ImageAttachment } from '../types/index';
 import { IMAGE_ATTACHMENT_CONFIG } from '../types/index';
 import { logger } from '../utils/logger';
-import { MESSAGE_INPUT_SUBMIT_EVENT } from '../utils/message-input-events';
+import {
+  MESSAGE_INPUT_FOCUS_EVENT,
+  MESSAGE_INPUT_SUBMIT_EVENT,
+} from '../utils/message-input-events';
 import type { MessageInputSubmitDetail } from '../utils/message-input-events';
 
 interface MessageInputProps {
@@ -87,9 +90,9 @@ export const MessageInput: React.FC<MessageInputProps> = ({
     const handleFocusEvent = () => {
       textareaRef.current?.focus();
     };
-    window.addEventListener('focusMessageInput', handleFocusEvent);
+    window.addEventListener(MESSAGE_INPUT_FOCUS_EVENT, handleFocusEvent);
     return () => {
-      window.removeEventListener('focusMessageInput', handleFocusEvent);
+      window.removeEventListener(MESSAGE_INPUT_FOCUS_EVENT, handleFocusEvent);
     };
   }, []);
 
@@ -397,13 +400,19 @@ export const MessageInput: React.FC<MessageInputProps> = ({
 
   // `fromDraft: false` (generative UI reply choice) sends only `text` and
   // leaves the user's in-progress draft and attachments untouched.
-  const submitText = async (text: string, { fromDraft }: { fromDraft: boolean }) => {
+  // Returns synchronously whether the message was accepted (the send itself
+  // continues in the background) so reply-choice callers can tell a refusal apart.
+  const submitText = (text: string, { fromDraft }: { fromDraft: boolean }): boolean => {
     const images = fromDraft ? attachedImages : [];
     const hasContent = text.trim() || images.length > 0;
     if (!hasContent || isLoading || isAgentStoreLoading) {
-      return;
+      return false;
     }
+    void sendAccepted(text, images, fromDraft);
+    return true;
+  };
 
+  const sendAccepted = async (text: string, images: ImageAttachment[], fromDraft: boolean) => {
     try {
       // Save message to send
       const messageToSend = text.trim();
@@ -439,9 +448,9 @@ export const MessageInput: React.FC<MessageInputProps> = ({
     }
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    await submitText(input, { fromDraft: true });
+    submitText(input, { fromDraft: true });
   };
 
   // Generative UI reply choices send through the same path as typed input.
@@ -453,7 +462,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({
   useEffect(() => {
     const handleSubmitEvent = (e: Event) => {
       const { text } = (e as CustomEvent<MessageInputSubmitDetail>).detail;
-      void submitTextRef.current(text, { fromDraft: false });
+      if (submitTextRef.current(text, { fromDraft: false })) e.preventDefault();
     };
     window.addEventListener(MESSAGE_INPUT_SUBMIT_EVENT, handleSubmitEvent);
     return () => {
