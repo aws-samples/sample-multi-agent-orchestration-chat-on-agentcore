@@ -895,6 +895,23 @@ triggers:
 generativeUi:
   noChartData: No chart data available
   noData: No data available
+  suggestedReplies:
+    other: Other (type your own answer)
+    multiHint: Select all that apply, then send
+    send_one: Send {{count}} selection
+    send_other: Send {{count}} selections
+  questionnaire:
+    questionLabel: Q{{n}}
+    progress: 'Question {{current}} of {{total}}'
+    review: Review
+    reviewTitle: Review your answers, then send
+    sent: Answers sent
+    back: Back
+    next: Next
+    toReview: Review
+    submit: Send answers
+    otherPlaceholder: Type your answer
+    multiHint: Select all that apply
 
 # App
 app:

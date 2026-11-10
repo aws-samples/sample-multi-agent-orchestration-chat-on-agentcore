@@ -82,12 +82,18 @@ export async function createAgent(options?: CreateAgentOptions): Promise<CreateA
 
   // 4. Generate system prompt. RequestContext exists by this point (set
   // by requestContextMiddleware) and guarantees a populated storagePath.
-  const storagePath = getCurrentContext()!.storagePath;
+  const requestContext = getCurrentContext()!;
+  const storagePath = requestContext.storagePath;
+  // Sub-agents carry their type on sessionConfig (their restored request
+  // context has none); triggers send it as the session-type header.
+  const sessionType = options?.sessionConfig?.sessionType ?? requestContext.sessionType;
   const systemPrompt = buildSystemPrompt({
     customPrompt: options?.systemPrompt,
     tools: toolSet.tools,
     storagePath,
     longTermMemories: memoryResult.memories,
+    interactiveUser:
+      sessionType !== 'event' && sessionType !== 'subagent' && !requestContext.isMachineUser,
   });
 
   // 5. Assemble Agent

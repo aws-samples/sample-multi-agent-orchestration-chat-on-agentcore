@@ -24,9 +24,11 @@ import { formatBytes } from '../utils/formatBytes';
 
 interface MessageProps {
   message: MessageType;
+  /** Latest message of an idle session — enables generative UI reply choices. */
+  isInteractive?: boolean;
 }
 
-export const Message: React.FC<MessageProps> = ({ message }) => {
+export const Message: React.FC<MessageProps> = ({ message, isInteractive = false }) => {
   const { t } = useTranslation();
   const resolvedTheme = useThemeStore((s) => s.resolvedTheme);
   const isDark = resolvedTheme === 'dark';
@@ -282,7 +284,13 @@ export const Message: React.FC<MessageProps> = ({ message }) => {
                     );
 
                   case 'ui':
-                    return <JsonRenderBlock key={segment.key} content={segment.content} />;
+                    return (
+                      <JsonRenderBlock
+                        key={segment.key}
+                        content={segment.content}
+                        interactive={isInteractive}
+                      />
+                    );
 
                   case 'truncated':
                     return (

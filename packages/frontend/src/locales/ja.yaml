@@ -888,6 +888,22 @@ triggers:
 generativeUi:
   noChartData: チャートデータがありません
   noData: データがありません
+  suggestedReplies:
+    other: その他（自由に入力）
+    multiHint: 当てはまるものをすべて選んで送信してください
+    send: 選択した{{count}}件を送信
+  questionnaire:
+    questionLabel: 質問{{n}}
+    progress: '質問 {{current}} / {{total}}'
+    review: 確認
+    reviewTitle: 回答内容を確認して送信してください
+    sent: 回答を送信しました
+    back: 戻る
+    next: 次へ
+    toReview: 確認へ
+    submit: 回答を送信
+    otherPlaceholder: 回答を入力
+    multiHint: 当てはまるものをすべて選んでください
 
 # アプリ
 app:
