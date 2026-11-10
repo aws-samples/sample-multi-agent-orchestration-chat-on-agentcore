@@ -157,24 +157,6 @@ export interface SnapshotAction {
 }
 
 /**
- * Union of all browser actions
- */
-export type BrowserAction =
-  | StartSessionAction
-  | NavigateAction
-  | ClickAction
-  | TypeAction
-  | ScreenshotAction
-  | GetContentAction
-  | ScrollAction
-  | BackAction
-  | ForwardAction
-  | WaitForElementAction
-  | StopSessionAction
-  | GetSessionStatusAction
-  | SnapshotAction;
-
-/**
  * Browser client options
  */
 export interface BrowserClientOptions {

@@ -96,27 +96,6 @@ export interface DownloadFilesAction {
 }
 
 /**
- * List local sessions action
- */
-export interface ListLocalSessionsAction {
-  action: 'listLocalSessions';
-}
-
-/**
- * All actions for CodeInterpreter
- */
-export type CodeInterpreterAction =
-  | InitSessionAction
-  | ExecuteCodeAction
-  | ExecuteCommandAction
-  | ReadFilesAction
-  | ListFilesAction
-  | RemoveFilesAction
-  | WriteFilesAction
-  | DownloadFilesAction
-  | ListLocalSessionsAction;
-
-/**
  * Session information
  */
 export interface SessionInfo {
