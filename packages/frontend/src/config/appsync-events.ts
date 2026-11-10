@@ -16,11 +16,6 @@ export const appsyncEventsConfig = {
   realtimeEndpoint: import.meta.env.VITE_APPSYNC_EVENTS_ENDPOINT || '',
 
   /**
-   * HTTP endpoint for publishing events (used by backend)
-   */
-  httpEndpoint: import.meta.env.VITE_APPSYNC_EVENTS_HTTP_ENDPOINT || '',
-
-  /**
    * AWS Region
    */
   region: import.meta.env.VITE_AWS_REGION || 'us-east-1',
