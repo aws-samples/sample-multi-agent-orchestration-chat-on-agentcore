@@ -9,6 +9,7 @@ import { logger } from './libs/logger/index.js';
 import { getInFlightCount, isBusy } from './libs/health/in-flight.js';
 import { getTimeOfLastUpdate } from './libs/health/last-activity.js';
 import { installStrandsSpanKindFixer } from './libs/observability/install-strands-span-kind-fixer.js';
+import { getActiveWorkspaceSyncs } from './services/workspace-sync-helper.js';
 
 // Adapt Strands TS SDK 1.2.0 spans to the shape AgentCore Observability
 // expects: promote `invoke_agent` from INTERNAL to CLIENT (so the trace
@@ -79,7 +80,33 @@ process.on('SIGTERM', () => {
     },
     'Received SIGTERM, shutting down gracefully'
   );
-  process.exit(0);
+
+  // B4: Best-effort workspace sync on SIGTERM.
+  // Attempt to push any unsaved workspace files to S3 before exiting.
+  // Limited to 10 seconds — the platform's SIGTERM-to-kill window varies,
+  // so we keep this short and treat it as a best-effort safety net.
+  // Failures are logged and swallowed; the per-turn final sync in runTurn()
+  // is the primary guarantee.
+  const activeSyncs = getActiveWorkspaceSyncs();
+  if (activeSyncs.size > 0) {
+    const SIGTERM_SYNC_TIMEOUT_MS = 10_000;
+    logger.info({ count: activeSyncs.size }, 'SIGTERM: attempting best-effort workspace sync');
+    Promise.race([
+      Promise.allSettled([...activeSyncs].map((ws) => ws.syncToS3())),
+      new Promise<void>((resolve) => setTimeout(resolve, SIGTERM_SYNC_TIMEOUT_MS)),
+    ])
+      .then(() => {
+        logger.info('SIGTERM: workspace sync attempt completed');
+      })
+      .catch((err) => {
+        logger.warn({ err }, 'SIGTERM: workspace sync attempt failed');
+      })
+      .finally(() => {
+        process.exit(0);
+      });
+  } else {
+    process.exit(0);
+  }
 });
 
 process.on('SIGINT', () => {

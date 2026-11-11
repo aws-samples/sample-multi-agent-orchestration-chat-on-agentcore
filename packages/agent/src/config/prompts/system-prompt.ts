@@ -14,6 +14,13 @@ export interface SystemPromptOptions {
    * comes, so the prompt tells the model to proceed on assumptions instead.
    */
   interactiveUser?: boolean;
+  /**
+   * True when the microVM (container) running this turn is different from the
+   * one that ran the previous turn. When true, a one-turn ⚠️ notice is
+   * prepended so the model knows its ephemeral state has been reset:
+   * /tmp files, background processes, and in-memory caches no longer exist.
+   */
+  vmReplaced?: boolean;
 }
 
 /**
@@ -40,6 +47,19 @@ export function buildSystemPrompt(options: SystemPromptOptions): string {
   } else {
     // Default prompt generation logic
     basePrompt = generateDefaultSystemPrompt();
+  }
+
+  // B1: One-turn notice when the microVM was replaced between sessions.
+  // Prepended before anything else so the model sees it regardless of which
+  // prompt sections follow. Only injected for this single turn — the flag is
+  // re-evaluated each turn from DynamoDB.
+  if (options.vmReplaced) {
+    basePrompt =
+      `⚠️ **Runtime environment reset**: This turn is running on a new container. ` +
+      `Ephemeral state from previous turns — files in /tmp, background processes, ` +
+      `in-memory caches, and installed packages — no longer exists. ` +
+      `Only files under your persistent storage path are available.\n\n` +
+      basePrompt;
   }
 
   // Add long-term memory information (if long-term memories exist)
@@ -97,6 +117,20 @@ Videos (.mp4, .webm, .mov, .avi, .mkv, .m4v) use the same form and render inline
 
 A local path (\`${WORKSPACE_DIRECTORY}/...\`) or a presigned S3 URL will not resolve in a
 chat link: the frontend signs download URLs itself from the storage-relative path.
+
+### Storage Durability and Ephemeral Paths
+Only files under **${activeWorkDir}** (your workspace) survive across turns.
+Everything else is ephemeral and is reset whenever the runtime container is recycled:
+
+| Location | Durable? | Notes |
+|----------|----------|-------|
+| ${activeWorkDir} | ✅ Yes | Synced to S3; persists across turns and container restarts |
+| /tmp | ❌ No | Lost when the container is recycled |
+| Other paths outside the workspace | ❌ No | Not synced; treat as single-turn scratch space |
+| Background processes | ❌ No | Killed when the container is recycled |
+| pip / npm installs to system paths | ❌ No | Not persisted; reinstall each turn if needed |
+
+If you need a file in a later turn, always write it under ${activeWorkDir}.
 `;
 
     // Check S3 tool availability

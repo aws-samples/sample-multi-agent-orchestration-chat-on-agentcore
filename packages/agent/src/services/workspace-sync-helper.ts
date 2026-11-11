@@ -10,6 +10,18 @@ import type { RequestContext } from '../libs/context/request-context.js';
 import { BUNDLED_SKILLS_DIRECTORY } from '../config/index.js';
 import { logger } from '../libs/logger/index.js';
 /**
+ * Return all currently-cached WorkspaceSync instances.
+ *
+ * Used by the SIGTERM handler in `index.ts` to perform a best-effort final
+ * S3 push for any sessions that have an active WorkspaceSync (i.e. the user
+ * provided a `storagePath` on this invocation). The Set view is a snapshot;
+ * the cache itself is not mutated.
+ */
+export function getActiveWorkspaceSyncs(): ReadonlySet<WorkspaceSync> {
+  return new Set([...workspaceSyncs.values()].map((e) => e.workspaceSync));
+}
+
+/**
  * Result of workspace sync initialization
  */
 export interface WorkspaceSyncResult {

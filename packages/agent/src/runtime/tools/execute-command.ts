@@ -8,6 +8,7 @@ import { exec } from 'child_process';
 import { promisify } from 'util';
 import { config, WORKSPACE_DIRECTORY } from '../../config/index.js';
 import { logger } from '../../libs/logger/index.js';
+import { maskCommand } from '../../libs/logger/mask-secrets.js';
 import { getCurrentContext } from '../../libs/context/request-context.js';
 import { getUserScopedEnvVars } from '../../libs/utils/scoped-credentials.js';
 
@@ -99,7 +100,7 @@ export const executeCommandTool = tool({
   callback: async (input) => {
     const { command, workingDirectory, timeout, maxOutputLength } = input;
 
-    logger.info(`Command execution started: ${command}`);
+    logger.info({ command: maskCommand(command) }, 'Command execution started:');
 
     // Resolve active working directory (outside try/catch for error handler access)
     const context = getCurrentContext();
@@ -190,7 +191,7 @@ ${stdout || '(no output)'}
 
 ${stderr ? `Standard Error:\n${stderr}` : ''}`.trim();
 
-      logger.info(`Command execution succeeded: ${command} (${duration}ms)`);
+      logger.info({ command: maskCommand(command), duration }, 'Command execution succeeded:');
       return output;
     } catch (error: unknown) {
       return formatExecutionError(error, {
@@ -252,7 +253,7 @@ Working Directory: ${workingDirectory}
   }
 
   logger.error(
-    { command, errMessage: execError.message || 'Unknown error' },
+    { command: maskCommand(command), errMessage: execError.message || 'Unknown error' },
     'Command execution error'
   );
   return errorOutput;

@@ -19,6 +19,7 @@ import type { SessionStorage, SessionConfig } from '../services/session/types.js
 import type { AgentMetadata } from '../runtime/agent/types.js';
 import type { StreamTerminationRetryStrategy } from '../runtime/agent/stream-termination-retry-strategy.js';
 import type { ImageData } from '../types/validation/index.js';
+import { LOG_CONTENT_ENABLED, summarizeContent } from '../libs/logger/mask-secrets.js';
 
 /**
  * Streaming-specific options (not duplicating what's in RequestContext)
@@ -53,6 +54,72 @@ export const HEARTBEAT_INTERVAL_MS = 30_000;
  * truncated reasoning block.
  */
 const USER_VISIBLE_STOP_REASONS = new Set(['contentFiltered', 'guardrailIntervened', 'refusal']);
+
+/**
+ * Per-stream accumulator for content logging (LOG_CONTENT=true only).
+ *
+ * The SDK emits text / reasoning as a series of delta events followed by a
+ * block-stop event. We buffer deltas and flush them as a single log entry on
+ * stop so CloudWatch doesn't receive hundreds of individual tiny lines.
+ *
+ * Tool input deltas (`toolUseInputDelta`) are intentionally NOT buffered:
+ * they may contain user-supplied secrets (file contents, passwords, etc.)
+ * that static regex patterns cannot reliably cover.
+ */
+interface StreamLogState {
+  textBuffer: string;
+  reasoningBuffer: string;
+}
+
+/**
+ * Process one SDK stream event for structured content logging.
+ *
+ * No-op when `LOG_CONTENT_ENABLED` is false (the production default).
+ * When enabled, accumulates text/reasoning deltas and logs a masked summary
+ * on each block stop. Tool names are logged immediately on block start.
+ */
+function processEventForContentLog(event: unknown, state: StreamLogState): void {
+  if (!LOG_CONTENT_ENABLED) return;
+
+  const ev = event as {
+    type?: string;
+    delta?: { type?: string; text?: string };
+    start?: { type?: string; name?: string };
+  };
+
+  switch (ev.type) {
+    case 'modelContentBlockDeltaEvent': {
+      const deltaType = ev.delta?.type;
+      if (deltaType === 'textDelta') {
+        state.textBuffer += ev.delta?.text ?? '';
+      } else if (deltaType === 'reasoningContentDelta') {
+        state.reasoningBuffer += ev.delta?.text ?? '';
+      }
+      // toolUseInputDelta: intentionally not logged — may contain secrets
+      break;
+    }
+    case 'modelContentBlockStopEvent': {
+      if (state.textBuffer) {
+        logger.info(summarizeContent(state.textBuffer, 'streamText'), 'Stream text block:');
+        state.textBuffer = '';
+      }
+      if (state.reasoningBuffer) {
+        logger.info(
+          summarizeContent(state.reasoningBuffer, 'reasoning'),
+          'Stream reasoning block:'
+        );
+        state.reasoningBuffer = '';
+      }
+      break;
+    }
+    case 'modelContentBlockStartEvent': {
+      if (ev.start?.type === 'toolUseStart' && ev.start.name) {
+        logger.info({ toolName: ev.start.name }, 'Tool use started:');
+      }
+      break;
+    }
+  }
+}
 
 /**
  * Set streaming response headers on the Express response.
@@ -190,6 +257,9 @@ export async function streamAgentResponse(
 
     const agentInput = buildInputContent(prompt, images);
 
+    // Per-stream state for content logging (LOG_CONTENT=true only).
+    const contentLogState: StreamLogState = { textBuffer: '', reasoningBuffer: '' };
+
     // Stream events as NDJSON.
     //
     // Message persistence and AppSync Events publishing are handled centrally
@@ -208,6 +278,7 @@ export async function streamAgentResponse(
     // `POST → invoke_agent → execute_event_loop_cycle → chat` hierarchy
     // is preserved.
     for await (const event of agent.stream(agentInput)) {
+      processEventForContentLog(event, contentLogState);
       const stopReason =
         (event as { type?: string; result?: { stopReason?: string } }).type === 'agentResultEvent'
           ? (event as { result?: { stopReason?: string } }).result?.stopReason

@@ -94,6 +94,7 @@ export async function createAgent(options?: CreateAgentOptions): Promise<CreateA
     longTermMemories: memoryResult.memories,
     interactiveUser:
       sessionType !== 'event' && sessionType !== 'subagent' && !requestContext.isMachineUser,
+    vmReplaced: options?.vmReplaced,
   });
 
   // 5. Assemble Agent
@@ -154,6 +155,13 @@ export async function createAgent(options?: CreateAgentOptions): Promise<CreateA
     id: options?.agentId,
     traceAttributes,
     retryStrategy,
+    // Suppress the SDK's default AgentPrinter, which writes every text delta,
+    // reasoning block, and tool-use line to process.stdout via
+    // process.stdout.write(). The platform captures stdout as CloudWatch Logs,
+    // so the default behaviour leaks response content in plain text.
+    // Controlled re-introduction at info level is handled by
+    // processEventForContentLog in stream-handler.ts (LOG_CONTENT=true only).
+    printer: false,
   });
 
   // Set storagePath in agent state for sub-agent inheritance.

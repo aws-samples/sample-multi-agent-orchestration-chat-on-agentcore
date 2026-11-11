@@ -43,6 +43,13 @@ export interface SessionData {
   channelUserId?: UserId;
   /** ISO time the currently running turn started; absent when idle. */
   activeTurnStartedAt?: string;
+  /**
+   * The `RUNTIME_INSTANCE_ID` (UUID) of the process that last handled a
+   * turn for this session. Stored so the next turn can detect that a
+   * microVM replacement occurred (the new process has a different UUID).
+   * Absent for sessions that pre-date this feature.
+   */
+  lastRuntimeInstanceId?: string;
   createdAt: string;
   updatedAt: string;
 }

@@ -33,6 +33,22 @@ jest.unstable_mockModule('../stream-handler.js', () => ({ streamAgentResponse: j
 jest.unstable_mockModule('../../services/session-terminator.js', () => ({
   stopOwnSession: jest.fn(),
 }));
+jest.unstable_mockModule('../../services/sessions-service.js', () => ({
+  getSessionsService: () => ({
+    checkAndUpdateRuntimeInstanceId: jest
+      .fn<() => Promise<{ vmReplaced: boolean }>>()
+      .mockResolvedValue({ vmReplaced: false }),
+  }),
+}));
+jest.unstable_mockModule('../../libs/health/final-sync-registry.js', () => ({
+  beginFinalSync: jest.fn(),
+  endFinalSync: jest.fn(),
+}));
+jest.unstable_mockModule('../../libs/logger/mask-secrets.js', () => ({
+  summarizeContent: (_text: string, label: string) => ({ [`${label}Chars`]: _text?.length ?? 0 }),
+  LOG_CONTENT_ENABLED: false,
+  maskSecrets: (t: string) => t,
+}));
 
 const { handleInvocation } = await import('../invocations.js');
 

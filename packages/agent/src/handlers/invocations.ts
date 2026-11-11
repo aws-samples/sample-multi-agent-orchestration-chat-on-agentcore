@@ -44,6 +44,9 @@ import { logger } from '../libs/logger/index.js';
 import { streamAgentResponse } from './stream-handler.js';
 import { stopOwnSession } from '../services/session-terminator.js';
 import { endTurn, getActiveTurn, tryBeginTurn } from '../libs/health/turn-registry.js';
+import { summarizeContent } from '../libs/logger/mask-secrets.js';
+import { getSessionsService } from '../services/sessions-service.js';
+import { beginFinalSync, endFinalSync } from '../libs/health/final-sync-registry.js';
 
 /**
  * Agent invocation endpoint (with streaming support).
@@ -92,7 +95,7 @@ async function runTurn(req: Request, res: Response): Promise<void> {
   logger.info(
     {
       requestId,
-      prompt: body.prompt,
+      ...summarizeContent(body.prompt, 'prompt'),
       userId,
       identityId,
       sessionId: sessionId || 'none (sessionless mode)',
@@ -139,9 +142,18 @@ async function runTurn(req: Request, res: Response): Promise<void> {
       })
     : null;
 
+  // B1: Detect microVM replacement. Run in parallel with setupSession but
+  // before createAgent — vmReplaced must be known before buildSystemPrompt.
+  // Only checked for stateful (session-scoped) non-subagent turns.
+  const runtimeCheck =
+    sessionId && sessionType !== 'subagent'
+      ? getSessionsService().checkAndUpdateRuntimeInstanceId(String(userId), sessionId)
+      : Promise.resolve({ vmReplaced: false });
+
   // 3. Create and stream agent response. The Strands SDK opens its own
   // `invoke_agent` span (with `traceAttributes` injected by `agent.ts`),
   // so we don't add a wrapper span here.
+  const { vmReplaced } = await runtimeCheck;
   const { agent, metadata, retryStrategy } = await createAgent({
     plugins: [
       ...(sessionResult ? [sessionResult.hook] : []),
@@ -160,6 +172,7 @@ async function runTurn(req: Request, res: Response): Promise<void> {
     sessionConfig: sessionResult?.config,
     skillsPaths,
     agentId: body.agentId,
+    vmReplaced,
   });
 
   logger.info(
@@ -179,6 +192,31 @@ async function runTurn(req: Request, res: Response): Promise<void> {
     sessionConfig: sessionResult?.config,
   });
 
+  // B4: Final workspace sync
+  // The WorkspaceSyncHook pushes after every tool execution, but files written
+  // after the last tool call might not reach S3 before the microVM becomes idle.
+  // Perform one final push now that the response has been fully sent.
+  //
+  // `beginFinalSync / endFinalSync` keep `isBusy()` true during the push so
+  // `/ping` returns HealthyBusy and the platform does not reclaim the container.
+  //
+  // `stopOwnSession` runs AFTER endFinalSync to guarantee the response AND the
+  // sync are both complete before the session is terminated.
+  if (workspaceSyncResult) {
+    beginFinalSync();
+    const FINAL_SYNC_TIMEOUT_MS = 60_000;
+    try {
+      await Promise.race([
+        workspaceSyncResult.workspaceSync.syncToS3(),
+        new Promise<void>((resolve) => setTimeout(resolve, FINAL_SYNC_TIMEOUT_MS)),
+      ]);
+    } catch (syncError) {
+      logger.warn({ err: syncError, requestId }, 'Final workspace sync failed (non-fatal):');
+    } finally {
+      endFinalSync();
+    }
+  }
+
   // Event-driven (trigger) invocations are fire-and-forget: nothing on the
   // client side will tell the Runtime the session is done, so the microVM
   // would otherwise linger (billing memory) until the idle timeout. Now that
@@ -190,6 +228,9 @@ async function runTurn(req: Request, res: Response): Promise<void> {
   // frontend's graceful stream close lets them go Idle on their own. Stopping
   // also terminates any ongoing stream, so this must run AFTER the response is
   // sent (which it is — `streamAgentResponse` calls `res.end()` before returning).
+  //
+  // IMPORTANT: `stopOwnSession` runs after `endFinalSync` above so the workspace
+  // is fully persisted before the session (and its container) is terminated.
   if (sessionType === 'event' && sessionId) {
     await stopOwnSession(sessionId);
   }

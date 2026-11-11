@@ -215,6 +215,36 @@ export class DynamoDBSessionsRepository implements SessionsRepository {
   }
 
   /**
+   * Persist the caller's RUNTIME_INSTANCE_ID on the session row.
+   * No-op (warn) if the session does not exist.
+   */
+  async updateRuntimeInstanceId(sessionId: string, runtimeInstanceId: string): Promise<void> {
+    const now = new Date().toISOString();
+    try {
+      await this.client.send(
+        new UpdateItemCommand({
+          TableName: this.tableName,
+          Key: marshall({ userId: this.partitionKey, sessionId }),
+          UpdateExpression:
+            'SET lastRuntimeInstanceId = :rid, updatedAt = :updatedAt',
+          ExpressionAttributeValues: marshall({
+            ':rid': runtimeInstanceId,
+            ':updatedAt': now,
+          }),
+          ConditionExpression: 'attribute_exists(userId) AND attribute_exists(sessionId)',
+        })
+      );
+    } catch (error: unknown) {
+      if ((error as { name?: string }).name === 'ConditionalCheckFailedException') {
+        logger.warn({ sessionId }, 'Session not found for runtime instance ID update:');
+        return;
+      }
+      logger.error({ error }, 'Error updating session runtime instance ID:');
+      throw error;
+    }
+  }
+
+  /**
    * Get session data, or null when absent.
    */
   async getSession(sessionId: string): Promise<SessionData | null> {

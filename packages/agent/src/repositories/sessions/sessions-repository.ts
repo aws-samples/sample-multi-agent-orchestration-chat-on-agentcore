@@ -92,4 +92,11 @@ export interface SessionsRepository {
 
   /** Mark (ISO startedAt) or clear (undefined) the running turn. */
   setActiveTurn(sessionId: string, startedAt: string | undefined): Promise<void>;
+
+  /**
+   * Persist the caller's `RUNTIME_INSTANCE_ID` on the session row so the
+   * next turn can detect a microVM replacement.
+   * No-op (warn) if the session does not exist.
+   */
+  updateRuntimeInstanceId(sessionId: string, runtimeInstanceId: string): Promise<void>;
 }

@@ -26,6 +26,7 @@
  */
 
 import { hasActiveTurns } from './turn-registry.js';
+import { hasPendingFinalSyncs } from './final-sync-registry.js';
 import { markActivity } from './last-activity.js';
 
 /** Number of invocations currently being processed by this container. */
@@ -57,12 +58,15 @@ export function getInFlightCount(): number {
 }
 
 /**
- * True while at least one invocation is being processed, or a turn is still
- * running after its client disconnected (the counter is released on response
- * close, but the agent loop keeps going server-side).
+ * True while at least one invocation is being processed, a turn is still
+ * running after its client disconnected, or a final workspace sync is in
+ * progress after a turn completed.
+ *
+ * The final-sync window (up to 60 s) prevents the platform from reclaiming
+ * the microVM before the last S3 push has finished.
  */
 export function isBusy(): boolean {
-  return inFlight > 0 || hasActiveTurns();
+  return inFlight > 0 || hasActiveTurns() || hasPendingFinalSyncs();
 }
 
 /** Reset the counter to zero. Intended for unit tests only. */

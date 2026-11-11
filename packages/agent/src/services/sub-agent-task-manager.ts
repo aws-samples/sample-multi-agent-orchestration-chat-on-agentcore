@@ -5,6 +5,7 @@
 
 import { config } from '../config/index.js';
 import { logger } from '../libs/logger/index.js';
+import { LOG_CONTENT_ENABLED, summarizeContent } from '../libs/logger/mask-secrets.js';
 import { beginInvocation, endInvocation } from '../libs/health/in-flight.js';
 import { createAgent } from '../agent.js';
 import { getAgentDefinition } from './agent-registry.js';
@@ -349,6 +350,7 @@ class SubAgentTaskManager {
           taskId,
           agentId: task.agentId,
           duration: Date.now() - task.createdAt,
+          ...(LOG_CONTENT_ENABLED ? summarizeContent(String(result), 'result') : {}),
         },
         'Sub-agent task completed:'
       );

@@ -23,6 +23,7 @@ import type { AgentId, UserId } from '@moca/core';
 import { config } from '../config/index.js';
 import { createLogger } from '../libs/logger/index.js';
 import { createUserScopedDynamoDBClient, getIdentityId } from '../libs/utils/scoped-credentials.js';
+import { RUNTIME_INSTANCE_ID } from '../libs/runtime-instance.js';
 import type { SessionsRepository } from '../repositories/sessions/index.js';
 import { DynamoDBSessionsRepository } from '../repositories/sessions/dynamodb/index.js';
 
@@ -177,6 +178,38 @@ export class SessionsService {
     }
     const repo = await this.repositoryForUser(userId);
     return repo.updateSessionTitle(sessionId, title);
+  }
+
+  /**
+   * Detect whether the microVM has been replaced since the last turn.
+   *
+   * Reads `lastRuntimeInstanceId` from the session row. If it differs from
+   * the current process's `RUNTIME_INSTANCE_ID`, the microVM was recycled
+   * between turns and ephemeral state (/tmp, in-memory caches) is gone.
+   * Always persists the current ID so subsequent turns have a fresh baseline.
+   *
+   * Returns `{ vmReplaced: false }` when the service is not configured,
+   * when no previous ID is stored (first turn after the feature is deployed),
+   * or when the IDs match.
+   */
+  async checkAndUpdateRuntimeInstanceId(
+    userId: string,
+    sessionId: string
+  ): Promise<{ vmReplaced: boolean }> {
+    if (!this.isConfigured()) return { vmReplaced: false };
+
+    try {
+      const repo = await this.repositoryForUser(userId);
+      const session = await repo.getSession(sessionId);
+      const previousId = session?.lastRuntimeInstanceId;
+      const vmReplaced = !!previousId && previousId !== RUNTIME_INSTANCE_ID;
+      await repo.updateRuntimeInstanceId(sessionId, RUNTIME_INSTANCE_ID);
+      return { vmReplaced };
+    } catch (error) {
+      // Non-fatal: a DynamoDB error here should not block the turn.
+      logger.warn({ error }, 'checkAndUpdateRuntimeInstanceId failed (non-fatal):');
+      return { vmReplaced: false };
+    }
   }
 }
 

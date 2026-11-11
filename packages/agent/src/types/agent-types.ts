@@ -57,6 +57,15 @@ export interface CreateAgentOptions {
    * picked up by AgentCore Observability for trace-level correlation.
    */
   agentId?: string;
+  /**
+   * True when the microVM handling this turn is different from the one that
+   * handled the previous turn for this session. Set by `handleInvocation`
+   * after checking `lastRuntimeInstanceId` in the DynamoDB session row.
+   * When true, `buildSystemPrompt` prepends a one-turn ⚠️ notice so the
+   * model knows its ephemeral state (/tmp, background processes, in-memory
+   * caches) has been reset.
+   */
+  vmReplaced?: boolean;
 }
 
 /**
