@@ -97,6 +97,25 @@ describe('createBedrockModel region resolution', () => {
 });
 
 describe('createBedrockModel reasoning (extended thinking)', () => {
+  it.each(['global.openai.gpt-6-astra', 'global.openai.gpt-6-sol', 'global.openai.gpt-6-luna'])(
+    'passes OpenAI reasoning to the Converse constructor for %s',
+    (modelId) => {
+      createBedrockModel({ modelId, reasoningEffort: 'max' });
+      expect(constructorCalls[0].additionalRequestFields).toStrictEqual({
+        reasoning: { effort: 'high', summary: 'auto' },
+      });
+      expect(openaiConstructorCalls).toHaveLength(0);
+    }
+  );
+
+  it.each([undefined, 'off'] as const)(
+    'omits OpenAI reasoning fields for %s',
+    (reasoningEffort) => {
+      createBedrockModel({ modelId: 'global.openai.gpt-6-sol', reasoningEffort });
+      expect(constructorCalls[0].additionalRequestFields).toBeUndefined();
+    }
+  );
+
   it('injects adaptive thinking + effort for a capable model + non-off depth', () => {
     createBedrockModel({ modelId: 'global.anthropic.claude-opus-4-8', reasoningEffort: 'high' });
     expect(constructorCalls[0].additionalRequestFields).toEqual({

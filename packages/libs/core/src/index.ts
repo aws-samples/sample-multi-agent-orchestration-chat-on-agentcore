@@ -61,6 +61,7 @@ export type {
   AdaptiveReasoningRequestConfig,
   BetweenToolsReasoningRequestConfig,
   DisabledReasoningRequestConfig,
+  OpenAIConverseReasoningRequestConfig,
   OffThinkingMode,
   NormalizedReasoningEffort,
 } from './bedrock-models.js';
