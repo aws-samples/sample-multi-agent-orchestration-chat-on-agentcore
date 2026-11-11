@@ -23,7 +23,7 @@
  *
  * | Pattern | Example |
  * |---------|---------|
- * | AWS access key ID | `AKIAIOSFODNN7EXAMPLE` |
+ * | AWS access key ID | `AKIA` followed by 16 uppercase alphanumerics |
  * | AWS access key (long-form key=val) | `aws_access_key_id=AKIA…` |
  * | AWS secret access key | `aws_secret_access_key=…` |
  * | Authorization header value | `Authorization: Bearer eyJ…` |
