@@ -27,6 +27,7 @@ import {
   UserCredentialsExpiredError,
 } from '../libs/utils/scoped-credentials.js';
 import { isCredentialExpiryError, reportPersistenceFailure } from './session/persistence-health.js';
+import { beginInvocation, endInvocation } from '../libs/health/in-flight.js';
 
 const logger = createLogger('WorkspaceSync');
 export type { SyncResult };
@@ -56,6 +57,7 @@ export class WorkspaceSync {
   private initPromise: Promise<void>;
   private sharedSkillsPromise?: Promise<string | null>;
   private sharedSkillsSync?: S3WorkspaceSync;
+  private pushChain: Promise<unknown> = Promise.resolve();
 
   private readonly userId: string;
 
@@ -242,8 +244,21 @@ export class WorkspaceSync {
 
   /**
    * Upload local changes to S3 (diff-based).
+   *
+   * Pushes are serialized, so awaiting this also waits for every earlier
+   * (fire-and-forget) push — callers use it as a flush before the microVM may
+   * be released. `/ping` reports HealthyBusy while a push runs: the hook's
+   * push outlives the turn, and idle reclaim would otherwise SIGTERM it.
    */
-  async syncToS3(): Promise<SyncResult> {
+  syncToS3(): Promise<SyncResult> {
+    beginInvocation();
+    const current = this.pushChain.then(() => this.pushOnce());
+    this.pushChain = current.catch(() => undefined);
+    void this.pushChain.finally(endInvocation);
+    return current;
+  }
+
+  private async pushOnce(): Promise<SyncResult> {
     await this.initPromise;
 
     // Every upload would fail (and log) individually; report once instead.

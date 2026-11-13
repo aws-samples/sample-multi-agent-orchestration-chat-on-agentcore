@@ -15,8 +15,9 @@ jest.unstable_mockModule('../../libs/context/request-context.js', () => ({
 }));
 const setupSession = jest.fn<(args: Record<string, unknown>) => Promise<undefined>>();
 jest.unstable_mockModule('../../services/session/session-helper.js', () => ({ setupSession }));
+const initializeWorkspaceSync = jest.fn<() => unknown>();
 jest.unstable_mockModule('../../services/workspace-sync-helper.js', () => ({
-  initializeWorkspaceSync: jest.fn(),
+  initializeWorkspaceSync,
   resolveSkillsPaths: jest.fn<() => Promise<string[]>>().mockResolvedValue([]),
 }));
 jest.unstable_mockModule('../../services/session-persistence-deps-factory.js', () => ({
@@ -88,6 +89,8 @@ async function invoke(body: Record<string, unknown>) {
 
 beforeEach(() => {
   jest.clearAllMocks();
+  initializeWorkspaceSync.mockReset();
+  stopOwnSession.mockReset();
   for (const key of Object.keys(context)) delete context[key];
   Object.assign(context, { requestId: 'r1', sessionId: undefined, isMachineUser: true });
   createAgent.mockResolvedValue({
@@ -156,6 +159,38 @@ describe('workflow step invocations', () => {
       sessionType: 'subagent',
     });
     expect(stopOwnSession).toHaveBeenCalledWith('step-session');
+  });
+
+  it('flushes the workspace to S3 before completing the callback and stopping the session', async () => {
+    const order: string[] = [];
+    const syncToS3 = jest.fn(async () => {
+      order.push('sync');
+      return { success: true };
+    });
+    initializeWorkspaceSync.mockReturnValue({ workspaceSync: { syncToS3 }, hook: {} });
+    send.mockImplementation(async () => {
+      order.push('callback');
+      return {};
+    });
+    stopOwnSession.mockImplementation(async () => {
+      order.push('stop');
+    });
+    context.sessionId = 'step-session';
+
+    await invoke({ workflowStep, storagePath: '/project' });
+
+    expect(order).toEqual(['sync', 'callback', 'stop']);
+  });
+
+  it('still completes the callback when the final sync throws', async () => {
+    const syncToS3 = jest.fn(async () => {
+      throw new Error('no credentials');
+    });
+    initializeWorkspaceSync.mockReturnValue({ workspaceSync: { syncToS3 }, hook: {} });
+
+    await invoke({ workflowStep, storagePath: '/project' });
+
+    expect(callback().kind).toBe('SendDurableExecutionCallbackSuccessCommand');
   });
 
   it('ignores workflowStep from regular users', async () => {

@@ -82,6 +82,14 @@ export async function runWorkflow(input: RunWorkflowInput): Promise<Record<strin
         return { success: false, error: 'Invalid workflow', problems };
       }
       const context = getCurrentContext();
+      // Steps pull the parent's storagePath from S3 as soon as they start.
+      if (context?.workspaceSync) {
+        try {
+          await context.workspaceSync.syncToS3();
+        } catch (error) {
+          logger.warn({ err: error }, 'run_workflow: workspace sync before start failed');
+        }
+      }
       const result = await callBackend('POST', '/workflows', authHeader, {
         workflow: input.workflow,
         parent: {

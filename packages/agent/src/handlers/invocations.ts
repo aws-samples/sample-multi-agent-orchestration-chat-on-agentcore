@@ -232,6 +232,16 @@ async function runAgentTurn(
     stopHeartbeat?.();
   }
 
+  // Flush before the callback and stopOwnSession: a downstream step pulls from
+  // S3 right after the callback, and stopping the session kills a pending push.
+  if (workspaceSyncResult) {
+    try {
+      await workspaceSyncResult.workspaceSync.syncToS3();
+    } catch (error) {
+      logger.error({ err: error, requestId }, 'Final workspace sync to S3 failed');
+    }
+  }
+
   if (workflowStep) {
     await completeStepCallback(
       workflowStep,
