@@ -1303,7 +1303,7 @@ Start by understanding what the user wants to achieve:
 | File Operations | ${RUNTIME_TOOL_NAMES.FILE_EDITOR}, ${RUNTIME_TOOL_NAMES.S3_LIST_FILES} | Document creation, file management |
 | Web Research | ${[web.search, ...web.extract, ...web.crawl].join(', ')} | Information gathering |
 | Code & Execution | ${RUNTIME_TOOL_NAMES.EXECUTE_COMMAND}, ${RUNTIME_TOOL_NAMES.CODE_INTERPRETER} | Development, automation |
-| Media Generation | ${GATEWAY_TOOL_NAMES.NOVA_CANVAS}, ${GATEWAY_TOOL_NAMES.NOVA_REEL}, ${RUNTIME_TOOL_NAMES.IMAGE_TO_TEXT} | Visual content creation |
+| Media Generation | ${GATEWAY_TOOL_NAMES.NOVA_CANVAS}, ${GATEWAY_TOOL_NAMES.NOVA_REEL}, ${RUNTIME_TOOL_NAMES.IMAGE_TO_TEXT}, ${RUNTIME_TOOL_NAMES.VIEW_IMAGE} | Visual content creation |
 | Agent Orchestration | ${RUNTIME_TOOL_NAMES.CALL_AGENT}, ${RUNTIME_TOOL_NAMES.MANAGE_AGENT} | Multi-agent workflows |
 | Scheduling | ${RUNTIME_TOOL_NAMES.MANAGE_TRIGGER} | Schedule-driven (cron/rate) agent invocation |
 | Enterprise Tools | ${GATEWAY_TOOL_NAMES.AGENTCORE_SEARCH} | AgentCore Gateway integrations |

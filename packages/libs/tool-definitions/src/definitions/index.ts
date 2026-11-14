@@ -3,6 +3,7 @@ export * from './file-editor.js';
 export * from './s3-list-files.js';
 export * from './code-interpreter.js';
 export * from './image-to-text.js';
+export * from './view-image.js';
 export * from './call-agent.js';
 export * from './manage-agent.js';
 export * from './manage-trigger.js';
@@ -17,6 +18,7 @@ import { fileEditorDefinition } from './file-editor.js';
 import { s3ListFilesDefinition } from './s3-list-files.js';
 import { codeInterpreterDefinition } from './code-interpreter.js';
 import { imageToTextDefinition } from './image-to-text.js';
+import { viewImageDefinition } from './view-image.js';
 import { callAgentDefinition } from './call-agent.js';
 import { manageAgentDefinition } from './manage-agent.js';
 import { manageTriggerDefinition } from './manage-trigger.js';
@@ -35,6 +37,7 @@ export const allToolDefinitions = [
   s3ListFilesDefinition,
   codeInterpreterDefinition,
   imageToTextDefinition,
+  viewImageDefinition,
   callAgentDefinition,
   manageAgentDefinition,
   manageTriggerDefinition,

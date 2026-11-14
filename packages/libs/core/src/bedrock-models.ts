@@ -668,6 +668,31 @@ export function shouldStripPriorReasoning(modelId: string): boolean {
 }
 
 /**
+ * Providers whose models accept an image block inside a Converse `toolResult`.
+ * Bedrock documents the field as supported by Amazon Nova and Anthropic Claude
+ * only (API reference, ToolResultContentBlock.image). The GPT-6 family rejects
+ * it with a ValidationException (see the GPT-6.1 Terra entry above).
+ */
+const TOOL_RESULT_IMAGE_PROVIDERS: ReadonlySet<BedrockModelDefinition['provider']> = new Set([
+  'Anthropic',
+  'Amazon',
+]);
+
+/**
+ * Whether a tool may return an image to this model. False for unknown ids, so
+ * a model missing from the registry never receives one. Models on a
+ * non-Converse endpoint are excluded: image tool results are unverified there.
+ */
+export function supportsToolResultImages(modelId: string): boolean {
+  const model = findModel(modelId);
+  return (
+    model !== undefined &&
+    model.endpoint === undefined &&
+    TOOL_RESULT_IMAGE_PROVIDERS.has(model.provider)
+  );
+}
+
+/**
  * The non-Converse Bedrock endpoint (transport) for a model, or `undefined` for
  * Converse-API models (the common case) and unknown ids. Prefix-insensitive
  * (see {@link findModel}), though the current non-Converse ids carry no

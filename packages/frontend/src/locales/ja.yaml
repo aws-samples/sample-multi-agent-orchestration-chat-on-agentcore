@@ -424,6 +424,7 @@ tool:
       think: 思考を整理
       files: ファイル一覧を取得
       imageToText: 画像を読み取り
+      viewImage: 画像を確認
       image: 画像を生成
       video: 動画を生成
       knowledge: ナレッジを検索

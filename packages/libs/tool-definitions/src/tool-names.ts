@@ -11,6 +11,7 @@ export const RUNTIME_TOOL_NAMES = {
   S3_LIST_FILES: 's3_list_files',
   CODE_INTERPRETER: 'code_interpreter',
   IMAGE_TO_TEXT: 'image_to_text',
+  VIEW_IMAGE: 'view_image',
   CALL_AGENT: 'call_agent',
   MANAGE_AGENT: 'manage_agent',
   MANAGE_TRIGGER: 'manage_trigger',

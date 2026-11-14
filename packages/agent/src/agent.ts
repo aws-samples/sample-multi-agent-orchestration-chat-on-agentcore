@@ -37,6 +37,7 @@ import { StreamTerminationRetryStrategy } from './runtime/agent/stream-terminati
 import { EmptyTextBlockHook } from './services/session/empty-text-block-hook.js';
 import { EmptyReasoningBlockHook } from './services/session/empty-reasoning-block-hook.js';
 import { ReasoningHistoryStripHook } from './services/session/reasoning-history-strip-hook.js';
+import { ToolResultImageBudgetHook } from './services/session/tool-result-image-budget-hook.js';
 
 import type { CreateAgentOptions, CreateAgentResult } from './runtime/agent/types.js';
 
@@ -56,6 +57,8 @@ export async function createAgent(options?: CreateAgentOptions): Promise<CreateA
   // 1. Build user-defined MCP clients
   const userMCPClients = buildUserMCPClients(options?.mcpConfig);
 
+  const modelId = options?.modelId || config.BEDROCK_MODEL_ID;
+
   // 2. Execute in parallel: session history, Gateway tools, long-term memories
   const memoryParams = extractMemoryParams(options);
   const [savedMessages, toolSet, memoryResult] = await Promise.all([
@@ -64,7 +67,7 @@ export async function createAgent(options?: CreateAgentOptions): Promise<CreateA
       options?.sessionConfig,
       config.CONVERSATION_WINDOW_SIZE
     ),
-    buildToolSet(options?.enabledTools, userMCPClients),
+    buildToolSet(options?.enabledTools, userMCPClients, modelId),
     fetchLongTermMemories(memoryParams),
   ]);
 
@@ -141,12 +144,15 @@ export async function createAgent(options?: CreateAgentOptions): Promise<CreateA
     //     with prefix-bound thinking (Sonnet 5.5 / Haiku 5.5 / Fable 5.2), which would
     //     otherwise 400 once the system prompt changes
     //     (see reasoning-history-strip-hook.ts).
+    //   - ToolResultImageBudgetHook caps how many tool-returned images stay
+    //     live in one turn (see tool-result-image-budget-hook.ts).
     // The skills plugin (when present) injects `<available_skills>` into the
     // system prompt; it sits after the sanitizers and before caller plugins.
     plugins: [
       new EmptyTextBlockHook(),
       new EmptyReasoningBlockHook(),
-      new ReasoningHistoryStripHook(options?.modelId || config.BEDROCK_MODEL_ID),
+      new ReasoningHistoryStripHook(modelId),
+      new ToolResultImageBudgetHook(),
       ...(skillsPlugin ? [skillsPlugin] : []),
       ...(options?.plugins ?? []),
     ],

@@ -22,16 +22,4 @@ export interface ImageToTextResult {
   error?: string;
 }
 
-/**
- * Supported image formats
- */
-export type ImageFormat = 'jpeg' | 'png' | 'gif' | 'webp';
-
-/**
- * Image source type
- */
-export interface ImageSource {
-  type: 's3' | 'local';
-  data: Buffer;
-  format: ImageFormat;
-}
+export type { ImageFormat, ImageSource } from '../../../libs/utils/image-source.js';
