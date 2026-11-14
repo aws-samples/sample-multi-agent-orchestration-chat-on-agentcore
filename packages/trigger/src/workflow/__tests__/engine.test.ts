@@ -265,6 +265,71 @@ describe('runWorkflow', () => {
     expect(saved.some((s) => s.stepId === 'report' && s.status === 'skipped')).toBe(true);
   });
 
+  it('fails a step that reports failure and skips its dependants', async () => {
+    const { ops, turns } = fakeOps((turn) =>
+      turn.stepId === 'a'
+        ? { status: 'failed', output: 'exit 1', feedback: 'command exited 1' }
+        : done(turn.stepId)
+    );
+    const result = await runWorkflow(null, 'wf-1', diamond, ops);
+
+    expect(result.status).toBe('failed');
+    expect(result.steps.a.status).toBe('failed');
+    expect(result.steps.a.error).toContain('command exited 1');
+    expect(result.steps.b.status).toBe('done');
+    expect(result.steps.report.status).toBe('skipped');
+    // Not retried: the step's own verdict is final.
+    expect(turns.filter((t) => t.stepId === 'a')).toHaveLength(1);
+  });
+
+  it('fails the step when its reviewer reports failure instead of sending it back', async () => {
+    const spec: WorkflowSpec = {
+      goal: 'g',
+      steps: [
+        { id: 'a', agentId: 'w', prompt: 'p', review: { agentId: 'r', criteria: 'c' } },
+        { id: 'b', agentId: 'w', prompt: 'p', dependsOn: ['a'] },
+      ],
+    };
+    const { ops, turns } = fakeOps((turn) =>
+      turn.role === 'reviewer'
+        ? { status: 'failed', output: '', feedback: 'Workspace conflict: x' }
+        : done(turn.stepId)
+    );
+    const result = await runWorkflow(null, 'wf-1', spec, ops);
+
+    expect(result.steps.a.status).toBe('failed');
+    expect(result.steps.a.error).toContain('Workspace conflict');
+    expect(result.steps.b.status).toBe('skipped');
+    expect(turns.filter((t) => t.stepId === 'a' && t.role === 'worker')).toHaveLength(1);
+  });
+
+  it('runs the reviewer with its own modelId', async () => {
+    const spec: WorkflowSpec = {
+      goal: 'g',
+      steps: [
+        {
+          id: 'a',
+          agentId: 'w',
+          prompt: 'p',
+          modelId: 'worker-model',
+          review: { agentId: 'r', criteria: 'c', modelId: 'reviewer-model' },
+        },
+      ],
+    };
+    const { ops, turns } = fakeOps((turn) => done(turn.stepId));
+    await runWorkflow(null, 'wf-1', spec, ops);
+    expect(turns.map((t) => [t.role, t.modelId])).toEqual([
+      ['worker', 'worker-model'],
+      ['reviewer', 'reviewer-model'],
+    ]);
+  });
+
+  it('tells workers how to report failure', async () => {
+    const { ops, turns } = fakeOps((turn) => done(turn.stepId));
+    await runWorkflow(null, 'wf-1', diamond, ops);
+    expect(turns[0].prompt).toContain('status "failed"');
+  });
+
   it('stops before the next wave when cancelled', async () => {
     let cancelled = false;
     const { ops, turns } = fakeOps((turn) => {

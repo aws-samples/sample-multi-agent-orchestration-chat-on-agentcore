@@ -11,4 +11,5 @@ export type {
   SyncProgress,
   SyncLogger,
   FileInfo,
+  SyncConflict,
 } from './types.js';

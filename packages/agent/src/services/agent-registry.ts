@@ -5,7 +5,11 @@
 
 import { config } from '../config/index.js';
 import { logger } from '../libs/logger/index.js';
-import { getCallerAuthorizationHeader, getCallerIdToken } from '../libs/context/request-context.js';
+import {
+  getCallerAuthorizationHeader,
+  getCallerIdToken,
+  getCurrentContext,
+} from '../libs/context/request-context.js';
 
 /**
  * Agent definition structure
@@ -62,6 +66,8 @@ export interface AgentRegistryOptions {
    * Backend can resolve the Identity Pool identityId (required by authMiddleware).
    */
   idToken?: string;
+  /** Rethrow instead of returning [] (listAgents only). */
+  throwOnError?: boolean;
 }
 
 /**
@@ -176,6 +182,29 @@ export async function getAgentDefinition(
 }
 
 /**
+ * The caller's agents (id, name, description), using the request's own
+ * credentials (machine users act for the target user). Unlike
+ * {@link listAgents}, a failed Backend call is reported, not turned into [].
+ */
+export async function listCallerAgents(): Promise<
+  | { ok: true; agents: Array<{ agentId: string; name: string; description: string }> }
+  | { ok: false; error: string }
+> {
+  const context = getCurrentContext();
+  try {
+    const agents = await listAgents({
+      authHeader: getCallerAuthorizationHeader(),
+      userId: context?.userId,
+      idToken: getCallerIdToken(),
+      throwOnError: true,
+    });
+    return { ok: true, agents };
+  } catch (error) {
+    return { ok: false, error: error instanceof Error ? error.message : String(error) };
+  }
+}
+
+/**
  * List all available agents with simplified information
  */
 export async function listAgents(
@@ -219,6 +248,7 @@ export async function listAgents(
       },
       'Failed to list agents:'
     );
+    if (options?.throwOnError) throw error;
     return [];
   }
 }

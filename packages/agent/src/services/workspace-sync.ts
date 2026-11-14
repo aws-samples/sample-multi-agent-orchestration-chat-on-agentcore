@@ -12,7 +12,7 @@ import fs from 'fs';
 import path from 'path';
 import type { S3Client } from '@aws-sdk/client-s3';
 import { S3WorkspaceSync } from '@moca/s3-workspace-sync';
-import type { SyncResult } from '@moca/s3-workspace-sync';
+import type { SyncConflict, SyncResult } from '@moca/s3-workspace-sync';
 import {
   config,
   WORKSPACE_DIRECTORY,
@@ -58,6 +58,9 @@ export class WorkspaceSync {
   private sharedSkillsPromise?: Promise<string | null>;
   private sharedSkillsSync?: S3WorkspaceSync;
   private pushChain: Promise<unknown> = Promise.resolve();
+  // A conflict is reported by the one push that hit it, which is usually a
+  // fire-and-forget hook push; the turn reads them all at its end.
+  private conflicts: SyncConflict[] = [];
 
   private readonly userId: string;
 
@@ -268,9 +271,18 @@ export class WorkspaceSync {
     }
 
     const result = await this.inner.push();
+    if (result.conflicts) this.conflicts.push(...result.conflicts);
     const expiry = result.errors?.find((e) => isCredentialExpiryError(e));
     if (expiry) reportPersistenceFailure('workspace', expiry);
     return result;
+  }
+
+  /** Conflicts found by pushes since the last call (awaits pushes in flight). */
+  async takeConflicts(): Promise<SyncConflict[]> {
+    await this.pushChain;
+    const taken = this.conflicts;
+    this.conflicts = [];
+    return taken;
   }
 
   /**

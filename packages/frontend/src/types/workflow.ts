@@ -10,7 +10,7 @@ export interface WorkflowGraphStep {
   prompt: string;
   dependsOn?: string[];
   modelId?: string;
-  review?: { agentId: string; criteria: string; maxIterations?: number };
+  review?: { agentId: string; criteria: string; modelId?: string; maxIterations?: number };
 }
 
 export interface WorkflowGraphSpec {

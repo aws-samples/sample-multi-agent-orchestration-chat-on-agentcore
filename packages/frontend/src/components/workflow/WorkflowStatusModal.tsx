@@ -30,6 +30,9 @@ import { WorkflowMarkdown } from './WorkflowMarkdown';
 /** Mirrors WORKFLOW_LIMITS.DEFAULT_REVIEW_ITERATIONS in @moca/tool-definitions. */
 const DEFAULT_REVIEW_ROUNDS = 2;
 const CLOCK_TICK_MS = 15_000;
+/** Shrinks the shared markdown styles (headings are text-lg/base) to the instruction's size. */
+const SMALL_MARKDOWN =
+  'text-xs [&_h1]:text-sm [&_h2]:text-sm [&_h3]:text-xs [&_h4]:text-xs [&_h1]:mt-3 [&_h2]:mt-3 [&_p]:mb-2';
 
 /** Wall clock for elapsed times; ticks only while the modal is open. */
 function useNow(enabled: boolean): number {
@@ -117,9 +120,12 @@ const StepDetail: React.FC<{
       {state?.unapproved && (
         <p className="text-xs text-feedback-warning">{t('workflowStatus.unapproved')}</p>
       )}
-      <p className="whitespace-pre-wrap wrap-break-word text-xs text-fg-muted">
-        <span className="font-medium">{t('workflowStatus.instruction')}:</span> {step.prompt}
-      </p>
+      <section className="space-y-1">
+        <h4 className="text-xs font-medium text-fg-muted">{t('workflowStatus.instruction')}</h4>
+        <p className="whitespace-pre-wrap wrap-break-word text-xs text-fg-secondary">
+          {step.prompt}
+        </p>
+      </section>
     </div>
   );
 };
@@ -192,24 +198,6 @@ const WorkflowBody: React.FC<{ workflow: WorkflowView; now: number; onNavigate: 
 
   return (
     <div className="space-y-5">
-      {finalOutputs.length > 0 && (
-        <section className="space-y-3 rounded-card border border-border bg-surface-secondary px-4 py-3">
-          <h3 className="text-xs font-medium text-fg-muted">{t('workflowStatus.result')}</h3>
-          {finalOutputs.map((s) => (
-            <div key={s.stepId} className="max-h-96 overflow-y-auto">
-              {finalOutputs.length > 1 && (
-                <p className="mb-1 font-mono text-xs font-medium text-fg-secondary">{s.stepId}</p>
-              )}
-              <WorkflowMarkdown text={s.output!} />
-            </div>
-          ))}
-        </section>
-      )}
-      {workflow.error && (
-        <p className="whitespace-pre-wrap wrap-break-word rounded-btn border border-feedback-error-border bg-feedback-error-bg px-3 py-2 text-sm text-feedback-error">
-          {workflow.error}
-        </p>
-      )}
       {isMobileView || !canGraph ? (
         <>
           <StepList workflow={workflow} selected={selected} onSelect={setSelected} />
@@ -230,6 +218,24 @@ const WorkflowBody: React.FC<{ workflow: WorkflowView; now: number; onNavigate: 
             <StepDetail workflow={workflow} step={step} now={now} onNavigate={onNavigate} />
           )}
         />
+      )}
+      {finalOutputs.length > 0 && (
+        <section className="space-y-3 rounded-card border border-border bg-surface-secondary px-4 py-3">
+          <h3 className="text-xs font-medium text-fg-muted">{t('workflowStatus.result')}</h3>
+          {finalOutputs.map((s) => (
+            <div key={s.stepId} className="max-h-96 overflow-y-auto">
+              {finalOutputs.length > 1 && (
+                <p className="mb-1 font-mono text-xs font-medium text-fg-secondary">{s.stepId}</p>
+              )}
+              <WorkflowMarkdown text={s.output!} className={SMALL_MARKDOWN} />
+            </div>
+          ))}
+        </section>
+      )}
+      {workflow.error && (
+        <p className="whitespace-pre-wrap wrap-break-word rounded-btn border border-feedback-error-border bg-feedback-error-bg px-3 py-2 text-sm text-feedback-error">
+          {workflow.error}
+        </p>
       )}
     </div>
   );
@@ -307,7 +313,9 @@ export const WorkflowStatusModal: React.FC<WorkflowStatusModalProps> = ({
         isOpen={isOpen}
         onClose={onClose}
         size={isMobileView ? 'xl' : 'lg'}
-        className="md:w-full md:max-w-4xl"
+        // Fixed height: switching workflows would otherwise resize the modal with
+        // the length of each result; the body scrolls instead.
+        className="md:h-[min(85vh,56rem)] md:w-full md:max-w-6xl"
       >
         <div className="shrink-0 border-b border-border px-4 py-3 md:px-6 md:py-4">
           <div className="flex items-start justify-between gap-3">

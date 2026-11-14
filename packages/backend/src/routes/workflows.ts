@@ -11,10 +11,11 @@ import { Router } from 'express';
 import { z } from 'zod';
 import { v7 as uuidv7 } from 'uuid';
 import { InvokeCommand, LambdaClient } from '@aws-sdk/client-lambda';
-import { isAgentId, isSessionId, parseAgentId } from '@moca/core';
+import { isAgentId, isSessionId, parseAgentId, parseAllowedModelIds } from '@moca/core';
 import {
   isTerminalWorkflowStatus,
   validateWorkflowSpec,
+  WORKFLOW_LIMITS,
   workflowSpecSchema,
   type WorkflowOrchestratorEvent,
   type WorkflowRecord,
@@ -32,7 +33,7 @@ import { getWorkflowsRepository } from '../repositories/workflows/workflows-repo
 const router = Router();
 
 /** Bounds Runtime sessions and model spend a single user can fan out at once. */
-export const MAX_ACTIVE_WORKFLOWS_PER_USER = 3;
+export const MAX_ACTIVE_WORKFLOWS_PER_USER = WORKFLOW_LIMITS.MAX_ACTIVE_PER_USER;
 const ACTIVE_SCAN_LIMIT = 50;
 /**
  * Matches the orchestrator's durable executionTimeout. A record still
@@ -121,7 +122,7 @@ router.post(
     const { workflow, parent } = req.body as z.infer<typeof createWorkflowBody>;
     const repo = getRepository();
 
-    const problems = validateWorkflowSpec(workflow);
+    const problems = validateWorkflowSpec(workflow, { knownModelIds: parseAllowedModelIds(config.BEDROCK_MODEL_IDS) });
     const agentIds = new Set(
       workflow.steps.flatMap((s) => [s.agentId, ...(s.review ? [s.review.agentId] : [])])
     );

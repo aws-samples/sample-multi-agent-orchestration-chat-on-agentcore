@@ -98,6 +98,9 @@ const StepDetail: React.FC<{
               count: step.review.maxIterations ?? DEFAULT_REVIEW_ROUNDS,
             })}
           </span>
+          {step.review.modelId && (
+            <span className="ml-1 font-mono text-fg-muted">{step.review.modelId}</span>
+          )}
         </div>
       )}
     </div>
@@ -158,7 +161,9 @@ export const WorkflowGraph: React.FC<WorkflowGraphProps> = ({
           <span className="font-medium">{t('tool.workflowGraph.goal')}</span> {spec.goal}
         </p>
       )}
-      <div className="overflow-x-auto pb-1">
+      {/* Padding on every side: the selected node's ring and shadow paint outside
+          the node, and this overflow container would clip them at the edges. */}
+      <div className="overflow-x-auto p-1">
         <div
           role="group"
           aria-label={t('tool.workflowGraph.ariaLabel', { count: spec.steps.length })}

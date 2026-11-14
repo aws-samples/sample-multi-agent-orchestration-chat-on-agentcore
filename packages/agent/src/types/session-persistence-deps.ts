@@ -9,6 +9,8 @@
  * at construction time by the caller (e.g., sub-agent-task-manager).
  */
 
+import type { SessionParent } from '@moca/core';
+
 export interface ISessionsService {
   isConfigured(): boolean;
   sessionExists(userId: string, sessionId: string): Promise<boolean>;
@@ -21,6 +23,7 @@ export interface ISessionsService {
     sessionType?: string;
     /** Cognito User Pool sub — used for AppSync channel paths (no colons). */
     channelUserId?: string;
+    parent?: SessionParent;
   }): Promise<unknown>;
   updateSessionAgentAndStorage(
     userId: string,

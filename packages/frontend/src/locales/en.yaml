@@ -185,6 +185,10 @@ chat:
   loadingHistory: Loading conversation history...
   sessionsDeleteFailed_one: '{{count}} session failed to delete'
   sessionsDeleteFailed_other: '{{count}} sessions failed to delete'
+  sessionTree:
+    expand: 'Expand'
+    collapse: 'Collapse'
+    reviewer: '· review'
   sessionBadge:
     event: '[Event]'
     subAgent: '[Sub]'

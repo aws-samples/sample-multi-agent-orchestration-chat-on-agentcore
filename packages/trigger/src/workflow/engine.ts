@@ -269,6 +269,23 @@ export async function runWorkflow<C>(
 
 type RunResult = { ok: true; result: WorkflowStepResult } | { ok: false; error: string };
 
+/** A worker turn that ends the step early: it failed, or it needs an upstream redo. */
+function workerOutcome(result: WorkflowStepResult): StepOutcome | undefined {
+  if (result.status === 'failed') {
+    const reason = result.feedback ?? result.output;
+    return { kind: 'failed', error: `Step reported failure: ${reason.slice(0, 2000)}` };
+  }
+  if (result.status === 'blocked') {
+    return {
+      kind: 'blocked',
+      output: result.output,
+      feedback: result.feedback ?? result.output,
+      targetStepId: result.targetStepId,
+    };
+  }
+  return undefined;
+}
+
 async function runStep<C>(
   ctx: C,
   workflowId: string,
@@ -325,14 +342,8 @@ async function runStepTurns<C>(
 
   let res = await work(job.reason, 0);
   if (!res.ok) return { kind: 'failed', error: res.error };
-  if (res.result.status === 'blocked') {
-    return {
-      kind: 'blocked',
-      output: res.result.output,
-      feedback: res.result.feedback ?? res.result.output,
-      targetStepId: res.result.targetStepId,
-    };
-  }
+  const early = workerOutcome(res.result);
+  if (early) return early;
   if (!step.review) return { kind: 'done', output: res.result.output };
 
   const maxIterations = step.review.maxIterations ?? WORKFLOW_LIMITS.DEFAULT_REVIEW_ITERATIONS;
@@ -343,9 +354,14 @@ async function runStepTurns<C>(
       role: 'reviewer',
       agentId: step.review.agentId,
       sessionId: rt.reviewerSessionId!,
+      modelId: step.review.modelId,
       prompt: buildReviewerPrompt(spec, step, outputs, res.result.output, round),
     });
     if (!review.ok) return { kind: 'failed', error: `Reviewer failed: ${review.error}` };
+    if (review.result.status === 'failed') {
+      const reason = review.result.feedback ?? review.result.output;
+      return { kind: 'failed', error: `Reviewer reported failure: ${reason.slice(0, 2000)}` };
+    }
     if (review.result.status === 'done') {
       return { kind: 'done', output: res.result.output, feedback: review.result.output };
     }
@@ -356,14 +372,8 @@ async function runStepTurns<C>(
     await save(`revising${round}`, 'running', round, { feedback });
     res = await work({ kind: 'review', feedback, round }, round);
     if (!res.ok) return { kind: 'failed', error: res.error };
-    if (res.result.status === 'blocked') {
-      return {
-        kind: 'blocked',
-        output: res.result.output,
-        feedback: res.result.feedback ?? res.result.output,
-        targetStepId: res.result.targetStepId,
-      };
-    }
+    const early = workerOutcome(res.result);
+    if (early) return early;
   }
 }
 

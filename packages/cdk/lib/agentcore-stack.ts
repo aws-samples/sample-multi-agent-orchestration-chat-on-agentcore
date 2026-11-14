@@ -497,6 +497,11 @@ export class AgentCoreStack extends cdk.Stack {
       'WORKFLOW_ORCHESTRATOR_ARN',
       `${workflowOrchestratorArn}:${WorkflowOrchestrator.ALIAS}`
     );
+    // For setup-env.ts (local backend).
+    new cdk.CfnOutput(this, 'WorkflowsTableName', { value: workflowsTable.table.tableName });
+    new cdk.CfnOutput(this, 'WorkflowOrchestratorArn', {
+      value: `${workflowOrchestratorArn}:${WorkflowOrchestrator.ALIAS}`,
+    });
     this.backendApi.grantPermissions(
       new cdk.aws_iam.PolicyStatement({
         sid: 'StartWorkflowOrchestrator',

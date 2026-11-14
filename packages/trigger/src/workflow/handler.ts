@@ -79,7 +79,14 @@ export function buildOps(
           modelId: turn.modelId,
           prompt: turn.prompt,
           storagePath: record.parent?.storagePath,
-          workflowStep: { workflowId, stepId: turn.stepId, role: turn.role, callbackId },
+          workflowStep: {
+            workflowId,
+            stepId: turn.stepId,
+            role: turn.role,
+            callbackId,
+            parentSessionId: record.parent?.sessionId,
+            goal: record.spec.goal,
+          },
         });
       };
       // waitForCallback's retryStrategy only covers the submitter (starting

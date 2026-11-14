@@ -8,6 +8,8 @@ import type { ToolDefinition } from '../types.js';
  */
 export const WORKFLOW_LIMITS = {
   MAX_STEPS: 10,
+  /** Running workflows per user; enforced by the Backend at start. */
+  MAX_ACTIVE_PER_USER: 3,
   MAX_CONCURRENCY: 3,
   DEFAULT_CONCURRENCY: 3,
   MAX_REVIEW_ITERATIONS: 3,
@@ -30,6 +32,10 @@ const STEP_ID_PATTERN = /^[a-z][a-z0-9_]{0,39}$/;
 
 export const workflowReviewSchema = z.object({
   agentId: z.string().min(1).describe('Agent ID of the reviewer'),
+  modelId: z
+    .string()
+    .optional()
+    .describe("Model ID override for the reviewer (defaults to the reviewer agent's config)"),
   criteria: z
     .string()
     .min(1)
@@ -101,8 +107,27 @@ export type WorkflowSpec = z.infer<typeof workflowSpecSchema>;
  * acyclic graph. Returns human-readable problems (empty = valid) so the tool
  * can hand them back to the model verbatim.
  */
-export function validateWorkflowSpec(spec: WorkflowSpec): string[] {
+export function validateWorkflowSpec(
+  spec: WorkflowSpec,
+  /** Model ids the deployment knows; passed in so this package stays free of @moca/core. */
+  options: { knownModelIds?: readonly string[] } = {}
+): string[] {
   const problems: string[] = [];
+  const { knownModelIds } = options;
+  if (knownModelIds) {
+    const known = new Set(knownModelIds);
+    const check = (where: string, modelId: string | undefined) => {
+      if (modelId !== undefined && !known.has(modelId)) {
+        problems.push(
+          `${where}: unknown modelId "${modelId}". Use one of: ${knownModelIds.join(', ')} (or omit it for the agent's default)`
+        );
+      }
+    };
+    for (const step of spec.steps) {
+      check(`Step "${step.id}"`, step.modelId);
+      check(`Step "${step.id}" review`, step.review?.modelId);
+    }
+  }
   const bytes = new TextEncoder().encode(JSON.stringify(spec)).length;
   if (bytes > WORKFLOW_LIMITS.MAX_SPEC_BYTES) {
     problems.push(
@@ -161,16 +186,21 @@ export interface WorkflowStepInvocation {
   role: WorkflowStepRole;
   /** Lambda durable execution callback id the Runtime completes when the turn ends. */
   callbackId: string;
+  /** Session that started the workflow; recorded on the step session for the session list. */
+  parentSessionId?: string;
+  goal?: string;
 }
 
 export const workflowSubmitResultSchema = z.object({
   status: z
-    .enum(['done', 'needs_revision', 'blocked'])
+    .enum(['done', 'needs_revision', 'blocked', 'failed'])
     .describe(
       "'done': task complete (reviewer: output approved). " +
         "'needs_revision': reviewer only — the output must be revised, explain why in feedback. " +
         "'blocked': you cannot finish because an upstream step's output is wrong or missing; " +
-        'set targetStepId and explain what must change in feedback.'
+        'set targetStepId and explain what must change in feedback. ' +
+        "'failed': worker only — the task did not succeed (e.g. a command exited non-zero and " +
+        'you could not recover); explain what went wrong in feedback. Downstream steps are skipped.'
     ),
   output: z
     .string()
@@ -183,7 +213,9 @@ export const workflowSubmitResultSchema = z.object({
   feedback: z
     .string()
     .optional()
-    .describe('Required for needs_revision / blocked: concrete, actionable changes'),
+    .describe(
+      'Required for needs_revision / blocked: concrete, actionable changes. For failed: what went wrong.'
+    ),
   targetStepId: z
     .string()
     .optional()
@@ -205,9 +237,9 @@ export interface WorkflowStepResult extends Omit<WorkflowSubmitResult, 'output'>
 
 export const runWorkflowSchema = z.object({
   action: z
-    .enum(['start', 'status', 'list', 'cancel'])
+    .enum(['start', 'status', 'list', 'cancel', 'agents'])
     .describe(
-      "'start' a new workflow, check 'status' of one, 'list' recent workflows, or 'cancel' a running one"
+      "'start' a new workflow, check 'status' of one, 'list' recent workflows, 'cancel' a running one, or list the 'agents' and model ids usable in steps"
     ),
   workflow: workflowSpecSchema.optional().describe('Workflow definition (required for start)'),
   workflowId: z.string().optional().describe('Workflow ID (required for status / cancel)'),
@@ -218,17 +250,26 @@ export const runWorkflowDefinition: ToolDefinition<typeof runWorkflowSchema> = {
   description: `Run a multi-agent workflow in the background. Steps are executed by specialist agents, in parallel when independent and in sequence when they depend on each other. Workflows can run for hours; this tool returns immediately.
 
 **How it works**
-- Each step runs one agent (use call_agent action='list_agents' to find agentIds) in its own isolated runtime session.
+- Each step runs one agent (use action='agents' to find agentIds and modelIds) in its own isolated runtime session.
 - dependsOn orders steps; outputs of dependencies are passed to the dependant step automatically.
 - review: a reviewer agent checks the step output against criteria and can send it back with feedback (up to maxIterations).
 - A step may report that an upstream step is wrong; that upstream step is redone with the feedback, then its dependants re-run.
 - With notifyOnComplete (default true), you are resumed in this session with the results when the workflow finishes, so do NOT poll in a loop — tell the user it started and end your turn.
+- A step that cannot complete its task reports "failed"; its dependants are then skipped.
+
+**Files**
+- Steps share the workspace through storage that is synced when each step ends. Parallel steps must write to DIFFERENT files: two steps writing the same file conflict and the later one fails. Combine results in a step that depends on them.
+- Empty directories are not kept; have each step create its output directory (mkdir -p).
+
+**Limits**
+- At most ${WORKFLOW_LIMITS.MAX_STEPS} steps per workflow and ${WORKFLOW_LIMITS.MAX_ACTIVE_PER_USER} running workflows per user; start fails with a message when the limit is reached.
 
 **Actions**
-- start: workflow={ goal, steps:[{ id, agentId, prompt, dependsOn?, review? }] } → returns workflowId
-- status: workflowId → overall status and per-step status/output
+- start: workflow={ goal, steps:[{ id, agentId, prompt, dependsOn?, modelId?, review?: { agentId, criteria, modelId?, maxIterations? } }] } → returns workflowId
+- status: workflowId → overall status and per-step status/output, runs, review iteration, startedAt
 - list: recent workflows
 - cancel: workflowId → stops the workflow and its running steps
+- agents: available agentIds (name, description) and modelIds
 
 **Example**
 { "action": "start", "workflow": { "goal": "Compare A and B", "steps": [

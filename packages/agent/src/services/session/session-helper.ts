@@ -15,6 +15,7 @@ import { SessionPersistenceHook } from './session-persistence-hook.js';
 import { FileSessionStorage } from './file-session-storage.js';
 import { AgentCoreMemoryStorage } from './agentcore-memory-storage.js';
 import type { SessionConfig, SessionStorage, SessionType } from './types.js';
+import type { SessionParent } from '@moca/core';
 import type { SessionPersistenceDeps } from '../../types/session-persistence-deps.js';
 import { config } from '../../config/index.js';
 import { logger } from '../../libs/logger/index.js';
@@ -51,6 +52,7 @@ export interface SessionSetupOptions {
    */
   sessionId: SessionId;
   sessionType?: SessionType;
+  parent?: SessionParent;
   agentId?: string;
   storagePath?: string;
   deps: SessionPersistenceDeps;
@@ -100,6 +102,7 @@ export async function setupSession(options: SessionSetupOptions): Promise<Sessio
     actorId: options.actorId,
     sessionId: options.sessionId,
     sessionType: options.sessionType,
+    parent: options.parent,
   };
   const hook = new SessionPersistenceHook(
     storage,

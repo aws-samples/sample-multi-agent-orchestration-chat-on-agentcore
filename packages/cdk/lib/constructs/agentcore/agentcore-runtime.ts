@@ -247,6 +247,8 @@ export class AgentCoreRuntime extends Construct {
       // intact, so AgentCore Observability still receives Token / Trace List
       // Input/Output data.
       OTEL_NODE_DISABLED_INSTRUMENTATIONS: 'aws-sdk',
+      // Models this deployment allows (IAM is scoped to the same list); run_workflow validates step modelIds against it.
+      BEDROCK_MODEL_IDS: props.bedrockModels.map((m) => m.id).join(','),
     };
 
     // Set Gateway endpoint (for JWT propagation)

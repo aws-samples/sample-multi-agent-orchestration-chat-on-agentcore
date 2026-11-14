@@ -325,6 +325,8 @@ export class BackendApi extends Construct {
 
       AGENTS_TABLE_NAME: props.agentsTableName || '',
       SESSIONS_TABLE_NAME: props.sessionsTableName || '',
+      // Models this deployment allows (IAM is scoped to the same list); /workflows validates step modelIds against it.
+      BEDROCK_MODEL_IDS: props.bedrockModels.map((m) => m.id).join(','),
     };
 
     this.webFunction = new lambda.CfnWebFunction(this, 'WebFunction', {

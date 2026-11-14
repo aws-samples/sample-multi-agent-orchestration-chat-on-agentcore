@@ -137,4 +137,15 @@ describe('WorkflowStatusModal', () => {
     expect(screen.queryByRole('button', { name: /workflowStatus.stop/ })).toBeNull();
     expect(useWorkflowStore.getState().seen).toEqual(['wf-done']);
   });
+
+  it('shows the graph first, then the instruction, then the result', () => {
+    renderModal([finished]);
+    const graph = screen.getByRole('group');
+    const instruction = screen.getByRole('heading', { name: 'workflowStatus.instruction' });
+    const result = screen.getByRole('heading', { name: 'workflowStatus.result' });
+    const follows = (a: Element, b: Element) =>
+      Boolean(a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING);
+    expect(follows(graph, instruction)).toBe(true);
+    expect(follows(instruction, result)).toBe(true);
+  });
 });

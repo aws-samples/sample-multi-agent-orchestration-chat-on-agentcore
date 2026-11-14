@@ -8,22 +8,19 @@ export const WORKFLOW_POLL_INTERVAL_MS = 15_000;
 export const WORKFLOW_POLL_INTERVAL_FOCUSED_MS = 5_000;
 
 /**
- * Workflows started in a session, newest first, kept fresh by polling while
- * any of them is still running. Polling pauses while the tab is hidden.
+ * Keeps the given workflows (comma-joined ids, so callers can memo by value)
+ * fresh while enabled: refreshes unfinished ones every `intervalMs`, and at
+ * once when the tab becomes visible again. Polling pauses while hidden.
  */
-export function useSessionWorkflows(
-  sessionId: string | null,
+export function useWorkflowPolling(
+  idsKey: string,
+  enabled: boolean,
   intervalMs: number = WORKFLOW_POLL_INTERVAL_MS
-): WorkflowView[] {
-  const messages = useChatStore((s) => (sessionId ? s.sessions[sessionId]?.messages : undefined));
-  // Joined so a new message that starts no workflow does not reset polling.
-  const idsKey = useMemo(() => extractSessionWorkflowIds(messages ?? []).join(','), [messages]);
-  const entries = useWorkflowStore((s) => s.workflows);
+): void {
   const refresh = useWorkflowStore((s) => s.refresh);
-
   useEffect(() => {
     const ids = idsKey ? idsKey.split(',') : [];
-    if (ids.length === 0) return;
+    if (!enabled || ids.length === 0) return;
     const poll = () => {
       const { workflows } = useWorkflowStore.getState();
       for (const id of ids) {
@@ -45,7 +42,23 @@ export function useSessionWorkflows(
       clearInterval(timer);
       document.removeEventListener('visibilitychange', onVisible);
     };
-  }, [idsKey, intervalMs, refresh]);
+  }, [idsKey, enabled, intervalMs, refresh]);
+}
+
+/**
+ * Workflows started in a session, newest first, kept fresh by polling while
+ * any of them is still running. Polling pauses while the tab is hidden.
+ */
+export function useSessionWorkflows(
+  sessionId: string | null,
+  intervalMs: number = WORKFLOW_POLL_INTERVAL_MS
+): WorkflowView[] {
+  const messages = useChatStore((s) => (sessionId ? s.sessions[sessionId]?.messages : undefined));
+  // Joined so a new message that starts no workflow does not reset polling.
+  const idsKey = useMemo(() => extractSessionWorkflowIds(messages ?? []).join(','), [messages]);
+  const entries = useWorkflowStore((s) => s.workflows);
+
+  useWorkflowPolling(idsKey, true, intervalMs);
 
   return useMemo(() => {
     const ids = idsKey ? idsKey.split(',') : [];

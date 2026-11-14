@@ -183,6 +183,10 @@ shortcuts:
 chat:
   loadingHistory: 会話履歴を読み込み中...
   sessionsDeleteFailed: '{{count}}件のセッションの削除に失敗しました'
+  sessionTree:
+    expand: '展開'
+    collapse: '折りたたむ'
+    reviewer: '· レビュー'
   sessionBadge:
     event: '[イベント]'
     subAgent: '[サブ]'

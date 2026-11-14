@@ -4,12 +4,20 @@
  * model call), so no empty assistant text lands in the step's history.
  */
 
-import { describe, expect, it } from '@jest/globals';
-import { Agent, Model, type BaseModelConfig, type ModelStreamEvent } from '@strands-agents/sdk';
+import { describe, expect, it, jest } from '@jest/globals';
+import { z } from 'zod';
+import {
+  Agent,
+  Model,
+  tool,
+  type BaseModelConfig,
+  type ModelStreamEvent,
+} from '@strands-agents/sdk';
 import {
   buildStepResult,
   createSubmitResultTool,
   lastAssistantText,
+  recoverEmptyOutput,
   turnReplyText,
 } from '../workflow-step.js';
 
@@ -154,5 +162,117 @@ describe('buildStepResult', () => {
     );
     expect(res.output.length).toBeLessThan(21_000);
     expect(res.output).toMatch(/…\[truncated\]$/);
+  });
+});
+
+function* callTool(name: string, toolUseId: string, input: unknown): Generator<ModelStreamEvent> {
+  yield { type: 'modelMessageStartEvent', role: 'assistant' } as ModelStreamEvent;
+  yield {
+    type: 'modelContentBlockStartEvent',
+    start: { type: 'toolUseStart', name, toolUseId },
+  } as ModelStreamEvent;
+  yield {
+    type: 'modelContentBlockDeltaEvent',
+    delta: { type: 'toolUseInputDelta', input: JSON.stringify(input) },
+  } as ModelStreamEvent;
+  yield { type: 'modelContentBlockStopEvent' } as ModelStreamEvent;
+  yield { type: 'modelMessageStopEvent', stopReason: 'toolUse' } as ModelStreamEvent;
+}
+
+function* replyText(text: string): Generator<ModelStreamEvent> {
+  yield { type: 'modelMessageStartEvent', role: 'assistant' } as ModelStreamEvent;
+  yield { type: 'modelContentBlockStartEvent' } as ModelStreamEvent;
+  yield {
+    type: 'modelContentBlockDeltaEvent',
+    delta: { type: 'textDelta', text },
+  } as ModelStreamEvent;
+  yield { type: 'modelContentBlockStopEvent' } as ModelStreamEvent;
+  yield { type: 'modelMessageStopEvent', stopReason: 'endTurn' } as ModelStreamEvent;
+}
+
+/** Plays one scripted model response per call. */
+class TurnScript extends Model {
+  calls = 0;
+  private config: BaseModelConfig = { modelId: 'scripted' };
+  constructor(private readonly turns: Array<() => Generator<ModelStreamEvent>>) {
+    super();
+  }
+  getConfig(): BaseModelConfig {
+    return this.config;
+  }
+  updateConfig(c: BaseModelConfig): void {
+    this.config = { ...this.config, ...c };
+  }
+  async *stream(): AsyncIterable<ModelStreamEvent> {
+    yield* this.turns[this.calls++]();
+  }
+}
+
+describe('recoverEmptyOutput', () => {
+  const runTool = tool({
+    name: 'run',
+    description: 'run a command',
+    inputSchema: z.object({}),
+    callback: () => 'selftest: 59 passed, 0 failed',
+  });
+
+  async function stepThatSubmitsSilently(followUp: () => Generator<ModelStreamEvent>) {
+    const submit = createSubmitResultTool();
+    const model = new TurnScript([
+      () => callTool('run', 't1', {}),
+      () => callTool('submit_workflow_result', 't2', { status: 'done' }),
+      followUp,
+    ]);
+    const agent = new Agent({
+      model,
+      tools: [runTool, submit.tool],
+      plugins: [submit.plugin],
+      printer: false,
+    });
+    await agent.invoke('do the step');
+    const result = buildStepResult(submit.getSubmitted(), agent, 's1');
+    return { agent, model, result };
+  }
+
+  it('asks once more in the same session when the step submitted without reply text', async () => {
+    const { agent, model, result } = await stepThatSubmitsSilently(() =>
+      replyText('selftest passed: 59 / 0')
+    );
+    expect(result.output).toBe('');
+
+    const recovered = await recoverEmptyOutput(agent, result, 'worker');
+
+    expect(model.calls).toBe(3);
+    expect(recovered).toMatchObject({ status: 'done', output: 'selftest passed: 59 / 0' });
+  });
+
+  it('falls back to the latest tool results when the follow-up is empty too', async () => {
+    const { agent, result } = await stepThatSubmitsSilently(() => replyText(' '));
+
+    const recovered = await recoverEmptyOutput(agent, result, 'worker');
+
+    expect(recovered.status).toBe('done');
+    expect(recovered.output).toContain('wrote no reply text');
+    expect(recovered.output).toContain('selftest: 59 passed, 0 failed');
+  });
+
+  it('does not ask reviewers or non-done verdicts for a deliverable', async () => {
+    const agent = { messages: [], invoke: jest.fn() } as unknown as Parameters<
+      typeof recoverEmptyOutput
+    >[0];
+    const failed = { status: 'failed' as const, output: '', feedback: 'npm test exited 1' };
+    const approved = { status: 'done' as const, output: '' };
+    expect(await recoverEmptyOutput(agent, failed, 'worker')).toBe(failed);
+    expect(await recoverEmptyOutput(agent, approved, 'reviewer')).toBe(approved);
+    expect(agent.invoke).not.toHaveBeenCalled();
+  });
+
+  it('leaves a non-empty output alone', async () => {
+    const agent = { messages: [], invoke: jest.fn() } as unknown as Parameters<
+      typeof recoverEmptyOutput
+    >[0];
+    const result = { status: 'done' as const, output: 'x' };
+    expect(await recoverEmptyOutput(agent, result, 'worker')).toBe(result);
+    expect(agent.invoke).not.toHaveBeenCalled();
   });
 });

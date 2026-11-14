@@ -133,6 +133,26 @@ describe('workflow step invocations', () => {
     });
   });
 
+  it('asks the step once more when it finished without reply text', async () => {
+    const messages: unknown[] = [{ role: 'user', content: [{ type: 'textBlock', text: 'Do it' }] }];
+    const invokeFollowUp = jest.fn(async () => {
+      messages.push(
+        { role: 'user', content: [{ type: 'textBlock', text: 'follow-up' }] },
+        assistant('recovered')
+      );
+    });
+    createAgent.mockResolvedValue({
+      agent: { messages, invoke: invokeFollowUp },
+      metadata: {},
+      retryStrategy: {},
+    });
+
+    await invoke({ workflowStep });
+
+    expect(invokeFollowUp).toHaveBeenCalledTimes(1);
+    expect(callback().result).toMatchObject({ status: 'done', output: 'recovered' });
+  });
+
   it('fails the callback when the stream errors', async () => {
     streamAgentResponse.mockResolvedValue({ ok: false, error: 'throttled' });
     await invoke({ workflowStep });
@@ -153,10 +173,17 @@ describe('workflow step invocations', () => {
 
   it('persists step sessions as subagent sessions and releases the microVM', async () => {
     context.sessionId = 'step-session';
-    await invoke({ workflowStep });
+    await invoke({ workflowStep: { ...workflowStep, parentSessionId: 'parent-1', goal: 'G' } });
     expect(setupSession.mock.calls[0][0]).toMatchObject({
       sessionId: 'step-session',
       sessionType: 'subagent',
+      parent: {
+        sessionId: 'parent-1',
+        workflowId: 'wf-1',
+        workflowGoal: 'G',
+        stepId: 'research',
+        role: 'worker',
+      },
     });
     expect(stopOwnSession).toHaveBeenCalledWith('step-session');
   });
@@ -167,7 +194,11 @@ describe('workflow step invocations', () => {
       order.push('sync');
       return { success: true };
     });
-    initializeWorkspaceSync.mockReturnValue({ workspaceSync: { syncToS3 }, hook: {} });
+    const takeConflicts = jest.fn(async () => []);
+    initializeWorkspaceSync.mockReturnValue({
+      workspaceSync: { syncToS3, takeConflicts },
+      hook: {},
+    });
     send.mockImplementation(async () => {
       order.push('callback');
       return {};
@@ -182,11 +213,72 @@ describe('workflow step invocations', () => {
     expect(order).toEqual(['sync', 'callback', 'stop']);
   });
 
+  it('fails a done step on conflicts found by any push of the turn, not as a callback failure', async () => {
+    const syncToS3 = jest.fn(async () => ({ success: true }));
+    // The conflict came from an earlier hook push; the final push saw nothing.
+    const takeConflicts = jest.fn(async () => [
+      { path: 'shared.txt', savedAs: 'shared (conflict x).txt' },
+    ]);
+    initializeWorkspaceSync.mockReturnValue({
+      workspaceSync: { syncToS3, takeConflicts },
+      hook: {},
+    });
+
+    await invoke({ workflowStep, storagePath: '/project' });
+
+    const cb = callback();
+    expect(cb.kind).toBe('SendDurableExecutionCallbackSuccessCommand');
+    expect(cb.result).toMatchObject({
+      status: 'failed',
+      output: 'final answer',
+      feedback: expect.stringContaining('shared (conflict x).txt'),
+    });
+  });
+
+  it("keeps a reviewer's approval despite conflicts", async () => {
+    const takeConflicts = jest.fn(async () => [{ path: 'coverage.json' }]);
+    initializeWorkspaceSync.mockReturnValue({
+      workspaceSync: { syncToS3: jest.fn(async () => ({ success: true })), takeConflicts },
+      hook: {},
+    });
+
+    await invoke({ workflowStep: { ...workflowStep, role: 'reviewer' }, storagePath: '/project' });
+
+    expect(callback().result).toMatchObject({ status: 'done' });
+  });
+
+  it('keeps a blocked submission despite conflicts so the upstream redo still happens', async () => {
+    createAgent.mockImplementation(async (options) => {
+      const submit = options.additionalTools![0] as unknown as {
+        invoke: (input: unknown) => Promise<unknown>;
+      };
+      await submit.invoke({ status: 'blocked', feedback: 'bad input', targetStepId: 'fetch' });
+      return {
+        agent: { messages: [assistant('cannot proceed')] },
+        metadata: {},
+        retryStrategy: {},
+      };
+    });
+    const takeConflicts = jest.fn(async () => [{ path: 'shared.txt' }]);
+    initializeWorkspaceSync.mockReturnValue({
+      workspaceSync: { syncToS3: jest.fn(async () => ({ success: true })), takeConflicts },
+      hook: {},
+    });
+
+    await invoke({ workflowStep, storagePath: '/project' });
+
+    expect(callback().result).toMatchObject({ status: 'blocked', targetStepId: 'fetch' });
+  });
+
   it('still completes the callback when the final sync throws', async () => {
     const syncToS3 = jest.fn(async () => {
       throw new Error('no credentials');
     });
-    initializeWorkspaceSync.mockReturnValue({ workspaceSync: { syncToS3 }, hook: {} });
+    const takeConflicts = jest.fn(async () => []);
+    initializeWorkspaceSync.mockReturnValue({
+      workspaceSync: { syncToS3, takeConflicts },
+      hook: {},
+    });
 
     await invoke({ workflowStep, storagePath: '/project' });
 

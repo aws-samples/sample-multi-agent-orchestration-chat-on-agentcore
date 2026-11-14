@@ -84,7 +84,8 @@ ${renderTemplate(step.prompt, outputs)}${upstreamSection(step, outputs)}${situat
 
 ## How to finish
 - Write the complete deliverable as your reply text (the full text, not a summary or a file pointer — downstream steps only see this text).
-- Then call \`${WORKFLOW_SUBMIT_TOOL_NAME}\` exactly once with status "done". Do not repeat the deliverable in the tool arguments.${blockedHint}`;
+- Then call \`${WORKFLOW_SUBMIT_TOOL_NAME}\` exactly once with status "done". Do not repeat the deliverable in the tool arguments.
+- If the task did not succeed (a command exited non-zero, a tool errored, or a required input is missing) and you could not recover, call \`${WORKFLOW_SUBMIT_TOOL_NAME}\` with status "failed" and explain what went wrong in feedback. Never report "done" for work that did not succeed.${blockedHint}`;
 }
 
 export function buildReviewerPrompt(

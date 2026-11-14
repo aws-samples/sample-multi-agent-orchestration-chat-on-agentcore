@@ -133,6 +133,76 @@ export function buildStepResult(
   return { status: 'done', output: truncate(lastAssistantText(agent)), implicit: true, sessionId };
 }
 
+/** Sent when a step submitted without writing its deliverable as reply text. */
+export const EMPTY_REPLY_FOLLOW_UP_PROMPT =
+  'Your reply text was empty, so the workflow received no output from this step. ' +
+  'Write your complete deliverable now as plain reply text (include the results you obtained, ' +
+  'e.g. command outputs). Do not call any tools.';
+
+const TOOL_RESULT_DIGEST_COUNT = 3;
+const TOOL_RESULT_DIGEST_CHARS = 2000;
+
+/** Text of the turn's last few tool results — the last resort when no reply text exists. */
+export function toolResultDigest(messages: Messages): string {
+  const results: string[] = [];
+  for (let i = messages.length - 1; i >= 0 && results.length < TOOL_RESULT_DIGEST_COUNT; i--) {
+    const message = messages[i];
+    if (message.role === 'user' && textOf(message)) break; // start of the turn
+    for (const block of [...message.content].reverse()) {
+      if (block.type !== 'toolResultBlock') continue;
+      const { content, status } = block as unknown as {
+        status?: string;
+        content?: Array<{ type?: string; text?: string; json?: unknown }>;
+      };
+      const body = (content ?? [])
+        .map((c) => c.text ?? (c.json !== undefined ? JSON.stringify(c.json) : ''))
+        .join('\n')
+        .trim();
+      if (!body) continue;
+      results.unshift(
+        `[tool result: ${status ?? 'unknown'}]\n${body.slice(0, TOOL_RESULT_DIGEST_CHARS)}`
+      );
+      if (results.length >= TOOL_RESULT_DIGEST_COUNT) break;
+    }
+  }
+  return results.join('\n\n');
+}
+
+/**
+ * Workers hand their deliverable over as reply text, but some models submit
+ * without writing any (prompting alone did not fix it). Ask once more in the
+ * same session; if that still yields no text, pass the turn's latest tool
+ * results so the reviewer and downstream steps have something to check.
+ * The submitted status is kept either way.
+ */
+export async function recoverEmptyOutput(
+  agent: Pick<Agent, 'messages' | 'invoke'>,
+  result: WorkflowStepResult,
+  role: WorkflowStepInvocation['role']
+): Promise<WorkflowStepResult> {
+  // Only a worker's 'done' carries its deliverable in the reply; other
+  // verdicts (failed, blocked, reviews) explain themselves in feedback.
+  if (role !== 'worker' || result.status !== 'done' || result.output.trim()) return result;
+  const digest = toolResultDigest(agent.messages);
+  try {
+    await agent.invoke(EMPTY_REPLY_FOLLOW_UP_PROMPT);
+    const reply = turnReplyText(agent.messages);
+    if (reply) {
+      logger.info({ stepSessionId: result.sessionId }, 'Recovered empty step output by follow-up');
+      return { ...result, output: truncate(reply) };
+    }
+  } catch (error) {
+    logger.warn({ err: error, stepSessionId: result.sessionId }, 'Empty-output follow-up failed');
+  }
+  if (!digest) return result;
+  return {
+    ...result,
+    output: truncate(
+      `(The step wrote no reply text; its latest tool results follow.)\n\n${digest}`
+    ),
+  };
+}
+
 let client: LambdaClient | undefined;
 function getClient(): LambdaClient {
   client ??= new LambdaClient({ region: config.AWS_REGION });

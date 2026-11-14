@@ -14,9 +14,9 @@ import {
   getCurrentContext,
   runWithContext,
 } from '../libs/context/request-context.js';
-import { WorkspaceSync } from './workspace-sync.js';
-import { resolveSkillsPaths } from './workspace-sync-helper.js';
-import { WorkspaceSyncHook } from './session/workspace-sync-hook.js';
+import type { WorkspaceSync } from './workspace-sync.js';
+import { initializeWorkspaceSync, resolveSkillsPaths } from './workspace-sync-helper.js';
+import type { WorkspaceSyncHook } from './session/workspace-sync-hook.js';
 import { AgentCoreMemoryStorage } from './session/agentcore-memory-storage.js';
 import { SessionPersistenceHook } from './session/session-persistence-hook.js';
 import { createSessionPersistenceDeps } from './session-persistence-deps-factory.js';
@@ -106,7 +106,9 @@ class SubAgentTaskManager {
     // Check task limit per session
     if (options.parentSessionId) {
       const sessionTasks = Array.from(this.tasks.values()).filter(
-        (t) => t.parentSessionId === options.parentSessionId && t.status !== 'completed'
+        (t) =>
+          t.parentSessionId === options.parentSessionId &&
+          (t.status === 'pending' || t.status === 'running')
       );
       if (sessionTasks.length >= this.MAX_TASKS_PER_SESSION) {
         throw new Error(
@@ -242,14 +244,14 @@ class SubAgentTaskManager {
       let workspaceSyncHook: WorkspaceSyncHook | null = null;
 
       if (task.storagePath && userId) {
-        workspaceSync = new WorkspaceSync(userId, task.storagePath);
-        workspaceSync.startInitialSync();
-
-        if (context) {
-          context.workspaceSync = workspaceSync;
-        }
-
-        workspaceSyncHook = new WorkspaceSyncHook(workspaceSync);
+        // The parent's cached instance for the same (user, storagePath): one
+        // ETag map and one push queue per directory. A second instance would
+        // see the parent's uploads as foreign and record false conflicts.
+        ({ workspaceSync, hook: workspaceSyncHook } = initializeWorkspaceSync(
+          userId as UserId,
+          task.storagePath,
+          context
+        ));
 
         logger.info(
           {
@@ -287,6 +289,7 @@ class SubAgentTaskManager {
           actorId: memoryActorId,
           sessionId: validSessionId,
           sessionType: 'subagent' as const,
+          parent: task.parentSessionId ? { sessionId: task.parentSessionId } : undefined,
         };
 
         // Add session persistence hook (pass agentId and storagePath for DynamoDB session metadata)

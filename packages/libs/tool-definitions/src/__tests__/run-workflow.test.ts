@@ -83,4 +83,19 @@ describe('runWorkflowDefinition', () => {
     expect(runWorkflowDefinition.name).toBe('run_workflow');
     expect(runWorkflowDefinition.jsonSchema.required).toContain('action');
   });
+
+  it('rejects an unknown modelId when the known ids are given, listing them', () => {
+    const problems = validateWorkflowSpec(
+      spec([
+        { id: 'a', agentId: 'x', prompt: 'p', modelId: 'nope' },
+        { id: 'b', agentId: 'x', prompt: 'p', modelId: 'm1' },
+        { id: 'c', agentId: 'x', prompt: 'p', review: { agentId: 'r', criteria: 'c', modelId: 'bad' } },
+      ]),
+      { knownModelIds: ['m1', 'm2'] }
+    );
+    expect(problems).toEqual([
+      'Step "a": unknown modelId "nope". Use one of: m1, m2 (or omit it for the agent\'s default)',
+      'Step "c" review: unknown modelId "bad". Use one of: m1, m2 (or omit it for the agent\'s default)',
+    ]);
+  });
 });

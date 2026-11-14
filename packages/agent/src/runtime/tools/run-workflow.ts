@@ -8,12 +8,14 @@
  */
 
 import { tool } from '@strands-agents/sdk';
+import { BEDROCK_MODEL_DEFINITIONS, parseAllowedModelIds } from '@moca/core';
 import {
   runWorkflowDefinition,
   validateWorkflowSpec,
   type WorkflowSpec,
 } from '@moca/tool-definitions';
 import { config } from '../../config/index.js';
+import { listCallerAgents } from '../../services/agent-registry.js';
 import { logger } from '../../libs/logger/index.js';
 import {
   getCallerAuthorizationHeader,
@@ -22,7 +24,7 @@ import {
 } from '../../libs/context/request-context.js';
 
 type RunWorkflowInput = {
-  action: 'start' | 'status' | 'list' | 'cancel';
+  action: 'start' | 'status' | 'list' | 'cancel' | 'agents';
   workflow?: WorkflowSpec;
   workflowId?: string;
 };
@@ -60,10 +62,31 @@ async function callBackend(
   }
   if (!response.ok) {
     logger.warn({ path, status: response.status }, 'run_workflow backend call failed');
-    return { success: false, status: response.status, error: data.error ?? data };
+    // The Backend puts the reason phrase in `error` and the actionable detail
+    // (e.g. the concurrency limit) in `message`; the agent needs both.
+    return {
+      success: false,
+      status: response.status,
+      error: data.message ?? data.error ?? data,
+      ...(data.details !== undefined ? { details: data.details } : {}),
+    };
   }
   delete data.metadata;
   return { success: true, ...data };
+}
+
+/** The deployment's models (IAM is scoped to them); the built-in list in local dev. */
+function allowedModels(): Array<{ modelId: string; name: string }> {
+  return parseAllowedModelIds(config.BEDROCK_MODEL_IDS).map((id) => ({
+    modelId: id,
+    name: BEDROCK_MODEL_DEFINITIONS.find((m) => m.id === id)?.name ?? id,
+  }));
+}
+
+async function listStepCandidates(): Promise<Record<string, unknown>> {
+  const result = await listCallerAgents();
+  if (!result.ok) return { success: false, error: `Failed to list agents: ${result.error}` };
+  return { success: true, agents: result.agents, models: allowedModels() };
 }
 
 export async function runWorkflow(input: RunWorkflowInput): Promise<Record<string, unknown>> {
@@ -77,7 +100,9 @@ export async function runWorkflow(input: RunWorkflowInput): Promise<Record<strin
       if (!input.workflow) {
         return { success: false, error: 'workflow is required for start' };
       }
-      const problems = validateWorkflowSpec(input.workflow);
+      const problems = validateWorkflowSpec(input.workflow, {
+        knownModelIds: allowedModels().map((m) => m.modelId),
+      });
       if (problems.length > 0) {
         return { success: false, error: 'Invalid workflow', problems };
       }
@@ -113,6 +138,8 @@ export async function runWorkflow(input: RunWorkflowInput): Promise<Record<strin
       return callBackend('GET', `/workflows/${encodeURIComponent(input.workflowId)}`, authHeader);
     case 'list':
       return callBackend('GET', '/workflows?limit=10', authHeader);
+    case 'agents':
+      return listStepCandidates();
     case 'cancel':
       if (!input.workflowId) return { success: false, error: 'workflowId is required for cancel' };
       return callBackend(

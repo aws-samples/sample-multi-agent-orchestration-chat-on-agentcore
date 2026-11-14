@@ -48,9 +48,11 @@ import {
   buildStepResult,
   completeStepCallback,
   createSubmitResultTool,
+  recoverEmptyOutput,
   startCallbackHeartbeat,
 } from '../services/workflow/workflow-step.js';
-import type { WorkflowStepInvocation } from '@moca/tool-definitions';
+import type { WorkflowStepInvocation, WorkflowStepResult } from '@moca/tool-definitions';
+import type { SyncConflict } from '../types/workspace-sync-types.js';
 import type { StreamOutcome } from './stream-handler.js';
 
 /**
@@ -88,6 +90,29 @@ export async function handleInvocation(req: Request, res: Response): Promise<voi
   } finally {
     endTurn(sessionId, requestId);
   }
+}
+
+/**
+ * A worker whose files lost a write conflict did not deliver what it reported
+ * as done. Reported as the step's own failure, not a callback failure: a
+ * failed callback is retried, and a re-run cannot know why. Other statuses
+ * (blocked → upstream redo) are kept, and a reviewer's verdict stands: its
+ * deliverable is the review, not files.
+ */
+function withConflicts(
+  result: WorkflowStepResult,
+  conflicts: SyncConflict[],
+  role: WorkflowStepInvocation['role']
+): WorkflowStepResult {
+  if (conflicts.length === 0 || result.status !== 'done' || role !== 'worker') return result;
+  const files = conflicts
+    .map((c) => (c.savedAs ? `${c.path} (this step's version saved as ${c.savedAs})` : c.path))
+    .join(', ');
+  return {
+    ...result,
+    status: 'failed',
+    feedback: `Workspace conflict: another step changed ${files} first. Parallel steps must write to different files.`,
+  };
 }
 
 async function runTurn(req: Request, res: Response): Promise<void> {
@@ -177,6 +202,15 @@ async function runAgentTurn(
         actorId: identityId,
         sessionId,
         sessionType,
+        parent: workflowStep?.parentSessionId
+          ? {
+              sessionId: workflowStep.parentSessionId,
+              workflowId: workflowStep.workflowId,
+              workflowGoal: workflowStep.goal,
+              stepId: workflowStep.stepId,
+              role: workflowStep.role,
+            }
+          : undefined,
         agentId: body.agentId,
         storagePath: body.storagePath,
         deps: createSessionPersistenceDeps(),
@@ -221,6 +255,7 @@ async function runAgentTurn(
 
   const stopHeartbeat = workflowStep ? startCallbackHeartbeat(workflowStep) : undefined;
   let outcome: StreamOutcome;
+  let stepResult: WorkflowStepResult | undefined;
   try {
     outcome = await streamAgentResponse(agent, body.prompt, body.images, res, {
       metadata,
@@ -228,25 +263,38 @@ async function runAgentTurn(
       sessionStorage: sessionResult?.storage,
       sessionConfig: sessionResult?.config,
     });
+    if (workflowStep && outcome.ok) {
+      stepResult = buildStepResult(submit?.getSubmitted(), agent, sessionId);
+      // Before the final sync: the follow-up turn may still write files. A
+      // failure here must not skip the sync and the callback below.
+      try {
+        stepResult = await recoverEmptyOutput(agent, stepResult, workflowStep.role);
+      } catch (error) {
+        logger.warn({ err: error, requestId }, 'Recovering an empty step output failed');
+      }
+    }
   } finally {
     stopHeartbeat?.();
   }
 
   // Flush before the callback and stopOwnSession: a downstream step pulls from
   // S3 right after the callback, and stopping the session kills a pending push.
+  let conflicts: SyncConflict[] = [];
   if (workspaceSyncResult) {
+    const { workspaceSync } = workspaceSyncResult;
     try {
-      await workspaceSyncResult.workspaceSync.syncToS3();
+      await workspaceSync.syncToS3();
     } catch (error) {
       logger.error({ err: error, requestId }, 'Final workspace sync to S3 failed');
     }
+    conflicts = await workspaceSync.takeConflicts();
   }
 
   if (workflowStep) {
     await completeStepCallback(
       workflowStep,
       outcome.ok
-        ? { ok: true, result: buildStepResult(submit?.getSubmitted(), agent, sessionId) }
+        ? { ok: true, result: withConflicts(stepResult!, conflicts, workflowStep.role) }
         : outcome
     );
   }
