@@ -11,6 +11,7 @@ import {
   Circle,
   Clock,
   Code2,
+  Eye,
   FileEdit,
   Film,
   FolderOpen,
@@ -53,6 +54,7 @@ type LabelKey =
   | 'think'
   | 'files'
   | 'imageToText'
+  | 'viewImage'
   | 'image'
   | 'video'
   | 'knowledge'
@@ -78,6 +80,7 @@ const TOOL_META: Record<string, { icon: LucideIcon; label: LabelKey }> = {
   think: { icon: Brain, label: 'think' },
   s3_list_files: { icon: FolderOpen, label: 'files' },
   image_to_text: { icon: ScanText, label: 'imageToText' },
+  view_image: { icon: Eye, label: 'viewImage' },
   nova_canvas: { icon: ImageIcon, label: 'image' },
   nova_reel: { icon: Film, label: 'video' },
   retrieve: { icon: BookOpen, label: 'knowledge' },

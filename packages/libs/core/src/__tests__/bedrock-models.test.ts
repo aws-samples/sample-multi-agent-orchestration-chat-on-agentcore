@@ -12,6 +12,7 @@ import {
   isReasoningAlwaysOn,
   getOffThinkingMode,
   shouldStripPriorReasoning,
+  supportsToolResultImages,
   getBedrockEndpoint,
   type ReasoningDepth,
 } from '../bedrock-models.js';
@@ -665,5 +666,20 @@ describe('GPT-6.1 Terra', () => {
     // keys off this to build a BedrockModel (Converse) rather than an OpenAIModel.
     expect(getBedrockEndpoint(ID)).toBeUndefined();
     expect(getBedrockEndpoint('openai.gpt-6.1-terra')).toBeUndefined();
+  });
+});
+
+describe('supportsToolResultImages', () => {
+  it.each([
+    ['global.anthropic.claude-opus-5', true],
+    ['jp.anthropic.claude-haiku-5-5', true],
+    ['global.amazon.nova-2-lite-v1:0', true],
+    ['global.openai.gpt-6-astra', false],
+    ['qwen.qwen3-coder-next', false],
+    ['openai.gpt-5.5', false],
+    ['openai.gpt-oss-120b-1:0', false],
+    ['unknown.model-id', false],
+  ])('%s -> %s', (id, expected) => {
+    expect(supportsToolResultImages(id)).toBe(expected);
   });
 });

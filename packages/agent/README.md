@@ -87,7 +87,7 @@ Each line is a separate JSON event:
 
 ### Local Tools
 
-Built-in tools are located at `./src/runtime/tools/`. The following 12 tools are available locally in the runtime:
+Built-in tools are located at `./src/runtime/tools/`. The following 13 tools are available locally in the runtime:
 
 | Tool | Description |
 |------|-------------|
@@ -96,6 +96,7 @@ Built-in tools are located at `./src/runtime/tools/`. The following 12 tools are
 | `s3_list_files` | List S3 files |
 | `code_interpreter` | Execute Python code |
 | `image_to_text` | Analyze images |
+| `view_image` | View images directly as visual input |
 | `call_agent` | Invoke other agents |
 | `manage_agent` | Manage agent configurations |
 | `memory_search` | Search long-term memory |

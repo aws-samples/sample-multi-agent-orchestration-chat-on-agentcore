@@ -76,6 +76,7 @@ export {
   isReasoningAlwaysOn,
   getOffThinkingMode,
   shouldStripPriorReasoning,
+  supportsToolResultImages,
   isReasoningDepth,
   normalizeReasoningEffort,
   getBedrockEndpoint,

@@ -73,6 +73,7 @@ export const manageAgentDefinition: ToolDefinition<typeof manageAgentSchema> = {
 - ${RUNTIME_TOOL_NAMES.CODE_INTERPRETER}: Execute Python code
 - ${GATEWAY_TOOL_NAMES.NOVA_CANVAS}: Generate images
 - ${RUNTIME_TOOL_NAMES.IMAGE_TO_TEXT}: Analyze images
+- ${RUNTIME_TOOL_NAMES.VIEW_IMAGE}: View images directly (models that accept images in tool results)
 - ${RUNTIME_TOOL_NAMES.CALL_AGENT}: Invoke other agents
 - ${GATEWAY_TOOL_NAMES.NOVA_REEL}: Generate videos
 - ${RUNTIME_TOOL_NAMES.MANAGE_AGENT}: Manage agents

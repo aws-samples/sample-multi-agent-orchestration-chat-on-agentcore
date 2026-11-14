@@ -57,6 +57,16 @@ Describes or extracts text from an image via Bedrock. `imagePath` accepts a loca
 path or an `s3://` URI (**not** a presigned URL), optional `prompt`, optional
 vision `modelId` (defaults to Nova Lite 2). Good for OCR and visual understanding.
 
+## view_image — look at an image directly
+
+Puts the image into the agent's own context as visual input, so the agent sees the
+pixels instead of another model's description. `imagePath` accepts a local path
+or an `s3://` URI. Large images are downscaled; pass `region` (`x`, `y`, `width`,
+`height` in original-image pixels) to zoom in on small text or detail. The image
+is visible for the current turn only — later turns keep a text note, so the agent
+views it again when needed. Offered only on models that accept images in tool
+results (Claude and Nova); on other models use `image_to_text`.
+
 ## todo — track multi-step progress
 
 `init` creates/replaces a checklist (`items[]`); `update` changes item `status`
