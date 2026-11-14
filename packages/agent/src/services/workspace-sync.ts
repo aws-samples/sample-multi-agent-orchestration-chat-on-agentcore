@@ -12,7 +12,7 @@ import fs from 'fs';
 import path from 'path';
 import type { S3Client } from '@aws-sdk/client-s3';
 import { S3WorkspaceSync } from '@moca/s3-workspace-sync';
-import type { SyncResult } from '@moca/s3-workspace-sync';
+import type { SyncConflict, SyncResult } from '@moca/s3-workspace-sync';
 import {
   config,
   WORKSPACE_DIRECTORY,
@@ -27,6 +27,7 @@ import {
   UserCredentialsExpiredError,
 } from '../libs/utils/scoped-credentials.js';
 import { isCredentialExpiryError, reportPersistenceFailure } from './session/persistence-health.js';
+import { beginInvocation, endInvocation } from '../libs/health/in-flight.js';
 
 const logger = createLogger('WorkspaceSync');
 export type { SyncResult };
@@ -56,6 +57,10 @@ export class WorkspaceSync {
   private initPromise: Promise<void>;
   private sharedSkillsPromise?: Promise<string | null>;
   private sharedSkillsSync?: S3WorkspaceSync;
+  private pushChain: Promise<unknown> = Promise.resolve();
+  // A conflict is reported by the one push that hit it, which is usually a
+  // fire-and-forget hook push; the turn reads them all at its end.
+  private conflicts: SyncConflict[] = [];
 
   private readonly userId: string;
 
@@ -242,8 +247,21 @@ export class WorkspaceSync {
 
   /**
    * Upload local changes to S3 (diff-based).
+   *
+   * Pushes are serialized, so awaiting this also waits for every earlier
+   * (fire-and-forget) push — callers use it as a flush before the microVM may
+   * be released. `/ping` reports HealthyBusy while a push runs: the hook's
+   * push outlives the turn, and idle reclaim would otherwise SIGTERM it.
    */
-  async syncToS3(): Promise<SyncResult> {
+  syncToS3(): Promise<SyncResult> {
+    beginInvocation();
+    const current = this.pushChain.then(() => this.pushOnce());
+    this.pushChain = current.catch(() => undefined);
+    void this.pushChain.finally(endInvocation);
+    return current;
+  }
+
+  private async pushOnce(): Promise<SyncResult> {
     await this.initPromise;
 
     // Every upload would fail (and log) individually; report once instead.
@@ -253,9 +271,18 @@ export class WorkspaceSync {
     }
 
     const result = await this.inner.push();
+    if (result.conflicts) this.conflicts.push(...result.conflicts);
     const expiry = result.errors?.find((e) => isCredentialExpiryError(e));
     if (expiry) reportPersistenceFailure('workspace', expiry);
     return result;
+  }
+
+  /** Conflicts found by pushes since the last call (awaits pushes in flight). */
+  async takeConflicts(): Promise<SyncConflict[]> {
+    await this.pushChain;
+    const taken = this.conflicts;
+    this.conflicts = [];
+    return taken;
   }
 
   /**

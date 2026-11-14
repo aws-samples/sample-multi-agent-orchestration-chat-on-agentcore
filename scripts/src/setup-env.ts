@@ -42,6 +42,8 @@ interface StackOutputs {
   AgentUserScopedRoleArn?: string;
   IdentityPoolId?: string;
   TriggersTableName?: string;
+  WorkflowsTableName?: string;
+  WorkflowOrchestratorArn?: string;
   TriggerLambdaArn?: string;
   SchedulerRoleArn?: string;
   EventSourcesConfig?: string;
@@ -200,6 +202,10 @@ TRIGGERS_TABLE_NAME=${outputs.TriggersTableName || ''}
 TRIGGER_LAMBDA_ARN=${outputs.TriggerLambdaArn || ''}
 SCHEDULER_ROLE_ARN=${outputs.SchedulerRoleArn || ''}
 SCHEDULE_GROUP_NAME=default
+
+# Multi-agent workflows (run_workflow)
+WORKFLOWS_TABLE_NAME=${outputs.WorkflowsTableName || ''}
+WORKFLOW_ORCHESTRATOR_ARN=${outputs.WorkflowOrchestratorArn || ''}
 
 # Event Sources Configuration (JSON)
 EVENT_SOURCES_CONFIG=${outputs.EventSourcesConfig || '[]'}

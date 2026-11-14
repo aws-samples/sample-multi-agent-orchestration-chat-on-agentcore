@@ -159,6 +159,7 @@ export class SessionPersistenceHook implements Plugin {
               agentId: this.agentId,
               storagePath: this.storagePath,
               sessionType: this.sessionConfig.sessionType,
+              parent: this.sessionConfig.parent,
               // Store the User Pool sub so that session-stream-handler can
               // build AppSync channel paths without a colon (identityId has REGION:UUID).
               channelUserId: getCurrentContext()?.userId,

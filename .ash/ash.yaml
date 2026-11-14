@@ -34,6 +34,8 @@ global_settings:
       reason: 'CDK build-time configuration paths, not user input - false positive'
     - path: 'packages/libs/s3-workspace-sync/src/*'
       reason: 'fs.readdirSync results and server config, not user input - false positive'
+    - path: 'docs/diagram/data/*.json'
+      reason: 'Sanitized Lambda durable execution histories used to generate diagrams - the hex strings are operation Ids (hashes of call positions, e.g. md5("1")), not secrets; payloads are stripped by docs/diagram/extract_durable_history.py'
     - path: 'docs/guides/deployment-options.md'
       reason: 'Documentation examples with Secrets Manager reference names, not actual secrets'
     - path: 'packages/cdk/schemas/microsoft-graph-onedrive.json'

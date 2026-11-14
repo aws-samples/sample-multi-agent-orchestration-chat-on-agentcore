@@ -55,6 +55,13 @@ export interface FileInfo {
   hash: string;
 }
 
+/** See {@link SyncResult.conflicts}. */
+export interface SyncConflict {
+  path: string;
+  /** Workspace-relative path our version was uploaded to; absent if that upload failed too. */
+  savedAs?: string;
+}
+
 /**
  * Result returned by pull() and push() operations.
  */
@@ -64,6 +71,12 @@ export interface SyncResult {
   uploadedFiles?: number;
   deletedFiles?: number;
   errors?: string[];
+  /**
+   * Files whose S3 object changed since this workspace last saw it (another
+   * writer got there first). The remote version is kept; ours is saved next to
+   * it as `savedAs` so neither is lost. Also listed in `errors`.
+   */
+  conflicts?: SyncConflict[];
   duration?: number;
 }
 

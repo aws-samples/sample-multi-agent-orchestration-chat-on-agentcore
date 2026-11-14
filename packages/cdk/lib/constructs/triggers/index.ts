@@ -6,3 +6,4 @@
 export { TriggerLambda, TriggerLambdaProps } from './trigger-lambda';
 export { TriggerEventSources, TriggerEventSourcesProps } from './trigger-event-sources';
 export { SessionStreamHandler, SessionStreamHandlerProps } from './session-stream-handler';
+export { WorkflowOrchestrator, WorkflowOrchestratorProps } from './workflow-orchestrator';

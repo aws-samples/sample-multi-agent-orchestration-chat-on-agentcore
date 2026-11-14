@@ -15,6 +15,7 @@ jest.unstable_mockModule('../agent-registry.js', () => ({
   getAgentDefinition,
 }));
 jest.unstable_mockModule('../workspace-sync-helper.js', () => ({
+  initializeWorkspaceSync: () => ({ workspaceSync: {}, hook: {} }),
   resolveSkillsPaths: async () => [],
 }));
 const testLogger = { debug: jest.fn(), info: jest.fn(), warn: jest.fn(), error: jest.fn() };

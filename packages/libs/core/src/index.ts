@@ -46,6 +46,9 @@ export { isAgentId, parseAgentId, AGENT_ID_PATTERN } from './agent-id.js';
 export type { TriggerId } from './trigger-id.js';
 export { isTriggerId, parseTriggerId, TRIGGER_ID_PATTERN } from './trigger-id.js';
 
+// Session parent (child sessions nested under their parent)
+export type { SessionParent, WorkflowSessionRole } from './session-parent.js';
+
 // Crypto utilities
 export { getSecureRandomBytes } from './crypto.js';
 
@@ -78,5 +81,6 @@ export {
   shouldStripPriorReasoning,
   isReasoningDepth,
   normalizeReasoningEffort,
+  parseAllowedModelIds,
   getBedrockEndpoint,
 } from './bedrock-models.js';

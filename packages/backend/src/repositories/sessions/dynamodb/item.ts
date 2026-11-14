@@ -25,6 +25,7 @@ const SUMMARY_FIELDS: readonly (keyof SessionSummary)[] = [
   'agentId',
   'storagePath',
   'sessionType',
+  'parent',
   'activeTurnStartedAt',
   'createdAt',
   'updatedAt',

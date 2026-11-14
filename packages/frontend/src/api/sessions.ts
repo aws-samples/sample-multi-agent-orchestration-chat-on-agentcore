@@ -4,7 +4,7 @@
  */
 
 import { backendClient } from './client/backend-client';
-import type { AgentId, SessionId } from '@moca/core';
+import type { AgentId, SessionId, SessionParent } from '@moca/core';
 
 /**
  * Session type
@@ -30,6 +30,8 @@ export interface SessionSummary {
   storagePath?: string;
   /** ISO start of the turn running server-side; absent when idle. */
   activeTurnStartedAt?: string;
+  /** Set on child sessions (workflow steps, call_agent sub-agents). */
+  parent?: SessionParent;
 }
 
 /**
@@ -59,8 +61,16 @@ export type MessageContent =
   | { type: 'text'; text: string; truncated?: { field: string; byteSize: number } }
   | { type: 'toolUse'; toolUse: ToolUse; truncated?: { field: string; byteSize: number } }
   | { type: 'toolResult'; toolResult: ToolResult; truncated?: { field: string; byteSize: number } }
-  | { type: 'image'; image: { base64: string; mimeType: string; fileName?: string }; truncated?: { field: string; byteSize: number } }
-  | { type: 'reasoning'; reasoning: { text: string }; truncated?: { field: string; byteSize: number } }
+  | {
+      type: 'image';
+      image: { base64: string; mimeType: string; fileName?: string };
+      truncated?: { field: string; byteSize: number };
+    }
+  | {
+      type: 'reasoning';
+      reasoning: { text: string };
+      truncated?: { field: string; byteSize: number };
+    }
   | { type: 'truncated'; truncated: { originalType: string; byteSize: number } };
 
 /**

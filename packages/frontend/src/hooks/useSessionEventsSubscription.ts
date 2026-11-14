@@ -10,6 +10,7 @@ import { useAppSyncSubscription } from './useAppSyncSubscription';
 import { useAppSyncConnectionState } from '../stores/appsyncConnectionStore';
 import { logger } from '../utils/logger';
 import type { SessionType } from '../api/sessions';
+import type { SessionParent } from '@moca/core';
 
 // ============================================================
 // Constants & Channel Configuration
@@ -57,6 +58,7 @@ export interface SessionEvent {
   updatedAt?: string;
   createdAt?: string;
   activeTurnStartedAt?: string;
+  parent?: SessionParent;
   /** Absent from stream handlers that predate the active-turn marker. */
   turnActive?: boolean;
 }
@@ -76,8 +78,15 @@ export function applySessionEvent(event: SessionEvent): void {
       // Check if session already exists (might be added optimistically)
       const exists = store.sessions.some((s) => s.sessionId === event.sessionId);
       if (!exists) {
-        store.addOptimisticSession(event.sessionId, event.title, event.sessionType, event.agentId);
+        store.addOptimisticSession(
+          event.sessionId,
+          event.title,
+          event.sessionType,
+          event.agentId,
+          event.parent
+        );
       } else {
+        if (event.parent) store.updateSessionParent(event.sessionId, event.parent);
         // WHY: The session may have been added optimistically before the
         // stream event arrived (e.g., HTTP POST /sessions response) without
         // a sessionType / agentId. Patch them here so the sidebar badge
@@ -103,6 +112,7 @@ export function applySessionEvent(event: SessionEvent): void {
       if (event.sessionType) {
         store.updateSessionType(event.sessionId, event.sessionType);
       }
+      if (event.parent) store.updateSessionParent(event.sessionId, event.parent);
       // Backfill agentId in case the optimistic add ran before the
       // agentId-bearing event arrived. Required so clicking a `[Sub]`
       // session while the agent is still running switches the selected

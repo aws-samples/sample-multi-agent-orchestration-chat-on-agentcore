@@ -87,6 +87,9 @@ export interface RequestContext {
   persistenceDegradedReported?: boolean;
   /** Session type (from x-amzn-bedrock-agentcore-runtime-session-type header) */
   sessionType?: SessionType;
+  /** Agent / model of the current turn, so background work started by a tool can resume it. */
+  agentId?: string;
+  modelId?: string;
   /**
    * Verified access token payload. Populated by
    * `requestContextMiddleware` after successful JWKS / claims

@@ -127,7 +127,7 @@ export async function createAgent(options?: CreateAgentOptions): Promise<CreateA
   const agent = new Agent({
     model,
     systemPrompt,
-    tools: [...toolSet.tools, ...toolSet.mcpClients],
+    tools: [...toolSet.tools, ...(options?.additionalTools ?? []), ...toolSet.mcpClients],
     messages: savedMessages,
     // Sanitizer hooks run first so they clean assistant messages before any
     // caller-supplied plugin observes them. Both are harmless no-ops for models

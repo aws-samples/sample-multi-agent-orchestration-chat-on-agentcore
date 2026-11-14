@@ -44,6 +44,16 @@ import { logger } from '../libs/logger/index.js';
 import { streamAgentResponse } from './stream-handler.js';
 import { stopOwnSession } from '../services/session-terminator.js';
 import { endTurn, getActiveTurn, tryBeginTurn } from '../libs/health/turn-registry.js';
+import {
+  buildStepResult,
+  completeStepCallback,
+  createSubmitResultTool,
+  recoverEmptyOutput,
+  startCallbackHeartbeat,
+} from '../services/workflow/workflow-step.js';
+import type { WorkflowStepInvocation, WorkflowStepResult } from '@moca/tool-definitions';
+import type { SyncConflict } from '../types/workspace-sync-types.js';
+import type { StreamOutcome } from './stream-handler.js';
 
 /**
  * Agent invocation endpoint (with streaming support).
@@ -82,12 +92,71 @@ export async function handleInvocation(req: Request, res: Response): Promise<voi
   }
 }
 
+/**
+ * A worker whose files lost a write conflict did not deliver what it reported
+ * as done. Reported as the step's own failure, not a callback failure: a
+ * failed callback is retried, and a re-run cannot know why. Other statuses
+ * (blocked → upstream redo) are kept, and a reviewer's verdict stands: its
+ * deliverable is the review, not files.
+ */
+function withConflicts(
+  result: WorkflowStepResult,
+  conflicts: SyncConflict[],
+  role: WorkflowStepInvocation['role']
+): WorkflowStepResult {
+  if (conflicts.length === 0 || result.status !== 'done' || role !== 'worker') return result;
+  const files = conflicts
+    .map((c) => (c.savedAs ? `${c.path} (this step's version saved as ${c.savedAs})` : c.path))
+    .join(', ');
+  return {
+    ...result,
+    status: 'failed',
+    feedback: `Workspace conflict: another step changed ${files} first. Parallel steps must write to different files.`,
+  };
+}
+
 async function runTurn(req: Request, res: Response): Promise<void> {
   const body = req.body as InvocationRequest;
   const context = getCurrentContext()!;
+  // Only the orchestrator (machine user) may run a step: the callback id
+  // completes a durable execution, so a user-supplied one must be ignored.
+  const workflowStep = context.isMachineUser ? body.workflowStep : undefined;
+  if (body.workflowStep && !workflowStep) {
+    logger.warn(
+      { requestId: context.requestId },
+      'Ignoring workflowStep from a non-machine caller'
+    );
+  }
+  if (!workflowStep) {
+    await runAgentTurn(req, res);
+    return;
+  }
+  try {
+    await runAgentTurn(req, res, workflowStep);
+  } catch (error) {
+    await completeStepCallback(workflowStep, {
+      ok: false,
+      error: error instanceof Error ? error.message : String(error),
+    });
+    throw error;
+  }
+}
+
+async function runAgentTurn(
+  req: Request,
+  res: Response,
+  workflowStep?: WorkflowStepInvocation
+): Promise<void> {
+  const body = req.body as InvocationRequest;
+  const context = getCurrentContext()!;
+  context.agentId = body.agentId;
+  context.modelId = body.modelId;
   const userId = requireUserId(); // UserId — populated by authResolverMiddleware
   const identityId = requireIdentityId(); // IdentityId — populated by identityResolverMiddleware
-  const { sessionId, sessionType, requestId } = context;
+  const { sessionId, requestId } = context;
+  // AgentCore does not forward the Session-Type header (not allowlisted), so a
+  // workflow step is marked from the body to keep it out of the chat list.
+  const sessionType = workflowStep ? 'subagent' : context.sessionType;
 
   logger.info(
     {
@@ -133,6 +202,15 @@ async function runTurn(req: Request, res: Response): Promise<void> {
         actorId: identityId,
         sessionId,
         sessionType,
+        parent: workflowStep?.parentSessionId
+          ? {
+              sessionId: workflowStep.parentSessionId,
+              workflowId: workflowStep.workflowId,
+              workflowGoal: workflowStep.goal,
+              stepId: workflowStep.stepId,
+              role: workflowStep.role,
+            }
+          : undefined,
         agentId: body.agentId,
         storagePath: body.storagePath,
         deps: createSessionPersistenceDeps(),
@@ -142,10 +220,13 @@ async function runTurn(req: Request, res: Response): Promise<void> {
   // 3. Create and stream agent response. The Strands SDK opens its own
   // `invoke_agent` span (with `traceAttributes` injected by `agent.ts`),
   // so we don't add a wrapper span here.
+  const submit = workflowStep ? createSubmitResultTool() : undefined;
   const { agent, metadata, retryStrategy } = await createAgent({
+    additionalTools: submit ? [submit.tool] : undefined,
     plugins: [
       ...(sessionResult ? [sessionResult.hook] : []),
       ...(workspaceSyncResult ? [workspaceSyncResult.hook] : []),
+      ...(submit ? [submit.plugin] : []),
     ],
     modelId: body.modelId,
     reasoningEffort,
@@ -172,12 +253,51 @@ async function runTurn(req: Request, res: Response): Promise<void> {
     'Agent creation completed:'
   );
 
-  await streamAgentResponse(agent, body.prompt, body.images, res, {
-    metadata,
-    retryStrategy,
-    sessionStorage: sessionResult?.storage,
-    sessionConfig: sessionResult?.config,
-  });
+  const stopHeartbeat = workflowStep ? startCallbackHeartbeat(workflowStep) : undefined;
+  let outcome: StreamOutcome;
+  let stepResult: WorkflowStepResult | undefined;
+  try {
+    outcome = await streamAgentResponse(agent, body.prompt, body.images, res, {
+      metadata,
+      retryStrategy,
+      sessionStorage: sessionResult?.storage,
+      sessionConfig: sessionResult?.config,
+    });
+    if (workflowStep && outcome.ok) {
+      stepResult = buildStepResult(submit?.getSubmitted(), agent, sessionId);
+      // Before the final sync: the follow-up turn may still write files. A
+      // failure here must not skip the sync and the callback below.
+      try {
+        stepResult = await recoverEmptyOutput(agent, stepResult, workflowStep.role);
+      } catch (error) {
+        logger.warn({ err: error, requestId }, 'Recovering an empty step output failed');
+      }
+    }
+  } finally {
+    stopHeartbeat?.();
+  }
+
+  // Flush before the callback and stopOwnSession: a downstream step pulls from
+  // S3 right after the callback, and stopping the session kills a pending push.
+  let conflicts: SyncConflict[] = [];
+  if (workspaceSyncResult) {
+    const { workspaceSync } = workspaceSyncResult;
+    try {
+      await workspaceSync.syncToS3();
+    } catch (error) {
+      logger.error({ err: error, requestId }, 'Final workspace sync to S3 failed');
+    }
+    conflicts = await workspaceSync.takeConflicts();
+  }
+
+  if (workflowStep) {
+    await completeStepCallback(
+      workflowStep,
+      outcome.ok
+        ? { ok: true, result: withConflicts(stepResult!, conflicts, workflowStep.role) }
+        : outcome
+    );
+  }
 
   // Event-driven (trigger) invocations are fire-and-forget: nothing on the
   // client side will tell the Runtime the session is done, so the microVM
@@ -190,7 +310,8 @@ async function runTurn(req: Request, res: Response): Promise<void> {
   // frontend's graceful stream close lets them go Idle on their own. Stopping
   // also terminates any ongoing stream, so this must run AFTER the response is
   // sent (which it is — `streamAgentResponse` calls `res.end()` before returning).
-  if (sessionType === 'event' && sessionId) {
+  // Workflow steps are fire-and-forget too; a revision re-hydrates from Memory.
+  if ((sessionType === 'event' || workflowStep) && sessionId) {
     await stopOwnSession(sessionId);
   }
 }

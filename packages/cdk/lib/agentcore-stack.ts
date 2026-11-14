@@ -8,8 +8,19 @@ import {
   AgentCoreRuntime,
   GitHubTokenBroker,
 } from './constructs/agentcore';
-import { AgentsTable, SessionsTable, TriggersTable, UserStorage } from './constructs/storage';
-import { TriggerLambda, TriggerEventSources, SessionStreamHandler } from './constructs/triggers';
+import {
+  AgentsTable,
+  SessionsTable,
+  TriggersTable,
+  UserStorage,
+  WorkflowsTable,
+} from './constructs/storage';
+import {
+  TriggerLambda,
+  TriggerEventSources,
+  SessionStreamHandler,
+  WorkflowOrchestrator,
+} from './constructs/triggers';
 import { BackendApi, AppSyncEvents } from './constructs/api';
 import { Frontend } from './constructs/frontend';
 import { CognitoAuth, CognitoIdentityPool } from './constructs/auth';
@@ -473,6 +484,32 @@ export class AgentCoreStack extends cdk.Stack {
     // Grant Triggers Table read/write access to Backend API
     triggersTable.grantReadWrite(this.backendApi.role);
 
+    // Multi-agent workflows: the Backend creates/reads records and starts the
+    // durable orchestrator (created after the Runtime; referenced by fixed name).
+    const workflowsTable = new WorkflowsTable(this, 'WorkflowsTable', {
+      tableNamePrefix: resourcePrefix,
+      removalPolicy: envConfig.s3RemovalPolicy,
+    });
+    workflowsTable.table.grantReadWriteData(this.backendApi.role);
+    const workflowOrchestratorArn = WorkflowOrchestrator.functionArnFor(this, resourcePrefix);
+    this.backendApi.addEnvironmentVariable('WORKFLOWS_TABLE_NAME', workflowsTable.table.tableName);
+    this.backendApi.addEnvironmentVariable(
+      'WORKFLOW_ORCHESTRATOR_ARN',
+      `${workflowOrchestratorArn}:${WorkflowOrchestrator.ALIAS}`
+    );
+    // For setup-env.ts (local backend).
+    new cdk.CfnOutput(this, 'WorkflowsTableName', { value: workflowsTable.table.tableName });
+    new cdk.CfnOutput(this, 'WorkflowOrchestratorArn', {
+      value: `${workflowOrchestratorArn}:${WorkflowOrchestrator.ALIAS}`,
+    });
+    this.backendApi.grantPermissions(
+      new cdk.aws_iam.PolicyStatement({
+        sid: 'StartWorkflowOrchestrator',
+        actions: ['lambda:InvokeFunction'],
+        resources: [`${workflowOrchestratorArn}:${WorkflowOrchestrator.ALIAS}`],
+      })
+    );
+
     // Grant EventBridge Scheduler permissions to Backend API
     // Scoped to the 'default' schedule group only.
     this.backendApi.grantPermissions(
@@ -693,6 +730,36 @@ export class AgentCoreStack extends cdk.Stack {
     triggerLambda.lambdaFunction.addEnvironment(
       'AGENT_API_URL',
       `https://bedrock-agentcore.${this.region}.amazonaws.com/runtimes/${this.agentRuntime.runtimeArn}/invocations?qualifier=DEFAULT`
+    );
+
+    // 9.5. Workflow orchestrator (needs the Runtime ARN)
+    const workflowOrchestrator = new WorkflowOrchestrator(this, 'WorkflowOrchestrator', {
+      resourcePrefix,
+      workflowsTable: workflowsTable.table,
+      agentsTable: this.agentsTable.table,
+      agentRuntimeArn: this.agentRuntime.runtimeArn,
+      cognitoDomain: `${this.cognitoAuth.userPoolDomain.domainName}.auth.${this.region}.amazoncognito.com`,
+      cognitoClientId: this.cognitoAuth.machineUserClientId,
+      cognitoClientSecret: triggerLambda.machineClientSecret,
+      identityPoolId: cognitoIdentityPool.identityPoolId,
+      developerProviderName,
+      ssmParameterPrefix,
+    });
+    new cdk.CfnOutput(this, 'WorkflowOrchestratorFunctionName', {
+      value: workflowOrchestrator.lambdaFunction.functionName,
+      description: 'Multi-agent workflow orchestrator (Lambda durable function)',
+    });
+    // Step turns complete the orchestrator's durable callbacks.
+    this.agentRuntime.runtime.addToRolePolicy(
+      new cdk.aws_iam.PolicyStatement({
+        sid: 'CompleteWorkflowStepCallbacks',
+        actions: [
+          'lambda:SendDurableExecutionCallbackSuccess',
+          'lambda:SendDurableExecutionCallbackFailure',
+          'lambda:SendDurableExecutionCallbackHeartbeat',
+        ],
+        resources: [workflowOrchestratorArn, `${workflowOrchestratorArn}:*`],
+      })
     );
 
     // 10. Create Frontend
@@ -1184,6 +1251,18 @@ export class AgentCoreStack extends cdk.Stack {
           id: 'AwsSolutions-IAM5',
           reason:
             'Custom Resource policy for retrieving Cognito client secret is scoped to the specific user pool ARN. The Resource::* pattern here is the CDK Custom Resource framework default for the provider Lambda role.',
+        },
+      ]
+    );
+
+    NagSuppressions.addResourceSuppressionsByPath(
+      this,
+      [`/${id}/WorkflowOrchestrator/Function/ServiceRole/DefaultPolicy/Resource`],
+      [
+        {
+          id: 'AwsSolutions-IAM5',
+          reason:
+            'Durable execution ARNs are sub-resources of the function version (function:NAME:*), and SSM parameter/agents/* scopes per-agent MCP env parameters (same as the Trigger Lambda).',
         },
       ]
     );
