@@ -63,16 +63,16 @@ const AgentCard: React.FC<AgentCardProps> = ({
 
   return (
     <div
-      className={`relative bg-surface-primary rounded-2xl transition-all cursor-pointer border ${
+      className={`relative min-w-0 bg-surface-primary rounded-2xl transition-all cursor-pointer border ${
         isSelected ? 'border-blue-400' : 'border-border hover:border-border-strong'
       }`}
       onClick={() => onSelect(agent)}
     >
       <div className="p-4">
         <div className="flex items-start justify-between">
-          <div className="flex items-center space-x-3 flex-1">
+          <div className="flex items-center space-x-3 flex-1 min-w-0">
             <div
-              className={`w-10 h-10 rounded-lg flex items-center justify-center ${
+              className={`w-10 h-10 shrink-0 rounded-lg flex items-center justify-center ${
                 isSelected ? 'bg-feedback-info-bg' : 'bg-surface-secondary'
               }`}
             >
@@ -80,18 +80,23 @@ const AgentCard: React.FC<AgentCardProps> = ({
                 className={`w-5 h-5 ${isSelected ? 'text-fg-link' : 'text-fg-secondary'}`}
               />
             </div>
-            <div className="flex-1">
-              <div className="flex items-center space-x-2">
-                <h3 className="font-medium text-fg-default">{translateIfKey(agent.name, t)}</h3>
-                {isPinned && <Pin className="w-3 h-3 text-fg-muted" />}
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center space-x-2 min-w-0">
+                <h3
+                  className="font-medium text-fg-default line-clamp-2 wrap-anywhere"
+                  title={translateIfKey(agent.name, t)}
+                >
+                  {translateIfKey(agent.name, t)}
+                </h3>
+                {isPinned && <Pin className="w-3 h-3 shrink-0 text-fg-muted" />}
               </div>
-              <p className="text-sm text-fg-muted mt-1 line-clamp-2">
+              <p className="text-sm text-fg-muted mt-1 line-clamp-2 wrap-anywhere">
                 {translateIfKey(agent.description, t)}
               </p>
             </div>
           </div>
 
-          <div className="relative ml-2">
+          <div className="relative ml-2 shrink-0">
             <button
               onClick={(e) => onToggleMenu(agent.agentId, e)}
               className="p-1.5 text-fg-disabled hover:text-fg-secondary hover:bg-surface-secondary rounded-sm transition-colors"
