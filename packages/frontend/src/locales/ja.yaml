@@ -485,6 +485,7 @@ tool:
 
 # ストレージ
 workflowStatus:
+  detailTabs: 詳細
   separator: ' · '
   notice:
     completed: 'ワークフロー「{{goal}}」が完了しました'

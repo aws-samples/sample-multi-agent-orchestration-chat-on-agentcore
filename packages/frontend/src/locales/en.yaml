@@ -492,6 +492,7 @@ tool:
 
 # Storage
 workflowStatus:
+  detailTabs: Details
   separator: ' · '
   notice:
     completed: 'Workflow "{{goal}}" finished'

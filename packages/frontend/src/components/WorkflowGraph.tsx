@@ -1,4 +1,4 @@
-import React, { useId, useMemo, useState } from 'react';
+import React, { useEffect, useId, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Bot, RefreshCw } from 'lucide-react';
 import { cn } from '../lib/utils';
@@ -117,6 +117,10 @@ interface WorkflowGraphProps {
   /** Hide the goal line (when the caller already shows it as a title). */
   hideGoal?: boolean;
   className?: string;
+  /** Classes for the graph's own scroll area (e.g. a max height inside a fixed-height modal). */
+  graphClassName?: string;
+  /** Scroll the graph horizontally so the selected step is centred (narrow screens). */
+  centerSelected?: boolean;
 }
 
 /**
@@ -130,12 +134,26 @@ export const WorkflowGraph: React.FC<WorkflowGraphProps> = ({
   defaultSelected,
   hideGoal,
   className,
+  graphClassName,
+  centerSelected,
 }) => {
   const { t } = useTranslation();
   const agentName = useAgentName();
   const layout = useMemo(() => layoutWorkflow(spec), [spec]);
   const [selected, setSelected] = useState<string | undefined>(defaultSelected);
   const markerId = useId();
+  const scrollerRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!centerSelected || !selected) return;
+    const scroller = scrollerRef.current;
+    const node = scroller?.querySelector<HTMLElement>(`[data-step-id="${CSS.escape(selected)}"]`);
+    if (!scroller || !node) return;
+    // scrollLeft, not scrollIntoView: that would also scroll the modal vertically.
+    scroller.scrollTo({
+      left: node.offsetLeft - (scroller.clientWidth - node.offsetWidth) / 2,
+      behavior: 'smooth',
+    });
+  }, [centerSelected, selected]);
   if (!layout) return null;
 
   const maxRows = Math.max(...layout.levels.map((c) => c.length));
@@ -163,7 +181,7 @@ export const WorkflowGraph: React.FC<WorkflowGraphProps> = ({
       )}
       {/* Padding on every side: the selected node's ring and shadow paint outside
           the node, and this overflow container would clip them at the edges. */}
-      <div className="overflow-x-auto p-1">
+      <div ref={scrollerRef} className={cn('shrink-0 overflow-x-auto p-1', graphClassName)}>
         <div
           role="group"
           aria-label={t('tool.workflowGraph.ariaLabel', { count: spec.steps.length })}
@@ -220,6 +238,7 @@ export const WorkflowGraph: React.FC<WorkflowGraphProps> = ({
               <button
                 key={step.id}
                 type="button"
+                data-step-id={step.id}
                 aria-pressed={isSelected}
                 onClick={() => setSelected(isSelected ? undefined : step.id)}
                 className={cn(
@@ -251,11 +270,14 @@ export const WorkflowGraph: React.FC<WorkflowGraphProps> = ({
           })}
         </div>
       </div>
-      {renderDetail ? (
-        renderDetail(spec.steps.find((s) => s.id === selected))
-      ) : (
-        <StepDetail step={spec.steps.find((s) => s.id === selected)} agentName={agentName} />
-      )}
+      {/* Fills what the graph leaves when the parent is a bounded flex column (the status modal). */}
+      <div className="flex min-h-0 flex-1 flex-col">
+        {renderDetail ? (
+          renderDetail(spec.steps.find((s) => s.id === selected))
+        ) : (
+          <StepDetail step={spec.steps.find((s) => s.id === selected)} agentName={agentName} />
+        )}
+      </div>
     </div>
   );
 };

@@ -111,7 +111,7 @@ describe('WorkflowStatusModal', () => {
       '/chat/s-2'
     );
     // A single workflow needs no tabs.
-    expect(screen.queryByRole('tablist')).toBeNull();
+    expect(screen.queryByRole('tablist', { name: 'workflowStatus.workflows' })).toBeNull();
   });
 
   it('asks for confirmation before stopping', async () => {
@@ -138,14 +138,49 @@ describe('WorkflowStatusModal', () => {
     expect(useWorkflowStore.getState().seen).toEqual(['wf-done']);
   });
 
-  it('shows the graph first, then the instruction, then the result', () => {
+  it('renders the instruction and reviewer feedback as Markdown', () => {
+    const md: WorkflowView = {
+      ...running,
+      spec: {
+        ...running.spec,
+        steps: running.spec.steps.map((st) =>
+          st.id === 'report' ? { ...st, prompt: '1. **Read** the kit\n2. Run it' } : st
+        ),
+      },
+      steps: running.steps.map((st) =>
+        st.stepId === 'report' ? { ...st, feedback: 'Fix `npm test`' } : st
+      ),
+    };
+    renderModal([md]);
+    expect(screen.getByText('Read').tagName).toBe('STRONG');
+    expect(screen.getByText('Run it').closest('ol')).not.toBeNull();
+    expect(screen.getByText('npm test').tagName).toBe('CODE');
+  });
+
+  it('shows the result and the step instruction in one tabbed card under the graph', () => {
     renderModal([finished]);
-    const graph = screen.getByRole('group');
-    const instruction = screen.getByRole('heading', { name: 'workflowStatus.instruction' });
-    const result = screen.getByRole('heading', { name: 'workflowStatus.result' });
-    const follows = (a: Element, b: Element) =>
-      Boolean(a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING);
-    expect(follows(graph, instruction)).toBe(true);
-    expect(follows(instruction, result)).toBe(true);
+    const tabs = screen.getByRole('tablist', { name: 'workflowStatus.detailTabs' });
+    expect(
+      screen.getByRole('group').compareDocumentPosition(tabs) & Node.DOCUMENT_POSITION_FOLLOWING
+    ).toBeTruthy();
+    // The result first once there is one.
+    expect(screen.getByRole('tab', { name: 'workflowStatus.result' })).toHaveAttribute(
+      'aria-selected',
+      'true'
+    );
+    expect(screen.getByRole('heading', { name: 'Final report' })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('tab', { name: 'workflowStatus.instruction' }));
+    expect(screen.getByRole('tabpanel')).toHaveTextContent('Write');
+    expect(screen.queryByRole('heading', { name: 'Final report' })).toBeNull();
+  });
+
+  it('opens on the instruction while there is no result yet', () => {
+    renderModal([running]);
+    expect(screen.queryByRole('tab', { name: 'workflowStatus.result' })).toBeNull();
+    expect(screen.getByRole('tab', { name: 'workflowStatus.instruction' })).toHaveAttribute(
+      'aria-selected',
+      'true'
+    );
   });
 });
