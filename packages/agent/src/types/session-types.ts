@@ -5,7 +5,7 @@
  * Located in types/ (L0) so that all layers can depend on these types.
  */
 
-import type { IdentityId, SessionId } from '@moca/core';
+import type { IdentityId, SessionId, SessionParent } from '@moca/core';
 
 /**
  * Session type
@@ -33,6 +33,8 @@ export interface SessionConfig {
   sessionId: SessionId;
   /** Session type (default: 'user') */
   sessionType?: SessionType;
+  /** Recorded on the session row when the session is created. */
+  parent?: SessionParent;
 }
 
 /**

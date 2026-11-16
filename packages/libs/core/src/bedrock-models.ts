@@ -825,3 +825,15 @@ export function normalizeReasoningEffort(value: unknown): NormalizedReasoningEff
   }
   return { depth: undefined, invalid: true };
 }
+
+/**
+ * Model ids a deployment allows: its comma-separated `BEDROCK_MODEL_IDS`
+ * (the same list IAM is scoped to), or every built-in model when unset (local dev).
+ */
+export function parseAllowedModelIds(configured: string | undefined): string[] {
+  const ids = (configured ?? '')
+    .split(',')
+    .map((id) => id.trim())
+    .filter(Boolean);
+  return ids.length > 0 ? ids : BEDROCK_MODEL_DEFINITIONS.map((m) => m.id);
+}

@@ -16,7 +16,7 @@ const log = createLogger('AgentInvoker');
  * @param url - URL to encode
  * @returns Encoded URL
  */
-function encodeAgentUrl(url: string): string {
+export function encodeAgentUrl(url: string): string {
   if (url.includes('bedrock-agentcore') && url.includes('/runtimes/arn:')) {
     return url.replace(/\/runtimes\/(arn:[^/]+\/[^/]+)\//, (_match: string, arn: string) => {
       return `/runtimes/${encodeURIComponent(arn)}/`;

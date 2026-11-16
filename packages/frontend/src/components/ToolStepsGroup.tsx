@@ -1,4 +1,4 @@
-import React, { useId, useState } from 'react';
+import React, { useId, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { formatBytes } from '../utils/formatBytes';
 import {
@@ -23,10 +23,15 @@ import {
   ScanText,
   Search,
   Terminal,
+  Workflow,
   Wrench,
   type LucideIcon,
 } from 'lucide-react';
 import { cn } from '../lib/utils';
+import { WorkflowGraph } from './WorkflowGraph';
+import { layoutWorkflow, parseWorkflowInput } from '../utils/workflow-layout';
+import { parseStartedWorkflowId } from '../utils/session-workflows';
+import { useWorkflowStore } from '../stores/workflowStore';
 import {
   formatToolResult,
   stepSummary,
@@ -57,6 +62,7 @@ type LabelKey =
   | 'video'
   | 'knowledge'
   | 'trigger'
+  | 'workflow'
   | 'reasoning';
 
 const TOOL_META: Record<string, { icon: LucideIcon; label: LabelKey }> = {
@@ -72,6 +78,7 @@ const TOOL_META: Record<string, { icon: LucideIcon; label: LabelKey }> = {
   call_agent: { icon: Bot, label: 'agent' },
   manage_agent: { icon: Bot, label: 'agent' },
   manage_trigger: { icon: Clock, label: 'trigger' },
+  run_workflow: { icon: Workflow, label: 'workflow' },
   todo: { icon: ListTodo, label: 'todo' },
   generate_ui: { icon: LayoutDashboard, label: 'ui' },
   memory_search: { icon: History, label: 'memory' },
@@ -169,6 +176,72 @@ const DetailBlock: React.FC<{
   </div>
 );
 
+/** run_workflow start input: graph (default) ⇄ JSON. Falls back to JSON when unrenderable. */
+const WorkflowInputBlock: React.FC<{ input: Record<string, unknown>; resultContent?: string }> = ({
+  input,
+  resultContent,
+}) => {
+  const { t } = useTranslation();
+  const [view, setView] = useState<'graph' | 'json'>('graph');
+  // Live state comes from the composer's status launcher, which does the polling.
+  const workflowId = useMemo(() => parseStartedWorkflowId(resultContent), [resultContent]);
+  const liveSteps = useWorkflowStore((s) =>
+    workflowId ? s.workflows[workflowId]?.data?.steps : undefined
+  );
+  const stepStates = useMemo(
+    () => (liveSteps ? Object.fromEntries(liveSteps.map((st) => [st.stepId, st])) : undefined),
+    [liveSteps]
+  );
+  const json = JSON.stringify(input, null, 2);
+  const spec = useMemo(() => {
+    const parsed = parseWorkflowInput(input);
+    return parsed && layoutWorkflow(parsed) ? parsed : null;
+  }, [input]);
+  if (!spec) {
+    return <DetailBlock label={t('common.inputParameters')} text={json} mono />;
+  }
+  return (
+    <div>
+      <div className="mb-1 flex items-center justify-between gap-2">
+        <span className="text-[11px] font-medium text-fg-muted">{t('common.inputParameters')}</span>
+        <div className="flex items-center gap-1">
+          <div
+            role="tablist"
+            aria-label={t('tool.workflowGraph.view')}
+            className="flex rounded-btn border border-border p-0.5 text-[11px]"
+          >
+            {(['graph', 'json'] as const).map((v) => (
+              <button
+                key={v}
+                type="button"
+                role="tab"
+                aria-selected={view === v}
+                onClick={() => setView(v)}
+                className={cn(
+                  'rounded-sm px-2 py-0.5',
+                  view === v
+                    ? 'bg-surface-secondary font-medium text-fg-default'
+                    : 'text-fg-muted hover:text-fg-secondary'
+                )}
+              >
+                {t(`tool.workflowGraph.${v}`)}
+              </button>
+            ))}
+          </div>
+          <CopyButton text={json} />
+        </div>
+      </div>
+      {view === 'graph' ? (
+        <WorkflowGraph spec={spec} stepStates={stepStates} />
+      ) : (
+        <pre className="max-h-64 overflow-auto whitespace-pre-wrap wrap-break-word rounded-btn border border-border bg-surface-secondary p-2 font-mono text-xs text-fg-default">
+          {json}
+        </pre>
+      )}
+    </div>
+  );
+};
+
 const ToolStepDetail: React.FC<{ step: ToolStep }> = ({ step }) => {
   const { t } = useTranslation();
   const result = step.result ? formatToolResult(step.result.content) : null;
@@ -178,6 +251,8 @@ const ToolStepDetail: React.FC<{ step: ToolStep }> = ({ step }) => {
         <p className="text-xs text-fg-muted italic">
           {t('tool.steps.inputOmitted', { size: formatBytes(step.truncated.byteSize) })}
         </p>
+      ) : toolBaseName(step.name) === 'run_workflow' && step.input.action === 'start' ? (
+        <WorkflowInputBlock input={step.input} resultContent={step.result?.content} />
       ) : (
         Object.keys(step.input).length > 0 && (
           <DetailBlock
@@ -257,7 +332,9 @@ const StepRow: React.FC<{ step: Step }> = ({ step }) => {
                 })}
               </p>
             ) : (
-              <p className="whitespace-pre-wrap wrap-break-word text-xs text-fg-muted">{step.text}</p>
+              <p className="whitespace-pre-wrap wrap-break-word text-xs text-fg-muted">
+                {step.text}
+              </p>
             )
           ) : (
             <ToolStepDetail step={step} />

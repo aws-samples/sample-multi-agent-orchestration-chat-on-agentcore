@@ -12,6 +12,7 @@ export { browserTool } from './browser/index.js';
 export { todoTool } from './todo/index.js';
 export { thinkTool } from './think.js';
 export { generateUiTool } from './generate-ui/index.js';
+export { runWorkflowTool } from './run-workflow.js';
 
 // Import local tool array
 import { executeCommandTool } from './execute-command.js';
@@ -27,6 +28,7 @@ import { browserTool } from './browser/index.js';
 import { todoTool } from './todo/index.js';
 import { thinkTool } from './think.js';
 import { generateUiTool } from './generate-ui/index.js';
+import { runWorkflowTool } from './run-workflow.js';
 
 /**
  * List of local tools built into the Agent
@@ -50,4 +52,5 @@ export const localTools = [
   todoTool,
   thinkTool,
   generateUiTool,
+  runWorkflowTool,
 ];

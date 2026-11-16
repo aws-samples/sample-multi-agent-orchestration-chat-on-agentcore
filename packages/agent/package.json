@@ -38,6 +38,7 @@
     "@aws-sdk/client-bedrock-agentcore": "^3.1156.0",
     "@aws-sdk/client-cognito-identity": "^3.1156.0",
     "@aws-sdk/client-dynamodb": "^3.1156.0",
+    "@aws-sdk/client-lambda": "^3.1156.0",
     "@aws-sdk/client-s3": "^3.1156.0",
     "@aws-sdk/credential-provider-node": "^3.654.0",
     "@aws-sdk/s3-request-presigner": "^3.1156.0",

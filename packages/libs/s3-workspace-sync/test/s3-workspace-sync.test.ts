@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { S3WorkspaceSync } from '../src/s3-workspace-sync.js';
+import { S3WorkspaceSync, conflictCopyPath } from '../src/s3-workspace-sync.js';
 import type { SyncLogger, SyncProgress } from '../src/types.js';
 import * as fs from 'fs';
 import * as path from 'path';
@@ -20,44 +20,81 @@ function createMockS3Client(initialObjects: MockS3Object[] = []) {
   const store = new Map<string, MockS3Object>();
   initialObjects.forEach((obj) => store.set(obj.Key, obj));
 
-  const send = vi.fn(async (command: { constructor: { name: string }; input?: Record<string, unknown> }) => {
-    const name = command.constructor.name;
-    const input = command.input as Record<string, unknown> ?? {};
+  const send = vi.fn(
+    async (command: { constructor: { name: string }; input?: Record<string, unknown> }) => {
+      const name = command.constructor.name;
+      const input = (command.input as Record<string, unknown>) ?? {};
 
-    if (name === 'ListObjectsV2Command') {
-      const prefix = (input.Prefix as string) || '';
-      const contents = Array.from(store.values())
-        .filter((obj) => obj.Key.startsWith(prefix))
-        .map((obj) => ({
-          Key: obj.Key,
-          Size: obj.Body.length,
-          LastModified: new Date(),
-          ETag: `"${Buffer.from(obj.Body).toString('base64')}"`,
-        }));
-      return { Contents: contents, IsTruncated: false };
+      if (name === 'ListObjectsV2Command') {
+        const prefix = (input.Prefix as string) || '';
+        const contents = Array.from(store.values())
+          .filter((obj) => obj.Key.startsWith(prefix))
+          .map((obj) => ({
+            Key: obj.Key,
+            Size: obj.Body.length,
+            LastModified: new Date(),
+            ETag: `"${Buffer.from(obj.Body).toString('base64')}"`,
+          }));
+        return { Contents: contents, IsTruncated: false };
+      }
+
+      if (name === 'GetObjectCommand') {
+        const key = input.Key as string;
+        const obj = store.get(key);
+        if (!obj) throw new Error(`NoSuchKey: ${key}`);
+        const body = Readable.from(Buffer.from(obj.Body));
+        return { Body: body };
+      }
+
+      if (name === 'PutObjectCommand') {
+        const key = input.Key as string;
+        const body = input.Body as Buffer;
+        // Emulate S3 conditional writes.
+        const existing = store.get(key);
+        const currentEtag = existing && `"${Buffer.from(existing.Body).toString('base64')}"`;
+        if (input.IfMatch !== undefined && !existing) {
+          throw Object.assign(new Error('The specified key does not exist.'), {
+            name: 'NoSuchKey',
+            $metadata: { httpStatusCode: 404 },
+          });
+        }
+        const preconditionFailed =
+          (input.IfNoneMatch === '*' && existing) ||
+          (input.IfMatch !== undefined && input.IfMatch !== currentEtag);
+        if (preconditionFailed) {
+          throw Object.assign(
+            new Error('At least one of the pre-conditions you specified did not hold'),
+            {
+              name: 'PreconditionFailed',
+              $metadata: { httpStatusCode: 412 },
+            }
+          );
+        }
+        store.set(key, {
+          Key: key,
+          Body: body.toString(),
+          ContentType: input.ContentType as string,
+        });
+        return { ETag: `"${body.toString('base64')}"` };
+      }
+
+      if (name === 'DeleteObjectCommand') {
+        const key = input.Key as string;
+        const existing = store.get(key);
+        const currentEtag = existing && `"${Buffer.from(existing.Body).toString('base64')}"`;
+        if (input.IfMatch !== undefined && existing && input.IfMatch !== currentEtag) {
+          throw Object.assign(new Error('precondition'), {
+            name: 'PreconditionFailed',
+            $metadata: { httpStatusCode: 412 },
+          });
+        }
+        store.delete(key);
+        return {};
+      }
+
+      throw new Error(`Unmocked S3 command: ${name}`);
     }
-
-    if (name === 'GetObjectCommand') {
-      const key = input.Key as string;
-      const obj = store.get(key);
-      if (!obj) throw new Error(`NoSuchKey: ${key}`);
-      const body = Readable.from(Buffer.from(obj.Body));
-      return { Body: body };
-    }
-
-    if (name === 'PutObjectCommand') {
-      const key = input.Key as string;
-      const body = input.Body as Buffer;
-      store.set(key, {
-        Key: key,
-        Body: body.toString(),
-        ContentType: input.ContentType as string,
-      });
-      return { ETag: `"${body.toString('base64')}"` };
-    }
-
-    throw new Error(`Unmocked S3 command: ${name}`);
-  });
+  );
 
   return { send, _store: store };
 }
@@ -256,9 +293,7 @@ describe('S3WorkspaceSync', () => {
       // Pre-create a local file that doesn't exist on S3
       fs.writeFileSync(path.join(tmpDir, 'old-file.txt'), 'will be deleted');
 
-      const mockClient = createMockS3Client([
-        { Key: 'prefix/new-file.txt', Body: 'new content' },
-      ]);
+      const mockClient = createMockS3Client([{ Key: 'prefix/new-file.txt', Body: 'new content' }]);
 
       const sync = new S3WorkspaceSync({
         bucket: 'my-bucket',
@@ -323,9 +358,7 @@ describe('S3WorkspaceSync', () => {
     });
 
     it('uploads modified files', async () => {
-      const mockClient = createMockS3Client([
-        { Key: 'prefix/file.txt', Body: 'original' },
-      ]);
+      const mockClient = createMockS3Client([{ Key: 'prefix/file.txt', Body: 'original' }]);
 
       const sync = new S3WorkspaceSync({
         bucket: 'my-bucket',
@@ -348,9 +381,7 @@ describe('S3WorkspaceSync', () => {
     });
 
     it('does not upload unchanged files', async () => {
-      const mockClient = createMockS3Client([
-        { Key: 'prefix/file.txt', Body: 'same content' },
-      ]);
+      const mockClient = createMockS3Client([{ Key: 'prefix/file.txt', Body: 'same content' }]);
 
       const sync = new S3WorkspaceSync({
         bucket: 'my-bucket',
@@ -413,7 +444,8 @@ describe('S3WorkspaceSync', () => {
 
       // Verify PutObjectCommand was called with correct ContentType
       const putCalls = mockClient.send.mock.calls.filter(
-        (call: unknown[]) => (call[0] as { constructor: { name: string } }).constructor.name === 'PutObjectCommand'
+        (call: unknown[]) =>
+          (call[0] as { constructor: { name: string } }).constructor.name === 'PutObjectCommand'
       );
       expect(putCalls.length).toBe(1);
       expect((putCalls[0][0] as { input: { ContentType: string } }).input.ContentType).toBe(
@@ -422,11 +454,131 @@ describe('S3WorkspaceSync', () => {
     });
   });
 
+  describe('conflictCopyPath', () => {
+    it('inserts a timestamp before the extension, keeping the directory', () => {
+      const now = new Date('2026-11-13T12:34:56.789Z');
+      expect(conflictCopyPath('docs/report.md', now)).toBe(
+        'docs/report (conflict 2026-11-13 123456).md'
+      );
+      expect(conflictCopyPath('Makefile', now)).toBe('Makefile (conflict 2026-11-13 123456)');
+    });
+  });
+
+  describe('push() with concurrent writers on the same prefix', () => {
+    const makeSync = (client: ReturnType<typeof createMockS3Client>, dir: string) =>
+      new S3WorkspaceSync({
+        bucket: 'b',
+        prefix: 'p/',
+        workspaceDir: dir,
+        s3Client: client as unknown as import('@aws-sdk/client-s3').S3Client,
+        logger: createSilentLogger(),
+      });
+
+    it('does not overwrite a file another writer created after our pull', async () => {
+      const client = createMockS3Client();
+      const dirA = path.join(tmpDir, 'a');
+      const dirB = path.join(tmpDir, 'b');
+      const a = makeSync(client, dirA);
+      const b = makeSync(client, dirB);
+      await Promise.all([a.pull(), b.pull()]);
+
+      fs.writeFileSync(path.join(dirA, 'shared.txt'), 'from a');
+      fs.writeFileSync(path.join(dirB, 'shared.txt'), 'from b');
+      expect((await a.push()).conflicts).toBeUndefined();
+      const resultB = await b.push();
+
+      expect(resultB.success).toBe(false);
+      expect(resultB.conflicts).toEqual([
+        { path: 'shared.txt', savedAs: expect.stringMatching(/^shared \(conflict .+\)\.txt$/) },
+      ]);
+      // Theirs keeps the path; ours is kept beside it.
+      expect(client._store.get('p/shared.txt')?.Body).toBe('from a');
+      const copy = resultB.conflicts![0].savedAs!;
+      expect(client._store.get(`p/${copy}`)?.Body).toBe('from b');
+      // Reported once, not on every later push.
+      expect((await b.push()).conflicts).toBeUndefined();
+    });
+
+    it('does not overwrite a file another writer changed after our pull', async () => {
+      const client = createMockS3Client([{ Key: 'p/shared.txt', Body: 'v1' }]);
+      const dirA = path.join(tmpDir, 'a');
+      const dirB = path.join(tmpDir, 'b');
+      const a = makeSync(client, dirA);
+      const b = makeSync(client, dirB);
+      await Promise.all([a.pull(), b.pull()]);
+
+      fs.appendFileSync(path.join(dirA, 'shared.txt'), '+a');
+      fs.appendFileSync(path.join(dirB, 'shared.txt'), '+b');
+      await a.push();
+      const resultB = await b.push();
+
+      expect(resultB.conflicts?.map((c) => c.path)).toEqual(['shared.txt']);
+      expect(client._store.get('p/shared.txt')?.Body).toBe('v1+a');
+    });
+
+    it('treats identical content written by another writer as no conflict', async () => {
+      const client = createMockS3Client();
+      const dirA = path.join(tmpDir, 'a');
+      const dirB = path.join(tmpDir, 'b');
+      const a = makeSync(client, dirA);
+      const b = makeSync(client, dirB);
+      await Promise.all([a.pull(), b.pull()]);
+      fs.writeFileSync(path.join(dirA, 'same.txt'), 'same');
+      fs.writeFileSync(path.join(dirB, 'same.txt'), 'same');
+      await a.push();
+      const resultB = await b.push();
+
+      expect(resultB.success).toBe(true);
+      expect(resultB.conflicts).toBeUndefined();
+    });
+
+    it('recreates a file another writer deleted after our pull', async () => {
+      const client = createMockS3Client([{ Key: 'p/out.md', Body: 'v1' }]);
+      const dir = path.join(tmpDir, 'a');
+      const a = makeSync(client, dir);
+      await a.pull();
+      client._store.delete('p/out.md');
+      fs.writeFileSync(path.join(dir, 'out.md'), 'v2');
+      const result = await a.push();
+
+      expect(result.success).toBe(true);
+      expect(client._store.get('p/out.md')?.Body).toBe('v2');
+    });
+
+    it('does not delete a file another writer changed after our pull', async () => {
+      const client = createMockS3Client([{ Key: 'p/data.csv', Body: 'v1' }]);
+      const dirA = path.join(tmpDir, 'a');
+      const dirB = path.join(tmpDir, 'b');
+      const a = makeSync(client, dirA);
+      const b = makeSync(client, dirB);
+      await Promise.all([a.pull(), b.pull()]);
+      fs.writeFileSync(path.join(dirA, 'data.csv'), 'v2');
+      await a.push();
+      fs.rmSync(path.join(dirB, 'data.csv'));
+      const resultB = await b.push();
+
+      expect(resultB.conflicts).toEqual([{ path: 'data.csv' }]);
+      expect(client._store.get('p/data.csv')?.Body).toBe('v2');
+    });
+
+    it('keeps updating a file it owns', async () => {
+      const client = createMockS3Client();
+      const dir = path.join(tmpDir, 'a');
+      const a = makeSync(client, dir);
+      await a.pull();
+      fs.writeFileSync(path.join(dir, 'own.txt'), 'v1');
+      await a.push();
+      fs.writeFileSync(path.join(dir, 'own.txt'), 'v2');
+      const result = await a.push();
+
+      expect(result.success).toBe(true);
+      expect(client._store.get('p/own.txt')?.Body).toBe('v2');
+    });
+  });
+
   describe('background pull', () => {
     it('startBackgroundPull + waitForPull works', async () => {
-      const mockClient = createMockS3Client([
-        { Key: 'prefix/file.txt', Body: 'content' },
-      ]);
+      const mockClient = createMockS3Client([{ Key: 'prefix/file.txt', Body: 'content' }]);
 
       const sync = new S3WorkspaceSync({
         bucket: 'my-bucket',
@@ -488,7 +640,10 @@ describe('S3WorkspaceSync', () => {
       // Create > 100 objects to trigger progress reporting
       const objects: MockS3Object[] = [];
       for (let i = 0; i < 120; i++) {
-        objects.push({ Key: `prefix/file-${i.toString().padStart(3, '0')}.txt`, Body: `content-${i}` });
+        objects.push({
+          Key: `prefix/file-${i.toString().padStart(3, '0')}.txt`,
+          Body: `content-${i}`,
+        });
       }
 
       const mockClient = createMockS3Client(objects);

@@ -19,7 +19,7 @@
  * so existing callers (session-persistence-hook, etc.) are unchanged.
  */
 
-import type { AgentId, UserId } from '@moca/core';
+import type { AgentId, SessionParent, UserId } from '@moca/core';
 import { config } from '../config/index.js';
 import { createLogger } from '../libs/logger/index.js';
 import { createUserScopedDynamoDBClient, getIdentityId } from '../libs/utils/scoped-credentials.js';
@@ -47,6 +47,7 @@ export interface CreateSessionOptions {
   sessionType?: 'user' | 'event' | 'subagent';
   /** Cognito User Pool sub — used for AppSync channel paths (no colons). */
   channelUserId?: string;
+  parent?: SessionParent;
 }
 
 /**
@@ -108,6 +109,7 @@ export class SessionsService {
       storagePath: options.storagePath,
       sessionType: options.sessionType,
       channelUserId: options.channelUserId as UserId | undefined,
+      parent: options.parent,
     });
   }
 

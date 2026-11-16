@@ -10,6 +10,7 @@ const createAgent = jest.fn<(options: CreateAgentOptions) => Promise<unknown>>()
 jest.unstable_mockModule('../../agent.js', () => ({ createAgent }));
 jest.unstable_mockModule('../agent-registry.js', () => ({
   listAgents: async () => [],
+  listCallerAgents: async () => ({ ok: true, agents: [] }),
   getAgentDefinition: async () => ({
     systemPrompt: 'You are a sub-agent.',
     enabledTools: [],
@@ -17,6 +18,7 @@ jest.unstable_mockModule('../agent-registry.js', () => ({
   }),
 }));
 jest.unstable_mockModule('../workspace-sync-helper.js', () => ({
+  initializeWorkspaceSync: () => ({ workspaceSync: {}, hook: {} }),
   resolveSkillsPaths: async () => [],
 }));
 const warn = jest.fn();

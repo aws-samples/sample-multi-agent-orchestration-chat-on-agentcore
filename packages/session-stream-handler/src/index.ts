@@ -36,6 +36,8 @@ interface SessionEvent {
    * key (REGION:UUID format) which AppSync rejects due to the colon character.
    */
   channelUserId?: string;
+  /** Set on child sessions so the sidebar can nest them under their parent. */
+  parent?: Record<string, string>;
   /** ISO start of the running turn; absent when idle. */
   activeTurnStartedAt?: string;
   /**
@@ -65,6 +67,13 @@ export function parseRecord(record: DynamoDBRecord): SessionEvent | null {
   }
 
   const activeTurnStartedAt = (image.activeTurnStartedAt as { S: string } | undefined)?.S;
+  // `parent` is a map of strings (SessionParent); no other attribute types occur.
+  const parentMap = (image.parent as { M?: Record<string, { S?: string }> } | undefined)?.M;
+  const parent = parentMap
+    ? Object.fromEntries(
+        Object.entries(parentMap).flatMap(([k, v]) => (v.S === undefined ? [] : [[k, v.S]]))
+      )
+    : undefined;
 
   return {
     type: eventName,
@@ -75,6 +84,7 @@ export function parseRecord(record: DynamoDBRecord): SessionEvent | null {
     updatedAt: (image.updatedAt as { S: string })?.S,
     createdAt: (image.createdAt as { S: string })?.S,
     channelUserId: (image.channelUserId as { S: string })?.S,
+    parent,
     activeTurnStartedAt,
     turnActive: eventName !== 'REMOVE' && !!activeTurnStartedAt,
   };

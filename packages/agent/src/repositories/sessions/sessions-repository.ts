@@ -23,7 +23,7 @@
  * - A missing session reads as `null` (getSession).
  */
 
-import type { AgentId, UserId } from '@moca/core';
+import type { AgentId, SessionParent, UserId } from '@moca/core';
 import type { SessionData, SessionSummary } from './types.js';
 
 // --- Method input/output types -----------------------------------------------
@@ -42,6 +42,7 @@ export interface CreateSessionOptions {
   sessionType?: SessionData['sessionType'];
   /** Cognito User Pool sub — used for AppSync channel paths (no colons). */
   channelUserId?: UserId;
+  parent?: SessionParent;
 }
 
 /**

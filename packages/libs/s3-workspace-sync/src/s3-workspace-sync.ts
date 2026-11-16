@@ -8,6 +8,7 @@ import {
 import * as fs from 'fs';
 import * as path from 'path';
 import { pipeline } from 'stream/promises';
+import { createHash } from 'crypto';
 import { EventEmitter } from 'events';
 import pLimit from 'p-limit';
 
@@ -17,6 +18,7 @@ import type {
   SyncResult,
   SyncProgress,
   SyncLogger,
+  SyncConflict,
 } from './types.js';
 import { SyncIgnoreFilter } from './sync-ignore-filter.js';
 import { guessContentType } from './content-type.js';
@@ -357,6 +359,7 @@ export class S3WorkspaceSync extends EventEmitter {
     let uploadedFiles = 0;
     let deletedFiles = 0;
     const errors: string[] = [];
+    const conflicts: SyncConflict[] = [];
 
     try {
       await this.waitForPull();
@@ -424,7 +427,16 @@ export class S3WorkspaceSync extends EventEmitter {
         const uploadPromises = uploadTasks.map((task) =>
           limit(async () => {
             try {
-              const etag = await this.uploadFile(task.localPath, task.s3Key);
+              const condition = this.writeCondition(task.relativePath);
+              let etag: string | undefined;
+              try {
+                etag = await this.uploadFile(task.localPath, task.s3Key, condition);
+              } catch (error) {
+                // IfMatch on an object someone deleted answers 404, not 412.
+                // Our edit outlives their delete: recreate unless it reappeared.
+                if (!(condition.IfMatch && isNotFound(error))) throw error;
+                etag = await this.uploadFile(task.localPath, task.s3Key, { IfNoneMatch: '*' });
+              }
               // Track our own upload so the next pull doesn't re-download it.
               if (etag) {
                 this.remoteEtags.set(task.relativePath, etag);
@@ -446,10 +458,21 @@ export class S3WorkspaceSync extends EventEmitter {
                 this.logger.debug(`Uploaded: ${task.relativePath}`);
               }
             } catch (error) {
+              completedCount++;
+              if (isConditionalWriteConflict(error)) {
+                const conflict = await this.resolveConflict(task);
+                if (!conflict) return; // remote already holds identical content
+                conflicts.push(conflict);
+                const msg = conflict.savedAs
+                  ? `Conflict: ${task.relativePath} was changed in S3 by another writer; kept theirs, saved ours as ${conflict.savedAs}`
+                  : `Conflict: ${task.relativePath} was changed in S3 by another writer; ours could not be saved`;
+                this.logger.warn(msg);
+                errors.push(msg);
+                return;
+              }
               const errorMsg = `Failed to upload ${task.relativePath}: ${error}`;
               this.logger.error(errorMsg);
               errors.push(errorMsg);
-              completedCount++;
             }
           })
         );
@@ -465,15 +488,38 @@ export class S3WorkspaceSync extends EventEmitter {
 
         const deletePromises = deleteTasks.map((task) =>
           limit(async () => {
+            const etag = this.remoteEtags.get(task.relativePath);
             try {
+              // Delete only the version we saw: another writer's newer upload must survive.
               await this.s3Client.send(
-                new DeleteObjectCommand({ Bucket: this.bucket, Key: task.s3Key })
+                new DeleteObjectCommand({
+                  Bucket: this.bucket,
+                  Key: task.s3Key,
+                  ...(etag ? { IfMatch: etag } : {}),
+                })
               );
               this.fileSnapshot.delete(task.relativePath);
               this.remoteEtags.delete(task.relativePath);
               deletedFiles++;
               this.logger.debug(`Deleted from S3: ${task.relativePath}`);
             } catch (error) {
+              if (isNotFound(error)) {
+                // Already gone: the delete we wanted has happened.
+                this.fileSnapshot.delete(task.relativePath);
+                this.remoteEtags.delete(task.relativePath);
+                return;
+              }
+              if (isConditionalWriteConflict(error)) {
+                // Changed by another writer since we saw it: keep theirs. Dropping
+                // it from the snapshot lets the next pull bring it back.
+                this.fileSnapshot.delete(task.relativePath);
+                this.remoteEtags.delete(task.relativePath);
+                conflicts.push({ path: task.relativePath });
+                const msg = `Conflict: ${task.relativePath} was changed in S3 by another writer; not deleted`;
+                this.logger.warn(msg);
+                errors.push(msg);
+                return;
+              }
               const errorMsg = `Failed to delete ${task.relativePath}: ${error}`;
               this.logger.error(errorMsg);
               errors.push(errorMsg);
@@ -494,6 +540,7 @@ export class S3WorkspaceSync extends EventEmitter {
         uploadedFiles,
         deletedFiles,
         errors: errors.length > 0 ? errors : undefined,
+        conflicts: conflicts.length > 0 ? conflicts : undefined,
         duration,
       };
     } catch (error) {
@@ -611,8 +658,66 @@ export class S3WorkspaceSync extends EventEmitter {
     await pipeline(response.Body as NodeJS.ReadableStream, writeStream);
   }
 
+  /**
+   * A conditional PUT was rejected. Identical remote content is not a conflict
+   * (two writers produced the same bytes). Otherwise the remote version wins
+   * the path and ours is uploaded beside it, so nothing is lost; the next pull
+   * brings both down.
+   * @returns undefined when the remote content is identical.
+   */
+  private async resolveConflict(task: {
+    relativePath: string;
+    localPath: string;
+    currentInfo: FileInfo;
+  }): Promise<SyncConflict | undefined> {
+    // Not retried on later pushes either way.
+    this.fileSnapshot.set(task.relativePath, task.currentInfo);
+    const key = `${this.prefix}${task.relativePath}`;
+    try {
+      const remote = await this.s3Client.send(
+        new GetObjectCommand({ Bucket: this.bucket, Key: key })
+      );
+      const bytes = remote.Body
+        ? await readAll(remote.Body as AsyncIterable<Uint8Array>)
+        : undefined;
+      if (bytes && createHash('sha256').update(bytes).digest('hex') === task.currentInfo.hash) {
+        if (remote.ETag) this.remoteEtags.set(task.relativePath, remote.ETag);
+        return undefined;
+      }
+    } catch (error) {
+      this.logger.warn(`Could not compare ${task.relativePath} with S3: ${error}`);
+    }
+
+    const savedAs = conflictCopyPath(task.relativePath, new Date());
+    try {
+      await this.uploadFile(task.localPath, `${this.prefix}${savedAs}`, { IfNoneMatch: '*' });
+      return { path: task.relativePath, savedAs };
+    } catch (error) {
+      this.logger.error(`Failed to save conflict copy ${savedAs}: ${error}`);
+      return { path: task.relativePath };
+    }
+  }
+
+  /**
+   * Overwrite only the version this workspace last saw, and create only files
+   * that do not exist yet. Several workspaces (e.g. parallel workflow steps on
+   * separate microVMs) share one prefix; an unconditional PUT would silently
+   * drop every write but the last.
+   */
+  private writeCondition(relativePath: string): WriteCondition {
+    const etag = this.remoteEtags.get(relativePath);
+    if (etag) return { IfMatch: etag };
+    // Known locally but without a recorded ETag: no basis for a condition.
+    if (this.fileSnapshot.has(relativePath)) return {};
+    return { IfNoneMatch: '*' };
+  }
+
   /** @returns ETag of the uploaded object, when S3 reports one. */
-  private async uploadFile(localPath: string, s3Key: string): Promise<string | undefined> {
+  private async uploadFile(
+    localPath: string,
+    s3Key: string,
+    condition: WriteCondition = {}
+  ): Promise<string | undefined> {
     const fileContent = fs.readFileSync(localPath);
     const contentType = this.contentTypeResolver(path.basename(localPath));
 
@@ -621,6 +726,7 @@ export class S3WorkspaceSync extends EventEmitter {
       Key: s3Key,
       Body: fileContent,
       ContentType: contentType,
+      ...condition,
     });
 
     const response = await this.s3Client.send(command);
@@ -724,4 +830,37 @@ export class S3WorkspaceSync extends EventEmitter {
       fs.mkdirSync(dirPath, { recursive: true });
     }
   }
+}
+
+type WriteCondition = { IfMatch?: string; IfNoneMatch?: string };
+
+/** S3 rejects a conditional PUT with 412, or 409 when a concurrent write is in flight. */
+function isConditionalWriteConflict(error: unknown): boolean {
+  const e = error as { name?: string; $metadata?: { httpStatusCode?: number } };
+  return (
+    e?.name === 'PreconditionFailed' ||
+    e?.name === 'ConditionalRequestConflict' ||
+    e?.$metadata?.httpStatusCode === 412
+  );
+}
+
+/** `dir/report.md` → `dir/report (conflict 2026-11-13 120000).md` */
+export function conflictCopyPath(relativePath: string, now: Date): string {
+  const dir = path.posix.dirname(relativePath);
+  const ext = path.posix.extname(relativePath);
+  const base = path.posix.basename(relativePath, ext);
+  const stamp = now.toISOString().slice(0, 19).replace('T', ' ').replace(/:/g, '');
+  const name = `${base} (conflict ${stamp})${ext}`;
+  return dir === '.' ? name : `${dir}/${name}`;
+}
+
+async function readAll(body: AsyncIterable<Uint8Array>): Promise<Buffer> {
+  const chunks: Buffer[] = [];
+  for await (const chunk of body) chunks.push(Buffer.from(chunk));
+  return Buffer.concat(chunks);
+}
+
+function isNotFound(error: unknown): boolean {
+  const e = error as { name?: string; $metadata?: { httpStatusCode?: number } };
+  return e?.name === 'NoSuchKey' || e?.name === 'NotFound' || e?.$metadata?.httpStatusCode === 404;
 }

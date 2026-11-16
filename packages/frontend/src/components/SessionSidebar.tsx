@@ -3,7 +3,7 @@
  * Display and manage session list
  */
 
-import { useEffect, useState, useRef, useCallback, memo } from 'react';
+import { useEffect, useState, useRef, useCallback, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import {
@@ -18,8 +18,6 @@ import {
   Settings,
   CalendarRange,
   Search,
-  MoreHorizontal,
-  Trash2,
 } from 'lucide-react';
 import { useAuthStore } from '../stores/authStore';
 import { useSessionStore } from '../stores/sessionStore';
@@ -29,126 +27,9 @@ import { LoadingIndicator } from './ui/LoadingIndicator';
 import { Tooltip } from './ui/Tooltip';
 import { ConfirmModal } from './ui/Modal';
 import { NavItem } from './ui/NavItem';
-import type { SessionSummary } from '../api/sessions';
+import { buildSessionTree } from './session-list/session-tree';
+import { SessionTreeItem } from './session-list/SessionTreeItem';
 import { logger } from '../utils/logger';
-
-/**
- * Session Item Component
- */
-interface SessionItemProps {
-  session: SessionSummary;
-  isActive: boolean;
-  isNew?: boolean;
-  onDeleteRequest: (sessionId: string) => void;
-}
-
-const SessionItem = memo(function SessionItem({
-  session,
-  isActive,
-  isNew = false,
-  onDeleteRequest,
-}: SessionItemProps) {
-  const { t } = useTranslation();
-  const [isMenuOpen, setIsMenuOpen] = useState(false);
-  const menuRef = useRef<HTMLDivElement>(null);
-
-  // Check session type (default to 'user' for existing sessions without sessionType)
-  const sessionType = session.sessionType ?? 'user';
-  const isSubAgent = sessionType === 'subagent';
-  const isEventTriggered = sessionType === 'event';
-
-  // Close menu on outside click
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
-        setIsMenuOpen(false);
-      }
-    };
-
-    if (isMenuOpen) {
-      document.addEventListener('mousedown', handleClickOutside);
-    }
-
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
-    };
-  }, [isMenuOpen]);
-
-  const handleMenuClick = (e: React.MouseEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setIsMenuOpen(!isMenuOpen);
-  };
-
-  const handleDeleteClick = (e: React.MouseEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setIsMenuOpen(false);
-    onDeleteRequest(session.sessionId);
-  };
-
-  return (
-    <div className="relative group">
-      <Link
-        to={`/chat/${session.sessionId}`}
-        className={`
-          block w-full text-left p-2 pr-8 rounded-lg transition-all duration-200 no-underline
-          ${isActive ? 'bg-surface-secondary' : 'hover:bg-surface-secondary'}
-          ${isNew ? 'animate-subtle-fade-in' : ''}
-        `}
-      >
-        <div className="flex items-center gap-2">
-          <span
-            className={`
-            text-sm leading-tight truncate
-            ${
-              isSubAgent || isEventTriggered
-                ? 'text-fg-muted'
-                : isActive
-                  ? 'text-fg-secondary'
-                  : 'text-fg-secondary group-hover:text-fg-default'
-            }
-          `}
-          >
-            {isEventTriggered && <span className="text-xs">{t('chat.sessionBadge.event')} </span>}
-            {isSubAgent && <span className="text-xs">{t('chat.sessionBadge.subAgent')} </span>}
-            {session.title}
-          </span>
-        </div>
-      </Link>
-
-      {/* More options button - visible on hover */}
-      <button
-        onClick={handleMenuClick}
-        className={`
-          absolute right-1 top-1/2 -translate-y-1/2 p-1 rounded
-          text-fg-disabled hover:text-fg-secondary hover:bg-border
-          transition-opacity duration-200
-          ${isMenuOpen ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}
-        `}
-        title={t('common.moreOptions')}
-      >
-        <MoreHorizontal className="w-4 h-4" />
-      </button>
-
-      {/* Dropdown menu */}
-      {isMenuOpen && (
-        <div
-          ref={menuRef}
-          className="absolute right-0 top-full mt-1 bg-surface-primary rounded-lg shadow-lg border border-border py-1 z-50 min-w-[120px]"
-        >
-          <button
-            onClick={handleDeleteClick}
-            className="w-full px-3 py-2 text-left text-sm text-feedback-error hover:bg-feedback-error-bg flex items-center gap-2"
-          >
-            <Trash2 className="w-4 h-4" />
-            {t('common.delete')}
-          </button>
-        </div>
-      )}
-    </div>
-  );
-});
 
 /**
  * Session Sidebar Component
@@ -174,6 +55,7 @@ export function SessionSidebar() {
     isLoadingMoreSessions,
   } = useSessionStore();
   const { isSidebarOpen, isMobileView, toggleSidebar } = useUIStore();
+  const sessionTree = useMemo(() => buildSessionTree(sessions), [sessions]);
 
   // User dropdown state management
   const [isUserDropdownOpen, setIsUserDropdownOpen] = useState(false);
@@ -462,12 +344,12 @@ export function SessionSidebar() {
 
           {sessions.length > 0 && (
             <div className="px-4 py-2 space-y-2">
-              {sessions.map((session) => (
-                <SessionItem
-                  key={session.sessionId}
-                  session={session}
-                  isActive={session.sessionId === activeSessionId}
-                  isNew={newSessionIds.has(session.sessionId)}
+              {sessionTree.map((node) => (
+                <SessionTreeItem
+                  key={node.session.sessionId}
+                  node={node}
+                  activeSessionId={activeSessionId}
+                  newSessionIds={newSessionIds}
                   onDeleteRequest={handleDeleteRequest}
                 />
               ))}

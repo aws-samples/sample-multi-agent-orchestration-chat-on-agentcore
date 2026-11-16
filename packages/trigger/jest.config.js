@@ -8,6 +8,8 @@ export default {
     // which ts-jest's resolver can't follow. Map to the TS source (not the ESM
     // dist) so ts-jest transforms it — mirrors packages/backend/jest config.
     '^@moca/core$': '<rootDir>/../libs/core/src/index.ts',
+    '^@moca/tool-definitions$': '<rootDir>/../libs/tool-definitions/src/index.ts',
+    '^@moca/generative-ui-catalog$': '<rootDir>/../libs/generative-ui-catalog/src/index.ts',
   },
   transform: {
     '^.+\\.tsx?$': [

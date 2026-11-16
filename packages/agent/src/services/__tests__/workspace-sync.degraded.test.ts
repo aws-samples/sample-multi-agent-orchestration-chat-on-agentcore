@@ -37,9 +37,11 @@ jest.unstable_mockModule('../session/persistence-health.js', () => ({
 }));
 
 const { WorkspaceSync } = await import('../workspace-sync.js');
+const { isBusy, resetInFlight } = await import('../../libs/health/in-flight.js');
 
 beforeEach(() => {
   jest.clearAllMocks();
+  resetInFlight();
   pushMock.mockResolvedValue({ success: true, uploadedFiles: 1 });
 });
 
@@ -66,5 +68,56 @@ describe('WorkspaceSync.syncToS3 with expired credentials', () => {
     await sync.syncToS3();
 
     expect(reportMock).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('WorkspaceSync.syncToS3 as a flush', () => {
+  beforeEach(() => canObtainMock.mockReturnValue(true));
+
+  it('serializes pushes, so awaiting one waits for the earlier fire-and-forget push', async () => {
+    const order: string[] = [];
+    let releaseFirst!: () => void;
+    pushMock
+      .mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            releaseFirst = () => {
+              order.push('first');
+              resolve({ success: true });
+            };
+          })
+      )
+      .mockImplementationOnce(async () => {
+        order.push('second');
+        return { success: true };
+      });
+    const sync = new WorkspaceSync('user', '/');
+
+    void sync.syncToS3();
+    const flushed = sync.syncToS3();
+    await new Promise((r) => setTimeout(r, 0));
+    expect(pushMock).toHaveBeenCalledTimes(1);
+
+    releaseFirst();
+    await flushed;
+    expect(order).toEqual(['first', 'second']);
+  });
+
+  it('keeps the container busy while a push runs, even after it fails', async () => {
+    let rejectPush!: (e: Error) => void;
+    pushMock.mockImplementationOnce(() => new Promise((_, reject) => (rejectPush = reject)));
+    const sync = new WorkspaceSync('user', '/');
+
+    const pending = sync.syncToS3();
+    expect(isBusy()).toBe(true);
+
+    await new Promise((r) => setTimeout(r, 0));
+    rejectPush(new Error('boom'));
+    await expect(pending).rejects.toThrow('boom');
+    await new Promise((r) => setTimeout(r, 0));
+    expect(isBusy()).toBe(false);
+
+    pushMock.mockResolvedValueOnce({ success: true });
+    await expect(sync.syncToS3()).resolves.toMatchObject({ success: true });
   });
 });

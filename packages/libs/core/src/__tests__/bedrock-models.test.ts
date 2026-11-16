@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   BEDROCK_MODEL_DEFINITIONS,
+  parseAllowedModelIds,
   REASONING_DEPTHS,
   getMaxOutputTokens,
   getModelRegion,
@@ -665,5 +666,17 @@ describe('GPT-6.1 Terra', () => {
     // keys off this to build a BedrockModel (Converse) rather than an OpenAIModel.
     expect(getBedrockEndpoint(ID)).toBeUndefined();
     expect(getBedrockEndpoint('openai.gpt-6.1-terra')).toBeUndefined();
+  });
+});
+
+describe('parseAllowedModelIds', () => {
+  it('uses the configured list, trimming blanks', () => {
+    expect(parseAllowedModelIds(' a , b,,')).toEqual(['a', 'b']);
+  });
+
+  it('falls back to every built-in model when unset or empty', () => {
+    const all = BEDROCK_MODEL_DEFINITIONS.map((m) => m.id);
+    expect(parseAllowedModelIds(undefined)).toEqual(all);
+    expect(parseAllowedModelIds(' , ')).toEqual(all);
   });
 });
