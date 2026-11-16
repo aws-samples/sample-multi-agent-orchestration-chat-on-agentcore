@@ -4,6 +4,7 @@ export { codeInterpreterTool } from './code-interpreter/index.js';
 export { s3ListFilesTool } from './s3-list-files.js';
 export { fileEditorTool } from './file-editor.js';
 export { imageToTextTool } from './image-to-text/index.js';
+export { viewImageTool } from './view-image/index.js';
 export { callAgentTool } from './call-agent.js';
 export { manageAgentTool } from './manage-agent.js';
 export { manageTriggerTool } from './manage-trigger.js';
@@ -20,6 +21,7 @@ import { codeInterpreterTool } from './code-interpreter/index.js';
 import { s3ListFilesTool } from './s3-list-files.js';
 import { fileEditorTool } from './file-editor.js';
 import { imageToTextTool } from './image-to-text/index.js';
+import { viewImageTool } from './view-image/index.js';
 import { callAgentTool } from './call-agent.js';
 import { manageAgentTool } from './manage-agent.js';
 import { manageTriggerTool } from './manage-trigger.js';
@@ -44,6 +46,7 @@ export const localTools = [
   s3ListFilesTool,
   fileEditorTool,
   imageToTextTool,
+  viewImageTool,
   callAgentTool,
   manageAgentTool,
   manageTriggerTool,

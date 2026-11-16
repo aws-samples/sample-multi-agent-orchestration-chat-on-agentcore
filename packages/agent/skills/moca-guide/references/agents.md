@@ -18,10 +18,10 @@ quick-start prompt templates surfaced in the UI).
 
 `enabledTools` is the important field — it decides what the new agent can do. Pick
 from Moca's tool set: `execute_command`, `file_editor`, `code_interpreter`,
-`browser`, `image_to_text`, `s3_list_files`, `memory_search`, `generate_ui`,
-`todo`, `think`, `call_agent`, `manage_agent`, `manage_trigger`, plus gateway
-tools like web search, image generation, and video generation when deployed.
-Enable only what the agent's job needs.
+`browser`, `image_to_text`, `view_image`, `s3_list_files`, `memory_search`,
+`generate_ui`, `todo`, `think`, `call_agent`, `manage_agent`, `manage_trigger`,
+plus gateway tools like web search, image generation, and video generation when
+deployed. Enable only what the agent's job needs.
 
 `update` is a partial update — pass only the fields you want to change. `get`
 retrieves a definition by `agentId`.

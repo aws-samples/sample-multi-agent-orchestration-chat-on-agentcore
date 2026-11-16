@@ -14,6 +14,7 @@ export default {
     '**/__tests__/reasoning-depth.integration.test.ts',
     '**/__tests__/matplotlib-japanese-font.integration.test.ts',
     '**/__tests__/agentcore-web-search.integration.test.ts',
+    '**/__tests__/view-image.integration.test.ts',
   ],
   testPathIgnorePatterns: ['/node_modules/'],
   testTimeout: 60000,

@@ -15,7 +15,11 @@ const mockLocalTools = [
   { name: 'tool_a', description: 'Tool A' },
   { name: 'tool_b', description: 'Tool B' },
   { name: 'tool_c', description: 'Tool C' },
+  { name: 'view_image', description: 'Returns an image block' },
 ];
+
+const IMAGE_CAPABLE_MODEL = 'global.anthropic.claude-opus-5';
+const TEXT_ONLY_TOOL_RESULT_MODEL = 'global.openai.gpt-6-astra';
 
 const mockGatewayMCPTools = [
   { name: 'gateway_tool_1', description: 'Gateway Tool 1' },
@@ -38,7 +42,7 @@ jest.unstable_mockModule('../../../config/index.js', () => ({
     error: jest.fn(),
     debug: jest.fn(),
   },
-  config: {},
+  config: { BEDROCK_MODEL_ID: IMAGE_CAPABLE_MODEL },
 }));
 
 jest.unstable_mockModule('../../tools/index.js', () => ({
@@ -54,7 +58,8 @@ jest.unstable_mockModule('../../../libs/mcp/client.js', () => ({
 
 // ── Dynamic imports ────────────────────────────────────────────────────
 
-const { selectEnabledTools, buildToolSet } = await import('../tools-builder.js');
+const { selectEnabledTools, selectToolsForModel, buildToolSet } =
+  await import('../tools-builder.js');
 
 describe('selectEnabledTools', () => {
   const tools = [
@@ -98,6 +103,22 @@ describe('selectEnabledTools', () => {
   });
 });
 
+describe('selectToolsForModel', () => {
+  const tools = [{ name: 'tool_a' }, { name: 'view_image' }];
+
+  it('keeps image-returning tools for a model that accepts images in tool results', () => {
+    expect(selectToolsForModel(tools, IMAGE_CAPABLE_MODEL)).toEqual(tools);
+  });
+
+  it('withholds image-returning tools from a model that rejects them', () => {
+    expect(selectToolsForModel(tools, TEXT_ONLY_TOOL_RESULT_MODEL)).toEqual([{ name: 'tool_a' }]);
+  });
+
+  it('withholds them from a model missing from the registry', () => {
+    expect(selectToolsForModel(tools, 'custom.unknown-model')).toEqual([{ name: 'tool_a' }]);
+  });
+});
+
 describe('buildToolSet', () => {
   beforeEach(() => {
     jest.clearAllMocks();
@@ -138,7 +159,7 @@ describe('buildToolSet', () => {
   it('should report correct counts', async () => {
     const result = await buildToolSet(['tool_a', 'tool_b', 'gateway_tool_1'], []);
 
-    expect(result.counts.local).toBe(3); // All local tools available
+    expect(result.counts.local).toBe(4); // All local tools available
     expect(result.counts.gateway).toBe(2); // All gateway tools available
     expect(result.counts.userMCP).toBe(0);
     expect(result.counts.total).toBe(3); // 3 filtered tools + 0 user MCP
@@ -161,6 +182,19 @@ describe('buildToolSet', () => {
 
     expect(result.mcpClients).toEqual([]);
     expect(result.counts.userMCP).toBe(0);
+  });
+
+  it('should withhold view_image when the agent runs on a model that rejects tool result images', async () => {
+    const result = await buildToolSet(['tool_a', 'view_image'], [], TEXT_ONLY_TOOL_RESULT_MODEL);
+
+    expect(result.tools.map((t) => t.name)).toEqual(['tool_a']);
+    expect(result.counts.total).toBe(1);
+  });
+
+  it('should offer view_image on the deployment default model when no model is given', async () => {
+    const result = await buildToolSet(['tool_a', 'view_image'], []);
+
+    expect(result.tools.map((t) => t.name)).toEqual(['tool_a', 'view_image']);
   });
 
   it('should propagate errors when mcpClient.listTools fails', async () => {

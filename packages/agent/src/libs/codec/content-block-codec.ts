@@ -39,6 +39,7 @@ import {
 } from '@strands-agents/sdk';
 
 import { logger } from '../logger/index.js';
+import { toolResultImagePlaceholder } from './tool-result-image.js';
 import type {
   WireContentBlock,
   WireImageBlock,
@@ -51,6 +52,24 @@ import type {
 // ---------------------------------------------------------------------------
 // SDK → wire
 // ---------------------------------------------------------------------------
+
+/**
+ * Swap images a tool returned for text placeholders.
+ *
+ * Such an image is for the model's current turn only. Its base64 would
+ * otherwise be replayed on every later turn, be too large for an AppSync
+ * event, and break a session continued on a model that rejects images in tool
+ * results.
+ *
+ * A non-array is passed through: this boundary has always serialised whatever
+ * shape it was handed, and throwing here would lose the message.
+ */
+function withoutToolResultImages(content: ToolResultContent[]): unknown {
+  if (!Array.isArray(content)) return content;
+  return content.map((entry) =>
+    entry?.type === 'imageBlock' ? toolResultImagePlaceholder(entry) : entry
+  );
+}
 
 /**
  * Convert a SDK `ContentBlock` instance to its wire representation.
@@ -93,7 +112,7 @@ export function contentBlockToWire(block: ContentBlock): WireContentBlock {
         // through `JSON.parse(JSON.stringify(...))`, which is safe because
         // the SDK's own `toJSON()` already projects each `ToolResultContent`
         // entry into a plain object.
-        content: JSON.parse(JSON.stringify(block.content)),
+        content: JSON.parse(JSON.stringify(withoutToolResultImages(block.content))),
       };
       return wire;
     }

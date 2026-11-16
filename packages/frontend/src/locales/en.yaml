@@ -447,6 +447,7 @@ tool:
       think: Think
       files: List files
       imageToText: Read image
+      viewImage: View image
       image: Generate image
       video: Generate video
       knowledge: Search knowledge

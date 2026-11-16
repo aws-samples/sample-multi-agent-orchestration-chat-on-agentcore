@@ -6,6 +6,9 @@
  */
 
 import type { McpClient, Tool } from '@strands-agents/sdk';
+import { supportsToolResultImages } from '@moca/core';
+import { RUNTIME_TOOL_NAMES } from '@moca/tool-definitions';
+import { config } from '../../config/index.js';
 import { logger } from '../../libs/logger/index.js';
 import { localTools, convertMCPToolsToStrands } from '../tools/index.js';
 import { mcpClient } from '../../libs/mcp/client.js';
@@ -34,6 +37,24 @@ export function selectEnabledTools<T extends { name: string }>(
   return filtered;
 }
 
+/** Tools whose results carry an image block. */
+const IMAGE_RESULT_TOOLS: ReadonlySet<string> = new Set([RUNTIME_TOOL_NAMES.VIEW_IMAGE]);
+
+/**
+ * Drop tools the model cannot take results from. An image in a tool result is
+ * rejected by models that do not support it, and the failed request ends the
+ * turn — so such a tool is withheld rather than left for the model to trip on.
+ */
+export function selectToolsForModel<T extends { name: string }>(tools: T[], modelId: string): T[] {
+  if (supportsToolResultImages(modelId)) return tools;
+
+  const usable = tools.filter((tool) => !IMAGE_RESULT_TOOLS.has(tool.name));
+  if (usable.length < tools.length) {
+    logger.info(`Image-returning tools withheld: ${modelId} does not accept images in tool results`);
+  }
+  return usable;
+}
+
 /**
  * Result of building the complete tool set
  */
@@ -58,10 +79,12 @@ export interface ToolSetResult {
  *
  * @param enabledTools - Tool name filter (undefined=none, []=none, ['name',...]=filtered)
  * @param userMCPClients - MCP clients from user configuration (always fully included)
+ * @param modelId - Model the agent runs on; tools it cannot use are withheld
  */
 export async function buildToolSet(
   enabledTools?: string[],
-  userMCPClients: McpClient[] = []
+  userMCPClients: McpClient[] = [],
+  modelId: string = config.BEDROCK_MODEL_ID
 ): Promise<ToolSetResult> {
   // Fetch Gateway MCP tools
   const gatewayMCPTools = (await mcpClient.listTools()) as MCPToolDefinition[];
@@ -70,7 +93,10 @@ export async function buildToolSet(
   const gatewayStrandsTools = convertMCPToolsToStrands(gatewayMCPTools);
 
   // Filter local + gateway tools by enabledTools list
-  const filteredTools = selectEnabledTools([...localTools, ...gatewayStrandsTools], enabledTools);
+  const filteredTools = selectToolsForModel(
+    selectEnabledTools([...localTools, ...gatewayStrandsTools], enabledTools),
+    modelId
+  );
 
   const counts = {
     local: localTools.length,
