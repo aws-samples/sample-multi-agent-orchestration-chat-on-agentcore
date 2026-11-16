@@ -94,7 +94,7 @@ The backend provides extensive API endpoints beyond the above. Key route groups:
 | Agents | `/agents` | CRUD for agent configurations, sharing, cloning |
 | Sessions | `/sessions` | Session listing, event retrieval, deletion |
 | Tools | `/tools` | Tool listing, search, health checks |
-| Memory | `/memory` | Memory record listing, search, deletion |
+| Memory | `/memory` | Memory record listing, search |
 | Storage | `/storage` | S3 file operations (upload, download, list, delete, tree) |
 | Triggers | `/triggers` | CRUD for scheduled/event-driven triggers |
 | Events | `/events` | Event source configuration |

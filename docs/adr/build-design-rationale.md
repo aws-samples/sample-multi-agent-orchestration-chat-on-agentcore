@@ -19,7 +19,6 @@ tsconfig.base.json                       strict / composite:true / declaration
 ├── libs/core · libs/generative-ui-catalog · libs/tool-definitions · libs/s3-workspace-sync
 ├── agent · trigger · session-stream-handler
 ├── backend                              overrides noImplicitReturns:false
-├── client                               overrides target:ES2020
 ├── cdk                                  overrides composite:false (+ incremental, declarationMap)
 └── lambda-tools/tsconfig.base.json      adds module:NodeNext, types:[node]
     ├── lambda-tools/shared
@@ -42,7 +41,6 @@ flowchart LR
 
     agent["agent"]
     backend["backend"]
-    client["client"]
     trigger["trigger"]
 
     frontend["frontend"]
@@ -56,7 +54,6 @@ flowchart LR
     agent --> td
     backend --> core
     backend --> td
-    client --> core
     trigger --> core
 
     frontend -.-> core
@@ -83,7 +80,7 @@ The repo runs TS in three incompatible resolution modes:
 
 | Packages | `module` / `moduleResolution` |
 |---|---|
-| agent, backend, libs, client, trigger, session-stream-handler, frontend | `ESNext` + `bundler` |
+| agent, backend, libs, trigger, session-stream-handler, frontend | `ESNext` + `bundler` |
 | lambda-tools | `NodeNext` + `NodeNext` |
 | cdk | `Node16` + `node16` |
 
@@ -110,7 +107,6 @@ IDE "go to definition" jumps to `.ts` source across workspaces instead of `.d.ts
 | Package | Override | Why |
 |---|---|---|
 | backend | `noImplicitReturns: false` | Express handlers mix `return res.send(...)` and bare `res.send(...)` |
-| client | `target: ES2020` | Published as a CLI (`bin`), needs wider Node compat than the base's `ES2022` |
 | agent | `experimentalDecorators`, `emitDecoratorMetadata` | `@strands-agents/sdk` uses legacy decorators with runtime reflection |
 
 ### 1.8 Root `tsconfig.json` is a one-line `extends` of `tsconfig.build.json`

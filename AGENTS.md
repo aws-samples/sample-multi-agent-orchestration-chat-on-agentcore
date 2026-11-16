@@ -13,7 +13,7 @@ Moca — Multi-agent Orchestration Chat on AgentCore. A multi-agent platform bui
 
 ## Architecture
 
-Monorepo using npm workspaces. 8 packages.
+Monorepo using npm workspaces.
 
 | Package | Responsibility | Runtime | Entry Point |
 |---|---|---|---|
@@ -24,6 +24,7 @@ Monorepo using npm workspaces. 8 packages.
 | packages/session-stream-handler | DynamoDB Streams → AppSync Events relay | Lambda | src/ |
 | packages/trigger | EventBridge → automatic agent execution | Lambda | src/ |
 | packages/lambda-tools | Tool functions deployed as individual Lambdas | Lambda | tools/ |
+| packages/github-token-broker | Returns the GitHub PAT from Secrets Manager to the Runtime. Deliberately not a Gateway target, so the agent cannot invoke it via MCP | Lambda | src/index.ts |
 
 ### Shared Libraries (packages/libs/)
 
@@ -32,20 +33,20 @@ Monorepo using npm workspaces. 8 packages.
 | libs/tool-definitions | Tool definition types (Zod + JSON Schema). The **interface layer** referenced by both agent and backend |
 | libs/generative-ui-catalog | Generative UI component catalog. Referenced by both agent and frontend |
 | libs/s3-workspace-sync | S3 workspace synchronization. Referenced by agent |
-| libs/core | Core branded types and shared utilities (SessionId, UserId, AgentId, TriggerId, SYSTEM_USER_ID). Referenced by agent, backend, frontend, client, and trigger |
+| libs/core | Core branded types and shared utilities (SessionId, UserId, AgentId, TriggerId, SYSTEM_USER_ID). Referenced by agent, backend, frontend, and trigger |
 
 ## Conventions
 
 - Node.js 22, TypeScript ~5.7
 - Package manager: npm workspaces (NOT pnpm)
-- Test: jest (agent, backend, libs), vitest (frontend, s3-workspace-sync)
+- Test: jest (agent, backend, libs/tool-definitions, libs/generative-ui-catalog), vitest (frontend, libs/core, libs/s3-workspace-sync)
 - Linter: eslint + prettier
 - Build: `npm run build` runs `tsc -b tsconfig.build.json` (Solution Style, a single dependency-ordered pass across all TS packages) + `vite build` for the frontend.
 - **`cdk synth` / `cdk deploy` requires `npm run build` to have been run first** (libs `dist/` must exist for `ts-node` to resolve `@moca/*` imports in CDK).
 
 ## Deployment
 
-- `npm run deploy` → CDK deploy. Run `npm run build` beforehand so the shared libs (`@moca/*`) have been compiled and `ts-node`-based CDK synth can resolve them. `npm run build` also produces `dist/` for agent/backend/client/trigger/session-stream-handler; CDK bundles each Lambda via esbuild from `src/handler.ts`, so per-`lambda-tools/tools/*` `dist/` is not generated.
+- `npm run deploy` → CDK deploy. Run `npm run build` beforehand so the shared libs (`@moca/*`) have been compiled and `ts-node`-based CDK synth can resolve them. `npm run build` also produces `dist/` for agent/backend/trigger/session-stream-handler; CDK bundles each Lambda via esbuild from `src/handler.ts`, so per-`lambda-tools/tools/*` `dist/` is not generated.
 - Environments: default / dev / stg / prd (defined in `packages/cdk/config/environments.ts`)
 - agent is a Docker image (multi-stage build, `docker/`). backend is an esbuild single-file bundle zipped for Lambda Web Functions (`nodejs24.x`), built at `cdk synth` by `constructs/api/backend-api.ts`
 

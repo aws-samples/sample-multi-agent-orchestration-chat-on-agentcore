@@ -65,10 +65,10 @@ Amazon Bedrock AgentCore を活用したマルチエージェント協調チャ�
 | フロントエンド | CloudFront + S3 (React SPA) |
 | 認証 | Amazon Cognito (JWT) |
 | API | Lambda Web Functions + CloudFront (Express.js) |
-| エージェント | AgentCore Runtime + Gateway + Memory + CodeInterpreter|
+| エージェント | AgentCore Runtime + Gateway + Memory + CodeInterpreter + Browser|
 | ストレージ | DynamoDB + S3 |
 | リアルタイム | AppSync Events (WebSocket) |
-| イベント | EventBridge Scheduler |
+| イベント | EventBridge Scheduler + Rules |
 
 バックエンド API はエージェント管理、セッション永続化、ファイル操作などを担当します。AgentCore Runtime は Strands Agents SDK (TypeScript) を使用してエージェントを実行し、会話コンテキストのための短期記憶（セッション履歴）および長期記憶（永続メモリ）が有効化されています。リアルタイムストリーミングは AppSync Events によって実現され、スケジュールトリガーによって自動的にエージェントを実行することが可能です。
 
@@ -122,12 +122,23 @@ aws secretsmanager create-secret \
 
 トークンは[GitHub Settings](https://github.com/settings/tokens)から生成できます。
 
+**GitHub Webhookシークレット**（GitHub Webhookイベントの受信用）
+
+```bash
+aws secretsmanager create-secret \
+  --name "agentcore/default/github-webhook-secret" \
+  --secret-string "$(uuidgen)" \
+  --region ap-northeast-1
+```
+
+このシークレットは、受信した GitHub Webhook の HMAC-SHA256 署名の検証に使われます。設定手順の詳細は [GitHub Webhook Setup](docs/guides/deployment-options.md#github-webhook-setup) を参照してください。
+
 ローカル開発の場合は、`packages/agent/.env`で環境変数として設定することもできます。
 
 <details>
 <summary><strong>⚠️ Claude Fable 5.2 / Fable 5.1 / Fable 5 を利用するにはデータ保持設定が必要</strong></summary>
 
-デフォルトモデルは **Claude Opus 4.8** で、追加設定なしで利用できます。**Claude Fable** 系のモデルも選択可能なモデルとして用意していますが、これらは Mythos クラスのモデルです。Mythos クラスのモデルは、呼び出し先リージョンにおいて Amazon Bedrock の **データ保持モードが適切に設定されている場合のみ** 呼び出せます。必要なモードはモデルごとに異なります。
+デフォルトモデルは **Claude Opus 5** で、追加設定なしで利用できます。**Claude Fable** 系のモデルも選択可能なモデルとして用意していますが、これらは Mythos クラスのモデルです。Mythos クラスのモデルは、呼び出し先リージョンにおいて Amazon Bedrock の **データ保持モードが適切に設定されている場合のみ** 呼び出せます。必要なモードはモデルごとに異なります。
 
 - **Claude Fable 5.2**（`global.anthropic.claude-fable-5-2`）— [Covered Model](https://docs.aws.amazon.com/bedrock/latest/userguide/) であり、**`aws_review`** が必要です（Fable 5.1 と同じ）。
 - **Claude Fable 5.1**（`global.anthropic.claude-fable-5-1`）— [Covered Model](https://docs.aws.amazon.com/bedrock/latest/userguide/) であり、**`aws_review`** が必要です（プロンプトと出力が最大30日間、AWS 境界内での人による安全性レビューのために保持されます。モデルプロバイダーへの共有はありません）。
@@ -155,7 +166,7 @@ ValidationException: data retention mode 'default' is not available for this mod
    ],
    ```
 
-デフォルトの Opus 4.8 を含む他のモデルには影響ありません。
+デフォルトの Opus 5 を含む他のモデルには影響ありません。
 
 </details>
 
@@ -244,7 +255,7 @@ npm run seed-system-agents -- --env default --force
 
 デプロイが完了すると、CloudFormationスタックの出力からフロントエンドURLを確認できます。
 
-カスタムドメイン、環境別設定、イベントルールなどの詳細な設定オプションについては、[デプロイオプション](docs/deployment-options-ja.md) を参照してください。
+カスタムドメイン、環境別設定、イベントルールなどの詳細な設定オプションについては、[デプロイオプション](docs/guides/deployment-options.md) を参照してください。
 
 
 ## コスト
