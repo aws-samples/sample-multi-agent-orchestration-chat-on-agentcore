@@ -248,13 +248,3 @@ export interface ServerTurnInProgressEvent extends AgentStreamEvent {
   type: 'serverTurnInProgressEvent';
   turn: { startedAt: string };
 }
-
-// Config types
-export interface AgentConfig {
-  endpoint: string;
-  cognitoConfig: {
-    userPoolId: string;
-    clientId: string;
-    region: string;
-  };
-}
