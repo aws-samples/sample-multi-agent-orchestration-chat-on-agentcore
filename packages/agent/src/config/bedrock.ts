@@ -24,7 +24,7 @@ export interface BedrockModelOptions {
   maxTokens?: number;
   /**
    * Reasoning (extended thinking) depth selected for this request.
-   * Resolved against the model registry into a `thinking` request field.
+   * Resolved against the model registry into provider-specific request fields.
    * Omitted → no thinking field (model default). `off` → the model's
    * `offThinkingMode` payload, or no thinking field. Non-capable → none.
    */
@@ -78,7 +78,7 @@ export function createBedrockModel(options?: BedrockModelOptions): Model {
     });
   }
 
-  // Resolve the reasoning depth into a Bedrock `thinking` request field. An
+  // Resolve the reasoning depth into provider-specific Bedrock request fields. An
   // omitted depth is NOT coerced to 'off': sub-agents and triggers without a
   // saved depth get the model default, while 'off' on Haiku 5.5 disables
   // thinking. The SDK strips `thinking` when toolChoice forces a tool (Bedrock
@@ -96,8 +96,13 @@ export function createBedrockModel(options?: BedrockModelOptions): Model {
       reasoningEffortSent:
         reasoningConfig && 'output_config' in reasoningConfig
           ? reasoningConfig.output_config.effort
+          : reasoningConfig && 'reasoning' in reasoningConfig
+            ? reasoningConfig.reasoning.effort
+            : undefined,
+      thinkingTypeSent:
+        reasoningConfig && 'thinking' in reasoningConfig
+          ? reasoningConfig.thinking.type
           : undefined,
-      thinkingTypeSent: reasoningConfig?.thinking.type,
     },
     'Creating BedrockModel:'
   );
@@ -109,7 +114,7 @@ export function createBedrockModel(options?: BedrockModelOptions): Model {
     maxTokens: options?.maxTokens ?? getMaxOutputTokens(modelId),
     ...(config.ENABLE_PROMPT_CACHING ? { cacheConfig: { strategy: 'auto' as const } } : {}),
     // Extended thinking is configured at the model layer via the Bedrock
-    // `additionalModelRequestFields`. Only attach when a budget resolved. Cast to
+    // `additionalModelRequestFields`. Only attach when a config resolved. Cast to
     // the SDK's JSONValue: ReasoningRequestConfig is a readonly interface without
     // an index signature, which JSONValue's `{ [key: string]: JSONValue }` wants.
     ...(reasoningConfig
