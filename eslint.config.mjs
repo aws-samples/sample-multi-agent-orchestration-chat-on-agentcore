@@ -48,7 +48,7 @@ export default tseslint.config(
   },
   // s3-workspace-sync package: enforce .js extension in ESM mode
   {
-    files: ['packages/shared/s3-workspace-sync/**/*.ts'],
+    files: ['packages/libs/s3-workspace-sync/**/*.ts'],
     plugins: {
       import: importPlugin,
     },

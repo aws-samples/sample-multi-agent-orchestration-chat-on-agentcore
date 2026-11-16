@@ -617,9 +617,7 @@ export class AgentCoreStack extends cdk.Stack {
       ? new GitHubTokenBroker(this, 'GitHubTokenBroker', {
           resourcePrefix,
           githubTokenSecretName,
-          logRetention: envConfig.logRetentionDays
-            ? cdk.aws_logs.RetentionDays.ONE_WEEK
-            : undefined,
+          logRetention: envConfig.logRetentionDays,
         })
       : undefined;
 
