@@ -39,7 +39,7 @@
     "@aws-sdk/client-cognito-identity": "^3.1156.0",
     "@aws-sdk/client-dynamodb": "^3.1156.0",
     "@aws-sdk/client-s3": "^3.1156.0",
-    "@aws-sdk/credential-provider-node": "^3.654.0",
+    "@aws-sdk/credential-provider-node": "^3.972.97",
     "@aws-sdk/s3-request-presigner": "^3.1156.0",
     "@aws-sdk/util-dynamodb": "^3.996.9",
     "@aws/aws-distro-opentelemetry-node-autoinstrumentation": "~0.13.0",
