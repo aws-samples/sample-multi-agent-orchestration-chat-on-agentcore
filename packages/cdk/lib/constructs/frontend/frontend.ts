@@ -99,13 +99,6 @@ export interface FrontendProps {
   webAclArn?: string;
 
   /**
-   * Cognito Identity Pool ID (optional)
-   * Passed to the frontend as VITE_IDENTITY_POOL_ID so the browser can
-   * call GetCredentialsForIdentity to obtain per-user temporary credentials.
-   */
-  identityPoolId?: string;
-
-  /**
    * Whether self sign-up is enabled in Cognito User Pool (optional)
    * Controls visibility of the sign-up link in the login screen.
    * @default false
@@ -358,8 +351,6 @@ export class Frontend extends Construct {
         VITE_BEDROCK_MODELS: JSON.stringify(props.bedrockModels ?? []),
         VITE_SELF_SIGN_UP_ENABLED: String(props.selfSignUpEnabled ?? false),
         VITE_ENABLE_RUNTIME_WARMUP: String(props.runtimeWarmupEnabled ?? false),
-        // Identity Pool ID for GetCredentialsForIdentity calls from the browser
-        VITE_IDENTITY_POOL_ID: props.identityPoolId || '',
       },
       outputSourceDirectory: 'packages/frontend/dist',
       destinationBucket: this.s3Bucket,

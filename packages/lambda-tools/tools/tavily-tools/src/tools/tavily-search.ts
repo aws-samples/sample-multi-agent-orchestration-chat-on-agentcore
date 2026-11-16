@@ -131,5 +131,3 @@ export const tavilySearchTool: Tool = {
   version: '1.0.0',
   tags: ['web-search', 'tavily'],
 };
-
-export default tavilySearchTool;

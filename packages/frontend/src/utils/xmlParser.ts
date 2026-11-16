@@ -2,15 +2,6 @@
  * Helper functions for streaming XML parsing
  */
 
-export interface ParsedAgentConfig {
-  systemPrompt: string;
-  enabledTools: string[];
-  scenarios: Array<{
-    title: string;
-    prompt: string;
-  }>;
-}
-
 export interface XmlParseState {
   currentTag: string | null;
   systemPrompt: string;
@@ -119,12 +110,3 @@ export const parseStreamingXml = (
 
   return { state, updates };
 };
-
-/**
- * Returns the completed ParsedAgentConfig object
- */
-export const getFinalConfig = (state: XmlParseState): ParsedAgentConfig => ({
-  systemPrompt: state.systemPrompt,
-  enabledTools: [...state.enabledTools],
-  scenarios: [...state.scenarios],
-});

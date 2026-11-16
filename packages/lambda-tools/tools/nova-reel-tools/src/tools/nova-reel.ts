@@ -646,5 +646,3 @@ export const novaReelTool: Tool = {
   version: '1.0.0',
   tags: ['video-generation', 'nova-reel', 'bedrock'],
 };
-
-export default novaReelTool;

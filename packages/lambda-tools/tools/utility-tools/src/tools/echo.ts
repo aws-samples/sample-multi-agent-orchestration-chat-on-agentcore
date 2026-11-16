@@ -82,5 +82,3 @@ export const echoTool: Tool = {
   version: '1.0.0',
   tags: ['utility', 'text-processing'],
 };
-
-export default echoTool;

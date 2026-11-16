@@ -127,5 +127,3 @@ export const tavilyCrawlTool: Tool = {
   version: '1.0.0',
   tags: ['web-crawl', 'tavily'],
 };
-
-export default tavilyCrawlTool;

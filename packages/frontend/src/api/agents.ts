@@ -133,14 +133,6 @@ export async function listSharedAgents(
 }
 
 /**
- * Get shared agent details
- */
-export async function getSharedAgent(userId: string, agentId: string): Promise<Agent> {
-  const data = await backendClient.get<AgentResponse>(`/agents/shared-agents/${userId}/${agentId}`);
-  return parseAgentDates(data.agent);
-}
-
-/**
  * Clone shared agent to my agents
  */
 export async function cloneSharedAgent(userId: string, agentId: string): Promise<Agent> {

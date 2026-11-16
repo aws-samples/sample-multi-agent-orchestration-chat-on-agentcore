@@ -259,13 +259,3 @@ export function extractJWTFromHeader(authHeader: string): string | null {
   // Extract JWT token part
   return authHeader.substring(bearerPrefix.length).trim();
 }
-
-/**
- * Reset cached verifier instances. Exposed for tests that need to
- * re-initialise the module with a fresh config fixture.
- */
-export function __resetJwtVerifiersForTests(): void {
-  accessTokenVerifier = null;
-  idTokenVerifier = null;
-  developerAuthVerifier = null;
-}

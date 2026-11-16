@@ -108,3 +108,30 @@ describe('keys referenced from code', () => {
     expect(missing).toEqual([]);
   });
 });
+
+describe('keys defined in the locale files', () => {
+  const code = [...Object.values(SOURCES), backendDefaultAgents].join('\n');
+  // A key counts as read when its full name is a string literal somewhere: a t('a.b')
+  // call, or a `labelKey: 'a.b'` that reaches t() through a variable.
+  const literals = new Set(
+    [...code.matchAll(/['"`]([A-Za-z0-9_]+(?:\.[A-Za-z0-9_]+)+)['"`]/g)].map((m) => m[1])
+  );
+  // ... or when code builds on it: `a.b.${x}` or 'a.b.' + x.
+  const dynamicPrefixes = [
+    ...new Set(
+      [...code.matchAll(/['"`]([A-Za-z0-9_]+(?:\.[A-Za-z0-9_]+)*\.)(?:\$\{|['"`]\s*\+)/g)].map(
+        (m) => m[1]
+      )
+    ),
+  ];
+  // Read only by code that is still in open pull requests. Drop an entry once main reads it.
+  const NOT_YET_READ = new Set(['chat.sendMessage', 'chat.stopGenerating']);
+
+  it('are all read by the code', () => {
+    const unused = [...baseKeys(en)].filter(
+      (k) =>
+        !literals.has(k) && !NOT_YET_READ.has(k) && !dynamicPrefixes.some((p) => k.startsWith(p))
+    );
+    expect(unused).toEqual([]);
+  });
+});
