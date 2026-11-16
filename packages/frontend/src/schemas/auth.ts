@@ -67,13 +67,3 @@ export const createConfirmSignUpSchema = () =>
   });
 
 export type ConfirmSignUpFormData = z.infer<ReturnType<typeof createConfirmSignUpSchema>>;
-
-// Cognito config schema factory
-export const createCognitoConfigSchema = () =>
-  z.object({
-    userPoolId: z.string().min(1, i18n.t('validation.auth.userPoolIdRequired')),
-    clientId: z.string().min(1, i18n.t('validation.auth.clientIdRequired')),
-    region: z.string().min(1, i18n.t('validation.auth.regionRequired')),
-  });
-
-export type CognitoConfigData = z.infer<ReturnType<typeof createCognitoConfigSchema>>;

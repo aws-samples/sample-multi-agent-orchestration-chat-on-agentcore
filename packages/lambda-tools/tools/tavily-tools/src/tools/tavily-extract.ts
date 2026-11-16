@@ -130,5 +130,3 @@ export const tavilyExtractTool: Tool = {
   version: '1.0.0',
   tags: ['web-extract', 'tavily'],
 };
-
-export default tavilyExtractTool;

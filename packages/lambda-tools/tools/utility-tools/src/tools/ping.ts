@@ -61,5 +61,3 @@ export const pingTool: Tool = {
   version: '1.0.0',
   tags: ['health-check', 'system-info', 'monitoring'],
 };
-
-export default pingTool;

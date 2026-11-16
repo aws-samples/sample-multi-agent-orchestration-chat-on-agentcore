@@ -27,12 +27,3 @@ export const registry = new ToolRegistry(
 export function getToolHandler(toolName: string | null) {
   return registry.getHandler(toolName);
 }
-
-/**
- * Get all available tool names
- *
- * @returns Array of tool names
- */
-export function getToolNames(): string[] {
-  return registry.getNames();
-}

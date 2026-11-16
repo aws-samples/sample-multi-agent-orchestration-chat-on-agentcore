@@ -249,5 +249,3 @@ export const athenaDescribeTableTool: Tool = {
   version: '1.0.0',
   tags: ['athena', 'glue', 'schema', 'metadata', 'describe'],
 };
-
-export default athenaDescribeTableTool;

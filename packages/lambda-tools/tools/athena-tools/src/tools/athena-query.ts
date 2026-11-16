@@ -265,5 +265,3 @@ export const athenaQueryTool: Tool = {
   version: '1.0.0',
   tags: ['athena', 'query', 's3', 'sql', 'analytics'],
 };
-
-export default athenaQueryTool;

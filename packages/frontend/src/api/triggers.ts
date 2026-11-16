@@ -42,14 +42,6 @@ export interface ExecutionsListResponse {
   };
 }
 
-export interface MessageResponse {
-  message: string;
-  metadata: {
-    requestId: string;
-    timestamp: string;
-  };
-}
-
 /**
  * Parse a date string defensively, returning the original value if invalid
  */
@@ -116,14 +108,6 @@ export async function listTriggers(
     triggers: data.triggers.map(parseTriggerDates),
     nextToken: data.nextToken,
   };
-}
-
-/**
- * Get a specific trigger
- */
-export async function getTrigger(triggerId: string): Promise<Trigger> {
-  const data = await backendClient.get<TriggerResponse>(`/triggers/${triggerId}`);
-  return parseTriggerDates(data.trigger);
 }
 
 /**

@@ -195,5 +195,3 @@ export const athenaListTablesTool: Tool = {
   version: '1.0.0',
   tags: ['athena', 'glue', 'schema', 'metadata'],
 };
-
-export default athenaListTablesTool;

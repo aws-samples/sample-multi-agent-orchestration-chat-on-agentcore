@@ -23,20 +23,3 @@ export type AppSyncMessageType =
   | 'data'
   | 'ka' // keep-alive
   | 'error';
-
-/**
- * WebSocket connection state
- */
-export interface WebSocketConnectionState {
-  isConnected: boolean;
-  reconnectAttempts: number;
-  lastError?: string;
-}
-
-/**
- * AppSync subscription config
- */
-export interface AppSyncSubscriptionConfig {
-  channel: string;
-  subscriptionId: string;
-}
