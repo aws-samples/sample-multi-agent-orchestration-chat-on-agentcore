@@ -3,6 +3,7 @@
  */
 
 import { parentPort, workerData } from 'node:worker_threads';
+import { messageOf } from '../../../libs/utils/error-message.js';
 import { fitImage, type Region } from './fit-image.js';
 
 interface Input {
@@ -20,10 +21,6 @@ fitImage({ data: Buffer.from(data.buffer, data.byteOffset, data.byteLength), for
     parentPort!.postMessage({ ok: true, fitted: { ...fitted, bytes } }, [bytes.buffer]);
   },
   (error: unknown) => {
-    const message = (error as { message?: unknown } | null)?.message;
-    parentPort!.postMessage({
-      ok: false,
-      message: typeof message === 'string' ? message : 'Unknown error',
-    });
+    parentPort!.postMessage({ ok: false, message: messageOf(error) });
   }
 );

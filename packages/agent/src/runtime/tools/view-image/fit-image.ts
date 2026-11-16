@@ -19,6 +19,7 @@ import { methods as resize } from '@jimp/plugin-resize';
 import { methods as rotate } from '@jimp/plugin-rotate';
 import decodeWebp, { init as initWebpDecoder } from '@jsquash/webp/decode.js';
 import { imageSize } from 'image-size';
+import { messageOf } from '../../../libs/utils/error-message.js';
 import type { ImageFormat } from '../../../libs/utils/image-source.js';
 import { isAnimatedWebp, readContainerOrientation, type Orientation } from './exif-orientation.js';
 
@@ -211,11 +212,9 @@ async function decode(
     if (format === 'png') applyOrientation(image, orientation);
     return image;
   } catch (error) {
-    const message = (error as { message?: unknown } | null)?.message;
-    throw new Error(
-      `Could not decode the ${format} image: ${typeof message === 'string' ? message : 'unknown error'}`,
-      { cause: error }
-    );
+    throw new Error(`Could not decode the ${format} image: ${messageOf(error)}`, {
+      cause: error,
+    });
   }
 }
 
@@ -261,19 +260,42 @@ export async function fitImage(
   }
   const opaque = isOpaque(image.bitmap.data);
 
-  for (const encoding of encodingLadder(source.format)) {
-    const step = image.clone();
-    if (Math.max(step.bitmap.width, step.bitmap.height) > encoding.edge) {
-      // jimp's default strategy averages source pixels when shrinking; the
-      // interpolating strategies (bilinear, bicubic, …) alias small text badly.
-      step.scaleToFit({ w: encoding.edge, h: encoding.edge });
+  // Each distinct edge is scaled once, from the previous (larger) result, and
+  // shared by every quality step at that edge.
+  let scaled = image;
+  let scaledEdge = Infinity;
+  let flattened: JimpImage | undefined;
+  const scaleTo = (edge: number): JimpImage => {
+    if (edge !== scaledEdge) {
+      if (Math.max(scaled.bitmap.width, scaled.bitmap.height) > edge) {
+        // jimp's default strategy averages source pixels when shrinking; the
+        // interpolating strategies (bilinear, bicubic, …) alias small text badly.
+        scaled = scaled.clone().scaleToFit({ w: edge, h: edge });
+      }
+      scaledEdge = edge;
+      flattened = undefined;
     }
+    return scaled;
+  };
+  const flattenedAt = (edge: number): JimpImage => {
+    const base = scaleTo(edge);
+    if (opaque) return base;
+    if (!flattened) {
+      flattened = base.clone();
+      flattenOntoWhite(flattened.bitmap.data);
+    }
+    return flattened;
+  };
+
+  for (const encoding of encodingLadder(source.format)) {
+    let step: JimpImage;
     let data: Buffer;
     if (encoding.format === 'png') {
+      step = scaleTo(encoding.edge);
       // colorType 2 = RGB: dropping an all-opaque alpha channel cuts the PNG by ~10%.
       data = await step.getBuffer('image/png', opaque ? { colorType: 2 } : {});
     } else {
-      flattenOntoWhite(step.bitmap.data);
+      step = flattenedAt(encoding.edge);
       data = await step.getBuffer('image/jpeg', { quality: encoding.quality });
     }
     if (data.length <= MAX_IMAGE_BYTES) {

@@ -2,7 +2,7 @@
  * View Image Tool - put an image into the model's context as visual input
  */
 
-import { tool, ImageBlock, TextBlock } from '@strands-agents/sdk';
+import { tool, ImageBlock, TextBlock, type ToolContext } from '@strands-agents/sdk';
 import { viewImageDefinition } from '@moca/tool-definitions';
 import { WORKSPACE_DIRECTORY } from '../../../config/index.js';
 import { logger } from '../../../libs/logger/index.js';
@@ -54,7 +54,7 @@ export const viewImageTool = tool({
   name: viewImageDefinition.name,
   description: viewImageDefinition.description,
   inputSchema: viewImageDefinition.zodSchema,
-  callback: async (input) => {
+  callback: async (input, toolContext?: ToolContext) => {
     const { imagePath, region } = input;
     logger.info(`[VIEW_IMAGE] Viewing image: ${imagePath}`);
 
@@ -72,7 +72,9 @@ export const viewImageTool = tool({
       maxBytes: MAX_SOURCE_BYTES,
       baseDir: context.workspaceSync?.getActiveWorkingDirectory() || WORKSPACE_DIRECTORY,
     });
-    const image = await fitImageOffThread(source, region);
+    const image = await fitImageOffThread(source, region, {
+      signal: toolContext?.cancelSignal,
+    });
 
     logger.info(
       `[VIEW_IMAGE] Delivering ${image.width}x${image.height} ${image.format}, ${image.bytes.length} bytes`

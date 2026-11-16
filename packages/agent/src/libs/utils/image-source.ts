@@ -9,6 +9,7 @@ import { resolve } from 'path';
 import { config } from '../../config/index.js';
 import { logger } from '../logger/index.js';
 import { createUserScopedS3Client } from './scoped-credentials.js';
+import { messageOf } from './error-message.js';
 
 export type ImageFormat = 'jpeg' | 'png' | 'gif' | 'webp';
 
@@ -64,15 +65,6 @@ export function detectImageFormat(buffer: Buffer): ImageFormat | null {
     return 'webp';
   }
   return null;
-}
-
-/**
- * Duck-typed rather than `instanceof Error`: Node raises fs errors from its own
- * realm, which fails `instanceof` wherever this module runs in a VM context.
- */
-function messageOf(error: unknown): string {
-  const message = (error as { message?: unknown } | null)?.message;
-  return typeof message === 'string' ? message : 'Unknown error';
 }
 
 function assertWithinLimit(bytes: number | undefined, maxBytes: number | undefined): void {
