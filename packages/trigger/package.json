@@ -26,6 +26,7 @@
   "license": "MIT",
   "dependencies": {
     "@moca/core": "*",
+    "@aws-sdk/client-cognito-identity": "^3.1077.0",
     "@aws-sdk/client-dynamodb": "^3.1156.0",
     "@aws-sdk/client-ssm": "^3.1156.0",
     "@aws-sdk/util-dynamodb": "^3.996.9",

@@ -1,4 +1,4 @@
-import { Context } from 'aws-lambda';
+import type { Context } from 'aws-lambda';
 import { extractActualToolName, extractToolName, getContextSummary } from '../context-parser.js';
 
 function makeMockContext(overrides: Partial<Context> = {}): Context {

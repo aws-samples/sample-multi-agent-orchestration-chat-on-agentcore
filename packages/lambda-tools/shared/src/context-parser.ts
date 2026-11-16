@@ -4,7 +4,7 @@
  * Extracts tool name and metadata from Lambda execution context.
  */
 
-import { Context } from 'aws-lambda';
+import type { Context } from 'aws-lambda';
 import { logger } from './logger.js';
 
 /**
