@@ -71,7 +71,7 @@ export const S3Image: React.FC<S3ImageProps> = ({ path, alt, className = '' }) =
       className={className}
       onError={() => {
         logger.error('Image load error:', path);
-        setError('Failed to display image');
+        setError(t('storage.failedToLoad'));
       }}
     />
   );

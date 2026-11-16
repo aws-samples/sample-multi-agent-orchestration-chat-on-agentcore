@@ -71,7 +71,7 @@ export const S3Video: React.FC<S3VideoProps> = ({ path, className = '' }) => {
         className="w-full max-h-[600px]"
         onError={() => {
           logger.error('Video load error:', path);
-          setError('Failed to display video');
+          setError(t('storage.failedToLoad'));
         }}
         preload="metadata"
       >

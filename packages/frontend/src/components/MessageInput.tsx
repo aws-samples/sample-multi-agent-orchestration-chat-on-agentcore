@@ -354,16 +354,21 @@ export const MessageInput: React.FC<MessageInputProps> = ({
     [processAndAttachImages]
   );
 
-  // Cleanup: Release Object URLs on component unmount
+  // Cleanup: Release Object URLs on component unmount.
+  // The ref tracks the latest attachments; an empty-deps cleanup closing over
+  // `attachedImages` would only ever see the (empty) mount-time array.
+  const attachedImagesRef = useRef(attachedImages);
+  useEffect(() => {
+    attachedImagesRef.current = attachedImages;
+  }, [attachedImages]);
   useEffect(() => {
     return () => {
-      attachedImages.forEach((img) => {
+      attachedImagesRef.current.forEach((img) => {
         if (img.previewUrl) {
           URL.revokeObjectURL(img.previewUrl);
         }
       });
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Auto-fill scenario prompt
@@ -581,6 +586,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({
                       : 'text-fg-muted hover:text-fg-secondary hover:bg-surface-secondary'
                   }`}
                   title={t('chat.imageAttachment.attach')}
+                  aria-label={t('chat.imageAttachment.attach')}
                 >
                   <Paperclip className="w-4 h-4" />
                 </button>
@@ -597,6 +603,8 @@ export const MessageInput: React.FC<MessageInputProps> = ({
                     ? 'text-fg-disabled cursor-not-allowed'
                     : 'text-fg-default hover:bg-surface-secondary'
                 }`}
+                title={t('chat.sendMessage')}
+                aria-label={t('chat.sendMessage')}
               >
                 {isLoading ? (
                   <Loader2 className="w-4 h-4 animate-spin" />
