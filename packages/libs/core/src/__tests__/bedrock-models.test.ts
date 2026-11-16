@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   BEDROCK_MODEL_DEFINITIONS,
+  parseAllowedModelIds,
   REASONING_DEPTHS,
   getMaxOutputTokens,
   getModelRegion,
@@ -681,5 +682,17 @@ describe('supportsToolResultImages', () => {
     ['unknown.model-id', false],
   ])('%s -> %s', (id, expected) => {
     expect(supportsToolResultImages(id)).toBe(expected);
+  });
+});
+
+describe('parseAllowedModelIds', () => {
+  it('uses the configured list, trimming blanks', () => {
+    expect(parseAllowedModelIds(' a , b,,')).toEqual(['a', 'b']);
+  });
+
+  it('falls back to every built-in model when unset or empty', () => {
+    const all = BEDROCK_MODEL_DEFINITIONS.map((m) => m.id);
+    expect(parseAllowedModelIds(undefined)).toEqual(all);
+    expect(parseAllowedModelIds(' , ')).toEqual(all);
   });
 });

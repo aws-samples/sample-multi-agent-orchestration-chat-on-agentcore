@@ -53,6 +53,9 @@ const envSchema = z.object({
   // container's own Runtime ARN (between `/runtimes/` and `/invocations`).
   AGENTCORE_RUNTIME_URL: z.string().optional(),
 
+  /** Comma-separated model ids this deployment allows; unset in local dev (falls back to the built-in list). */
+  BEDROCK_MODEL_IDS: z.string().optional(),
+
   // Backend API
   // Required in all environments. Run `npm run setup-env` to populate from CloudFormation outputs.
   BACKEND_API_URL: z.url(),

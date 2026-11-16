@@ -114,6 +114,9 @@ export class TriggerLambda extends Construct {
    */
   public readonly functionName: string;
 
+  /** Machine-user client secret (token), shared with the workflow orchestrator. */
+  public readonly machineClientSecret: string;
+
   constructor(scope: Construct, id: string, props: TriggerLambdaProps) {
     super(scope, id);
 
@@ -148,6 +151,8 @@ export class TriggerLambda extends Construct {
       logRetention: logs.RetentionDays.ONE_WEEK,
     });
 
+    this.machineClientSecret = getClientSecret.getResponseField('UserPoolClient.ClientSecret');
+
     // Explicit log group so stack deletion cleans it up and redeploys don't
     // collide with a previously auto-created group of the same name.
     const logGroup = new logs.LogGroup(this, 'FunctionLogGroup', {
@@ -176,7 +181,7 @@ export class TriggerLambda extends Construct {
         AGENT_API_URL: props.agentApiUrl,
         COGNITO_DOMAIN: props.cognitoDomain,
         COGNITO_CLIENT_ID: props.cognitoClientId,
-        COGNITO_CLIENT_SECRET: getClientSecret.getResponseField('UserPoolClient.ClientSecret'),
+        COGNITO_CLIENT_SECRET: this.machineClientSecret,
         COGNITO_SCOPE: 'agent/invoke agent/tools',
         // Developer Authenticated Identities for per-user OpenID Token issuance
         IDENTITY_POOL_ID: props.identityPoolId,

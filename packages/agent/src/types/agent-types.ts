@@ -5,7 +5,7 @@
  * Located in types/ (L0) so that all layers can reference these types.
  */
 
-import type { Agent, Plugin } from '@strands-agents/sdk';
+import type { Agent, Plugin, Tool } from '@strands-agents/sdk';
 import type { IdentityId, ReasoningDepth } from '@moca/core';
 import type { SessionStorage, SessionConfig } from './session-types.js';
 // Type-only import: no runtime dependency on the runtime/ layer, so this does
@@ -57,6 +57,8 @@ export interface CreateAgentOptions {
    * picked up by AgentCore Observability for trace-level correlation.
    */
   agentId?: string;
+  /** Request-scoped tools appended after `enabledTools` filtering (never filtered out). */
+  additionalTools?: Tool[];
 }
 
 /**

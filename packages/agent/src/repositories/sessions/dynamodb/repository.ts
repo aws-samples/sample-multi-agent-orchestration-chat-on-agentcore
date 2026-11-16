@@ -122,6 +122,7 @@ export class DynamoDBSessionsRepository implements SessionsRepository {
       storagePath: options.storagePath,
       sessionType: options.sessionType,
       channelUserId: options.channelUserId,
+      parent: options.parent,
       createdAt: now,
       updatedAt: now,
     };

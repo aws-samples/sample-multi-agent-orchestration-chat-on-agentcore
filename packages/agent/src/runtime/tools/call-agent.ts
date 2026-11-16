@@ -5,13 +5,9 @@
 
 import { tool, ToolContext } from '@strands-agents/sdk';
 import { subAgentTaskManager } from '../../services/sub-agent-task-manager.js';
-import { listAgents } from '../../services/agent-registry.js';
+import { listCallerAgents } from '../../services/agent-registry.js';
 import { logger } from '../../libs/logger/index.js';
-import {
-  getCallerAuthorizationHeader,
-  getCallerIdToken,
-  getCurrentContext,
-} from '../../libs/context/request-context.js';
+import { getCurrentContext } from '../../libs/context/request-context.js';
 import { callAgentDefinition } from '@moca/tool-definitions';
 import type { ReasoningDepth } from '@moca/core';
 
@@ -26,36 +22,11 @@ function sleep(ms: number): Promise<void> {
  * Handle list_agents action
  */
 async function handleListAgents(): Promise<Record<string, unknown>> {
-  try {
-    // Pass auth context explicitly for Machine User support.
-    // Forward the Cognito ID Token as well — the Backend `authMiddleware`
-    // requires the X-Amzn-Bedrock-AgentCore-Runtime-Custom-Id-Token header
-    // to resolve the Identity Pool identityId on every request.
-    const currentContext = getCurrentContext();
-    const authHeader = getCallerAuthorizationHeader();
-    const agents = await listAgents({
-      authHeader,
-      userId: currentContext?.userId,
-      idToken: getCallerIdToken(),
-    });
-
-    return {
-      agents: agents.map((agent) => ({
-        agentId: agent.agentId,
-        name: agent.name,
-        description: agent.description,
-      })),
-      count: agents.length,
-    };
-  } catch (error) {
-    logger.error({ error }, 'Failed to list agents:');
-    return {
-      error: 'Failed to list agents',
-      message: error instanceof Error ? error.message : 'Unknown error',
-      agents: [],
-      count: 0,
-    };
+  const result = await listCallerAgents();
+  if (!result.ok) {
+    return { error: 'Failed to list agents', message: result.error, agents: [], count: 0 };
   }
+  return { agents: result.agents, count: result.agents.length };
 }
 
 /**
@@ -96,14 +67,12 @@ async function handleStartTask(
   }
 
   try {
-    // Get session ID from agent state if available
-    const parentSessionId = context?.agent?.appState?.get('sessionId') as string | undefined;
+    const currentContext = getCurrentContext();
+    const parentSessionId = currentContext?.sessionId;
 
     // Get storagePath from input or inherit from parent
     const storagePath = input.storagePath || context?.agent?.appState?.get('storagePath');
 
-    // Get userId from request context
-    const currentContext = getCurrentContext();
     const userId = currentContext?.userId;
 
     // Create task

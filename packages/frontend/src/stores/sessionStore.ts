@@ -21,6 +21,7 @@ import { extractErrorMessage } from '../utils/store-helpers';
 import { generateSessionId } from '../utils/sessionId';
 import { settleWithConcurrency } from '../utils/settleWithConcurrency';
 import { isSessionId, isAgentId } from '@moca/core';
+import type { SessionParent } from '@moca/core';
 
 /** Max session DELETE requests in flight during a bulk delete. */
 export const BULK_DELETE_CONCURRENCY = 2;
@@ -88,9 +89,11 @@ interface SessionActions {
     sessionId: string,
     title?: string,
     sessionType?: SessionType,
-    agentId?: string
+    agentId?: string,
+    parent?: SessionParent
   ) => void;
   updateSessionTitle: (sessionId: string, title: string) => void;
+  updateSessionParent: (sessionId: string, parent: SessionParent) => void;
   updateSessionType: (sessionId: string, sessionType: SessionType) => void;
   updateSessionAgentId: (sessionId: string, agentId: string) => void;
   updateSessionActiveTurn: (
@@ -273,7 +276,9 @@ export const useSessionStore = create<SessionStore>()(
             eventsHasMore: result.hasMore,
           });
 
-          logger.log(`Session conversation history loaded: ${result.events.length} items, hasMore: ${result.hasMore}`);
+          logger.log(
+            `Session conversation history loaded: ${result.events.length} items, hasMore: ${result.hasMore}`
+          );
         } catch (error) {
           // Handle a missing/unowned session - redirect to /chat. The backend
           // returns 404 (NOT_FOUND) for a session that does not exist or is
@@ -571,7 +576,8 @@ export const useSessionStore = create<SessionStore>()(
         sessionId: string,
         title?: string,
         sessionType?: SessionType,
-        agentId?: string
+        agentId?: string,
+        parent?: SessionParent
       ) => {
         const { sessions } = get();
 
@@ -601,6 +607,7 @@ export const useSessionStore = create<SessionStore>()(
           // Narrow to branded `AgentId` at the boundary; drop malformed values
           // rather than forcing the branded type onto an unvalidated string.
           agentId: agentId && isAgentId(agentId) ? agentId : undefined,
+          parent,
           createdAt: new Date().toISOString(),
           updatedAt: new Date().toISOString(),
         };
@@ -624,6 +631,15 @@ export const useSessionStore = create<SessionStore>()(
 
         set({ sessions: updatedSessions });
         logger.log(`Updated session title: ${sessionId} - "${title}"`);
+      },
+
+      updateSessionParent: (sessionId: string, parent: SessionParent) => {
+        const { sessions } = get();
+        const target = sessions.find((s) => s.sessionId === sessionId);
+        if (!target || target.parent) return; // immutable after creation
+        set({
+          sessions: sessions.map((s) => (s.sessionId === sessionId ? { ...s, parent } : s)),
+        });
       },
 
       updateSessionType: (sessionId: string, sessionType: SessionType) => {

@@ -45,6 +45,9 @@ export interface StreamOptions {
  * as `network error` during a 5-min `sleep`), while the turn keeps running
  * server-side. A periodic no-op event keeps bytes flowing.
  */
+/** Whether the turn finished normally; errors were already reported to the client. */
+export type StreamOutcome = { ok: true } | { ok: false; error: string };
+
 export const HEARTBEAT_INTERVAL_MS = 30_000;
 
 /**
@@ -171,7 +174,7 @@ export async function streamAgentResponse(
   images: ImageData[] | undefined,
   res: Response,
   options: StreamOptions
-): Promise<void> {
+): Promise<StreamOutcome> {
   const context = getCurrentContext();
   const requestId = context?.requestId;
   setStreamingHeaders(res);
@@ -251,8 +254,10 @@ export async function streamAgentResponse(
 
     sendCompletionEvent(res, agent, options);
     res.end();
+    return { ok: true };
   } catch (streamError) {
     await handleStreamError(streamError, res, options);
+    return { ok: false, error: sanitizeErrorMessage(streamError) };
   } finally {
     clearInterval(heartbeat);
     if (context) context.emitClientEvent = undefined;

@@ -15,7 +15,7 @@
  * distinct brands precisely so the two can never be swapped by accident.
  */
 
-import type { IdentityId, AgentId, UserId } from '@moca/core';
+import type { IdentityId, AgentId, SessionParent, UserId } from '@moca/core';
 
 /**
  * Session type
@@ -41,6 +41,8 @@ export interface SessionData {
    * so the identityId "REGION:UUID" cannot be used directly).
    */
   channelUserId?: UserId;
+  /** Set on child sessions (workflow steps, call_agent sub-agents). */
+  parent?: SessionParent;
   /** ISO time the currently running turn started; absent when idle. */
   activeTurnStartedAt?: string;
   createdAt: string;
@@ -58,6 +60,7 @@ export interface SessionSummary {
   agentId?: AgentId;
   storagePath?: string;
   sessionType?: SessionType;
+  parent?: SessionParent;
   createdAt: string;
   updatedAt: string;
 }

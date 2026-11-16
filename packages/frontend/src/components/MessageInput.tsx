@@ -12,6 +12,7 @@ import { isRuntimeWarmupEnabled, warmupAgentRuntime } from '../api/agent';
 import { generateSessionId } from '../utils/sessionId';
 import { StoragePathDisplay } from './StoragePathDisplay';
 import { StorageManagementModal } from './StorageManagementModal';
+import { WorkflowStatusLauncher } from './workflow/WorkflowStatusLauncher';
 import { ModelReasoningSelector } from './ui/ModelReasoningSelector';
 import { ImagePreview } from './ImagePreview';
 import type { ImageAttachment } from '../types/index';
@@ -353,16 +354,21 @@ export const MessageInput: React.FC<MessageInputProps> = ({
     [processAndAttachImages]
   );
 
-  // Cleanup: Release Object URLs on component unmount
+  // Cleanup: Release Object URLs on component unmount.
+  // The ref tracks the latest attachments; an empty-deps cleanup closing over
+  // `attachedImages` would only ever see the (empty) mount-time array.
+  const attachedImagesRef = useRef(attachedImages);
+  useEffect(() => {
+    attachedImagesRef.current = attachedImages;
+  }, [attachedImages]);
   useEffect(() => {
     return () => {
-      attachedImages.forEach((img) => {
+      attachedImagesRef.current.forEach((img) => {
         if (img.previewUrl) {
           URL.revokeObjectURL(img.previewUrl);
         }
       });
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Auto-fill scenario prompt
@@ -498,9 +504,10 @@ export const MessageInput: React.FC<MessageInputProps> = ({
     >
       {/* Storage path display */}
       <div
-        className={`${isWideView ? 'max-w-full px-4' : 'max-w-4xl'} mx-auto mb-2 transition-[max-width,padding] duration-300 ease-in-out`}
+        className={`${isWideView ? 'max-w-full px-4' : 'max-w-4xl'} mx-auto mb-2 flex items-center justify-between gap-2 transition-[max-width,padding] duration-300 ease-in-out`}
       >
         <StoragePathDisplay onClick={() => setIsStorageModalOpen(true)} />
+        <WorkflowStatusLauncher sessionId={sessionId} />
       </div>
 
       <form
@@ -579,6 +586,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({
                       : 'text-fg-muted hover:text-fg-secondary hover:bg-surface-secondary'
                   }`}
                   title={t('chat.imageAttachment.attach')}
+                  aria-label={t('chat.imageAttachment.attach')}
                 >
                   <Paperclip className="w-4 h-4" />
                 </button>
@@ -595,6 +603,8 @@ export const MessageInput: React.FC<MessageInputProps> = ({
                     ? 'text-fg-disabled cursor-not-allowed'
                     : 'text-fg-default hover:bg-surface-secondary'
                 }`}
+                title={t('chat.sendMessage')}
+                aria-label={t('chat.sendMessage')}
               >
                 {isLoading ? (
                   <Loader2 className="w-4 h-4 animate-spin" />

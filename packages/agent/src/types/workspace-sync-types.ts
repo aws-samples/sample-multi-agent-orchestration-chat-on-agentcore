@@ -7,14 +7,16 @@
  * this interface.
  */
 
-import type { SyncResult } from '@moca/s3-workspace-sync';
+import type { SyncConflict, SyncResult } from '@moca/s3-workspace-sync';
 
-export type { SyncResult };
+export type { SyncConflict, SyncResult };
 
 export interface IWorkspaceSync {
   startInitialSync(): void;
   waitForInitialSync(): Promise<void>;
   syncToS3(): Promise<SyncResult>;
+  /** Conflicts found by pushes since the last call (awaits pushes in flight). */
+  takeConflicts(): Promise<SyncConflict[]>;
   getWorkspacePath(): string;
   getActiveWorkingDirectory(): string;
   /**

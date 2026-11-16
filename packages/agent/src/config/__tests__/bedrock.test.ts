@@ -338,3 +338,11 @@ describe('createBedrockModel GPT-6.1 Terra (global.openai.gpt-6.1-terra)', () =>
     expect(constructorCalls[0].cacheConfig).toBeUndefined();
   });
 });
+
+describe('createBedrockModel stream idle timeout', () => {
+  it('raises the SDK 120 s idle timeout so long tool arguments are not cut', () => {
+    createBedrockModel({ modelId: 'global.anthropic.claude-sonnet-4-6' });
+    const options = constructorCalls[constructorCalls.length - 1] as { requestTimeout?: number };
+    expect(options.requestTimeout).toBe(10 * 60 * 1000);
+  });
+});
