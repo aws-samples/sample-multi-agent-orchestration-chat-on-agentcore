@@ -26,13 +26,14 @@ import { it, expect, beforeAll, afterAll } from '@jest/globals';
 import { mkdtemp, rm, writeFile } from 'fs/promises';
 import { tmpdir } from 'os';
 import { join } from 'path';
-import sharp from 'sharp';
 import { Agent, SlidingWindowConversationManager } from '@strands-agents/sdk';
 import type { UserId } from '@moca/core';
 import { createBedrockModel } from '../../../../config/bedrock.js';
 import { createRequestContext, runWithContext } from '../../../../libs/context/request-context.js';
 import { describeIfEnv } from '../../../../tests/integration-helpers.js';
-import { viewImageTool } from '../tool.js';
+import { pngOf, solid } from './images.js';
+
+const { viewImageTool } = await import('../tool.js');
 
 const describeViewImage = describeIfEnv(
   ['RUN_BEDROCK_VIEW_IMAGE_INTEGRATION'],
@@ -46,12 +47,7 @@ beforeAll(async () => {
   dir = await mkdtemp(join(tmpdir(), 'view-image-it-'));
   imagePath = join(dir, 'swatch.png');
   // Larger than the edge limit, so the downscale path is what the model sees.
-  await writeFile(
-    imagePath,
-    await sharp({ create: { width: 2400, height: 1600, channels: 3, background: '#00a000' } })
-      .png()
-      .toBuffer()
-  );
+  await writeFile(imagePath, await pngOf(solid(2400, 1600, [0x00, 0xa0, 0x00])));
 });
 
 afterAll(async () => {

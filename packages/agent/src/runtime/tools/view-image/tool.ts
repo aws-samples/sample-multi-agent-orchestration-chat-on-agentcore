@@ -8,7 +8,8 @@ import { WORKSPACE_DIRECTORY } from '../../../config/index.js';
 import { logger } from '../../../libs/logger/index.js';
 import { getCurrentContext } from '../../../libs/context/request-context.js';
 import { loadImageSource } from '../../../libs/utils/image-source.js';
-import { fitImage, type FittedImage } from './fit-image.js';
+import type { FittedImage } from './fit-image.js';
+import { fitImageOffThread } from './fit-image-off-thread.js';
 
 /** Largest source file read into memory for decoding. */
 const MAX_SOURCE_BYTES = 30 * 1024 * 1024;
@@ -71,7 +72,7 @@ export const viewImageTool = tool({
       maxBytes: MAX_SOURCE_BYTES,
       baseDir: context.workspaceSync?.getActiveWorkingDirectory() || WORKSPACE_DIRECTORY,
     });
-    const image = await fitImage(source, region);
+    const image = await fitImageOffThread(source, region);
 
     logger.info(
       `[VIEW_IMAGE] Delivering ${image.width}x${image.height} ${image.format}, ${image.bytes.length} bytes`

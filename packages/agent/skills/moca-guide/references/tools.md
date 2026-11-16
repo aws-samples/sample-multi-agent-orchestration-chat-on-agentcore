@@ -62,7 +62,9 @@ vision `modelId` (defaults to Nova Lite 2). Good for OCR and visual understandin
 Puts the image into the agent's own context as visual input, so the agent sees the
 pixels instead of another model's description. `imagePath` accepts a local path
 or an `s3://` URI. Large images are downscaled; pass `region` (`x`, `y`, `width`,
-`height` in original-image pixels) to zoom in on small text or detail. The image
+`height` in original-image pixels) to zoom in on small text or detail. Images over
+25 megapixels, and animated WebP that needs cropping or scaling, are rejected —
+downscale or extract a frame with the code interpreter first. The image
 is visible for the current turn only — later turns keep a text note, so the agent
 views it again when needed. Offered only on models that accept images in tool
 results (Claude and Nova); on other models use `image_to_text`.

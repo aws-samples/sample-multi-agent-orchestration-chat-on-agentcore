@@ -7,7 +7,6 @@ import { describe, it, expect, jest, beforeAll, afterAll } from '@jest/globals';
 import { mkdtemp, rm, writeFile } from 'fs/promises';
 import { tmpdir } from 'os';
 import { join } from 'path';
-import sharp from 'sharp';
 import type { ImageBlock, LocalAgent, TextBlock, ToolResultBlock } from '@strands-agents/sdk';
 import type { UserId } from '@moca/core';
 import type { RequestContext } from '../../../../libs/context/request-context.js';
@@ -16,6 +15,7 @@ import type { IWorkspaceSync } from '../../../../types/index.js';
 jest.unstable_mockModule('../../../../libs/logger/index.js', () => ({
   logger: { info: jest.fn(), warn: jest.fn(), error: jest.fn(), debug: jest.fn() },
 }));
+const { dimensionsOf, pngOf, solid } = await import('./images.js');
 
 const { createRequestContext, runWithContext } =
   await import('../../../../libs/context/request-context.js');
@@ -25,18 +25,8 @@ let workDir: string;
 
 beforeAll(async () => {
   workDir = await mkdtemp(join(tmpdir(), 'view-image-'));
-  await writeFile(
-    join(workDir, 'small.png'),
-    await sharp({ create: { width: 320, height: 200, channels: 3, background: '#336699' } })
-      .png()
-      .toBuffer()
-  );
-  await writeFile(
-    join(workDir, 'large.png'),
-    await sharp({ create: { width: 3000, height: 2000, channels: 3, background: '#336699' } })
-      .png()
-      .toBuffer()
-  );
+  await writeFile(join(workDir, 'small.png'), await pngOf(solid(320, 200)));
+  await writeFile(join(workDir, 'large.png'), await pngOf(solid(3000, 2000)));
   await writeFile(join(workDir, 'notes.txt'), 'not an image');
 });
 
@@ -80,8 +70,7 @@ describe('view_image', () => {
     const image = result.content[1] as ImageBlock;
     expect(image.format).toBe('png');
     if (image.source.type !== 'imageSourceBytes') throw new Error('expected a bytes source');
-    const decoded = await sharp(Buffer.from(image.source.bytes)).metadata();
-    expect([decoded.width, decoded.height]).toEqual([320, 200]);
+    expect(await dimensionsOf(Buffer.from(image.source.bytes))).toEqual([320, 200]);
 
     const text = (result.content[0] as TextBlock).text;
     expect(text).toContain('Original: 320x200 png');
@@ -121,12 +110,7 @@ describe('view_image', () => {
     const ctx = context({
       workspaceSync: {
         waitForInitialSync: async () => {
-          await writeFile(
-            lateFile,
-            await sharp({ create: { width: 10, height: 10, channels: 3, background: '#000000' } })
-              .png()
-              .toBuffer()
-          );
+          await writeFile(lateFile, await pngOf(solid(10, 10)));
         },
         getActiveWorkingDirectory: () => workDir,
       } as unknown as IWorkspaceSync,
