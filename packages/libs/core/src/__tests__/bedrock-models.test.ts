@@ -670,6 +670,62 @@ describe('GPT-6.1 Terra', () => {
   });
 });
 
+describe('GPT-6.2 Astra / GPT-6.2 Sol', () => {
+  // GA 2026-11-17. Global CRIS profiles verified ACTIVE in ap-northeast-1 via
+  // `aws bedrock list-inference-profiles` / `get-inference-profile`. The model
+  // cards were not yet published, so maxOutputTokens is the conservative
+  // 128,000 (the lower of the GPT-6 family ceilings) for both models.
+  const CASES = [
+    { id: 'global.openai.gpt-6.2-astra', bare: 'openai.gpt-6.2-astra', name: 'GPT-6.2 Astra' },
+    { id: 'global.openai.gpt-6.2-sol', bare: 'openai.gpt-6.2-sol', name: 'GPT-6.2 Sol' },
+  ];
+
+  it.each(CASES)('registers $name with the conservative Converse shape', ({ id, name }) => {
+    const entry = BEDROCK_MODEL_DEFINITIONS.find((m) => m.id === id);
+    expect(entry).toMatchObject({ id, name, provider: 'OpenAI', maxOutputTokens: 128000 });
+    expect(entry?.endpoint).toBeUndefined();
+    expect(entry?.region).toBeUndefined();
+    expect(entry?.reasoningCapable).toBeUndefined();
+    expect(entry?.offThinkingMode).toBeUndefined();
+    expect(entry?.stripPriorReasoning).toBeUndefined();
+  });
+
+  it.each(CASES)('resolves $bare and $id to the same metadata', ({ id, bare }) => {
+    for (const modelId of [id, bare]) {
+      expect(getMaxOutputTokens(modelId)).toBe(128000);
+      expect(getModelRegion(modelId)).toBeUndefined();
+      expect(getBedrockEndpoint(modelId)).toBeUndefined();
+      expect(isReasoningCapable(modelId)).toBe(false);
+      expect(getMaxReasoningDepth(modelId)).toBeUndefined();
+      expect(getReasoningConfig(modelId, 'high')).toBeUndefined();
+      expect(supportsToolResultImages(modelId)).toBe(false);
+    }
+  });
+
+  it.each(CASES)('has exactly one registry entry normalizing to $bare', ({ id, bare }) => {
+    const matches = BEDROCK_MODEL_DEFINITIONS.filter(
+      (m) => m.id.replace(/^(global|us|eu|apac|au|jp)\./, '') === bare,
+    );
+    expect(matches.map((m) => m.id)).toEqual([id]);
+  });
+
+  it('lists GPT-6.2 Astra then GPT-6.2 Sol directly above GPT-6 Astra', () => {
+    const ids = BEDROCK_MODEL_DEFINITIONS.map((m) => m.id);
+    const i = ids.indexOf('global.openai.gpt-6.2-astra');
+    expect(i).toBeGreaterThan(0);
+    expect(ids.slice(i, i + 3)).toEqual([
+      'global.openai.gpt-6.2-astra',
+      'global.openai.gpt-6.2-sol',
+      'global.openai.gpt-6-astra',
+    ]);
+  });
+
+  it('leaves the GPT-6 predecessors unchanged', () => {
+    expect(getMaxOutputTokens('global.openai.gpt-6-astra')).toBe(128000);
+    expect(getMaxOutputTokens('global.openai.gpt-6-sol')).toBe(131072);
+  });
+});
+
 describe('supportsToolResultImages', () => {
   it.each([
     ['global.anthropic.claude-opus-5', true],

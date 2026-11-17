@@ -41,4 +41,14 @@ describe('AVAILABLE_MODELS fallback (derived from @moca/core BEDROCK_MODEL_DEFIN
     expect(getModelDisplayName('global.openai.gpt-6.1-terra')).toContain('GPT-6.1 Terra');
     expect(getModelDisplayName('global.openai.gpt-6.1-terra')).toContain('OpenAI');
   });
+
+  it.each([
+    ['global.openai.gpt-6.2-astra', 'GPT-6.2 Astra'],
+    ['global.openai.gpt-6.2-sol', 'GPT-6.2 Sol'],
+  ])('includes %s as %s from OpenAI', (id, name) => {
+    const model = getModelById(id);
+    expect(model?.provider).toBe('OpenAI');
+    expect(model?.name).toBe(name);
+    expect(getModelDisplayName(id)).toContain(name);
+  });
 });

@@ -191,6 +191,23 @@ const DEFAULT_CONFIG = {
       provider: 'Qwen',
     },
     {
+      // OpenAI GPT-6.2 Astra (GA 2026-11-17). Converse on bedrock-runtime like
+      // GPT-6 Astra — no `endpoint`, no CallWithBearerToken grant. Global CRIS
+      // id (verified ACTIVE in ap-northeast-1) → deriveBedrockIamResources()
+      // grants the inference-profile ARN plus the foundation-model ARN. No
+      // region pin.
+      id: 'global.openai.gpt-6.2-astra',
+      name: 'GPT-6.2 Astra',
+      provider: 'OpenAI',
+    },
+    {
+      // OpenAI GPT-6.2 Sol (GA 2026-11-17). Same Converse path and IAM shape as
+      // GPT-6.2 Astra above.
+      id: 'global.openai.gpt-6.2-sol',
+      name: 'GPT-6.2 Sol',
+      provider: 'OpenAI',
+    },
+    {
       // OpenAI GPT-6 Astra. Unlike the GPT-5.x Mantle models below, Astra
       // supports Converse on bedrock-runtime, so it has NO `endpoint` and is
       // authorized by the standard Converse InvokeModel grant (no

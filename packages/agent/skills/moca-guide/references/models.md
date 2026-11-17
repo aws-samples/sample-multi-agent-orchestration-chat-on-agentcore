@@ -20,6 +20,7 @@ when unsure. The available catalog (deployment-dependent):
 | Claude Haiku 5.5 | Anthropic | yes (up to `max`; thinking on by default — `off` = thinking disabled) |
 | Nova Lite 2 | Amazon | no |
 | Qwen3 Coder Next | Qwen | no |
+| GPT-6.2 Astra / GPT-6.2 Sol | OpenAI | no |
 | GPT-6 Astra | OpenAI | no |
 | GPT-5.6 Sol / Terra / Luna | OpenAI | no |
 | GPT-5.5 / GPT-5.4 | OpenAI | no |

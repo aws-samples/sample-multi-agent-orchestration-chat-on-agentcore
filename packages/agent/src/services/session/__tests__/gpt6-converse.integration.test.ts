@@ -38,6 +38,8 @@ import { describeIfEnv } from '../../../tests/integration-helpers.js';
 
 const GPT_6_SOL = 'global.openai.gpt-6-sol';
 const GPT_6_LUNA = 'global.openai.gpt-6-luna';
+const GPT_6_2_ASTRA = 'global.openai.gpt-6.2-astra';
+const GPT_6_2_SOL = 'global.openai.gpt-6.2-sol';
 
 const describeGpt6 = describeIfEnv(
   ['RUN_BEDROCK_GPT6_INTEGRATION'],
@@ -64,6 +66,8 @@ async function streamAll(agent: Agent, prompt: string): Promise<unknown[]> {
 for (const [label, modelId] of [
   ['GPT-6 Sol', GPT_6_SOL],
   ['GPT-6 Luna', GPT_6_LUNA],
+  ['GPT-6.2 Astra', GPT_6_2_ASTRA],
+  ['GPT-6.2 Sol', GPT_6_2_SOL],
 ] as const) {
   describeGpt6(`${label} (${modelId})`, () => {
     it('is routed to the Converse BedrockModel, not the OpenAI endpoint path', () => {

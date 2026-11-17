@@ -339,6 +339,36 @@ describe('createBedrockModel GPT-6.1 Terra (global.openai.gpt-6.1-terra)', () =>
   });
 });
 
+describe.each(['global.openai.gpt-6.2-astra', 'global.openai.gpt-6.2-sol'])(
+  'createBedrockModel %s',
+  (modelId) => {
+    // GPT-6.2 Astra / Sol (GA 2026-11-17) are on the bedrock-runtime Converse
+    // path — no endpoint override — so they must build a BedrockModel.
+
+    it('builds a BedrockModel (Converse), not an OpenAIModel', () => {
+      const model = createBedrockModel({ modelId });
+      expect(model).toBeInstanceOf(MockBedrockModel);
+      expect(openaiConstructorCalls).toHaveLength(0);
+    });
+
+    it('uses maxTokens 128000 and the deployment BEDROCK_REGION', () => {
+      createBedrockModel({ modelId });
+      expect(constructorCalls[0].maxTokens).toBe(128000);
+      expect(constructorCalls[0].region).toBe('ap-northeast-1');
+    });
+
+    it('omits additionalRequestFields for every reasoning depth', () => {
+      for (const effort of ['low', 'high', 'max', 'off'] as const) {
+        createBedrockModel({ modelId, reasoningEffort: effort });
+      }
+      expect(constructorCalls).toHaveLength(4);
+      for (const call of constructorCalls) {
+        expect(call.additionalRequestFields).toBeUndefined();
+      }
+    });
+  }
+);
+
 describe('createBedrockModel stream idle timeout', () => {
   it('raises the SDK 120 s idle timeout so long tool arguments are not cut', () => {
     createBedrockModel({ modelId: 'global.anthropic.claude-sonnet-4-6' });

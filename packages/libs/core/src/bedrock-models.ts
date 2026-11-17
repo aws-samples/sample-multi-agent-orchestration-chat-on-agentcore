@@ -416,6 +416,47 @@ export const BEDROCK_MODEL_DEFINITIONS = [
     region: 'us-east-1',
   },
   {
+    // OpenAI GPT-6.2 Astra on Bedrock. GA 2026-11-17. Successor to GPT-6 Astra;
+    // same transport: Converse on bedrock-runtime via the Global CRIS profile,
+    // no `endpoint` override, no region pin. `global.openai.gpt-6.2-astra` was
+    // verified ACTIVE in ap-northeast-1 (`aws bedrock get-inference-profile`,
+    // 2026-11-17); foundation model `openai.gpt-6.2-astra` reports
+    // INFERENCE_PROFILE-only inference (no in-Region on-demand), TEXT+IMAGE in,
+    // TEXT out, streaming supported.
+    //
+    // maxOutputTokens: the model card was not published at implementation time.
+    // 128,000 is the conservative choice — it is the lower of the GPT-6 family
+    // ceilings (Astra/Terra 128,000; Sol/Luna 131,072), so it cannot exceed the
+    // real limit if that limit is either value. Raise it once the card is live.
+    //
+    // reasoningCapable: omitted for the same reason as GPT-6 Astra —
+    // getReasoningConfig() emits the Anthropic-native thinking shape, which
+    // OpenAI models reject over Converse. OpenAI-shaped reasoning is #145/#151.
+    //
+    // Ultrafast mode: not exposed. It is a latency tier of the same model, not a
+    // distinct model id, and Moca has no request field for it.
+    //
+    // Source: https://aws.amazon.com/about-aws/whats-new/2026/11/openai-gpt-6-2-astra-sol-amazon-bedrock/
+    id: 'global.openai.gpt-6.2-astra',
+    name: 'GPT-6.2 Astra',
+    provider: 'OpenAI',
+    maxOutputTokens: 128000, // conservative; model card unpublished as of 2026-11-17
+  },
+  {
+    // OpenAI GPT-6.2 Sol on Bedrock. GA 2026-11-17. Successor to GPT-6 Sol;
+    // identical transport and constraints to GPT-6.2 Astra above (Global CRIS
+    // `global.openai.gpt-6.2-sol` verified ACTIVE in ap-northeast-1, Converse,
+    // no endpoint, no region pin, reasoningCapable omitted).
+    //
+    // maxOutputTokens: 128,000 — deliberately NOT GPT-6 Sol's 131,072. The card
+    // is unpublished; if GPT-6.2 Sol's real ceiling is 128,000, sending 131,072
+    // on every request would fail every invocation with ValidationException.
+    id: 'global.openai.gpt-6.2-sol',
+    name: 'GPT-6.2 Sol',
+    provider: 'OpenAI',
+    maxOutputTokens: 128000, // conservative; model card unpublished as of 2026-11-17
+  },
+  {
     // OpenAI GPT-6 Astra on Bedrock. GA 2026-09-08. Unlike the GPT-5.x models
     // below, Astra officially supports the Converse API on bedrock-runtime, so
     // we load it on the STANDARD Converse path (no `endpoint` override) rather
