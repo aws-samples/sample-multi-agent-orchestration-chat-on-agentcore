@@ -8,6 +8,7 @@
   "scripts": {
     "build": "tsc",
     "watch": "tsc -w",
+    "typecheck": "tsc --noEmit",
     "lint": "eslint bin lib",
     "lint:fix": "eslint bin lib --fix && prettier --write \"{bin,lib}/**/*.{ts,tsx,js,jsx}\"",
     "test": "jest --passWithNoTests",

@@ -17,7 +17,7 @@
     "build:ts": "tsc -b tsconfig.build.json",
     "build:frontend": "npm run build -w packages/frontend",
     "build": "npm run build:ts && npm run build:frontend",
-    "typecheck": "tsc -b tsconfig.build.json --noEmit",
+    "typecheck": "npm run build:ts && npm run typecheck --workspaces --if-present",
     "test": "npm run build:ts && npm run test --workspaces --if-present && node --max-old-space-size=8192 node_modules/.bin/jest --config jest.config.cjs",
     "lint": "npm run lint --workspaces --if-present",
     "lint:fix": "npm run lint:fix --workspaces --if-present",
