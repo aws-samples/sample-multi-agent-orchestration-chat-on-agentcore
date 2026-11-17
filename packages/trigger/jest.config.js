@@ -33,4 +33,6 @@ export default {
   coverageDirectory: 'coverage',
   coverageReporters: ['text', 'lcov', 'html'],
   testTimeout: 30000, // 30 seconds for integration tests
+  // Coverage floor (ratchet): raise these when coverage improves, never lower them.
+  coverageThreshold: { global: { statements: 54, branches: 51, functions: 68, lines: 53 } },
 };

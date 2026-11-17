@@ -19,6 +19,7 @@
     "build": "npm run build:ts && npm run build:frontend",
     "typecheck": "npm run build:ts && npm run typecheck --workspaces --if-present",
     "test": "npm run build:ts && npm run test --workspaces --if-present && node --max-old-space-size=8192 node_modules/.bin/jest --config jest.config.cjs",
+    "test:coverage": "npm run build:ts && npm run test:coverage --workspaces --if-present && node --max-old-space-size=8192 node_modules/.bin/jest --config jest.config.cjs",
     "lint": "npm run lint --workspaces --if-present",
     "lint:fix": "npm run lint:fix --workspaces --if-present",
     "format": "prettier --write .",

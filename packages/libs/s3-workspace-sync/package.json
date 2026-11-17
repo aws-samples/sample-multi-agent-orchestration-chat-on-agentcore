@@ -21,6 +21,7 @@
     "build": "tsc --build",
     "clean": "rimraf dist",
     "test": "NODE_OPTIONS='--experimental-vm-modules --no-warnings' vitest run",
+    "test:coverage": "NODE_OPTIONS='--experimental-vm-modules --no-warnings' vitest run --coverage",
     "test:watch": "NODE_OPTIONS='--experimental-vm-modules --no-warnings' vitest",
     "test:integration": "NODE_OPTIONS='--experimental-vm-modules --no-warnings' vitest run --config vitest.integration.config.ts",
     "lint": "eslint src"
@@ -51,6 +52,7 @@
   },
   "devDependencies": {
     "@aws-sdk/client-s3": "^3.1156.0",
+    "@vitest/coverage-v8": "^4.1.12",
     "vitest": "^4.1.12"
   }
 }

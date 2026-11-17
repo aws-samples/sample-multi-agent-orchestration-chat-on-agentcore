@@ -10,11 +10,11 @@
     "dev": "tsx watch src/index.ts",
     "lint": "eslint src",
     "lint:fix": "eslint src --fix && prettier --write \"src/**/*.{ts,tsx,js,jsx}\"",
-    "test": "NODE_OPTIONS='--experimental-vm-modules --no-warnings' jest --passWithNoTests --forceExit",
+    "test": "NODE_OPTIONS='--experimental-vm-modules --no-warnings' jest --forceExit",
     "test:ddb": "NODE_OPTIONS='--experimental-vm-modules --no-warnings' jest --config jest.ddb.config.js --forceExit",
     "test:integration": "NODE_OPTIONS='--experimental-vm-modules --no-warnings' jest --config jest.integration.config.ts --forceExit",
     "test:watch": "NODE_OPTIONS='--experimental-vm-modules --no-warnings' jest --watch",
-    "test:coverage": "NODE_OPTIONS='--experimental-vm-modules --no-warnings' jest --coverage",
+    "test:coverage": "NODE_OPTIONS='--experimental-vm-modules --no-warnings' jest --forceExit --coverage",
     "clean": "rimraf dist"
   },
   "keywords": [

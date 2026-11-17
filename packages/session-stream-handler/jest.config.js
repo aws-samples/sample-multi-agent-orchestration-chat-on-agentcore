@@ -27,4 +27,6 @@ export default {
   coverageDirectory: 'coverage',
   coverageReporters: ['text', 'lcov', 'html'],
   testTimeout: 30000,
+  // Coverage floor (ratchet): raise these when coverage improves, never lower them.
+  coverageThreshold: { global: { statements: 20, branches: 25, functions: 28, lines: 21 } },
 };
