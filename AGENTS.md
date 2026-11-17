@@ -42,6 +42,7 @@ Monorepo using npm workspaces. 8 packages.
 - Linter: eslint + prettier
 - Build: `npm run build` runs `tsc -b tsconfig.build.json` (Solution Style, a single dependency-ordered pass across all TS packages) + `vite build` for the frontend.
 - **`cdk synth` / `cdk deploy` requires `npm run build` to have been run first** (libs `dist/` must exist for `ts-node` to resolve `@moca/*` imports in CDK).
+- CI gates (run locally before opening a PR): `npm run lint`, `npm run format:check`, `npm run typecheck`, `npm run test:coverage` (fails if a package drops below its `coverageThreshold` / vitest `thresholds`), and `cdk synth` (see the `synth` job in `.github/workflows/ci.yml`).
 
 ## Deployment
 
