@@ -65,7 +65,9 @@ class LocalFsSandbox {
 async function loadPluginSkills(plugin: NonNullable<ReturnType<typeof buildSkillsPlugin>>) {
   const agent = { sandbox: new LocalFsSandbox(), addHook: () => {} };
   await plugin.initAgent(agent as unknown as Parameters<typeof plugin.initAgent>[0]);
-  return plugin.getAvailableSkills(agent as unknown as Parameters<typeof plugin.getAvailableSkills>[0]);
+  return plugin.getAvailableSkills(
+    agent as unknown as Parameters<typeof plugin.getAvailableSkills>[0]
+  );
 }
 
 describe('buildSkillsPlugin', () => {

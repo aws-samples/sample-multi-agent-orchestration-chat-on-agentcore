@@ -8,7 +8,13 @@
 
 import { BedrockRuntimeClient, InvokeModelCommand } from '@aws-sdk/client-bedrock-runtime';
 import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
-import { ToolInput, ToolResult, Tool, ToolValidationError, logger } from '@moca/lambda-tools-shared';
+import {
+  ToolInput,
+  ToolResult,
+  Tool,
+  ToolValidationError,
+  logger,
+} from '@moca/lambda-tools-shared';
 
 const TOOL_NAME = 'nova_canvas';
 const NOVA_CANVAS_MODEL_ID = 'amazon.nova-canvas-v1:0';

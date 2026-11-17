@@ -4,7 +4,13 @@
  * Returns the input message as-is along with text transformations.
  */
 
-import { ToolInput, ToolResult, Tool, ToolValidationError, logger } from '@moca/lambda-tools-shared';
+import {
+  ToolInput,
+  ToolResult,
+  Tool,
+  ToolValidationError,
+  logger,
+} from '@moca/lambda-tools-shared';
 
 /**
  * Echo tool input type

@@ -38,9 +38,8 @@ jest.unstable_mockModule('../../../libs/context/request-context.js', () => ({
 }));
 
 const { ModelError, MaxTokensError } = await import('@strands-agents/sdk');
-const { StreamTerminationRetryStrategy, STREAM_INCOMPLETE_MESSAGE } = await import(
-  '../stream-termination-retry-strategy.js'
-);
+const { StreamTerminationRetryStrategy, STREAM_INCOMPLETE_MESSAGE } =
+  await import('../stream-termination-retry-strategy.js');
 
 const truncation = () => new ModelError(STREAM_INCOMPLETE_MESSAGE);
 

@@ -170,9 +170,7 @@ export function SettingsPage() {
                     `}
                   >
                     <span>{option.label}</span>
-                    {i18n.language === option.value && (
-                      <Check className="w-5 h-5 text-fg-link" />
-                    )}
+                    {i18n.language === option.value && <Check className="w-5 h-5 text-fg-link" />}
                   </button>
                 ))}
               </div>

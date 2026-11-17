@@ -15,11 +15,10 @@ const ACTOR_ID = 'us-east-1:11111111-2222-3333-4444-555555555555' as IdentityId;
 
 // ── Mocks ──────────────────────────────────────────────────────────────
 const mockGetCurrentContext = jest.fn<() => { identityId?: IdentityId } | undefined>();
-const mockRetrieveLongTermMemory =
-  jest.fn<(...args: unknown[]) => Promise<string[]>>().mockResolvedValue([]);
-const mockCreateClient = jest
-  .fn<(id: string) => Promise<object>>()
-  .mockResolvedValue({});
+const mockRetrieveLongTermMemory = jest
+  .fn<(...args: unknown[]) => Promise<string[]>>()
+  .mockResolvedValue([]);
+const mockCreateClient = jest.fn<(id: string) => Promise<object>>().mockResolvedValue({});
 const mockLoadMessages = jest.fn<() => Promise<Message[]>>().mockResolvedValue([]);
 const mockListSessions = jest.fn<(...args: unknown[]) => Promise<unknown>>();
 const mockIsConfigured = jest.fn<() => boolean>().mockReturnValue(true);
@@ -61,11 +60,13 @@ const { runMemorySearch } = await import('../memory-search.js');
 
 /** Build N alternating user/assistant text messages. */
 function makeMessages(n: number): Message[] {
-  return Array.from({ length: n }, (_, i) =>
-    new Message({
-      role: i % 2 === 0 ? 'user' : 'assistant',
-      content: [new TextBlock(`message ${i}`)],
-    })
+  return Array.from(
+    { length: n },
+    (_, i) =>
+      new Message({
+        role: i % 2 === 0 ? 'user' : 'assistant',
+        content: [new TextBlock(`message ${i}`)],
+      })
   );
 }
 

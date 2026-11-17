@@ -160,9 +160,7 @@ const MermaidDiagramComponent: React.FC<MermaidDiagramProps> = ({ chart, classNa
     >
       {/* Loading */}
       {isRendering && (
-        <div className="text-fg-link text-sm italic py-2">
-          {t('common.renderingDiagram')}
-        </div>
+        <div className="text-fg-link text-sm italic py-2">{t('common.renderingDiagram')}</div>
       )}
 
       {/* Syntax error */}

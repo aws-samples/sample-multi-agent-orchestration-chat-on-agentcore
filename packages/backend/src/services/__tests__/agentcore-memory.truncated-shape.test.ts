@@ -10,10 +10,7 @@
  */
 
 import { describe, it, expect } from '@jest/globals';
-import {
-  BLOCK_TRUNCATE_THRESHOLD_BYTES,
-  PAGE_BYTE_BUDGET_BYTES,
-} from '../../libs/http/pagination';
+import { BLOCK_TRUNCATE_THRESHOLD_BYTES, PAGE_BYTE_BUDGET_BYTES } from '../../libs/http/pagination';
 
 // ---------- minimal inline harness (no full mock needed) ----------
 

@@ -92,7 +92,7 @@ class FakeModel extends Model {
 
   constructor(
     private readonly failuresBeforeSuccess: number,
-    private readonly text = 'Hello',
+    private readonly text = 'Hello'
   ) {
     super();
   }

@@ -122,7 +122,9 @@ router.post(
     const { workflow, parent } = req.body as z.infer<typeof createWorkflowBody>;
     const repo = getRepository();
 
-    const problems = validateWorkflowSpec(workflow, { knownModelIds: parseAllowedModelIds(config.BEDROCK_MODEL_IDS) });
+    const problems = validateWorkflowSpec(workflow, {
+      knownModelIds: parseAllowedModelIds(config.BEDROCK_MODEL_IDS),
+    });
     const agentIds = new Set(
       workflow.steps.flatMap((s) => [s.agentId, ...(s.review ? [s.review.agentId] : [])])
     );

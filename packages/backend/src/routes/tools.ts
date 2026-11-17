@@ -53,13 +53,15 @@ router.get(
     // Include builtin tools only in the first page (when cursor is not present)
     const tools = cursor ? result.tools : [...allMCPToolDefinitions, ...result.tools];
 
-    res.status(200).json(
-      ok(
-        req,
-        { tools, nextCursor: result.nextCursor },
-        { actorId: auth.userId, count: tools.length }
-      )
-    );
+    res
+      .status(200)
+      .json(
+        ok(
+          req,
+          { tools, nextCursor: result.nextCursor },
+          { actorId: auth.userId, count: tools.length }
+        )
+      );
   })
 );
 
@@ -103,9 +105,9 @@ router.post(
     // Combine builtin and gateway results
     const tools = [...builtinResults, ...gatewayResults];
 
-    res.status(200).json(
-      ok(req, { tools }, { actorId: auth.userId, query: query.trim(), count: tools.length })
-    );
+    res
+      .status(200)
+      .json(ok(req, { tools }, { actorId: auth.userId, query: query.trim(), count: tools.length }));
   })
 );
 
@@ -176,13 +178,15 @@ router.post(
       throw e;
     }
 
-    res.status(200).json(
-      ok(
-        req,
-        { tools: result.tools, errors: result.errors },
-        { actorId: auth.userId, count: result.tools.length, errorCount: result.errors.length }
-      )
-    );
+    res
+      .status(200)
+      .json(
+        ok(
+          req,
+          { tools: result.tools, errors: result.errors },
+          { actorId: auth.userId, count: result.tools.length, errorCount: result.errors.length }
+        )
+      );
   })
 );
 

@@ -278,7 +278,11 @@ export default tseslint.config(
         {
           patterns: [
             {
-              group: ['@aws-sdk/client-dynamodb', '@aws-sdk/lib-dynamodb', '@aws-sdk/util-dynamodb'],
+              group: [
+                '@aws-sdk/client-dynamodb',
+                '@aws-sdk/lib-dynamodb',
+                '@aws-sdk/util-dynamodb',
+              ],
               message:
                 'DynamoDB access is confined to the repositories/ layer. Depend on the XRepository interface and obtain an instance from the repository factory / service; do not import the DynamoDB SDK here.',
             },
@@ -310,10 +314,7 @@ export default tseslint.config(
   // Pattern note: the `ignores` glob matches any `*-repository.factory.ts` at a
   // repository root (e.g. `repositories/agents/agents-repository.factory.ts`).
   {
-    files: [
-      'packages/backend/src/repositories/**/*.ts',
-      'packages/agent/src/repositories/**/*.ts',
-    ],
+    files: ['packages/backend/src/repositories/**/*.ts', 'packages/agent/src/repositories/**/*.ts'],
     ignores: [
       '**/*-repository.factory.ts',
       '**/__tests__/**',

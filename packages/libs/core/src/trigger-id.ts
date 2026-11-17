@@ -21,8 +21,7 @@ export type TriggerId = Brand<string, 'TriggerId'>;
 // ---------------------------------------------------------------------------
 
 /** UUID v4/v7 pattern (8-4-4-4-12 hex with hyphens) */
-export const TRIGGER_ID_PATTERN =
-  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+export const TRIGGER_ID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 // ---------------------------------------------------------------------------
 // Type Guard

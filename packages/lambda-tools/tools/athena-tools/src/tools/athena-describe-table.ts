@@ -151,8 +151,7 @@ async function handleDescribeTable(input: ToolInput): Promise<DescribeTableResul
       ? {
           serializationLibrary: table.StorageDescriptor.SerdeInfo.SerializationLibrary || undefined,
           parameters: table.StorageDescriptor.SerdeInfo.Parameters as
-            | Record<string, string>
-            | undefined,
+            Record<string, string> | undefined,
         }
       : undefined;
 

@@ -8,12 +8,7 @@
  * writer it uses and is not normally called from route handlers.
  */
 
-export {
-  ErrorCode,
-  ERROR_CODE_REASON,
-  ERROR_CODE_STATUS,
-  AppError,
-} from './error-codes.js';
+export { ErrorCode, ERROR_CODE_REASON, ERROR_CODE_STATUS, AppError } from './error-codes.js';
 
 export {
   type ErrorBody,

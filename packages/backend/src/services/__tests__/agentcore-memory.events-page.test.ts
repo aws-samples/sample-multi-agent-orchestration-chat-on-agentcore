@@ -88,16 +88,13 @@ function makeToolUseEvent(id: string, ts: Date, inputBytes: number) {
   };
 }
 
-
 /** Wrap a raw event array into a mock ListEvents response. */
 function listEventsResponse(events: ReturnType<typeof makeTextEvent>[], nextToken?: string) {
   return { events, nextToken };
 }
 
 /** Create a mock BedrockAgentCoreClient with a controlled send() implementation. */
-function makeMockClient(
-  pages: Array<ReturnType<typeof listEventsResponse>>
-) {
+function makeMockClient(pages: Array<ReturnType<typeof listEventsResponse>>) {
   let callIndex = 0;
   const send = jest.fn().mockImplementation(() => {
     const page = pages[callIndex] ?? { events: [], nextToken: undefined };
@@ -122,7 +119,11 @@ describe('AgentCoreMemoryService.getSessionEventsPage', () => {
     const t2 = new Date('2024-01-01T10:01:00Z');
     const t3 = new Date('2024-01-01T10:02:00Z');
     const client = makeMockClient([
-      listEventsResponse([makeTextEvent('e3', 'msg3', t3), makeTextEvent('e2', 'msg2', t2), makeTextEvent('e1', 'msg1', t1)]),
+      listEventsResponse([
+        makeTextEvent('e3', 'msg3', t3),
+        makeTextEvent('e2', 'msg2', t2),
+        makeTextEvent('e1', 'msg1', t1),
+      ]),
     ]);
     const svc = new AgentCoreMemoryService(MEMORY_ID, client);
 
@@ -292,13 +293,31 @@ describe('AgentCoreMemoryService.getSessionEventsPage', () => {
     const toolUseBlock = contents.find((c) => c.type === 'toolUse');
     expect(toolUseBlock).toBeDefined();
     expect(
-      (toolUseBlock as { type: 'toolUse'; toolUse: { name: string }; truncated?: { field: string; byteSize: number } }).truncated
+      (
+        toolUseBlock as {
+          type: 'toolUse';
+          toolUse: { name: string };
+          truncated?: { field: string; byteSize: number };
+        }
+      ).truncated
     ).toBeDefined();
     expect(
-      (toolUseBlock as { type: 'toolUse'; toolUse: { name: string }; truncated?: { field: string; byteSize: number } }).truncated!.field
+      (
+        toolUseBlock as {
+          type: 'toolUse';
+          toolUse: { name: string };
+          truncated?: { field: string; byteSize: number };
+        }
+      ).truncated!.field
     ).toBe('input');
     expect(
-      (toolUseBlock as { type: 'toolUse'; toolUse: { name: string }; truncated?: { field: string; byteSize: number } }).truncated!.byteSize
+      (
+        toolUseBlock as {
+          type: 'toolUse';
+          toolUse: { name: string };
+          truncated?: { field: string; byteSize: number };
+        }
+      ).truncated!.byteSize
     ).toBeGreaterThan(BLOCK_TRUNCATE_THRESHOLD_BYTES);
 
     // Page is within budget after truncation.
@@ -355,7 +374,9 @@ describe('encodeEventCursor / decodeEventCursor', () => {
 
   // AC4: unknown version → 400
   it('throws VALIDATION_ERROR for unknown cursor version', () => {
-    const badVersion = Buffer.from(JSON.stringify({ v: 99, sid: SESSION_ID, off: 0 })).toString('base64');
+    const badVersion = Buffer.from(JSON.stringify({ v: 99, sid: SESSION_ID, off: 0 })).toString(
+      'base64'
+    );
     expect(() => decodeEventCursor(badVersion, SESSION_ID)).toThrow(AppError);
     try {
       decodeEventCursor(badVersion, SESSION_ID);

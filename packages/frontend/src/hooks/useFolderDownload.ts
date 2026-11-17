@@ -137,7 +137,12 @@ export function useFolderDownload(t: TFunction): UseFolderDownload {
 
       const signal = beginZipDownload();
       try {
-        const result = await downloadItems(items, t('storage.bulkDownloadName'), setProgress, signal);
+        const result = await downloadItems(
+          items,
+          t('storage.bulkDownloadName'),
+          setProgress,
+          signal
+        );
         warnIfPartial(result);
         setStatus('success');
         onComplete?.();

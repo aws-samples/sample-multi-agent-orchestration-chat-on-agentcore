@@ -648,7 +648,7 @@ describe('GPT-6.1 Terra', () => {
     // silently return the first match, producing wrong metadata).
     const normalized = 'openai.gpt-6.1-terra';
     const matches = BEDROCK_MODEL_DEFINITIONS.filter(
-      (m) => m.id.replace(/^(global|us|eu|apac|au|jp)\./, '') === normalized,
+      (m) => m.id.replace(/^(global|us|eu|apac|au|jp)\./, '') === normalized
     );
     expect(matches).toHaveLength(1);
     expect(matches[0].id).toBe(ID);

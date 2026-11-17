@@ -120,10 +120,7 @@ export async function createSessionsTable(
  *   a string ('true'/'false') because DynamoDB cannot key on a boolean.
  * Mirrors packages/cdk/lib/constructs/storage/agents-table.ts.
  */
-export async function createAgentsTable(
-  client: DynamoDBClient,
-  tableName: string
-): Promise<void> {
+export async function createAgentsTable(client: DynamoDBClient, tableName: string): Promise<void> {
   await client.send(
     new CreateTableCommand({
       TableName: tableName,

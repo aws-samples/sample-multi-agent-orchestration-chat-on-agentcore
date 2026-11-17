@@ -23,14 +23,18 @@ describe('sessionStore agentId backfill', () => {
   });
 
   it('stores agentId passed to addOptimisticSession', () => {
-    useSessionStore.getState().addOptimisticSession(SESSION_ID, '[Sub] worker', 'subagent', AGENT_ID);
+    useSessionStore
+      .getState()
+      .addOptimisticSession(SESSION_ID, '[Sub] worker', 'subagent', AGENT_ID);
 
     const session = useSessionStore.getState().sessions.find((s) => s.sessionId === SESSION_ID);
     expect(session?.agentId).toBe(AGENT_ID);
   });
 
   it('drops a malformed agentId rather than branding it', () => {
-    useSessionStore.getState().addOptimisticSession(SESSION_ID, '[Sub] worker', 'subagent', 'not-an-id');
+    useSessionStore
+      .getState()
+      .addOptimisticSession(SESSION_ID, '[Sub] worker', 'subagent', 'not-an-id');
 
     const session = useSessionStore.getState().sessions.find((s) => s.sessionId === SESSION_ID);
     expect(session?.agentId).toBeUndefined();

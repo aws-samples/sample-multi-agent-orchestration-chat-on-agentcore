@@ -13,7 +13,9 @@ const mockSend = jest.fn();
 
 jest.mock('@aws-sdk/client-cognito-identity', () => ({
   CognitoIdentityClient: jest.fn().mockImplementation(() => ({ send: mockSend })),
-  GetIdCommand: jest.fn().mockImplementation((input: unknown) => ({ _type: 'GetId', _input: input })),
+  GetIdCommand: jest
+    .fn()
+    .mockImplementation((input: unknown) => ({ _type: 'GetId', _input: input })),
   GetCredentialsForIdentityCommand: jest
     .fn()
     .mockImplementation((input: unknown) => ({ _type: 'GetCreds', _input: input })),

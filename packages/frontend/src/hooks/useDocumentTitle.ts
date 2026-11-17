@@ -30,9 +30,7 @@ export function useDocumentTitle(): void {
       ? sessions.find((session) => session.sessionId === activeSessionId)
       : undefined;
 
-    document.title = activeSession?.title?.trim()
-      ? activeSession.title
-      : APP_TITLE;
+    document.title = activeSession?.title?.trim() ? activeSession.title : APP_TITLE;
 
     return () => {
       document.title = APP_TITLE;
