@@ -128,6 +128,11 @@ export class RuntimeResourceConfig extends Construct {
         // changes on each such update, so this resource re-applies the size.
         // Typed optional only because imported Runtimes may lack it; always set for an L2 Runtime.
         RuntimeVersion: props.runtime.agentRuntimeVersion ?? '',
+        // Changes on every synth so the resource re-converges on every deploy.
+        // RuntimeVersion alone misses a rolled-back Runtime update: CFN's
+        // rollback clears the size but does not re-run this resource, and the
+        // next deploy may not touch the Runtime. A matching size costs one Get.
+        DeployNonce: Date.now().toString(),
       },
     });
     resource.node.addDependency(props.runtime);

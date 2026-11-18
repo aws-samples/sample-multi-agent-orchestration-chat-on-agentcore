@@ -49,7 +49,11 @@ describe('installSnapshotSafeRandom', () => {
   it('fills buffers via randomBytes / randomFillSync / getRandomValues', () => {
     installSnapshotSafeRandom({ RUNTIME_PLATFORM_VERSION: 'V2' });
 
-    expect(crypto.randomBytes(32)).toHaveLength(32);
+    const rb = crypto.randomBytes(32);
+    expect(rb).toHaveLength(32);
+    // Matches Node: not a slice of the shared pool.
+    expect(rb.byteOffset).toBe(0);
+    expect(rb.buffer.byteLength).toBe(32);
 
     const buf = Buffer.alloc(16);
     crypto.randomFillSync(buf, 4, 8);
@@ -127,7 +131,8 @@ describe('installSnapshotSafeRandom — Math.random / randomInt / input types', 
     expect(v).toBeLessThan(20);
 
     expect(() => crypto.randomInt(5, 5)).toThrow(RangeError);
-    expect(() => crypto.randomInt(0, 2 ** 48 + 1)).toThrow(RangeError);
+    expect(() => crypto.randomInt(0, 2 ** 48)).toThrow(RangeError);
+    expect(crypto.randomInt(0, 2 ** 48 - 1)).toBeLessThan(2 ** 48 - 1);
     expect(() => crypto.randomInt(1.5)).toThrow(TypeError);
   });
 

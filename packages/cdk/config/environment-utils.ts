@@ -504,7 +504,8 @@ export function validateWebSearchConfig(input: EnvironmentConfigInput, env: Envi
  * While false, the size is applied by the RuntimeResourceConfig Custom Resource
  * (temporary workaround). Flip to true — and delete that Custom Resource — once
  * `aws cloudformation describe-type --type RESOURCE --type-name AWS::BedrockAgentCore::Runtime`
- * lists the property. See docs/adr/runtime-resource-config-custom-resource.md.
+ * lists the property in EVERY deploy region (the schema rolls out per region).
+ * See docs/adr/runtime-resource-config-custom-resource.md.
  */
 export const RUNTIME_MINIMUM_MEMORY_CFN_SUPPORTED = false;
 

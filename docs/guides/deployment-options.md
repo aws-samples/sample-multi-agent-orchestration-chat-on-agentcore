@@ -263,7 +263,7 @@ dev: {
 },
 ```
 
-> **`runtimeMinimumMemoryMiB` is applied by a temporary Custom Resource.** CloudFormation's `AWS::BedrockAgentCore::Runtime` does not accept `ResourceConfigurations` yet, so the size is set through the AgentCore API right after each Runtime update. As a result, deploys that change the Runtime build the V2 snapshot twice, and sessions that start in between run consumption-based. See [docs/adr/runtime-resource-config-custom-resource.md](../adr/runtime-resource-config-custom-resource.md), including when to remove the Custom Resource.
+> **`runtimeMinimumMemoryMiB` is applied by a temporary Custom Resource.** CloudFormation's `AWS::BedrockAgentCore::Runtime` does not accept `ResourceConfigurations` yet, so the size is set through the AgentCore API right after each Runtime update. As a result, deploys that change the Runtime build the V2 snapshot twice, and sessions that start in between run consumption-based. Because the size is re-checked on every deploy, the Custom Resource always shows a diff. See [docs/adr/runtime-resource-config-custom-resource.md](../adr/runtime-resource-config-custom-resource.md), including when to remove the Custom Resource.
 
 | `runtimeMinimumMemoryMiB` | Baseline | Peak (burst) | Disk |
 |---|---|---|---|

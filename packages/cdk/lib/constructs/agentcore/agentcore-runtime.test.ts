@@ -1,6 +1,7 @@
 import { describe, expect, it, jest } from '@jest/globals';
 import * as cdk from 'aws-cdk-lib';
-import { Match, Template } from 'aws-cdk-lib/assertions';
+import { Annotations, Match, Template } from 'aws-cdk-lib/assertions';
+import { AwsSolutionsChecks, NagSuppressions } from 'cdk-nag';
 import { AgentCoreRuntime, AgentCoreRuntimeProps } from './agentcore-runtime';
 
 // Stub the CodeBuild image build: hashing the whole repo is irrelevant here.
@@ -20,7 +21,7 @@ jest.mock('@cdklabs/deploy-time-build', () => {
   return { ContainerImageBuild };
 });
 
-const synth = (overrides: Partial<AgentCoreRuntimeProps> = {}): Template => {
+const buildStack = (overrides: Partial<AgentCoreRuntimeProps> = {}): cdk.Stack => {
   // Skip esbuild bundling of the Custom Resource handlers.
   const app = new cdk.App({ context: { 'aws:cdk:bundling-stacks': [] } });
   const stack = new cdk.Stack(app, 'Test', {
@@ -33,8 +34,11 @@ const synth = (overrides: Partial<AgentCoreRuntimeProps> = {}): Template => {
     bedrockModels: [{ id: 'global.anthropic.claude-opus-5', name: 'Opus', provider: 'Anthropic' }],
     ...overrides,
   });
-  return Template.fromStack(stack);
+  return stack;
 };
+
+const synth = (overrides: Partial<AgentCoreRuntimeProps> = {}): Template =>
+  Template.fromStack(buildStack(overrides));
 
 const runtimeProps = (template: Template): Record<string, unknown> =>
   Object.values(template.findResources('AWS::BedrockAgentCore::Runtime'))[0].Properties;
@@ -67,6 +71,7 @@ describe('AgentCoreRuntime platform version and sizing', () => {
       RuntimeId: { 'Fn::GetAtt': [runtimeLogicalId, 'AgentRuntimeId'] },
       MinimumMemoryInMiB: '8192',
       RuntimeVersion: { 'Fn::GetAtt': [runtimeLogicalId, 'AgentRuntimeVersion'] },
+      DeployNonce: Match.stringLikeRegexp('^\\d+$'),
     });
     template.hasResourceProperties('AWS::IAM::Policy', {
       PolicyDocument: {
@@ -103,5 +108,25 @@ describe('AgentCoreRuntime platform version and sizing', () => {
     const props = runtimeProps(synth({ platformVersion: 'V2' }));
     expect(props.PlatformVersion).toBe('V2');
     expect(props.ResourceConfigurations).toBeUndefined();
+  });
+});
+
+describe('RuntimeResourceConfig cdk-nag', () => {
+  // CI synth only covers the default (V1) config, so nag the V2 Custom Resource here.
+  it('raises no AwsSolutions errors under the Custom Resource', () => {
+    const stack = buildStack({ platformVersion: 'V2', minimumMemoryMiB: 8192 });
+    // Mirror the stack-wide suppressions AgentCoreStack applies (agentcore-stack.ts,
+    // "cdk-nag Suppressions"); anything else must be handled by the construct itself.
+    NagSuppressions.addStackSuppressions(stack, [
+      { id: 'AwsSolutions-IAM4', reason: 'mirrors AgentCoreStack' },
+      { id: 'AwsSolutions-L1', reason: 'mirrors AgentCoreStack' },
+      { id: 'AwsSolutions-IAM5', reason: 'mirrors AgentCoreStack', appliesTo: ['Resource::*'] },
+    ]);
+    cdk.Aspects.of(stack).add(new AwsSolutionsChecks());
+    const errors = Annotations.fromStack(stack)
+      .findError('*', Match.stringLikeRegexp('AwsSolutions-'))
+      .filter((e) => e.id.includes('/ResourceConfig/'))
+      .map((e) => `${e.id}: ${String(e.entry.data).split(':')[0]}`);
+    expect(errors).toEqual([]);
   });
 });

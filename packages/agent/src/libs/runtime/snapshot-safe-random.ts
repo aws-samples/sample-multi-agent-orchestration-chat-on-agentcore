@@ -20,6 +20,17 @@
  * OpenTelemetry's trace/span id generator draws from it.
  *
  * TLS handshakes also draw from OpenSSL and cannot be fixed from userland.
+ *
+ * Not covered (and why that is acceptable today):
+ * - `worker_threads` workers get a fresh, unpatched `crypto`. The only worker
+ *   (view-image/fit-image.worker.ts) uses no randomness; install the patch in
+ *   any new worker that does.
+ * - `uuid` v7 keeps its own 256-byte pool. It is only filled inside request
+ *   handling, so the pool is empty at snapshot time; calling `uuidv7()` during
+ *   startup would put a duplicated pool into the snapshot.
+ * - Modules preloaded by `startup.sh` (`--require` ADOT) load before this
+ *   patch. They read `crypto.*` at call time today; a dependency that captured
+ *   a function by value at load time would bypass the patch.
  */
 
 import crypto from 'node:crypto';
@@ -103,7 +114,9 @@ function randomBytes(size: number): Buffer;
 function randomBytes(size: number, cb: FillCallback<Buffer>): void;
 function randomBytes(size: number, cb?: FillCallback<Buffer>): Buffer | void {
   if (!cb) {
-    const out = Buffer.allocUnsafe(size);
+    // Not allocUnsafe: a pooled Buffer's `.buffer` would expose the 8 KB shared
+    // pool instead of `size` bytes, unlike Node's randomBytes.
+    const out = Buffer.allocUnsafeSlow(size);
     readUrandomInto(out);
     return out;
   }
@@ -157,8 +170,9 @@ function randomInt(a: number, b?: number | IntCallback, c?: IntCallback): number
       throw new TypeError('randomInt: min and max must be safe integers');
     }
     const range = max - min;
-    if (range <= 0 || range > RANDOM_INT_MAX_RANGE) {
-      throw new RangeError(`randomInt: max - min must be in (0, ${RANDOM_INT_MAX_RANGE}]`);
+    // Node rejects a range of exactly 2^48 too (ERR_OUT_OF_RANGE).
+    if (range <= 0 || range >= RANDOM_INT_MAX_RANGE) {
+      throw new RangeError(`randomInt: max - min must be in (0, ${RANDOM_INT_MAX_RANGE})`);
     }
     const limit = RANDOM_INT_MAX_RANGE - (RANDOM_INT_MAX_RANGE % range);
     const buf = Buffer.allocUnsafe(6);

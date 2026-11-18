@@ -38,6 +38,8 @@ export interface ResourceConfigProps {
   MinimumMemoryInMiB: string;
   /** Changes on every CloudFormation update of the Runtime, re-triggering this resource. */
   RuntimeVersion: string;
+  /** Changes on every deploy so a size lost in a rollback is restored on the next deploy. */
+  DeployNonce: string;
 }
 
 const client = new BedrockAgentCoreControlClient({});
