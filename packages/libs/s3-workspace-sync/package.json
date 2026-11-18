@@ -51,7 +51,7 @@
     "@aws-sdk/client-s3": "^3.0.0"
   },
   "devDependencies": {
-    "@aws-sdk/client-s3": "^3.1156.0",
+    "@aws-sdk/client-s3": "^3.1166.0",
     "@vitest/coverage-v8": "^4.1.12",
     "vitest": "^4.1.12"
   }
