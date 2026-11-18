@@ -40,4 +40,6 @@ export default {
     '!src/**/*.integration.test.ts',
     '!src/tests/**',
   ],
+  // Coverage floor (ratchet): raise these when coverage improves, never lower them.
+  coverageThreshold: { global: { statements: 35, branches: 31, functions: 31, lines: 35 } },
 };

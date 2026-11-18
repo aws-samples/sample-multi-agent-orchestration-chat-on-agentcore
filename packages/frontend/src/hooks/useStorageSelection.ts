@@ -163,7 +163,10 @@ export function useStorageSelection(
       const currentY = e.clientY - containerBox.top + container.scrollTop;
 
       // Ignore sub-threshold movement until the drag truly begins.
-      if (!drag.active && Math.hypot(currentX - drag.startX, currentY - drag.startY) < MARQUEE_THRESHOLD) {
+      if (
+        !drag.active &&
+        Math.hypot(currentX - drag.startX, currentY - drag.startY) < MARQUEE_THRESHOLD
+      ) {
         return;
       }
       drag.active = true;

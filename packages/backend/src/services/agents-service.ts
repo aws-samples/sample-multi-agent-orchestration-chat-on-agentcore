@@ -13,12 +13,7 @@ import {
   stripEnvFromMcpConfig,
   hasSsmSentinel,
 } from './mcp-env-helpers.js';
-import type {
-  Agent,
-  CreateAgentInput,
-  UpdateAgentInput,
-  PaginatedResult,
-} from '../types/index.js';
+import type { Agent, CreateAgentInput, UpdateAgentInput, PaginatedResult } from '../types/index.js';
 import { AgentNotFoundError } from '../types/index.js';
 import type { AgentsRepository, UpdateAgentPatch } from '../repositories/agents/index.js';
 import { getAgentsRepository } from '../repositories/agents/agents-repository.factory.js';

@@ -76,8 +76,7 @@ function convertZodType(zodType: z.ZodTypeAny): Record<string, unknown> {
   } else if (innerType instanceof z.ZodNumber) {
     result.type = 'number';
     for (const def of getCheckDefs(innerType)) {
-      if (def.check === 'greater_than' && typeof def.value === 'number')
-        result.minimum = def.value;
+      if (def.check === 'greater_than' && typeof def.value === 'number') result.minimum = def.value;
       if (def.check === 'less_than' && typeof def.value === 'number') result.maximum = def.value;
       // Zod 3 fallback
       if (def.kind === 'min') result.minimum = def.value;

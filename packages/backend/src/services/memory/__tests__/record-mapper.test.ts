@@ -14,7 +14,11 @@ const NS = '/strategies/strat-1/actors/actor-1';
 describe('mapMemoryRecord', () => {
   it('extracts text from an object content ({ text })', () => {
     const rec = mapMemoryRecord(
-      { memoryRecordId: 'r1', content: { text: 'hello' }, createdAt: new Date('2024-01-01T00:00:00Z') },
+      {
+        memoryRecordId: 'r1',
+        content: { text: 'hello' },
+        createdAt: new Date('2024-01-01T00:00:00Z'),
+      },
       NS
     );
     expect(rec).toEqual({

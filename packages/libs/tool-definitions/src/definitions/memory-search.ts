@@ -71,19 +71,18 @@ export const memorySearchSchema = z.object({
 export const memorySearchDefinition: ToolDefinition<typeof memorySearchSchema> = {
   name: 'memory_search',
   description:
-    'Search long-term memory and browse the current user\'s past conversations. ' +
-    'Scoped to the current user only — you cannot access other users\' data.\n\n' +
+    "Search long-term memory and browse the current user's past conversations. " +
+    "Scoped to the current user only — you cannot access other users' data.\n\n" +
     '**Modes:**\n' +
-    "- `search` (default): Semantic search over long-term memory (preferences, habits, past context). " +
+    '- `search` (default): Semantic search over long-term memory (preferences, habits, past context). ' +
     'Provide `query`. Use mid-conversation to recall user-specific information not in the current context. ' +
     '(Note: some memories are already loaded at session start in the system prompt.)\n' +
     "- `list_sessions`: List the user's past conversation sessions, newest first. " +
     'Returns sessionId, title, timestamps. Supports `limit` and `nextToken` pagination.\n' +
-    "- `read_session`: Read the raw message transcript of a past session. Provide `sessionId` " +
+    '- `read_session`: Read the raw message transcript of a past session. Provide `sessionId` ' +
     `(from list_sessions). Returns at most ${READ_SESSION_MAX_MESSAGES} messages per call; page through ` +
     'longer transcripts with `range=[startIndex, endIndex]` (0-based, chronological, end-exclusive). ' +
     `When \`range\` is omitted, returns the most recent ${READ_SESSION_MAX_MESSAGES} messages plus the total count.`,
   zodSchema: memorySearchSchema,
   jsonSchema: zodToJsonSchema(memorySearchSchema),
 };
-

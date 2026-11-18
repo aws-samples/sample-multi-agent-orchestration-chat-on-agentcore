@@ -154,7 +154,11 @@ describe('GPT-6.1 Terra default model configuration', () => {
   // https://docs.aws.amazon.com/bedrock/latest/userguide/model-card-openai-gpt-6-1-terra.html).
   // Must stay on the plain Converse shape — no `endpoint`, no `region` pin.
   // maxOutputTokens: 128,000 (NOT 131,072 — model card explicitly lists 128k).
-  const TERRA_ENTRY = { id: 'global.openai.gpt-6.1-terra', name: 'GPT-6.1 Terra', provider: 'OpenAI' };
+  const TERRA_ENTRY = {
+    id: 'global.openai.gpt-6.1-terra',
+    name: 'GPT-6.1 Terra',
+    provider: 'OpenAI',
+  };
 
   it('is registered in the default bedrockModels immediately after GPT-6 Luna', () => {
     const { bedrockModels } = getEnvironmentConfig('default');

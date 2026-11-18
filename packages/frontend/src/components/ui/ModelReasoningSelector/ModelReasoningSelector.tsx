@@ -221,9 +221,7 @@ export const ModelReasoningSelector: React.FC<ModelReasoningSelectorProps> = (pr
                     <span className="text-fg-default">
                       {t(reasoningDepthLabelKey(effectiveModelId, depth))}
                     </span>
-                    {depth === currentDepth && (
-                      <Check className="w-4 h-4 text-fg-link shrink-0" />
-                    )}
+                    {depth === currentDepth && <Check className="w-4 h-4 text-fg-link shrink-0" />}
                   </div>
                 </button>
               ))}

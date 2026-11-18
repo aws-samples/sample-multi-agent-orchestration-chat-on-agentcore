@@ -25,4 +25,7 @@ export default {
     '^(\\.{1,2}/.*)\\.js$': '$1',
   },
   testTimeout: 30000,
+  collectCoverageFrom: ['src/**/*.ts', '!src/**/*.test.ts', '!src/**/__tests__/**'],
+  // Coverage floor (ratchet): raise these when coverage improves, never lower them.
+  coverageThreshold: { global: { statements: 98, branches: 98, functions: 98, lines: 98 } },
 };

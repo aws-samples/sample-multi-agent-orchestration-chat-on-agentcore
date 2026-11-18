@@ -82,7 +82,9 @@ describe('guessContentType', () => {
     });
 
     it('handles paths with directories', () => {
-      expect(guessContentType('src/components/App.tsx')).toBe('application/typescript; charset=utf-8');
+      expect(guessContentType('src/components/App.tsx')).toBe(
+        'application/typescript; charset=utf-8'
+      );
     });
 
     it('handles case-insensitive extensions', () => {

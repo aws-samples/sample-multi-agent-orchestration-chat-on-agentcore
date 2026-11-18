@@ -50,10 +50,7 @@ router.get(
       limit
     );
 
-    req.log.info(
-      { actorId, count: result.records.length },
-      'Retrieved memory records'
-    );
+    req.log.info({ actorId, count: result.records.length }, 'Retrieved memory records');
 
     res.json(
       ok(
@@ -105,10 +102,7 @@ router.post(
       relevanceScore
     );
 
-    req.log.info(
-      { actorId, query, count: records.length },
-      'Retrieved memory search results'
-    );
+    req.log.info({ actorId, query, count: records.length }, 'Retrieved memory search results');
 
     res.json(ok(req, { records }, { actorId, query, count: records.length }));
   })

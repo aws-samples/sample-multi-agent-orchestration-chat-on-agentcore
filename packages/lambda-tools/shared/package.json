@@ -8,7 +8,8 @@
   "scripts": {
     "build": "tsc --build",
     "clean": "rimraf dist tsconfig.tsbuildinfo",
-    "test": "jest --passWithNoTests"
+    "test": "jest",
+    "test:coverage": "jest --coverage"
   },
   "devDependencies": {
     "@types/aws-lambda": "^8.10.164"

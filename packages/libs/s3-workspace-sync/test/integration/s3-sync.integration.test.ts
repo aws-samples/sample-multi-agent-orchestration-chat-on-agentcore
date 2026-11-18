@@ -70,9 +70,7 @@ describeIntegration('S3WorkspaceSync Integration Tests', () => {
       if (response.Contents && response.Contents.length > 0) {
         for (const item of response.Contents) {
           if (item.Key) {
-            await s3Client.send(
-              new DeleteObjectCommand({ Bucket: BUCKET_NAME!, Key: item.Key })
-            );
+            await s3Client.send(new DeleteObjectCommand({ Bucket: BUCKET_NAME!, Key: item.Key }));
           }
         }
         console.log(`  Cleaned up ${response.Contents.length} test files from S3`);
@@ -179,8 +177,6 @@ describeIntegration('S3WorkspaceSync Integration Tests', () => {
     await sync.waitForPull();
     expect(sync.isPullComplete()).toBe(true);
 
-    expect(fs.readFileSync(path.join(testWorkspaceDir, 'bg.txt'), 'utf-8')).toBe(
-      'background sync'
-    );
+    expect(fs.readFileSync(path.join(testWorkspaceDir, 'bg.txt'), 'utf-8')).toBe('background sync');
   });
 });

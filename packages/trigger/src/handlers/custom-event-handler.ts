@@ -95,10 +95,7 @@ async function invokeTrigger(
       log.info({ userId: trigger.userId }, 'Obtaining per-user OpenID Token');
       const oidcResponse = await authService.getOpenIdTokenForUser(trigger.userId);
       openIdToken = oidcResponse.openIdToken;
-      log.info(
-        { identityId: oidcResponse.identityId },
-        'Per-user OpenID Token obtained'
-      );
+      log.info({ identityId: oidcResponse.identityId }, 'Per-user OpenID Token obtained');
     } catch (oidcError) {
       log.warn(
         { err: oidcError, triggerName: trigger.name },

@@ -28,7 +28,11 @@ jest.mock('../../config/index', () => ({
 
 import { AgentsService } from '../agents-service.js';
 import { AgentNotFoundError, type Agent } from '../../types/index.js';
-import type { AgentsRepository, UpdateAgentPatch, SharedAgentsPage } from '../../repositories/agents/index.js';
+import type {
+  AgentsRepository,
+  UpdateAgentPatch,
+  SharedAgentsPage,
+} from '../../repositories/agents/index.js';
 import type { SsmEnvStore } from '../ssm-env-store.js';
 import type { UserId, AgentId } from '@moca/core';
 

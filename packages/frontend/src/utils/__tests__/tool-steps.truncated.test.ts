@@ -20,20 +20,13 @@ import type { ToolStep, ReasoningStep } from '../tool-steps';
 
 // ---------- helpers ----------
 
-const truncatedToolUse = (
-  id: string,
-  name: string,
-  byteSize = 300_000
-): MessageContent => ({
+const truncatedToolUse = (id: string, name: string, byteSize = 300_000): MessageContent => ({
   type: 'toolUse',
   toolUse: { id, name, input: {}, status: 'completed' },
   truncated: { field: 'input', byteSize },
 });
 
-const truncatedToolResult = (
-  toolUseId: string,
-  byteSize = 300_000
-): MessageContent => ({
+const truncatedToolResult = (toolUseId: string, byteSize = 300_000): MessageContent => ({
   type: 'toolResult',
   toolResult: { toolUseId, content: '', isError: false },
   truncated: { field: 'content', byteSize },
@@ -81,10 +74,7 @@ describe('buildSegments — truncated toolUse', () => {
 describe('buildSegments — truncated toolResult', () => {
   it('attaches a truncated toolResult to the owning toolUse step (pairing preserved)', () => {
     const segs = buildSegments(
-      [
-        truncatedToolUse('t2', 'search'),
-        truncatedToolResult('t2', 280_000),
-      ],
+      [truncatedToolUse('t2', 'search'), truncatedToolResult('t2', 280_000)],
       false
     );
     expect(segs.find((s) => s.type === 'unknown')).toBeUndefined();
@@ -150,7 +140,10 @@ describe('buildSegments — mixed truncated and normal blocks in one turn', () =
   it('a normal toolUse followed by a truncated toolResult still produces one step', () => {
     const segs = buildSegments(
       [
-        { type: 'toolUse', toolUse: { id: 't3', name: 'browser', input: { url: 'x' }, status: 'completed' as const } },
+        {
+          type: 'toolUse',
+          toolUse: { id: 't3', name: 'browser', input: { url: 'x' }, status: 'completed' as const },
+        },
         truncatedToolResult('t3', 310_000),
       ],
       false

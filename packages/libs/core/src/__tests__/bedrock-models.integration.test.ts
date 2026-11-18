@@ -30,11 +30,12 @@
  */
 
 import { describe, it, expect } from 'vitest';
+import { BedrockRuntimeClient, ConverseCommand } from '@aws-sdk/client-bedrock-runtime';
 import {
-  BedrockRuntimeClient,
-  ConverseCommand,
-} from '@aws-sdk/client-bedrock-runtime';
-import { BEDROCK_MODEL_DEFINITIONS, getModelRegion, getMaxOutputTokens } from '../bedrock-models.js';
+  BEDROCK_MODEL_DEFINITIONS,
+  getModelRegion,
+  getMaxOutputTokens,
+} from '../bedrock-models.js';
 
 const RUN = process.env.RUN_BEDROCK_MODEL_INTEGRATION === '1';
 const describeLive = RUN ? describe : describe.skip;

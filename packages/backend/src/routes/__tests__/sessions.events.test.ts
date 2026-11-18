@@ -50,9 +50,9 @@ describe('decodeEventCursor route-integration validation (AC4)', () => {
   });
 
   it('throws VALIDATION_ERROR for unknown cursor version (AC4)', () => {
-    const badCursor = Buffer.from(
-      JSON.stringify({ v: 2, sid: SESSION_ID, off: 0 })
-    ).toString('base64');
+    const badCursor = Buffer.from(JSON.stringify({ v: 2, sid: SESSION_ID, off: 0 })).toString(
+      'base64'
+    );
     let caught: AppError | undefined;
     try {
       decodeEventCursor(badCursor, SESSION_ID);

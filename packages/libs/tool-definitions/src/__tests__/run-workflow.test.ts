@@ -89,7 +89,12 @@ describe('runWorkflowDefinition', () => {
       spec([
         { id: 'a', agentId: 'x', prompt: 'p', modelId: 'nope' },
         { id: 'b', agentId: 'x', prompt: 'p', modelId: 'm1' },
-        { id: 'c', agentId: 'x', prompt: 'p', review: { agentId: 'r', criteria: 'c', modelId: 'bad' } },
+        {
+          id: 'c',
+          agentId: 'x',
+          prompt: 'p',
+          review: { agentId: 'r', criteria: 'c', modelId: 'bad' },
+        },
       ]),
       { knownModelIds: ['m1', 'm2'] }
     );

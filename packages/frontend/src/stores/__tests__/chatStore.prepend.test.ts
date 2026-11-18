@@ -41,9 +41,19 @@ const makeConvMsg = (
   if (contentType === 'text') {
     contents = [{ type: 'text' as const, text: `content-${id}` }];
   } else if (contentType === 'toolUse') {
-    contents = [{ type: 'toolUse' as const, toolUse: { id: `tu-${id}`, name: 'browser', input: {}, status: 'completed' as const } }];
+    contents = [
+      {
+        type: 'toolUse' as const,
+        toolUse: { id: `tu-${id}`, name: 'browser', input: {}, status: 'completed' as const },
+      },
+    ];
   } else {
-    contents = [{ type: 'toolResult' as const, toolResult: { toolUseId: `tu-${id}`, content: 'result', isError: false } }];
+    contents = [
+      {
+        type: 'toolResult' as const,
+        toolResult: { toolUseId: `tu-${id}`, content: 'result', isError: false },
+      },
+    ];
   }
   return { id, type, contents, timestamp: new Date(0).toISOString(), ...extra };
 };
@@ -111,9 +121,7 @@ describe('chatStore.prependSessionHistory', () => {
 
   // AC7: does not disturb a streaming turn.
   it('preserves isLoading when a turn is streaming (AC7)', () => {
-    const initial: ConversationMessage[] = [
-      makeConvMsg('m1', 'user', 'text'),
-    ];
+    const initial: ConversationMessage[] = [makeConvMsg('m1', 'user', 'text')];
     useChatStore.getState().loadSessionHistory(SESSION_ID, initial);
     // Simulate a streaming turn in progress.
     useChatStore.setState({

@@ -166,9 +166,7 @@ describe('Loading state', () => {
     mockSessionStore.eventsHasMore = true;
     mockSessionStore.isLoadingOlderEvents = true;
     render(React.createElement(MessageList));
-    expect(
-      screen.queryByRole('button', { name: /load earlier messages/i })
-    ).toBeNull();
+    expect(screen.queryByRole('button', { name: /load earlier messages/i })).toBeNull();
   });
 });
 
@@ -230,7 +228,9 @@ describe('Scroll-position preservation after prepend', () => {
     Object.defineProperty(container, 'scrollTop', {
       configurable: true,
       get: () => _scrollTop,
-      set: (v: number) => { _scrollTop = v; },
+      set: (v: number) => {
+        _scrollTop = v;
+      },
     });
     Object.defineProperty(container, 'clientHeight', { configurable: true, get: () => 300 });
 

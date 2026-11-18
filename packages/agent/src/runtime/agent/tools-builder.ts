@@ -50,7 +50,9 @@ export function selectToolsForModel<T extends { name: string }>(tools: T[], mode
 
   const usable = tools.filter((tool) => !IMAGE_RESULT_TOOLS.has(tool.name));
   if (usable.length < tools.length) {
-    logger.info(`Image-returning tools withheld: ${modelId} does not accept images in tool results`);
+    logger.info(
+      `Image-returning tools withheld: ${modelId} does not accept images in tool results`
+    );
   }
   return usable;
 }

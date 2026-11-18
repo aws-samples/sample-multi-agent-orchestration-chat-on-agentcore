@@ -17,10 +17,7 @@
  *   • The `SecretString` itself is never logged; we log only the secret name.
  */
 
-import {
-  SecretsManagerClient,
-  GetSecretValueCommand,
-} from '@aws-sdk/client-secrets-manager';
+import { SecretsManagerClient, GetSecretValueCommand } from '@aws-sdk/client-secrets-manager';
 
 const SECRET_NAME = process.env.GITHUB_TOKEN_SECRET_NAME;
 

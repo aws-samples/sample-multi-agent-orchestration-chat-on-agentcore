@@ -45,9 +45,7 @@ export const DownloadProgressModal: React.FC<DownloadProgressModalProps> = ({
         {/* Header */}
         <div className="flex items-center justify-between p-6 border-b border-border">
           <div className="flex items-center gap-3">
-            {status === 'downloading' && (
-              <Loader2 className="w-5 h-5 text-fg-link animate-spin" />
-            )}
+            {status === 'downloading' && <Loader2 className="w-5 h-5 text-fg-link animate-spin" />}
             {status === 'success' && <CheckCircle className="w-5 h-5 text-feedback-success" />}
             {status === 'error' && <XCircle className="w-5 h-5 text-feedback-error" />}
             {status === 'cancelled' && <XCircle className="w-5 h-5 text-fg-secondary" />}

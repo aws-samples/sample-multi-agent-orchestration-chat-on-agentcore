@@ -11,7 +11,8 @@
     "clean": "rimraf dist",
     "lint": "eslint src",
     "lint:fix": "eslint src --fix && prettier --write \"src/**/*.{ts,tsx,js,jsx}\"",
-    "test": "jest --passWithNoTests",
+    "test": "jest",
+    "test:coverage": "jest --coverage",
     "test:integration": "NODE_OPTIONS='--experimental-vm-modules' jest --config jest.integration.config.js"
   },
   "keywords": [
@@ -63,4 +64,3 @@
     "node": ">=22.12.0"
   }
 }
-

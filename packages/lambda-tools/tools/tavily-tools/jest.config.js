@@ -10,4 +10,6 @@ export default {
     ...base.moduleNameMapper,
     '^@moca/lambda-tools-shared$': '<rootDir>/../../shared/src/index.ts',
   },
+  // Coverage floor (ratchet): raise these when coverage improves, never lower them.
+  coverageThreshold: { global: { statements: 19, branches: 25, functions: 20, lines: 19 } },
 };

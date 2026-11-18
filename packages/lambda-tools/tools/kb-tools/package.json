@@ -6,7 +6,8 @@
   "main": "dist/handler.js",
   "scripts": {
     "clean": "rimraf dist tsconfig.tsbuildinfo",
-    "test": "jest --passWithNoTests"
+    "test": "jest --passWithNoTests",
+    "typecheck": "tsc --noEmit"
   },
   "devDependencies": {
     "@types/aws-lambda": "^8.10.164"

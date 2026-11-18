@@ -426,19 +426,16 @@ describe('SchedulerService - minimum interval enforcement', () => {
     ['rate(9 minutes)'], // just under the 10-minute floor
     ['* * * * ? *'], // every minute
     ['*/5 * * * ? *'], // every 5 minutes
-  ])(
-    'createSchedule rejects sub-10-minute expression %s',
-    async (expression) => {
-      await expect(service.createSchedule({ ...BASE_CONFIG, expression })).rejects.toBeInstanceOf(
-        InvalidScheduleIntervalError
-      );
+  ])('createSchedule rejects sub-10-minute expression %s', async (expression) => {
+    await expect(service.createSchedule({ ...BASE_CONFIG, expression })).rejects.toBeInstanceOf(
+      InvalidScheduleIntervalError
+    );
 
-      // The EventBridge client must NOT be called when interval validation
-      // fails — otherwise we would waste an API round-trip and surface a
-      // less-actionable generic failure.
-      expect(MockCreateScheduleCommand).not.toHaveBeenCalled();
-    }
-  );
+    // The EventBridge client must NOT be called when interval validation
+    // fails — otherwise we would waste an API round-trip and surface a
+    // less-actionable generic failure.
+    expect(MockCreateScheduleCommand).not.toHaveBeenCalled();
+  });
 
   it.each([
     ['rate(10 minutes)'], // exactly the floor

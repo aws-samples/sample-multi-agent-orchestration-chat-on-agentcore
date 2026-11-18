@@ -64,7 +64,10 @@ function extractContent(content: MemoryRecordSummary['content']): string {
 export function mapMemoryRecord(record: MemoryRecordSummary, namespace: string): MemoryRecord {
   const recordId = record.memoryRecordId || '';
   if (!recordId) {
-    log.warn({ availableKeys: Object.keys(record) }, 'Memory record summary is missing memoryRecordId');
+    log.warn(
+      { availableKeys: Object.keys(record) },
+      'Memory record summary is missing memoryRecordId'
+    );
   }
 
   const createdAt = record.createdAt?.toISOString() ?? new Date().toISOString();

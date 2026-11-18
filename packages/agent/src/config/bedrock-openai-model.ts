@@ -99,10 +99,7 @@ export function createBedrockOpenAiModel(options: BedrockOpenAiModelOptions): Op
     region,
   });
 
-  logger.debug(
-    { modelId, region, baseURL, api, endpoint },
-    'Creating Bedrock OpenAI model:'
-  );
+  logger.debug({ modelId, region, baseURL, api, endpoint }, 'Creating Bedrock OpenAI model:');
 
   return new OpenAIModel({
     api,

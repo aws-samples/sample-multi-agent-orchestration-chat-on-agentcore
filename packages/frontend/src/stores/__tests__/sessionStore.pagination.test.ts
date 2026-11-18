@@ -100,7 +100,10 @@ describe('loadOlderEvents', () => {
     } as never);
 
     vi.mocked(fetchSessionEvents).mockResolvedValueOnce({
-      events: [makeMsg('older1', '2024-01-01T10:00:00Z'), makeMsg('older2', '2024-01-01T10:02:00Z')],
+      events: [
+        makeMsg('older1', '2024-01-01T10:00:00Z'),
+        makeMsg('older2', '2024-01-01T10:02:00Z'),
+      ],
       nextCursor: 'cursor-page3',
       hasMore: true,
     } as never);
@@ -154,7 +157,10 @@ describe('loadOlderEvents', () => {
   it('deduplicates events by id (AC2)', async () => {
     useSessionStore.setState({
       activeSessionId: SESSION_A,
-      sessionEvents: [makeMsg('dup1', '2024-01-01T10:05:00Z'), makeMsg('unique1', '2024-01-01T10:06:00Z')],
+      sessionEvents: [
+        makeMsg('dup1', '2024-01-01T10:05:00Z'),
+        makeMsg('unique1', '2024-01-01T10:06:00Z'),
+      ],
       eventsNextCursor: 'cursor-page2',
       eventsHasMore: true,
       isLoadingOlderEvents: false,

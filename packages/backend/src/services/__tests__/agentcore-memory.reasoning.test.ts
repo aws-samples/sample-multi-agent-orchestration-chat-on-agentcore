@@ -47,13 +47,9 @@ describe('convertToMessageContents — reasoningBlock', () => {
   });
 
   it('drops a reasoning block with empty or absent text', () => {
+    expect(convertToMessageContents([{ type: 'reasoningBlock', text: '' } as Block])).toEqual([]);
     expect(
-      convertToMessageContents([{ type: 'reasoningBlock', text: '' } as Block])
-    ).toEqual([]);
-    expect(
-      convertToMessageContents([
-        { type: 'reasoningBlock', redactedContentBase64: 'abc' } as Block,
-      ])
+      convertToMessageContents([{ type: 'reasoningBlock', redactedContentBase64: 'abc' } as Block])
     ).toEqual([]);
   });
 

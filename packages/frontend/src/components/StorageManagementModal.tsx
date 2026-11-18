@@ -10,10 +10,7 @@ import { useStorageStore } from '../stores/storageStore';
 import type { StorageItem, FolderNode } from '../api/storage';
 import { Modal } from './ui/Modal/Modal';
 import { ConfirmModal } from './ui/Modal/ConfirmModal';
-import {
-  StorageContentContextMenu,
-  StorageFolderContextMenu,
-} from './storage/StorageContextMenu';
+import { StorageContentContextMenu, StorageFolderContextMenu } from './storage/StorageContextMenu';
 import { StorageItemRow } from './storage/StorageItemRow';
 import { StorageBreadcrumb } from './storage/StorageBreadcrumb';
 import { StorageToolbar } from './storage/StorageToolbar';
@@ -104,8 +101,12 @@ export function StorageManagementModal({ isOpen, onClose }: StorageManagementMod
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Download orchestration (single-file, folder/bulk ZIP, progress, cancel).
-  const { modalProps: downloadModalProps, downloadItem, downloadFolderAsZip, downloadSelection } =
-    useFolderDownload(t);
+  const {
+    modalProps: downloadModalProps,
+    downloadItem,
+    downloadFolderAsZip,
+    downloadSelection,
+  } = useFolderDownload(t);
 
   // URL-hash <-> current-path sync (deep links, Back/Forward, close-on-back).
   const { setPathToHash } = useStorageHashSync({
@@ -247,7 +248,6 @@ export function StorageManagementModal({ isOpen, onClose }: StorageManagementMod
     setShowNewDirectoryInput(false);
     await createDirectory(name);
   };
-
 
   // Show context menu of content panel
   const handleContextMenu = (e: React.MouseEvent, item: StorageItem) => {
@@ -605,9 +605,7 @@ export function StorageManagementModal({ isOpen, onClose }: StorageManagementMod
               <div className="absolute inset-0 flex items-center justify-center bg-feedback-info-bg/90 pointer-events-none">
                 <div className="text-center">
                   <Upload className="w-12 h-12 text-fg-link mx-auto mb-2" />
-                  <p className="text-lg font-medium text-fg-link">
-                    {t('storage.dropFiles')}
-                  </p>
+                  <p className="text-lg font-medium text-fg-link">{t('storage.dropFiles')}</p>
                 </div>
               </div>
             )}

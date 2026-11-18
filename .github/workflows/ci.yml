@@ -32,6 +32,28 @@ jobs:
       - name: Check code formatting
         run: npm run format:check
 
+  typecheck:
+    name: Typecheck
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Setup Node.js
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: ".node-version"
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      # Builds the tsconfig.build.json projects, then type-checks the
+      # workspaces outside it (frontend, cdk, lambda-tools/tools/*). The
+      # frontend build (vite/SWC) does not type-check on its own.
+      - name: Type check
+        run: npm run typecheck
+
   security:
     name: Security Scan (Semgrep)
     runs-on: ubuntu-latest
@@ -60,8 +82,8 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Run tests
-        run: npm run test
+      - name: Run tests with coverage thresholds
+        run: npm run test:coverage
 
       - name: Upload coverage reports
         if: always()
@@ -71,6 +93,9 @@ jobs:
           path: |
             coverage/
             packages/*/coverage/
+            packages/libs/*/coverage/
+            packages/lambda-tools/*/coverage/
+            packages/lambda-tools/tools/*/coverage/
           retention-days: 7
 
   integration-test:
@@ -135,3 +160,33 @@ jobs:
 
       - name: Build packages
         run: npm run build
+
+  synth:
+    name: CDK Synth
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Setup Node.js
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: ".node-version"
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build shared libs
+        run: npm run build:ts
+
+      # Synthesizes every stack (and runs the cdk-nag AwsSolutions checks wired
+      # in bin/app.ts) without AWS credentials. The pr-* environment derives its
+      # config from CDK_DEFAULT_ACCOUNT, so a placeholder account is enough.
+      - name: Synthesize CDK app
+        run: npm run synth -w @moca/cdk -- -c env=pr-0 --quiet
+        env:
+          CDK_DEFAULT_ACCOUNT: "123456789012"
+          CDK_DEFAULT_REGION: us-east-1
+          AWS_REGION: us-east-1
+          AWS_EC2_METADATA_DISABLED: "true"

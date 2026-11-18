@@ -227,7 +227,10 @@ router.post(
     const existingAgents = await agentsService.listAgents(userId);
 
     if (existingAgents.length > 0) {
-      req.log.info({ count: existingAgents.length }, 'Skipping initialization because existing Agents exist');
+      req.log.info(
+        { count: existingAgents.length },
+        'Skipping initialization because existing Agents exist'
+      );
       res.status(200).json(
         ok(
           req,
@@ -249,9 +252,7 @@ router.post(
       auth.username
     );
 
-    res
-      .status(201)
-      .json(ok(req, { agents, skipped: false }, { userId, count: agents.length }));
+    res.status(201).json(ok(req, { agents, skipped: false }, { userId, count: agents.length }));
   })
 );
 
@@ -280,13 +281,15 @@ router.get(
     const agentsService = createAgentsService();
     const result = await agentsService.listSharedAgents(limit, searchQuery, cursor);
 
-    res.status(200).json(
-      ok(
-        req,
-        { agents: result.items, nextCursor: result.nextCursor, hasMore: result.hasMore },
-        { count: result.items.length }
-      )
-    );
+    res
+      .status(200)
+      .json(
+        ok(
+          req,
+          { agents: result.items, nextCursor: result.nextCursor, hasMore: result.hasMore },
+          { count: result.items.length }
+        )
+      );
   })
 );
 

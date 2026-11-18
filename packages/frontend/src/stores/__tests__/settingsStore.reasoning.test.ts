@@ -14,9 +14,9 @@ describe('settingsStore reasoning depth', () => {
   });
 
   it('defaults to off for a model with no stored depth', () => {
-    expect(useSettingsStore.getState().getReasoningDepthFor('global.anthropic.claude-opus-4-8')).toBe(
-      'off'
-    );
+    expect(
+      useSettingsStore.getState().getReasoningDepthFor('global.anthropic.claude-opus-4-8')
+    ).toBe('off');
   });
 
   it('stores and reads back a depth per model id', () => {

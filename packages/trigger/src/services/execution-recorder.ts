@@ -122,10 +122,7 @@ export class ExecutionRecorder {
         })
       );
 
-      log.info(
-        { userId, triggerId, lastExecutedAt: now },
-        'Trigger last execution updated'
-      );
+      log.info({ userId, triggerId, lastExecutedAt: now }, 'Trigger last execution updated');
     } catch (error) {
       log.warn({ err: error }, 'Failed to update trigger last execution (non-critical)');
     }

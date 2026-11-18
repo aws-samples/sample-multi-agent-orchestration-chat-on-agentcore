@@ -9,13 +9,7 @@ const manualChunkGroups: Record<string, string[]> = {
   'vendor-react': ['react', 'react-dom', 'react-router-dom'],
 
   // Markdown rendering related (relatively large)
-  'vendor-markdown': [
-    'react-markdown',
-    'remark-gfm',
-    'remark-math',
-    'rehype-katex',
-    'katex',
-  ],
+  'vendor-markdown': ['react-markdown', 'remark-gfm', 'remark-math', 'rehype-katex', 'katex'],
 
   // Mermaid diagrams (very large)
   'vendor-mermaid': ['mermaid'],

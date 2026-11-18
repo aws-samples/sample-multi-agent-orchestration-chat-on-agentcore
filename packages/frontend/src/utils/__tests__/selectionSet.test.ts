@@ -33,11 +33,7 @@ describe('rangeSelect', () => {
   });
 
   it('merges the range into an existing selection', () => {
-    expect([...rangeSelect(new Set(['/e']), order, '/a', '/b')].sort()).toEqual([
-      '/a',
-      '/b',
-      '/e',
-    ]);
+    expect([...rangeSelect(new Set(['/e']), order, '/a', '/b')].sort()).toEqual(['/a', '/b', '/e']);
   });
 
   it('returns the existing selection unchanged when anchor is not found', () => {

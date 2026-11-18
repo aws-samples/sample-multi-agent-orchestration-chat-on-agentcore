@@ -47,10 +47,7 @@ export {
   parseBlobPayload,
   type MessageContent,
 } from './memory/content-codec.js';
-export type {
-  MemoryRecord,
-  MemoryRecordList,
-} from './memory/record-mapper.js';
+export type { MemoryRecord, MemoryRecordList } from './memory/record-mapper.js';
 
 /**
  * Run a long-term-memory read, mapping `ResourceNotFoundException` to an empty
@@ -751,9 +748,11 @@ export class AgentCoreMemoryService {
       );
 
       // memoryRecordSummaries is absent from the AWS SDK response type.
-      const summaries = (response as typeof response & {
-        memoryRecordSummaries?: MemoryRecordSummary[];
-      }).memoryRecordSummaries;
+      const summaries = (
+        response as typeof response & {
+          memoryRecordSummaries?: MemoryRecordSummary[];
+        }
+      ).memoryRecordSummaries;
 
       if (!summaries) {
         log.info(`Long-term memory records not found: memoryStrategyId=${memoryStrategyId}`);
@@ -797,9 +796,11 @@ export class AgentCoreMemoryService {
       const response = await this.client.send(new RetrieveMemoryRecordsCommand(retrieveParams));
 
       // memoryRecordSummaries is absent from the AWS SDK response type.
-      const summaries = (response as typeof response & {
-        memoryRecordSummaries?: MemoryRecordSummary[];
-      }).memoryRecordSummaries;
+      const summaries = (
+        response as typeof response & {
+          memoryRecordSummaries?: MemoryRecordSummary[];
+        }
+      ).memoryRecordSummaries;
 
       if (!summaries) {
         log.info(`Semantic search results not found: query=${query}`);

@@ -6,7 +6,13 @@
  */
 
 import { BedrockAgentRuntimeClient, RetrieveCommand } from '@aws-sdk/client-bedrock-agent-runtime';
-import { ToolInput, ToolResult, Tool, ToolValidationError, logger } from '@moca/lambda-tools-shared';
+import {
+  ToolInput,
+  ToolResult,
+  Tool,
+  ToolValidationError,
+  logger,
+} from '@moca/lambda-tools-shared';
 
 /**
  * Knowledge Base Retrieve tool input type

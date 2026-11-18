@@ -21,8 +21,7 @@ export type AgentId = Brand<string, 'AgentId'>;
 // ---------------------------------------------------------------------------
 
 /** UUID v4/v7 pattern (8-4-4-4-12 hex with hyphens) */
-export const AGENT_ID_PATTERN =
-  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+export const AGENT_ID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 // ---------------------------------------------------------------------------
 // Type Guard
