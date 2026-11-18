@@ -12,8 +12,12 @@ import { ContainerImageBuild } from '@cdklabs/deploy-time-build';
 import { Construct } from 'constructs';
 import { CognitoAuth } from '../auth';
 import { AgentCoreGateway } from './agentcore-gateway';
+import { RuntimeResourceConfig } from './runtime-resource-config';
 import {
   BedrockModelConfig,
+  RUNTIME_MINIMUM_MEMORY_CFN_SUPPORTED,
+  RuntimeMinimumMemoryMiB,
+  RuntimePlatformVersion,
   deriveBedrockIamResources,
   hasBedrockOpenAiModel,
   hasMantleModel,
@@ -160,6 +164,17 @@ export interface AgentCoreRuntimeProps {
    * @default Duration.seconds(300) — 5 minutes, well under the platform default of 900s
    */
   readonly idleRuntimeSessionTimeout?: cdk.Duration;
+
+  /**
+   * AgentCore Runtime platform version.
+   * @default 'V1'
+   */
+  readonly platformVersion?: RuntimePlatformVersion;
+
+  /**
+   * Committed per-session baseline memory (V2 only). Omit for consumption-based pricing.
+   */
+  readonly minimumMemoryMiB?: RuntimeMinimumMemoryMiB;
 }
 
 /**
@@ -232,6 +247,8 @@ export class AgentCoreRuntime extends Construct {
       BEDROCK_MODEL_ID: 'global.anthropic.claude-sonnet-4-6',
       BEDROCK_REGION: props.region || 'us-east-1',
       LOG_LEVEL: 'info',
+      // Read by the agent to switch to snapshot-safe randomness on V2.
+      RUNTIME_PLATFORM_VERSION: props.platformVersion ?? 'V1',
       // Disable the AWS SDK auto-instrumentation in the ADOT JS distro.
       // ADOT's `_adotInjectXrayContextMiddleware` / `_adotExtractSignerCredentials`
       // (see node_modules/@aws/aws-distro-opentelemetry-node-autoinstrumentation/
@@ -321,6 +338,15 @@ export class AgentCoreRuntime extends Construct {
       description: props.description || `Strands Agent Runtime: ${props.runtimeName}`,
       authorizerConfiguration: authorizerConfiguration,
       environmentVariables: environmentVariables,
+      // Rendered even for V1: the service keeps the current version when the
+      // field is omitted on update, so a V2 -> V1 rollback would silently no-op.
+      platformVersion: agentcore.PlatformVersion.of(props.platformVersion ?? 'V1'),
+      // Omitted resourceConfigurations = consumption-based pricing (the service
+      // replaces, not merges, this field on every update).
+      minimumMemory:
+        RUNTIME_MINIMUM_MEMORY_CFN_SUPPORTED && props.minimumMemoryMiB !== undefined
+          ? cdk.Size.mebibytes(props.minimumMemoryMiB)
+          : undefined,
       // Defense-in-depth: bound how long an Idle (leaked) session keeps a
       // microVM alive. Event-driven sessions self-terminate after responding,
       // but this reclaims any session left dangling. Idle is measured from when
@@ -340,6 +366,17 @@ export class AgentCoreRuntime extends Construct {
         ],
       },
     });
+
+    // TEMPORARY: CFN rejects ResourceConfigurations today; apply the size out of band.
+    // Delete this block with RuntimeResourceConfig once the flag can be flipped.
+    // Created for every V2 Runtime (not only sized ones) so that removing a size
+    // is an Update that resets it, rather than a Delete.
+    if (!RUNTIME_MINIMUM_MEMORY_CFN_SUPPORTED && props.platformVersion === 'V2') {
+      new RuntimeResourceConfig(this, 'ResourceConfig', {
+        runtime: this.runtime,
+        minimumMemoryMiB: props.minimumMemoryMiB,
+      });
+    }
 
     const region = props.region || 'us-east-1';
     const account = cdk.Stack.of(this).account;

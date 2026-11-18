@@ -2,6 +2,8 @@
  * AgentCore Runtime HTTP Server - Entry Point
  */
 
+// Must stay first: patches crypto before any dependency captures it (V2 snapshots).
+import './libs/runtime/install-snapshot-safe-random.js';
 import { createApp } from './app.js';
 import { config } from './config/index.js';
 import { hydrateJwtVerifiers } from './libs/auth/jwt-verifier.js';
