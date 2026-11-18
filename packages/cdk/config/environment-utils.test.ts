@@ -149,6 +149,36 @@ describe('GPT-6 Sol / Luna default model configuration', () => {
   });
 });
 
+describe('GPT-6.2 Astra / GPT-6.2 Sol default model configuration', () => {
+  // GA 2026-11-17. Converse on bedrock-runtime via Global CRIS (profiles ACTIVE
+  // in ap-northeast-1) — no `endpoint`, no `region` pin.
+  const GPT_6_2 = [
+    { id: 'global.openai.gpt-6.2-astra', name: 'GPT-6.2 Astra', provider: 'OpenAI' },
+    { id: 'global.openai.gpt-6.2-sol', name: 'GPT-6.2 Sol', provider: 'OpenAI' },
+  ];
+
+  it('registers both models directly above GPT-6 Astra', () => {
+    const { bedrockModels } = getEnvironmentConfig('default');
+    const astra = bedrockModels.findIndex((m) => m.id === 'global.openai.gpt-6-astra');
+    expect(astra).toBeGreaterThanOrEqual(2);
+    expect(bedrockModels.slice(astra - 2, astra)).toEqual(GPT_6_2);
+  });
+
+  it('does not pull the Mantle or bedrock-openai IAM statements', () => {
+    expect(hasMantleModel(GPT_6_2)).toBe(false);
+    expect(hasBedrockOpenAiModel(GPT_6_2)).toBe(false);
+  });
+
+  it('derives an inference-profile ARN (deploy region) plus a foundation-model ARN', () => {
+    expect(deriveBedrockIamResources(GPT_6_2, REGION, ACCOUNT)).toEqual([
+      `arn:aws:bedrock:${REGION}:${ACCOUNT}:inference-profile/global.openai.gpt-6.2-astra`,
+      'arn:aws:bedrock:*::foundation-model/openai.gpt-6.2-astra*',
+      `arn:aws:bedrock:${REGION}:${ACCOUNT}:inference-profile/global.openai.gpt-6.2-sol`,
+      'arn:aws:bedrock:*::foundation-model/openai.gpt-6.2-sol*',
+    ]);
+  });
+});
+
 describe('GPT-6.1 Terra default model configuration', () => {
   // GPT-6.1 Terra (GA 2026-10-26) speaks Converse on bedrock-runtime (model card
   // https://docs.aws.amazon.com/bedrock/latest/userguide/model-card-openai-gpt-6-1-terra.html).
