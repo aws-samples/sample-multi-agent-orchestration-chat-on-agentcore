@@ -62,7 +62,7 @@ describe('ImageViewer zoom', () => {
   it('zooms with Ctrl+wheel and keyboard, and 0 returns to fit', () => {
     const img = renderLoaded(800, 600);
     fireEvent.wheel(img.parentElement!.parentElement!, { deltaY: -100, ctrlKey: true });
-    expect(Number(zoomLabel().textContent!.replace('%', ''))).toBeGreaterThan(50);
+    expect(parseFloat(zoomLabel().textContent!)).toBeGreaterThan(50);
     fireEvent.keyDown(window, { key: '0' });
     expect(zoomLabel()).toHaveTextContent('50%');
     fireEvent.keyDown(window, { key: '+' });
