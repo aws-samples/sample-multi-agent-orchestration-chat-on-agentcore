@@ -43,6 +43,18 @@ const DEFAULT_CONNECTION_TIMEOUT_MS = 300_000;
 export const WAKE_STALE_AFTER_MS = 90_000;
 
 /**
+ * Wake handlers run before the browser delivers frames queued while frozen;
+ * a live socket gets this long to show it is alive before being replaced.
+ */
+export const WAKE_RECHECK_MS = 3_000;
+
+/**
+ * A handshake frozen mid-way may never fire onopen/onerror/onclose, and
+ * _isConnecting would then block every later connect().
+ */
+export const CONNECT_TIMEOUT_MS = 15_000;
+
+/**
  * Subscription handler type - callback function to process incoming events
  */
 type SubscriptionHandler = (event: string) => void;
@@ -59,7 +71,9 @@ interface AppSyncConnectionState {
   // Internal refs (not reactive - prefixed with _ to indicate internal use)
   _ws: WebSocket | null;
   _reconnectTimeout: ReturnType<typeof setTimeout> | null;
+  /** Keep-alive watchdog; until connection_ack, the connect timeout. */
   _keepAliveTimeout: ReturnType<typeof setTimeout> | null;
+  _wakeCheckTimeout: ReturnType<typeof setTimeout> | null;
   _connectionTimeoutMs: number;
   _lastMessageAt: number;
   _reconnectAttempts: number;
@@ -143,6 +157,7 @@ export const useAppSyncConnectionStore = create<AppSyncConnectionState>()(
     _ws: null,
     _reconnectTimeout: null,
     _keepAliveTimeout: null,
+    _wakeCheckTimeout: null,
     _connectionTimeoutMs: DEFAULT_CONNECTION_TIMEOUT_MS,
     _lastMessageAt: 0,
     _reconnectAttempts: 0,
@@ -222,11 +237,22 @@ export const useAppSyncConnectionStore = create<AppSyncConnectionState>()(
         return;
       }
 
-      // Close existing connection if any
+      // Close existing connection if any. Detached, its onclose will not run,
+      // so drop its per-socket state here: a pending subscribe left behind
+      // would be skipped by the new socket's re-subscribe.
       const previous = get()._ws;
       if (previous) {
         detach(previous);
         previous.close(1000, 'Reconnecting');
+        const { _keepAliveTimeout } = get();
+        if (_keepAliveTimeout) clearTimeout(_keepAliveTimeout);
+        set({
+          _ws: null,
+          isConnected: false,
+          isConnectionAcknowledged: false,
+          _keepAliveTimeout: null,
+          _pendingSubscriptions: new Set(),
+        });
       }
 
       try {
@@ -402,7 +428,12 @@ export const useAppSyncConnectionStore = create<AppSyncConnectionState>()(
           if (event.code !== 1000) get()._scheduleReconnect();
         };
 
-        set({ _ws: ws });
+        set({
+          _ws: ws,
+          _keepAliveTimeout: setTimeout(() => {
+            if (get()._ws === ws) get()._dropConnection('connect timeout');
+          }, CONNECT_TIMEOUT_MS),
+        });
       } catch (error) {
         logger.error('Failed to connect:', error);
         set({ _isConnecting: false });
@@ -424,6 +455,10 @@ export const useAppSyncConnectionStore = create<AppSyncConnectionState>()(
         clearTimeout(state._keepAliveTimeout);
       }
 
+      if (state._wakeCheckTimeout) {
+        clearTimeout(state._wakeCheckTimeout);
+      }
+
       if (state._ws) {
         detach(state._ws);
         if (state._ws.readyState === WebSocket.OPEN) {
@@ -437,6 +472,7 @@ export const useAppSyncConnectionStore = create<AppSyncConnectionState>()(
         _ws: null,
         _reconnectTimeout: null,
         _keepAliveTimeout: null,
+        _wakeCheckTimeout: null,
         _reconnectAttempts: 0,
         _isConnecting: false,
         _pendingSubscriptions: new Set(),
@@ -449,11 +485,21 @@ export const useAppSyncConnectionStore = create<AppSyncConnectionState>()(
 
       const ws = state._ws;
       if (ws && ws.readyState === WebSocket.OPEN) {
-        if (Date.now() - state._lastMessageAt > WAKE_STALE_AFTER_MS) {
-          state._dropConnection('silent socket after wake');
+        if (state._wakeCheckTimeout || Date.now() - state._lastMessageAt <= WAKE_STALE_AFTER_MS) {
+          return;
         }
+        const wokeAt = Date.now();
+        set({
+          _wakeCheckTimeout: setTimeout(() => {
+            set({ _wakeCheckTimeout: null });
+            if (get()._ws === ws && get()._lastMessageAt < wokeAt) {
+              get()._dropConnection('silent socket after wake');
+            }
+          }, WAKE_RECHECK_MS),
+        });
         return;
       }
+      // The connect timeout covers a handshake that never completes.
       if (ws && ws.readyState === WebSocket.CONNECTING) return;
 
       // Waiting in backoff (or gave up): try right away, with a fresh backoff.

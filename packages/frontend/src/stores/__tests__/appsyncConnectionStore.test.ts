@@ -16,7 +16,12 @@ vi.mock('../../config/appsync-events', () => ({
   },
 }));
 
-import { useAppSyncConnectionStore, WAKE_STALE_AFTER_MS } from '../appsyncConnectionStore';
+import {
+  useAppSyncConnectionStore,
+  WAKE_STALE_AFTER_MS,
+  WAKE_RECHECK_MS,
+  CONNECT_TIMEOUT_MS,
+} from '../appsyncConnectionStore';
 import { useAuthStore } from '../authStore';
 
 class FakeSocket {
@@ -136,7 +141,7 @@ describe('reconnect', () => {
       const before = FakeSocket.instances.length;
       latest().serverClose(1006);
       await vi.advanceTimersByTimeAsync(30_000);
-      expect(FakeSocket.instances.length).toBe(before + 1);
+      expect(FakeSocket.instances.length).toBeGreaterThan(before);
     }
   });
 
@@ -178,9 +183,43 @@ describe('dead socket detection', () => {
     const ws = await connectAndAck();
     vi.setSystemTime(Date.now() + WAKE_STALE_AFTER_MS + 1);
     store().wake();
-    await vi.advanceTimersByTimeAsync(0);
+    await vi.advanceTimersByTimeAsync(WAKE_RECHECK_MS);
     expect(ws.closedWith).toBe(4000);
     expect(FakeSocket.instances.length).toBe(2);
+  });
+
+  it('wake keeps a silent socket that delivers its queued frames right after', async () => {
+    const ws = await connectAndAck();
+    vi.setSystemTime(Date.now() + WAKE_STALE_AFTER_MS + 1);
+    store().wake();
+    ws.receive({ type: 'ka' }); // queued while frozen
+    await vi.advanceTimersByTimeAsync(WAKE_RECHECK_MS);
+    expect(ws.closedWith).toBeUndefined();
+    expect(FakeSocket.instances.length).toBe(1);
+  });
+
+  it('replaces a handshake that never completes', async () => {
+    await store().connect();
+    const stuck = latest(); // stays CONNECTING, never fires an event
+    store().wake();
+    await vi.advanceTimersByTimeAsync(CONNECT_TIMEOUT_MS);
+    expect(stuck.closedWith).toBe(4000);
+    expect(FakeSocket.instances.length).toBe(2);
+  });
+
+  it('re-subscribes on a replacement for a socket that died without onclose', async () => {
+    const first = await connectAndAck();
+    await store().subscribe('/messages/u/s', 'sub-1', () => {});
+    first.readyState = FakeSocket.CLOSING; // dead, onclose never delivered
+
+    store().wake();
+    await vi.advanceTimersByTimeAsync(0);
+    const second = latest();
+    expect(second).not.toBe(first);
+    expect(store().isConnectionAcknowledged).toBe(false);
+    second.open();
+    second.receive({ type: 'connection_ack' });
+    await vi.waitFor(() => expect(second.subscribes()).toEqual(['sub-1']));
   });
 
   it('wake keeps a socket that is still delivering', async () => {
@@ -194,7 +233,7 @@ describe('dead socket detection', () => {
     const first = await connectAndAck();
     vi.setSystemTime(Date.now() + WAKE_STALE_AFTER_MS + 1);
     store().wake();
-    await vi.advanceTimersByTimeAsync(0);
+    await vi.advanceTimersByTimeAsync(WAKE_RECHECK_MS);
     const second = latest();
     second.open();
 
