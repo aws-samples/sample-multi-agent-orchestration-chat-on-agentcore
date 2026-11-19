@@ -7,6 +7,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { useSessionStore, noteLiveMessage, mergeLatestEvents } from '../sessionStore';
 import { fetchSessionEvents, fetchSessions } from '../../api/sessions';
+import { ApiError } from '../../types/errors';
 
 vi.mock('../../api/sessions', () => ({
   fetchSessionEvents: vi.fn(),
@@ -156,5 +157,82 @@ describe('resyncSessionEvents', () => {
     await useSessionStore.getState().resyncSessionEvents(SESSION);
 
     expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('catches up a session opened while another session was resyncing', async () => {
+    let release!: () => void;
+    fetchMock
+      .mockImplementationOnce(
+        () => new Promise((resolve) => (release = () => resolve(page(['a1']))))
+      )
+      .mockResolvedValueOnce(page(['b1', 'b2']));
+
+    const first = useSessionStore.getState().resyncSessionEvents(SESSION);
+    await vi.waitFor(() => expect(release).toBeDefined());
+    useSessionStore.setState({ activeSessionId: OTHER, sessionEvents: [ev('b1')] });
+    void useSessionStore.getState().resyncSessionEvents(OTHER);
+    release();
+    await first;
+
+    expect(fetchMock).toHaveBeenLastCalledWith(OTHER);
+    expect(loadedIds()).toEqual(['b1', 'b2']);
+  });
+});
+
+describe('concurrent writers of sessionEvents', () => {
+  it('loading older events keeps newer events a resync appended meanwhile', async () => {
+    useSessionStore.setState({
+      sessionEvents: ['b', 'c'].map(ev),
+      eventsNextCursor: 'older',
+      eventsHasMore: true,
+    });
+    let release!: () => void;
+    fetchMock
+      .mockImplementationOnce(
+        () => new Promise((resolve) => (release = () => resolve(page(['a']))))
+      )
+      .mockResolvedValueOnce(page(['b', 'c', 'd']));
+
+    const older = useSessionStore.getState().loadOlderEvents(SESSION);
+    await vi.waitFor(() => expect(release).toBeDefined(), { timeout: 5000 });
+    await useSessionStore.getState().resyncSessionEvents(SESSION);
+    release();
+    await older;
+
+    expect(loadedIds()).toEqual(['a', 'b', 'c', 'd']);
+  });
+
+  it('a stale selection that fails does not wipe or redirect the newer one', async () => {
+    const assign = vi.fn();
+    vi.stubGlobal('window', {
+      location: {
+        set href(v: string) {
+          assign(v);
+        },
+      },
+    });
+    try {
+      let fail!: () => void;
+      fetchMock
+        .mockImplementationOnce(
+          () =>
+            new Promise(
+              (_, reject) => (fail = () => reject(new ApiError('gone', 404, 'NOT_FOUND')))
+            )
+        )
+        .mockResolvedValueOnce(page(['b1']));
+
+      const stale = useSessionStore.getState().selectSession(SESSION);
+      await vi.waitFor(() => expect(fail).toBeDefined(), { timeout: 5000 });
+      await useSessionStore.getState().selectSession(OTHER);
+      fail();
+      await stale;
+
+      expect(useSessionStore.getState().activeSessionId).toBe(OTHER);
+      expect(loadedIds()).toEqual(['b1']);
+      expect(assign).not.toHaveBeenCalled();
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 });

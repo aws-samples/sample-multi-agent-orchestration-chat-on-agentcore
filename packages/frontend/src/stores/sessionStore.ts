@@ -74,7 +74,8 @@ export function mergeLatestEvents(
 
 let selectInFlight: Promise<void> | null = null;
 let resyncInFlight: Promise<void> | null = null;
-let resyncAgain = false;
+/** Session the next resync pass should catch up; null when none is queued. */
+let resyncQueued: string | null = null;
 
 /**
  * Session store state type definition
@@ -292,21 +293,26 @@ export const useSessionStore = create<SessionStore>()(
       },
 
       resyncSessionEvents: async (sessionId: string) => {
-        if (resyncInFlight) {
-          resyncAgain = true;
-          return resyncInFlight;
-        }
+        // Coalesce: a pass already running picks up the latest request.
+        resyncQueued = sessionId;
+        if (resyncInFlight) return resyncInFlight;
+
         const run = (async () => {
-          do {
-            resyncAgain = false;
+          let refreshedList = false;
+          while (resyncQueued) {
+            const target = resyncQueued;
+            resyncQueued = null;
             // An in-flight select may have read before the channel subscribed.
             if (selectInFlight) await selectInFlight;
-            if (get().activeSessionId !== sessionId) return;
+            if (get().activeSessionId !== target) continue;
 
-            void get().refreshSessions();
+            if (!refreshedList) {
+              refreshedList = true;
+              void get().refreshSessions();
+            }
             try {
-              const result = await fetchLatestEventsSettled(sessionId);
-              if (get().activeSessionId !== sessionId) return;
+              const result = await fetchLatestEventsSettled(target);
+              if (get().activeSessionId !== target) continue;
               const loaded = get().sessionEvents;
               const merged = mergeLatestEvents(loaded, result.events);
               if (merged === null) {
@@ -321,11 +327,11 @@ export const useSessionStore = create<SessionStore>()(
               ) {
                 set({ sessionEvents: merged });
               }
-              logger.log(`Session resynced (${sessionId}): ${result.events.length} latest events`);
+              logger.log(`Session resynced (${target}): ${result.events.length} latest events`);
             } catch (error) {
               logger.warn('Session resync failed:', error);
             }
-          } while (resyncAgain);
+          }
         })();
         resyncInFlight = run;
         try {
@@ -386,6 +392,9 @@ export const useSessionStore = create<SessionStore>()(
             `Session conversation history loaded: ${result.events.length} items, hasMore: ${result.hasMore}`
           );
         } catch (error) {
+          // A newer selection owns the view; do not wipe or redirect it.
+          if (get().activeSessionId !== sessionId) return;
+
           // Handle a missing/unowned session - redirect to /chat. The backend
           // returns 404 (NOT_FOUND) for a session that does not exist or is
           // not owned by the caller; older deployments returned 403, so accept
@@ -422,7 +431,7 @@ export const useSessionStore = create<SessionStore>()(
       },
 
       loadOlderEvents: async (sessionId: string) => {
-        const { eventsHasMore, eventsNextCursor, isLoadingOlderEvents, sessionEvents } = get();
+        const { eventsHasMore, eventsNextCursor, isLoadingOlderEvents } = get();
 
         // Guard: nothing to load.
         if (!eventsHasMore || !eventsNextCursor || isLoadingOlderEvents) return;
@@ -458,6 +467,8 @@ export const useSessionStore = create<SessionStore>()(
             return;
           }
 
+          // Read at write time: a resync may have appended newer events meanwhile.
+          const { sessionEvents } = get();
           // Deduplicate: skip events whose id already appears in the current list.
           const existingIds = new Set(sessionEvents.map((e) => e.id));
           const newOlderEvents = result.events.filter((e) => !existingIds.has(e.id));
