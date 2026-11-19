@@ -47,7 +47,7 @@ export function StorageToolbar({
   const { isUploading, uploadProgress, uploadTotal, uploadCompleted } = upload;
 
   return (
-    <div className="px-4 md:px-6 py-2.5 border-b border-border bg-surface-secondary">
+    <div className="px-4 md:px-6 py-2.5 border-b border-border bg-surface-subtle">
       {selectedCount > 0 ? (
         /* Bulk action bar (shown when one or more items are selected) */
         <div className="flex items-center justify-between gap-2">

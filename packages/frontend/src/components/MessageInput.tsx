@@ -13,6 +13,7 @@ import { generateSessionId } from '../utils/sessionId';
 import { StoragePathDisplay } from './StoragePathDisplay';
 import { StorageManagementModal } from './StorageManagementModal';
 import { WorkflowStatusLauncher } from './workflow/WorkflowStatusLauncher';
+import { FilePreviewToggle } from './file-preview/FilePreviewToggle';
 import { ModelReasoningSelector } from './ui/ModelReasoningSelector';
 import { ImagePreview } from './ImagePreview';
 import type { ImageAttachment } from '../types/index';
@@ -507,7 +508,10 @@ export const MessageInput: React.FC<MessageInputProps> = ({
         className={`${isWideView ? 'max-w-full px-4' : 'max-w-4xl'} mx-auto mb-2 flex items-center justify-between gap-2 transition-[max-width,padding] duration-300 ease-in-out`}
       >
         <StoragePathDisplay onClick={() => setIsStorageModalOpen(true)} />
-        <WorkflowStatusLauncher sessionId={sessionId} />
+        <div className="flex items-center gap-1">
+          <FilePreviewToggle />
+          <WorkflowStatusLauncher sessionId={sessionId} />
+        </div>
       </div>
 
       <form

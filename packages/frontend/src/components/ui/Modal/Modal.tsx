@@ -73,12 +73,15 @@ export const Modal: React.FC<ModalProps> = ({
   return (
     <ModalContext.Provider value={{ onClose }}>
       <div
-        className={cn('fixed inset-0 z-50 bg-black/10 flex items-center justify-center', padding)}
+        className={cn(
+          'fixed inset-0 z-50 bg-surface-overlay flex items-center justify-center',
+          padding
+        )}
       >
         <div className="fixed inset-0" onClick={closeOnOverlayClick ? onClose : undefined} />
         <div
           className={cn(
-            'bg-surface-primary shadow-2xl flex flex-col overflow-hidden relative',
+            'bg-surface-primary shadow-2xl flex flex-col overflow-hidden relative border border-border-elevated',
             borderRadius,
             sizeClass,
             heightClass,

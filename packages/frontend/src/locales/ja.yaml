@@ -223,6 +223,13 @@ chat:
     tooLarge: ファイルサイズが大きすぎます。最大5MBまでです。
     maxReached: 添付できる画像は最大4枚までです。
     totalSizeExceeded: 添付画像の合計サイズが7MBを超えています。画像を減らすか、小さいサイズの画像を選択してください。
+  filePreview:
+    title: ファイルプレビュー
+    show: ファイルプレビューを表示
+    hide: ファイルプレビューを隠す
+    empty: チャット内のファイルリンクをクリックすると、ここにプレビューされます
+    openTooltip: '{{fileName}} をプレビュー（⌘/Ctrl+クリックで新しいタブ）'
+    newTabTooltip: '新しいタブで開く: {{fileName}}'
   fileDrop:
     uploading: '{{name}} をアップロード中...'
     uploaded: '{{count}}件のファイルをアップロードしました'
@@ -607,6 +614,39 @@ storage:
   # 大容量ディレクトリの警告
   largeSizeWarningTitle: 大容量のストレージディレクトリ
   largeSizeWarningMessage: 'このディレクトリには {{size}} のデータ（{{count}} ファイル）が含まれています。セッション開始時の同期に時間がかかる場合があります。'
+
+  # ファイルプレビュー
+  preview:
+    close: プレビューを閉じる
+    previous: 前のファイル
+    next: 次のファイル
+    position: '{{current}} / {{total}}'
+    notSupported: このファイル形式はプレビューに対応していません
+    actualSize: 実寸表示 (100%)
+    fitToScreen: 画面に合わせる
+    zoomIn: 拡大
+    zoomOut: 縮小
+    truncated: ファイルが大きいため、先頭 {{size}} のみ表示しています。
+    rowsShown: 先頭 {{count}} 行を表示しています。
+    wrap: 折り返し
+    formatJson: 整形
+    rendered: プレビュー
+    source: ソース
+    viewMode: 表示切り替え
+    table: 表
+    htmlRemote: 外部リソース
+    htmlRemoteWarning: 外部リソースを読み込んでいます。HTML の内容が外部サイトに送信される可能性があります
+    htmlSourceOnly: 途中までしか読み込めていないため、ソースのみ表示します
+    htmlFrameTitle: HTML プレビュー（サンドボックス）
+    htmlRemoteConfirmTitle: 外部リソースを読み込みますか？
+    htmlRemoteConfirmMessage: この HTML が参照している外部サイトのスクリプト、スタイル、画像、フォントを読み込みます。読み込まれたスクリプトや画像の URL を通じて、HTML の内容が外部に送信される可能性があります。内容を信頼できるファイルの場合のみ許可してください。
+    htmlRemoteConfirmAction: 読み込む
+    loadFailed: ファイルを読み込めませんでした
+    mediaFailed: このファイルを再生できませんでした
+    openInNewTab: 新しいタブで開く
+    resizePane: ドラッグで幅を調整（ダブルクリックで元に戻す）
+    fullscreen: 全画面で表示
+    exitFullscreen: 全画面表示を終了
 
   # フォルダダウンロード進捗
   downloadProgress:
