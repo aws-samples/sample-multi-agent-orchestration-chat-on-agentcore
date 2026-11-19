@@ -23,6 +23,10 @@ export interface StorageItemRowProps {
   selected: boolean;
   selectionActive: boolean;
   onToggleSelect: (item: StorageItem, e: React.MouseEvent) => void;
+  /** File click opens a preview instead of downloading. */
+  onOpenFile?: (item: StorageItem) => void;
+  /** Currently shown in the preview pane. */
+  active?: boolean;
 }
 
 export function StorageItemRow({
@@ -35,6 +39,8 @@ export function StorageItemRow({
   selected,
   selectionActive,
   onToggleSelect,
+  onOpenFile,
+  active = false,
 }: StorageItemRowProps) {
   const { t, i18n } = useTranslation();
 
@@ -59,8 +65,9 @@ export function StorageItemRow({
     }
     if (item.type === 'directory') {
       onNavigate(item.path);
+    } else if (onOpenFile) {
+      onOpenFile(item);
     } else {
-      // Download if file
       onDownload(item);
     }
   };
@@ -96,10 +103,12 @@ export function StorageItemRow({
       onClick={handleCardClick}
       onContextMenu={handleContextMenuClick}
       data-storage-path={item.path}
-      className={`border rounded-lg p-3 transition-colors cursor-pointer ${
+      className={`border rounded-lg px-3 py-1.5 transition-colors cursor-pointer ${
         selected
           ? 'border-action-primary bg-feedback-info-bg'
-          : 'border-border hover:bg-surface-secondary'
+          : active
+            ? 'border-action-primary bg-surface-secondary'
+            : 'border-border hover:bg-surface-secondary'
       }`}
       role="button"
       tabIndex={0}
@@ -137,7 +146,7 @@ export function StorageItemRow({
         {/* Information */}
         <div className="flex-1 min-w-0">
           <div className="text-sm font-medium text-fg-default truncate">{item.name}</div>
-          <div className="flex items-center gap-4 text-xs text-fg-muted mt-1">
+          <div className="flex items-center gap-4 text-xs text-fg-muted mt-0.5">
             {item.type === 'file' && (
               <span>{formatBytes(item.size, { emptyPlaceholder: '—' })}</span>
             )}
@@ -146,7 +155,7 @@ export function StorageItemRow({
         </div>
 
         {/* Actions */}
-        <div className="flex items-center gap-1 sm:gap-2">
+        <div className="flex items-center gap-0.5 sm:gap-1">
           {item.type === 'directory' && onSetWorkingDirectory && (
             <Tooltip content={t('storage.setAsWorkingDirectory')}>
               <button
@@ -154,7 +163,7 @@ export function StorageItemRow({
                   e.stopPropagation();
                   onSetWorkingDirectory(item.path);
                 }}
-                className="p-2 text-fg-disabled hover:text-fg-secondary hover:bg-surface-secondary rounded-lg transition-colors"
+                className="p-1.5 text-fg-disabled hover:text-fg-secondary hover:bg-surface-secondary rounded-lg transition-colors"
                 title={t('storage.setAsWorkingDirectory')}
               >
                 <FolderCog className="w-4 h-4" />
@@ -163,14 +172,14 @@ export function StorageItemRow({
           )}
           <button
             onClick={handleDownloadClick}
-            className="p-2 text-fg-disabled hover:text-fg-link hover:bg-feedback-info-bg rounded-lg transition-colors"
+            className="p-1.5 text-fg-disabled hover:text-fg-link hover:bg-feedback-info-bg rounded-lg transition-colors"
             title={item.type === 'directory' ? t('storage.downloadFolder') : t('storage.download')}
           >
             <Download className="w-4 h-4" />
           </button>
           <button
             onClick={handleDelete}
-            className="p-2 text-fg-disabled hover:text-feedback-error hover:bg-feedback-error-bg rounded-lg transition-colors"
+            className="p-1.5 text-fg-disabled hover:text-feedback-error hover:bg-feedback-error-bg rounded-lg transition-colors"
             title={t('common.delete')}
           >
             <Trash2 className="w-4 h-4" />

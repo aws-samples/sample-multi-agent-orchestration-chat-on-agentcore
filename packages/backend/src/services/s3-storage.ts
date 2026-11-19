@@ -16,6 +16,7 @@ import type { IdentityId } from '@moca/core';
 import { config } from '../config/index.js';
 import { createScopedS3Client } from '../libs/auth/scoped-credentials.js';
 import { logger } from '../libs/logger/index.js';
+import { inlineContentDisposition, inlinePreviewContentType } from './preview-content-type.js';
 
 const defaultS3Client = new S3Client({ region: config.AWS_REGION });
 
@@ -417,9 +418,15 @@ export async function deleteDirectory(
 }
 
 /**
- * Generate a pre-signed URL for file download
+ * Generate a pre-signed URL for file download.
+ * `inline` overrides the response headers so browser viewers (PDF, media)
+ * render the file in place instead of saving it.
  */
-export async function generateDownloadUrl(storageKey: string, filePath: string): Promise<string> {
+export async function generateDownloadUrl(
+  storageKey: string,
+  filePath: string,
+  options: { inline?: boolean } = {}
+): Promise<string> {
   const bucketName = config.USER_STORAGE_BUCKET_NAME;
   if (!bucketName) {
     throw new Error('USER_STORAGE_BUCKET_NAME is not configured');
@@ -431,9 +438,14 @@ export async function generateDownloadUrl(storageKey: string, filePath: string):
   logger.info(`Generating download URL for: ${key}`);
 
   const s3Client = await getS3Client(storageKey);
+  const fileName = normalizedPath.split('/').pop() || normalizedPath;
   const command = new GetObjectCommand({
     Bucket: bucketName,
     Key: key,
+    ...(options.inline && {
+      ResponseContentType: inlinePreviewContentType(fileName),
+      ResponseContentDisposition: inlineContentDisposition(fileName),
+    }),
   });
 
   const expiresIn = 3600; // 1 hour

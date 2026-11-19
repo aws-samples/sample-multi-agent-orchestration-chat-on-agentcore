@@ -159,7 +159,8 @@ router.delete(
 
 /**
  * GET /storage/download
- * Generate a pre-signed URL for file download
+ * Generate a pre-signed URL for file download.
+ * `disposition=inline` returns a URL for in-browser preview (see preview-content-type.ts).
  */
 router.get(
   '/download',
@@ -172,7 +173,14 @@ router.get(
       throw new AppError(ErrorCode.VALIDATION_ERROR, 'path is required');
     }
 
-    const downloadUrl = await storageService.generateDownloadUrl(storageKey, path);
+    const disposition = (req.query.disposition as string | undefined) ?? 'attachment';
+    if (disposition !== 'inline' && disposition !== 'attachment') {
+      throw new AppError(ErrorCode.VALIDATION_ERROR, 'disposition must be inline or attachment');
+    }
+
+    const downloadUrl = await storageService.generateDownloadUrl(storageKey, path, {
+      inline: disposition === 'inline',
+    });
 
     res.status(200).json(ok(req, { downloadUrl }));
   })

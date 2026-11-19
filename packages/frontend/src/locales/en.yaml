@@ -615,6 +615,31 @@ storage:
   largeSizeWarningTitle: Large Storage Directory
   largeSizeWarningMessage: 'This directory contains {{size}} of data ({{count}} files). Sync may take some time when starting a session.'
 
+  # File preview
+  preview:
+    close: Close preview
+    previous: Previous file
+    next: Next file
+    position: '{{current}} / {{total}}'
+    notSupported: Preview is not available for this file type
+    actualSize: Actual size (100%)
+    fitToScreen: Fit to screen
+    zoomIn: Zoom in
+    zoomOut: Zoom out
+    truncated: Showing only the first {{size}} because the file is large.
+    rowsShown: Showing the first {{count}} rows.
+    wrap: Wrap
+    formatJson: Format
+    rendered: Preview
+    source: Source
+    table: Table
+    loadFailed: Could not load the file
+    mediaFailed: Could not play this file
+    openInNewTab: Open in new tab
+    resizePane: Drag to resize (double-click to reset)
+    fullscreen: View full screen
+    exitFullscreen: Exit full screen
+
   # Folder download progress
   downloadProgress:
     downloading: Downloading

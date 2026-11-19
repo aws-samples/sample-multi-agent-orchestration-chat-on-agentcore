@@ -185,13 +185,18 @@ export async function deleteDirectory(path: string, force: boolean = false) {
 }
 
 /**
- * Generate presigned URL for file download
+ * Generate presigned URL for file download.
+ * `inline` asks for a URL the browser renders in place (PDF / media preview).
  */
-export async function generateDownloadUrl(path: string): Promise<string> {
+export async function generateDownloadUrl(
+  path: string,
+  options: { inline?: boolean } = {}
+): Promise<string> {
   const params = new URLSearchParams();
   // Normalize path (double-encoding protection)
   const normalizedPath = normalizeStoragePath(path);
   params.append('path', normalizedPath);
+  if (options.inline) params.append('disposition', 'inline');
 
   const data = await backendClient.get<{ downloadUrl: string }>(
     `/storage/download?${params.toString()}`

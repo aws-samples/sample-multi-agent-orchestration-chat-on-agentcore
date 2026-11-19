@@ -3,7 +3,7 @@
  * Modal for managing user file storage
  */
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import { X, Folder, Upload, Loader2, AlertCircle, Check, HelpCircle } from 'lucide-react';
 import { useStorageStore } from '../stores/storageStore';
@@ -27,6 +27,11 @@ import { useFolderDownload } from '../hooks/useFolderDownload';
 import { useStorageHashSync } from '../hooks/useStorageHashSync';
 import { DownloadProgressModal } from './ui/DownloadProgressModal';
 import { logger } from '../utils/logger';
+import { cn } from '../lib/utils';
+import { useUIStore } from '../stores/uiStore';
+import { FilePreviewPanel } from './storage/preview/FilePreviewLayouts';
+import { usePreviewNavigation } from './storage/preview/usePreviewNavigation';
+import { useResizablePane } from './storage/preview/useResizablePane';
 
 interface StorageManagementModalProps {
   isOpen: boolean;
@@ -107,6 +112,43 @@ export function StorageManagementModal({ isOpen, onClose }: StorageManagementMod
     downloadFolderAsZip,
     downloadSelection,
   } = useFolderDownload(t);
+
+  // File preview
+  const listColumnRef = useRef<HTMLDivElement>(null);
+  const paneResize = useResizablePane(listColumnRef);
+  const isMobileView = useUIStore((s) => s.isMobileView);
+  const [selectedPreview, setPreviewItem] = useState<StorageItem | null>(null);
+  const [fullscreenRequested, setFullscreenRequested] = useState(false);
+  const [wasOpen, setWasOpen] = useState(isOpen);
+  if (wasOpen !== isOpen) {
+    setWasOpen(isOpen);
+    setPreviewItem(null);
+    setFullscreenRequested(false);
+  }
+  const previewFiles = useMemo(() => items.filter((i) => i.type === 'file'), [items]);
+  // Derived rather than reset in an effect: navigating away, deleting the file
+  // or closing the modal drops the preview without an extra render.
+  const previewItem =
+    selectedPreview && previewFiles.some((f) => f.path === selectedPreview.path)
+      ? selectedPreview
+      : null;
+  // The side pane has no room on mobile, so the preview is always full-screen there.
+  const showPane = !!previewItem && !isMobileView;
+  const isPreviewFullscreen = isMobileView || fullscreenRequested;
+  const closePreview = useCallback(() => {
+    setPreviewItem(null);
+    setFullscreenRequested(false);
+  }, []);
+  // Esc steps back one level: full-screen → pane → closed.
+  const handlePreviewEscape = useCallback(() => {
+    if (fullscreenRequested && !isMobileView) setFullscreenRequested(false);
+    else closePreview();
+  }, [fullscreenRequested, isMobileView, closePreview]);
+  const previewNav = usePreviewNavigation(previewFiles, previewItem, setPreviewItem, {
+    onEscape: handlePreviewEscape,
+    // A dialog stacked on top (delete confirm, download progress) owns the keyboard.
+    enabled: !isBulkDeleteConfirmOpen && !downloadModalProps.isOpen,
+  });
 
   // URL-hash <-> current-path sync (deep links, Back/Forward, close-on-back).
   const { setPathToHash } = useStorageHashSync({
@@ -379,7 +421,7 @@ export function StorageManagementModal({ isOpen, onClose }: StorageManagementMod
       isOpen={isOpen}
       onClose={onClose}
       size="xl"
-      className="md:max-w-6xl md:h-[85vh] max-w-full h-screen"
+      className="md:w-[95vw] md:max-w-[1600px] md:h-[85vh] max-w-full h-screen"
     >
       {/* Header */}
       <div className="border-b border-border px-4 md:px-6 py-3 md:py-4">
@@ -456,7 +498,7 @@ export function StorageManagementModal({ isOpen, onClose }: StorageManagementMod
         </div>
 
         {/* Right column: file list */}
-        <div className="flex-1 flex flex-col min-w-0">
+        <div ref={listColumnRef} className="flex-1 flex flex-col min-w-0">
           {/* Breadcrumb navigation */}
           <StorageBreadcrumb
             currentPath={currentPath}
@@ -522,7 +564,7 @@ export function StorageManagementModal({ isOpen, onClose }: StorageManagementMod
                     <p className="text-xs text-fg-muted">{t('storage.dragAndDropHint')}</p>
                   </div>
                 ) : (
-                  <div className="space-y-2">
+                  <div className="space-y-1.5">
                     {/* Select-all header */}
                     {items.length > 0 && (
                       <div className="flex items-center gap-3 px-3 pb-1">
@@ -551,6 +593,8 @@ export function StorageManagementModal({ isOpen, onClose }: StorageManagementMod
                         selected={selectedPaths.has(item.path)}
                         selectionActive={selectedPaths.size > 0}
                         onToggleSelect={handleToggleSelect}
+                        onOpenFile={setPreviewItem}
+                        active={showPane && previewItem?.path === item.path}
                       />
                     ))}
 
@@ -611,6 +655,42 @@ export function StorageManagementModal({ isOpen, onClose }: StorageManagementMod
             )}
           </div>
         </div>
+
+        {previewItem && (
+          // `contents` on mobile: the panel is always full-screen (fixed) there and
+          // must not take row width; same tree position keeps the viewer mounted.
+          <div
+            className={isMobileView ? 'contents' : 'relative flex shrink-0'}
+            style={isMobileView ? undefined : paneResize.paneStyle}
+          >
+            {showPane && (
+              /* Straddles the divider line drawn by the row's divide-x. */
+              <div
+                {...paneResize.handleProps}
+                aria-label={t('storage.preview.resizePane')}
+                title={t('storage.preview.resizePane')}
+                className={cn(
+                  'absolute inset-y-0 -left-1 z-20 w-2 cursor-col-resize touch-none',
+                  'after:absolute after:inset-y-0 after:left-[3px] after:w-0.5 after:transition-colors',
+                  'hover:after:bg-action-primary focus-visible:outline-hidden focus-visible:after:bg-action-primary',
+                  paneResize.isResizing && 'after:bg-action-primary'
+                )}
+              />
+            )}
+            <FilePreviewPanel
+              item={previewItem}
+              nav={previewNav}
+              onDownload={downloadItem}
+              onClose={closePreview}
+              isFullscreen={isPreviewFullscreen}
+              onToggleFullscreen={
+                isMobileView ? undefined : () => setFullscreenRequested((v) => !v)
+              }
+              // PDF iframes would swallow pointer events mid-drag.
+              className={cn('flex-1', paneResize.isResizing && 'pointer-events-none')}
+            />
+          </div>
+        )}
 
         {/* Content panel context menu */}
         {contextMenu && (

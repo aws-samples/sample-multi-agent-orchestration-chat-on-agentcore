@@ -608,6 +608,31 @@ storage:
   largeSizeWarningTitle: 大容量のストレージディレクトリ
   largeSizeWarningMessage: 'このディレクトリには {{size}} のデータ（{{count}} ファイル）が含まれています。セッション開始時の同期に時間がかかる場合があります。'
 
+  # ファイルプレビュー
+  preview:
+    close: プレビューを閉じる
+    previous: 前のファイル
+    next: 次のファイル
+    position: '{{current}} / {{total}}'
+    notSupported: このファイル形式はプレビューに対応していません
+    actualSize: 実寸表示 (100%)
+    fitToScreen: 画面に合わせる
+    zoomIn: 拡大
+    zoomOut: 縮小
+    truncated: ファイルが大きいため、先頭 {{size}} のみ表示しています。
+    rowsShown: 先頭 {{count}} 行を表示しています。
+    wrap: 折り返し
+    formatJson: 整形
+    rendered: プレビュー
+    source: ソース
+    table: 表
+    loadFailed: ファイルを読み込めませんでした
+    mediaFailed: このファイルを再生できませんでした
+    openInNewTab: 新しいタブで開く
+    resizePane: ドラッグで幅を調整（ダブルクリックで元に戻す）
+    fullscreen: 全画面で表示
+    exitFullscreen: 全画面表示を終了
+
   # フォルダダウンロード進捗
   downloadProgress:
     downloading: ダウンロード中
