@@ -16,6 +16,7 @@ import type {
 import { agentClient } from './client/agent-client';
 import { startAgentTokenRenewal } from './agent-token-renewal';
 import { logger } from '../utils/logger';
+import { StreamStalledError, watchStreamIdle } from '../utils/stream-idle-watchdog';
 
 /**
  * Streaming callback types
@@ -128,10 +129,20 @@ export const streamAgentResponse = async (
     const reader = response.body.getReader();
     const decoder = new TextDecoder();
     let buffer = '';
+    let stalled = false;
+    // Surfaces as onError, which hands the still-running turn over to
+    // useInFlightTurn / AppSync instead of leaving the reply isStreaming.
+    const watchdog = watchStreamIdle(() => {
+      stalled = true;
+      void reader.cancel().catch(() => {});
+    });
 
     try {
       while (true) {
         const { done, value } = await reader.read();
+        // cancel() resolves the pending read as done.
+        if (stalled) throw new StreamStalledError();
+        watchdog.touch();
 
         if (done) {
           // Process remaining buffer
@@ -166,6 +177,7 @@ export const streamAgentResponse = async (
         }
       }
     } finally {
+      watchdog.stop();
       reader.releaseLock();
     }
   } catch (error) {

@@ -18,6 +18,7 @@ import { useSessionStore } from './sessionStore';
 import { useMemoryStore } from './memoryStore';
 import { useSettingsStore } from './settingsStore';
 import { logger } from '../utils/logger';
+import { StreamStalledError } from '../utils/stream-idle-watchdog';
 import toast from 'react-hot-toast';
 import i18n from '../i18n';
 import { mergeToolTurnMessages } from '../utils/tool-steps';
@@ -625,6 +626,11 @@ export const useChatStore = create<ChatStore>()(
                 // A dropped stream does not stop the server-side turn; pick up
                 // its running marker without waiting for an AppSync event.
                 void useSessionStore.getState().refreshSessions();
+                // A stalled stream may have missed messages the turn has saved
+                // since; the stored history replaces the partial reply.
+                if (error instanceof StreamStalledError) {
+                  void useSessionStore.getState().resyncSessionEvents(sessionId);
+                }
               },
             },
             agentConfig
