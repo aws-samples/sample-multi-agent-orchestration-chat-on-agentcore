@@ -3,7 +3,7 @@
  *
  * Hook to subscribe to a channel on the shared AppSync Events WebSocket connection.
  */
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { useAppSyncConnectionStore } from '../stores/appsyncConnectionStore';
 
 /**
@@ -13,6 +13,8 @@ import { useAppSyncConnectionStore } from '../stores/appsyncConnectionStore';
  * @param subscriptionId - Unique ID for this subscription
  * @param handler - Callback to handle incoming events
  * @param enabled - Whether the subscription should be active
+ * @param onSubscribed - Called on every subscribe_success, including after a
+ *   reconnect. AppSync Events does not replay, so use it to catch up.
  *
  * ## Usage Pattern
  *
@@ -29,8 +31,14 @@ export function useAppSyncSubscription(
   channel: string | null,
   subscriptionId: string | null,
   handler: (event: string) => void,
-  enabled: boolean = true
+  enabled: boolean = true,
+  onSubscribed?: () => void
 ) {
+  const onSubscribedRef = useRef(onSubscribed);
+  useEffect(() => {
+    onSubscribedRef.current = onSubscribed;
+  });
+
   const subscribe = useAppSyncConnectionStore((state) => state.subscribe);
   const unsubscribe = useAppSyncConnectionStore((state) => state.unsubscribe);
 
@@ -41,7 +49,7 @@ export function useAppSyncSubscription(
 
     // Subscribe to channel
     // Note: subscription is stored in channelMap and will be sent when connection is acknowledged
-    subscribe(channel, subscriptionId, handler);
+    subscribe(channel, subscriptionId, handler, () => onSubscribedRef.current?.());
 
     // Cleanup: unsubscribe when channel changes or component unmounts
     return () => {

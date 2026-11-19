@@ -11,6 +11,8 @@ export interface AppSyncMessage {
   type: AppSyncMessageType;
   id?: string;
   event?: string;
+  /** Sent with connection_ack: close the socket if nothing arrives for this long. */
+  connectionTimeoutMs?: number;
 }
 
 /**
