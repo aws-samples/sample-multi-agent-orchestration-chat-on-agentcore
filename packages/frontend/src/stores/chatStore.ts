@@ -768,12 +768,22 @@ export const useChatStore = create<ChatStore>()(
         );
 
         const { sessions } = get();
+        const current = sessions[sessionId];
+        // History lags the stream this tab is rendering; replacing would cut
+        // the in-progress reply short.
+        if (current?.messages.some((msg) => msg.isStreaming)) {
+          logger.log(`Skipping history restore while streaming (${sessionId})`);
+          return;
+        }
         set({
           sessions: {
             ...sessions,
             [sessionId]: {
               messages,
-              isLoading: false,
+              // History says nothing about whether a turn is still running;
+              // that is owned by useInFlightTurn / the stream / AppSync, and
+              // its effect does not re-run when history lands.
+              isLoading: current?.isLoading ?? false,
               error: null,
               lastUpdated: new Date(),
             },
