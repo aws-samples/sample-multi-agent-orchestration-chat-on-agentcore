@@ -704,7 +704,7 @@ describe('GPT-6.2 Astra / GPT-6.2 Sol', () => {
 
   it.each(CASES)('has exactly one registry entry normalizing to $bare', ({ id, bare }) => {
     const matches = BEDROCK_MODEL_DEFINITIONS.filter(
-      (m) => m.id.replace(/^(global|us|eu|apac|au|jp)\./, '') === bare,
+      (m) => m.id.replace(/^(global|us|eu|apac|au|jp)\./, '') === bare
     );
     expect(matches.map((m) => m.id)).toEqual([id]);
   });

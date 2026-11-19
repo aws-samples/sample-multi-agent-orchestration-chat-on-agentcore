@@ -233,6 +233,36 @@ export interface EnvironmentConfig {
   runtimeWarmupEnabled?: boolean;
 
   /**
+   * AgentCore Runtime platform version (optional)
+   * - `'V1'` — classic cold start per session.
+   * - `'V2'` — sessions restore from a snapshot taken once per Runtime version
+   *   (consistent cold starts, images up to 10 GB, committed resource sizes).
+   *   Create/update takes several minutes while the snapshot is prepared.
+   * Always rendered explicitly: omitting it on update would keep the current
+   * version, so switching back to V1 must send `V1`.
+   * @default 'V1'
+   */
+  runtimePlatformVersion: RuntimePlatformVersion;
+
+  /**
+   * Committed per-session baseline memory for the AgentCore Runtime, in MiB (optional, V2 only)
+   * vCPU scales with memory (1 vCPU per 4 GB); a session can burst to 4x the baseline.
+   *
+   * | MiB  | Baseline           | Peak              | Disk  |
+   * |------|--------------------|-------------------|-------|
+   * | 1024 | 1 GB, 0.25 vCPU    | 4 GB, 1 vCPU      | 10 GB |
+   * | 2048 | 2 GB, 0.5 vCPU     | 8 GB, 2 vCPU      | 10 GB |
+   * | 4096 | 4 GB, 1 vCPU       | 16 GB, 4 vCPU     | 16 GB |
+   * | 8192 | 8 GB, 2 vCPU       | 32 GB, 8 vCPU     | 32 GB |
+   *
+   * The baseline is billed for the whole session lifetime, even when idle.
+   * Omit to use consumption-based pricing (each session gets 2 vCPU / 8 GB, no burst).
+   * Changes apply to new sessions only.
+   * @default undefined (consumption-based)
+   */
+  runtimeMinimumMemoryMiB?: RuntimeMinimumMemoryMiB;
+
+  /**
    * CloudFront geo restriction - allowlist of ISO 3166-1 alpha-2 country codes (optional)
    * When set, only requests from these countries are allowed.
    * Example: ['JP', 'US', 'GB']
@@ -285,6 +315,12 @@ export interface EnvironmentConfig {
 }
 
 export type WebSearchProvider = 'tavily' | 'agentcore';
+
+export type RuntimePlatformVersion = 'V1' | 'V2';
+
+/** Sizes accepted by AgentCore Runtime `resourceConfigurations[].minimumMemoryInMiB`. */
+export const RUNTIME_MINIMUM_MEMORY_MIB_VALUES = [1024, 2048, 4096, 8192] as const;
+export type RuntimeMinimumMemoryMiB = (typeof RUNTIME_MINIMUM_MEMORY_MIB_VALUES)[number];
 
 export interface AgentCoreWebSearchConfig {
   /** Domains excluded from every search (e.g. ['example.com']) */

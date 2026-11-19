@@ -58,6 +58,8 @@ export const environments: Record<Environment, EnvironmentConfigInput> = {
 | `microsoftGraphOAuthProviderArn` | string | - | Microsoft Graph OAuth2 credential provider ARN |
 | `microsoftGraphOAuthSecretArn` | string | - | Microsoft Graph OAuth2 secret ARN |
 | `runtimeWarmupEnabled` | boolean | `false` | Pre-warm the AgentCore Runtime microVM on the user's first keystroke to hide cold start. Each warmup provisions a microVM billed until idle-reclaimed. |
+| `runtimePlatformVersion` | `'V1'` \| `'V2'` | `'V1'` | AgentCore Runtime platform version. See [AgentCore Runtime Platform Version and Session Size](#agentcore-runtime-platform-version-and-session-size). |
+| `runtimeMinimumMemoryMiB` | `1024` \| `2048` \| `4096` \| `8192` | - | V2 only. Committed per-session baseline memory (vCPU scales with it). Omit for consumption-based pricing. Applied by a temporary Custom Resource (see below). |
 | `cloudFrontGeoRestriction` | string[] | `['JP', 'US']` | CloudFront geo restriction allowlist (ISO 3166-1 alpha-2 codes). Override to customize. |
 | `awsAccount` | string | - | AWS Account ID (uses CDK_DEFAULT_ACCOUNT if not specified) |
 | `resourcePrefix` | string | auto-generated | Resource name prefix (e.g., 'moca', 'mocadev') |
@@ -249,6 +251,35 @@ aws cognito-idp delete-user-pool-domain \
 ```
 
 The User Pool ID can be found in the stack output `UserPoolId` or in the AWS Cognito console.
+
+## AgentCore Runtime Platform Version and Session Size
+
+The session VM size is fixed per deployment: every session of the Runtime gets the same size. End users cannot change it.
+
+```typescript
+dev: {
+  runtimePlatformVersion: 'V2',
+  runtimeMinimumMemoryMiB: 4096, // optional — see the note below
+},
+```
+
+> **`runtimeMinimumMemoryMiB` is applied by a temporary Custom Resource.** CloudFormation's `AWS::BedrockAgentCore::Runtime` does not accept `ResourceConfigurations` yet, so the size is set through the AgentCore API right after each Runtime update. As a result, deploys that change the Runtime build the V2 snapshot twice, and sessions that start in between run consumption-based. Because the size is re-checked on every deploy, the Custom Resource always shows a diff. See [docs/adr/runtime-resource-config-custom-resource.md](../adr/runtime-resource-config-custom-resource.md), including when to remove the Custom Resource.
+
+| `runtimeMinimumMemoryMiB` | Baseline | Peak (burst) | Disk |
+|---|---|---|---|
+| (omitted) | consumption-based, 2 vCPU / 8 GB, no burst | — | — |
+| `1024` | 1 GB, 0.25 vCPU | 4 GB, 1 vCPU | 10 GB |
+| `2048` | 2 GB, 0.5 vCPU | 8 GB, 2 vCPU | 10 GB |
+| `4096` | 4 GB, 1 vCPU | 16 GB, 4 vCPU | 16 GB |
+| `8192` | 8 GB, 2 vCPU | 32 GB, 8 vCPU | 32 GB |
+
+- **V2 restores each session from a snapshot.** The snapshot is taken once per Runtime version, after the agent's `/ping` first succeeds. Because of this, a create or update takes several minutes while the snapshot is prepared.
+- **A committed baseline is billed for the whole session**, idle time included, at a lower rate than consumption-based pricing. Usage above the baseline is billed per second. To choose a size, watch `CPUUsed-vCPUHours` / `MemoryUsed-GBHours` under consumption-based pricing first.
+- **Size changes apply to new sessions only.** Running sessions keep their size until they end.
+- **Switching V1 ↔ V2 updates the existing Runtime in place**: the ARN and endpoints are unchanged.
+- **The GitHub token is captured in the snapshot on V2.** `scripts/startup.sh` runs once per snapshot, not once per session, so after rotating the PAT, redeploy (or update the Runtime) to pick it up.
+- **`runtimeMinimumMemoryMiB` requires `runtimePlatformVersion: 'V2'`.** Synth fails otherwise.
+- **The agent reads randomness from `/dev/urandom` on V2.** Instances restored from the same snapshot can otherwise repeat OpenSSL-backed values (`crypto.randomUUID()`, AWS SDK idempotency tokens), so the agent patches Node's `crypto` when `RUNTIME_PLATFORM_VERSION=V2` (see `packages/agent/src/libs/runtime/snapshot-safe-random.ts`).
 
 ## Bedrock Model Selection
 

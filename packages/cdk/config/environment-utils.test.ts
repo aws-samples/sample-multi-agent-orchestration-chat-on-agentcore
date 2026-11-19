@@ -6,6 +6,7 @@ import {
   validateBedrockModelsForTest,
   assertWebSearchProviderRegion,
   validateWebSearchConfig,
+  validateRuntimeResources,
 } from './environment-utils';
 
 jest.mock('./environments', () => ({
@@ -744,5 +745,54 @@ describe('webSearchProvider', () => {
     expect(() =>
       assertWebSearchProviderRegion({ env: 'default', webSearchProvider: 'tavily' }, 'us-west-2')
     ).not.toThrow();
+  });
+});
+
+describe('runtime platform version / sizing', () => {
+  it('defaults to V1 with consumption-based sizing', () => {
+    const config = getEnvironmentConfig('default');
+    expect(config.runtimePlatformVersion).toBe('V1');
+    expect(config.runtimeMinimumMemoryMiB).toBeUndefined();
+  });
+
+  it.each([1024, 2048, 4096, 8192] as const)('accepts V2 with %i MiB', (mib) => {
+    expect(() =>
+      validateRuntimeResources(
+        { runtimePlatformVersion: 'V2', runtimeMinimumMemoryMiB: mib },
+        'dev'
+      )
+    ).not.toThrow();
+  });
+
+  it('accepts V2 without a memory size', () => {
+    expect(() => validateRuntimeResources({ runtimePlatformVersion: 'V2' }, 'dev')).not.toThrow();
+  });
+
+  it('rejects a memory size on V1 (explicit or default)', () => {
+    expect(() => validateRuntimeResources({ runtimeMinimumMemoryMiB: 2048 }, 'dev')).toThrow(
+      /only supported on runtimePlatformVersion 'V2'/
+    );
+    expect(() =>
+      validateRuntimeResources(
+        { runtimePlatformVersion: 'V1', runtimeMinimumMemoryMiB: 2048 },
+        'dev'
+      )
+    ).toThrow(/only supported/);
+  });
+
+  it('rejects sizes the service does not offer', () => {
+    expect(() =>
+      validateRuntimeResources(
+        // Bypasses the union type the way a JS config or `as` cast would.
+        { runtimePlatformVersion: 'V2', runtimeMinimumMemoryMiB: 3000 as 2048 },
+        'dev'
+      )
+    ).toThrow(/must be one of 1024, 2048, 4096, 8192/);
+  });
+
+  it('rejects an unknown platform version', () => {
+    expect(() => validateRuntimeResources({ runtimePlatformVersion: 'V3' as 'V2' }, 'dev')).toThrow(
+      /must be 'V1' or 'V2'/
+    );
   });
 });

@@ -684,6 +684,8 @@ export class AgentCoreStack extends cdk.Stack {
       backendApiUrl: this.backendApi.apiUrl, // Pass Backend API URL for call_agent tool
       appsyncHttpEndpoint: appsyncEvents.httpEndpoint, // Pass AppSync Events HTTP endpoint for real-time messages
       bedrockModels: envConfig.bedrockModels!, // Pass allowed models for IAM policy scoping
+      platformVersion: envConfig.runtimePlatformVersion,
+      minimumMemoryMiB: envConfig.runtimeMinimumMemoryMiB,
     });
 
     // Pin the broker's resource-based policy Principal to the Runtime

@@ -10,6 +10,7 @@ import type {
   EnvironmentConfig,
   EnvironmentConfigInput,
 } from './environment-types';
+import { RUNTIME_MINIMUM_MEMORY_MIB_VALUES } from './environment-types';
 import { BASE_PREFIX, environments } from './environments';
 
 const INFERENCE_PROFILE_STRIP = /^(global|us|eu|apac|jp)\./;
@@ -77,6 +78,7 @@ const DEFAULT_CONFIG = {
   // Override per-environment in environments.ts if needed
   cloudFrontGeoRestriction: ['JP', 'US'] as string[],
   webSearchProvider: 'agentcore' as const,
+  runtimePlatformVersion: 'V1' as const,
   /**
    * CDK intentionally does not depend on @moca/core to keep infrastructure free
    * of runtime library dependencies. Keep this list in sync with
@@ -498,6 +500,42 @@ export function validateWebSearchConfig(input: EnvironmentConfigInput, env: Envi
 }
 
 /**
+ * Whether CloudFormation's AWS::BedrockAgentCore::Runtime accepts ResourceConfigurations.
+ * While false, the size is applied by the RuntimeResourceConfig Custom Resource
+ * (temporary workaround). Flip to true — and delete that Custom Resource — once
+ * `aws cloudformation describe-type --type RESOURCE --type-name AWS::BedrockAgentCore::Runtime`
+ * lists the property in EVERY deploy region (the schema rolls out per region).
+ * See docs/adr/runtime-resource-config-custom-resource.md.
+ */
+export const RUNTIME_MINIMUM_MEMORY_CFN_SUPPORTED = false;
+
+/**
+ * Reject Runtime sizing the service would refuse mid-deploy (UpdateAgentRuntime
+ * ValidationException rolls the whole stack back).
+ */
+export function validateRuntimeResources(input: EnvironmentConfigInput, env: Environment): void {
+  const platformVersion = input.runtimePlatformVersion ?? DEFAULT_CONFIG.runtimePlatformVersion;
+  if (platformVersion !== 'V1' && platformVersion !== 'V2') {
+    throw new Error(
+      `[${env}] runtimePlatformVersion must be 'V1' or 'V2' (got '${platformVersion}').`
+    );
+  }
+  const memory = input.runtimeMinimumMemoryMiB;
+  if (memory === undefined) return;
+  if (platformVersion !== 'V2') {
+    throw new Error(
+      `[${env}] runtimeMinimumMemoryMiB is only supported on runtimePlatformVersion 'V2'. ` +
+        `Set runtimePlatformVersion: 'V2' or remove runtimeMinimumMemoryMiB.`
+    );
+  }
+  if (!(RUNTIME_MINIMUM_MEMORY_MIB_VALUES as readonly number[]).includes(memory)) {
+    throw new Error(
+      `[${env}] runtimeMinimumMemoryMiB must be one of ${RUNTIME_MINIMUM_MEMORY_MIB_VALUES.join(', ')} (got ${memory}).`
+    );
+  }
+}
+
+/**
  * Generate default resource prefix from environment name
  * @param env Environment name
  * @returns Resource prefix (e.g., 'moca', 'mocadev', 'mocapr123')
@@ -521,6 +559,7 @@ function resolveConfig(env: Environment, input: EnvironmentConfigInput): Environ
   validateBedrockModels(bedrockModels, env);
   validateCognitoDomainPrefix(input.cognitoDomainPrefix, env);
   validateWebSearchConfig(input, env);
+  validateRuntimeResources(input, env);
 
   return {
     // Spread input first so optional properties are automatically passed through.
@@ -547,6 +586,7 @@ function resolveConfig(env: Environment, input: EnvironmentConfigInput): Environ
     cloudFrontGeoRestriction:
       input.cloudFrontGeoRestriction ?? DEFAULT_CONFIG.cloudFrontGeoRestriction,
     webSearchProvider: input.webSearchProvider ?? DEFAULT_CONFIG.webSearchProvider,
+    runtimePlatformVersion: input.runtimePlatformVersion ?? DEFAULT_CONFIG.runtimePlatformVersion,
     bedrockModels,
   };
 }
