@@ -59,6 +59,8 @@ export interface MarkdownComponentsOptions {
    * Defaults to accepting absolute storage paths only.
    */
   toStoragePath?: (href: string) => string | null;
+  /** Opens storage links in-app; omit to open them in a new tab. */
+  onOpenFile?: (path: string) => void;
 }
 
 const defaultToStoragePath = (href: string) => (isStoragePath(href) ? href : null);
@@ -66,6 +68,7 @@ const defaultToStoragePath = (href: string) => (isStoragePath(href) ? href : nul
 export function createMarkdownComponents({
   isDark,
   toStoragePath = defaultToStoragePath,
+  onOpenFile,
 }: MarkdownComponentsOptions) {
   return {
     // Custom link renderer for S3 files
@@ -81,7 +84,11 @@ export function createMarkdownComponents({
             </div>
           );
         }
-        return <S3FileLink path={storagePath}>{children}</S3FileLink>;
+        return (
+          <S3FileLink path={storagePath} onOpen={onOpenFile}>
+            {children}
+          </S3FileLink>
+        );
       }
       // Regular link
       return (

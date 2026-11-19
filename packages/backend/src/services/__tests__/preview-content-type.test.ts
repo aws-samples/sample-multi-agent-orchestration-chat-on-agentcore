@@ -1,5 +1,5 @@
 import { describe, it, expect } from '@jest/globals';
-import { inlineContentDisposition, inlinePreviewContentType } from '../preview-content-type.js';
+import { contentDisposition, inlinePreviewContentType } from '../preview-content-type.js';
 
 describe('inlinePreviewContentType', () => {
   it.each([
@@ -19,10 +19,16 @@ describe('inlinePreviewContentType', () => {
   );
 });
 
-describe('inlineContentDisposition', () => {
+describe('contentDisposition', () => {
   it('encodes non-ASCII and RFC 5987 reserved characters', () => {
-    expect(inlineContentDisposition("報告書 (1)'.pdf")).toBe(
+    expect(contentDisposition('inline', "報告書 (1)'.pdf")).toBe(
       "inline; filename*=UTF-8''%E5%A0%B1%E5%91%8A%E6%9B%B8%20%281%29%27.pdf"
+    );
+  });
+
+  it('marks downloads as attachments so stored HTML/Markdown is saved, not rendered', () => {
+    expect(contentDisposition('attachment', '修正一覧.md')).toBe(
+      "attachment; filename*=UTF-8''%E4%BF%AE%E6%AD%A3%E4%B8%80%E8%A6%A7.md"
     );
   });
 });

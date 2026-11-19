@@ -13,14 +13,12 @@
 import { useCallback, useRef, useState } from 'react';
 import type { TFunction } from 'i18next';
 import {
-  generateDownloadUrl,
   downloadFolder,
   downloadItems,
   type DownloadProgress,
   type StorageItem,
 } from '../api/storage';
-import { downloadWithAsyncUrl } from '../utils/download';
-import { logger } from '../utils/logger';
+import { downloadFile } from '../api/storageFileActions';
 
 type DownloadStatus = 'downloading' | 'success' | 'error' | 'cancelled';
 
@@ -114,12 +112,7 @@ export function useFolderDownload(t: TFunction): UseFolderDownload {
         await downloadFolderAsZip(item.path, item.name);
         return;
       }
-      // File: open the download synchronously within the user gesture (before
-      // any await) so mobile browsers keep transient activation.
-      await downloadWithAsyncUrl(
-        () => generateDownloadUrl(item.path),
-        (error) => logger.error('Download error:', error)
-      );
+      await downloadFile(item.path);
     },
     [downloadFolderAsZip]
   );

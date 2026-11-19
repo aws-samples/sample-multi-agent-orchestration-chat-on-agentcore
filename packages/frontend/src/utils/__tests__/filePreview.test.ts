@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import { getPreviewInfo, getPreviewKind } from '../filePreview';
-import { decodeText } from '../../components/storage/preview/useFileText';
+import {
+  decodeText,
+  isRangeTruncated,
+  TEXT_PREVIEW_MAX_BYTES,
+} from '../../components/storage/preview/useFileText';
 import { resolveStorageHref } from '../../components/markdown/markdownComponents';
 
 describe('getPreviewInfo', () => {
@@ -28,7 +32,12 @@ describe('getPreviewInfo', () => {
     expect(getPreviewInfo('a.tsv')).toEqual({ kind: 'csv', delimiter: '\t' });
   });
 
-  it.each(['index.html', 'page.htm', 'doc.docx', 'archive.zip', 'noext', '.png'])(
+  it('previews HTML (sandboxed) with markup source highlighting', () => {
+    expect(getPreviewInfo('index.html')).toEqual({ kind: 'html', language: 'markup' });
+    expect(getPreviewInfo('PAGE.HTM')).toEqual({ kind: 'html', language: 'markup' });
+  });
+
+  it.each(['doc.docx', 'archive.zip', 'noext', '.png'])(
     'falls back to unsupported for %s',
     (name) => {
       expect(getPreviewKind(name)).toBe('unsupported');
@@ -65,6 +74,28 @@ describe('decodeText', () => {
     const text = decodeText(bytes.buffer);
     expect(text).toContain('ログ行です。');
     expect(text).toContain('�');
+  });
+});
+
+describe('isRangeTruncated', () => {
+  const MAX = TEXT_PREVIEW_MAX_BYTES;
+  const res = (contentRange?: string) => ({
+    headers: new Headers(contentRange ? { 'Content-Range': contentRange } : {}),
+  });
+
+  it('trusts the Content-Range total over the listed size', () => {
+    expect(isRangeTruncated(res(`bytes 0-${MAX - 1}/${3 * MAX}`), MAX, undefined)).toBe(true);
+    expect(isRangeTruncated(res(`bytes 0-${MAX - 1}/${MAX}`), MAX, 5 * MAX)).toBe(false);
+  });
+
+  it('falls back to the listed size when Content-Range is unreadable', () => {
+    expect(isRangeTruncated(res(), MAX, MAX + 1)).toBe(true);
+    expect(isRangeTruncated(res('bytes 0-9/*'), 10, 10)).toBe(false);
+  });
+
+  it('treats a full buffer as truncated when the size is unknown (chat dock)', () => {
+    expect(isRangeTruncated(res(), MAX, undefined)).toBe(true);
+    expect(isRangeTruncated(res(), 10, undefined)).toBe(false);
   });
 });
 

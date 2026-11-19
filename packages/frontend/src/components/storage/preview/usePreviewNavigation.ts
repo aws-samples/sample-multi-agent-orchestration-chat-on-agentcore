@@ -57,8 +57,9 @@ export function usePreviewNavigation(
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
         const target = e.target as HTMLElement | null;
-        // Inputs (e.g. the new-folder name field) handle their own Esc.
+        // Inputs (e.g. the new-folder name field) and in-viewer dialogs handle their own Esc.
         if (target && /^(INPUT|TEXTAREA|SELECT)$/.test(target.tagName)) return;
+        if (target instanceof Element && target.closest('[data-owns-escape]')) return;
         e.stopPropagation();
         onEscape();
         return;

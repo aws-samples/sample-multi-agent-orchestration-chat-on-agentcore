@@ -76,6 +76,25 @@ async function readHead(
   return { buf: out.slice(0, length).buffer, more };
 }
 
+/**
+ * 206 bodies stop at the limit, so the body alone cannot tell whether more
+ * exists. The total comes from `Content-Range` (`bytes 0-1048575/3145728`),
+ * then the listed size; callers like the chat dock only know the path, and
+ * Content-Range is unreadable cross-origin unless the bucket exposes it. With
+ * neither, a full buffer counts as truncated: wrongly flagging an exactly-1 MiB
+ * file beats rendering a cut-off HTML document as if it were whole.
+ */
+export function isRangeTruncated(
+  res: Pick<Response, 'headers'>,
+  received: number,
+  size: number | undefined
+): boolean {
+  const total = Number(res.headers.get('Content-Range')?.split('/')[1]);
+  if (Number.isFinite(total) && total > 0) return total > received;
+  if (size !== undefined) return size > TEXT_PREVIEW_MAX_BYTES;
+  return received >= TEXT_PREVIEW_MAX_BYTES;
+}
+
 /** Fetches the head of a text file from a presigned URL; pass `null` to skip. */
 export function useFileText(url: string | null, size: number | undefined): FileTextState {
   const [state, setState] = useState<FileTextState & { url: string | null }>({
@@ -100,8 +119,7 @@ export function useFileText(url: string | null, size: number | undefined): FileT
         }
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const { buf, more } = await readHead(res, TEXT_PREVIEW_MAX_BYTES);
-        // 206 bodies stop at the limit, so the listed size tells whether more exists.
-        const truncated = res.status === 206 ? (size ?? 0) > TEXT_PREVIEW_MAX_BYTES : more;
+        const truncated = res.status === 206 ? isRangeTruncated(res, buf.byteLength, size) : more;
         setState({ url, text: decodeText(buf), truncated, error: null });
       })
       .catch((err: unknown) => {

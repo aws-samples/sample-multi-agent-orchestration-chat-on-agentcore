@@ -223,6 +223,13 @@ chat:
     tooLarge: ファイルサイズが大きすぎます。最大5MBまでです。
     maxReached: 添付できる画像は最大4枚までです。
     totalSizeExceeded: 添付画像の合計サイズが7MBを超えています。画像を減らすか、小さいサイズの画像を選択してください。
+  filePreview:
+    title: ファイルプレビュー
+    show: ファイルプレビューを表示
+    hide: ファイルプレビューを隠す
+    empty: チャット内のファイルリンクをクリックすると、ここにプレビューされます
+    openTooltip: '{{fileName}} をプレビュー（⌘/Ctrl+クリックで新しいタブ）'
+    newTabTooltip: '新しいタブで開く: {{fileName}}'
   fileDrop:
     uploading: '{{name}} をアップロード中...'
     uploaded: '{{count}}件のファイルをアップロードしました'
@@ -626,6 +633,13 @@ storage:
     rendered: プレビュー
     source: ソース
     table: 表
+    htmlRemote: 外部リソース
+    htmlRemoteWarning: 外部リソースを読み込んでいます。HTML の内容が外部サイトに送信される可能性があります
+    htmlSourceOnly: 途中までしか読み込めていないため、ソースのみ表示します
+    htmlFrameTitle: HTML プレビュー（サンドボックス）
+    htmlRemoteConfirmTitle: 外部リソースを読み込みますか？
+    htmlRemoteConfirmMessage: この HTML が参照している外部サイトのスクリプト、スタイル、画像、フォントを読み込みます。読み込まれたスクリプトや画像の URL を通じて、HTML の内容が外部に送信される可能性があります。内容を信頼できるファイルの場合のみ許可してください。
+    htmlRemoteConfirmAction: 読み込む
     loadFailed: ファイルを読み込めませんでした
     mediaFailed: このファイルを再生できませんでした
     openInNewTab: 新しいタブで開く

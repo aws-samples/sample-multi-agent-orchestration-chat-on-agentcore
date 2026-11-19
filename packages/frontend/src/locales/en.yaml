@@ -225,6 +225,13 @@ chat:
     tooLarge: File is too large. Maximum size is 5MB.
     maxReached: Maximum of 4 images can be attached.
     totalSizeExceeded: Total size of attached images exceeds 7MB. Please remove some images or select smaller ones.
+  filePreview:
+    title: File preview
+    show: Show file preview
+    hide: Hide file preview
+    empty: Click a file link in the chat to preview it here
+    openTooltip: 'Preview {{fileName}} (⌘/Ctrl+click for a new tab)'
+    newTabTooltip: 'Open in new tab: {{fileName}}'
   fileDrop:
     uploading: 'Uploading {{name}}...'
     uploaded: 'Uploaded {{count}} file(s)'
@@ -633,6 +640,13 @@ storage:
     rendered: Preview
     source: Source
     table: Table
+    htmlRemote: Remote resources
+    htmlRemoteWarning: Remote resources are loaded. The HTML content may be sent to external sites
+    htmlSourceOnly: Showing source only because the file was not fully loaded
+    htmlFrameTitle: HTML preview (sandboxed)
+    htmlRemoteConfirmTitle: Load remote resources?
+    htmlRemoteConfirmMessage: This loads the scripts, styles, images and fonts this HTML references from external sites. Through those scripts and image URLs, the HTML content may be sent to external sites. Allow this only for files you trust.
+    htmlRemoteConfirmAction: Load
     loadFailed: Could not load the file
     mediaFailed: Could not play this file
     openInNewTab: Open in new tab

@@ -128,7 +128,8 @@ export class UserStorage extends Construct {
           ],
           allowedOrigins: corsAllowedOrigins,
           allowedHeaders: ['*'],
-          exposedHeaders: ['ETag', 'x-amz-version-id'],
+          // Content-Range: text previews read the object's total size from a Range GET.
+          exposedHeaders: ['ETag', 'x-amz-version-id', 'Content-Range'],
           maxAge: 3000,
         },
       ],

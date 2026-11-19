@@ -8,6 +8,7 @@ import { formatBytes } from '../../../utils/formatBytes';
 import { getFileExtension, getPreviewInfo, type PreviewInfo } from '../../../utils/filePreview';
 import { ImageViewer } from './ImageViewer';
 import { AudioViewer, PdfViewer, VideoViewer } from './MediaViewers';
+import { HtmlViewer } from './HtmlViewer';
 import { CodeViewer, CsvViewer, MarkdownViewer } from './TextViewers';
 import { useFilePreviewUrl } from './useFilePreviewUrl';
 import { useFileText } from './useFileText';
@@ -17,6 +18,8 @@ export interface FilePreviewBodyProps {
   item: StorageItem;
   onDownload: (item: StorageItem) => void;
   tone?: 'light' | 'dark';
+  /** Opens storage links inside a Markdown file in-app instead of a new tab. */
+  onOpenFile?: (path: string) => void;
   className?: string;
 }
 
@@ -28,6 +31,7 @@ export function FilePreviewBody({
   item,
   onDownload,
   tone = 'light',
+  onOpenFile,
   className,
 }: FilePreviewBodyProps) {
   const info = getPreviewInfo(item.name);
@@ -58,7 +62,7 @@ export function FilePreviewBody({
     case 'unsupported':
       return <FileInfoCard item={item} onDownload={onDownload} tone={tone} className={className} />;
     default:
-      // code / text / markdown / csv
+      // code / text / markdown / html / csv
       return (
         <TextFileBody
           key={item.path}
@@ -67,6 +71,7 @@ export function FilePreviewBody({
           url={url}
           urlError={error}
           tone={tone}
+          onOpenFile={onOpenFile}
           className={className}
         />
       );
@@ -79,6 +84,7 @@ function TextFileBody({
   url,
   urlError,
   tone,
+  onOpenFile,
   className,
 }: {
   item: StorageItem;
@@ -86,6 +92,7 @@ function TextFileBody({
   url: string | null;
   urlError: string | null;
   tone: 'light' | 'dark';
+  onOpenFile?: (path: string) => void;
   className?: string;
 }) {
   const { t } = useTranslation();
@@ -99,7 +106,9 @@ function TextFileBody({
   if (text === null) return <ViewerLoading tone={tone} className={className} />;
 
   const content = { text, truncated, className };
-  if (info.kind === 'markdown') return <MarkdownViewer {...content} path={item.path} />;
+  if (info.kind === 'markdown')
+    return <MarkdownViewer {...content} path={item.path} onOpenFile={onOpenFile} />;
+  if (info.kind === 'html') return <HtmlViewer {...content} />;
   if (info.kind === 'csv') return <CsvViewer {...content} delimiter={info.delimiter ?? ','} />;
   return <CodeViewer {...content} language={info.language} />;
 }

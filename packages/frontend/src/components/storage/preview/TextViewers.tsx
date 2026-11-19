@@ -9,10 +9,10 @@ import { oneDark, oneLight } from 'react-syntax-highlighter/dist/esm/styles/pris
 import { Braces, WrapText } from 'lucide-react';
 import { cn } from '../../../lib/utils';
 import { useThemeStore } from '../../../stores/themeStore';
-import { formatBytes } from '../../../utils/formatBytes';
 import { parseDelimited } from '../../../utils/csv';
 import { createMarkdownComponents, resolveStorageHref } from '../../markdown/markdownComponents';
-import { TEXT_PREVIEW_MAX_BYTES } from './useFileText';
+import { storageDirname } from '../../../utils/storagePath';
+import { useTruncatedNotice } from './useTruncatedNotice';
 
 /** Above this, Prism highlighting (one DOM node per token) gets sluggish. */
 const HIGHLIGHT_MAX_CHARS = 200_000;
@@ -22,7 +22,7 @@ const CSV_MAX_ROWS = 1000;
 // Frame: optional toolbar + truncation notice around a scrollable body
 // ---------------------------------------------------------------------------
 
-function ToolbarToggle({
+export function ToolbarToggle({
   active,
   onClick,
   children,
@@ -46,7 +46,7 @@ function ToolbarToggle({
   );
 }
 
-function TextFrame({
+export function TextFrame({
   toolbar,
   notice,
   children,
@@ -77,13 +77,6 @@ function TextFrame({
       </div>
     </div>
   );
-}
-
-function useTruncatedNotice(truncated: boolean) {
-  const { t } = useTranslation();
-  return truncated
-    ? t('storage.preview.truncated', { size: formatBytes(TEXT_PREVIEW_MAX_BYTES) })
-    : null;
 }
 
 // ---------------------------------------------------------------------------
@@ -191,17 +184,22 @@ export function MarkdownViewer({
   text,
   truncated,
   path,
+  onOpenFile,
   className,
-}: TextContentProps & { path: string }) {
+}: TextContentProps & { path: string; onOpenFile?: (path: string) => void }) {
   const { t } = useTranslation();
   const notice = useTruncatedNotice(truncated);
   const isDark = useThemeStore((s) => s.resolvedTheme) === 'dark';
   const [showSource, setShowSource] = useState(false);
-  const baseDir = path.slice(0, path.lastIndexOf('/') + 1) || '/';
+  const baseDir = storageDirname(path);
   const components = useMemo(
     () =>
-      createMarkdownComponents({ isDark, toStoragePath: (h) => resolveStorageHref(h, baseDir) }),
-    [isDark, baseDir]
+      createMarkdownComponents({
+        isDark,
+        toStoragePath: (h) => resolveStorageHref(h, baseDir),
+        onOpenFile,
+      }),
+    [isDark, baseDir, onOpenFile]
   );
 
   return (

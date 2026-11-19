@@ -41,11 +41,15 @@ export function inlinePreviewContentType(fileName: string): string {
   return INLINE_CONTENT_TYPES[ext] ?? SAFE_FALLBACK;
 }
 
-/** RFC 6266 `inline` disposition carrying a UTF-8 file name (for PDF titles / save-as). */
-export function inlineContentDisposition(fileName: string): string {
+/**
+ * RFC 6266 disposition carrying a UTF-8 file name. `attachment` must be set
+ * explicitly: without it S3 serves the stored Content-Type (text/html,
+ * text/markdown) and the browser renders the file instead of saving it.
+ */
+export function contentDisposition(type: 'inline' | 'attachment', fileName: string): string {
   const encoded = encodeURIComponent(fileName).replace(
     /['()*]/g,
     (c) => `%${c.charCodeAt(0).toString(16).toUpperCase()}`
   );
-  return `inline; filename*=UTF-8''${encoded}`;
+  return `${type}; filename*=UTF-8''${encoded}`;
 }

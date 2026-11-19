@@ -20,6 +20,7 @@ export interface FilePreviewPanelProps {
   item: StorageItem;
   nav: PreviewNavigation;
   onDownload: (item: StorageItem) => void;
+  onOpenInNewTab?: (item: StorageItem) => void;
   onClose: () => void;
   isFullscreen: boolean;
   /** Omit to hide the toggle (mobile, where the panel is always full-screen). */
@@ -59,6 +60,7 @@ export function FilePreviewPanel({
   item,
   nav,
   onDownload,
+  onOpenInNewTab,
   onClose,
   isFullscreen,
   onToggleFullscreen,
@@ -84,6 +86,7 @@ export function FilePreviewPanel({
         item={item}
         nav={nav}
         onDownload={onDownload}
+        onOpenInNewTab={onOpenInNewTab}
         onClose={onClose}
         fullscreen={
           onToggleFullscreen ? { active: isFullscreen, onToggle: onToggleFullscreen } : undefined

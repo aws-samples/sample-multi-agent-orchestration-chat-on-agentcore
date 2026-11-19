@@ -9,6 +9,7 @@ import { AlertTriangle } from 'lucide-react';
 import type { Message as MessageType } from '../types/index';
 import { useThemeStore } from '../stores/themeStore';
 import { useUIStore } from '../stores/uiStore';
+import { useFilePreviewStore } from '../stores/filePreviewStore';
 import { TypingIndicator } from './TypingIndicator';
 import { ToolStepsGroup } from './ToolStepsGroup';
 import { JsonRenderBlock } from './JsonRenderBlock';
@@ -46,7 +47,11 @@ export const Message: React.FC<MessageProps> = ({ message, isInteractive = false
   );
 
   // Stable reference so ReactMarkdown does not remount custom renderers.
-  const markdownComponents = useMemo(() => createMarkdownComponents({ isDark }), [isDark]);
+  const openFilePreview = useFilePreviewStore((s) => s.open);
+  const markdownComponents = useMemo(
+    () => createMarkdownComponents({ isDark, onOpenFile: openFilePreview }),
+    [isDark, openFilePreview]
+  );
 
   const workflowNotice = useMemo(() => parseWorkflowNotification(message), [message]);
   if (workflowNotice) return <WorkflowNotice notice={workflowNotice} />;

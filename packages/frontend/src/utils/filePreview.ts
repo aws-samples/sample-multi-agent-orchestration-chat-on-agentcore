@@ -1,12 +1,21 @@
 /**
  * Maps a file name to the viewer that can preview it.
  *
- * HTML is deliberately absent: it is never rendered (not even sandboxed) and
- * falls through to the file-info view like any other unsupported type.
+ * HTML is rendered only inside a sandboxed iframe (see utils/htmlSandbox.ts),
+ * never in the app's origin.
  */
 
 export type PreviewKind =
-  'image' | 'video' | 'audio' | 'pdf' | 'markdown' | 'csv' | 'code' | 'text' | 'unsupported';
+  | 'image'
+  | 'video'
+  | 'audio'
+  | 'pdf'
+  | 'markdown'
+  | 'html'
+  | 'csv'
+  | 'code'
+  | 'text'
+  | 'unsupported';
 
 export interface PreviewInfo {
   kind: PreviewKind;
@@ -115,6 +124,7 @@ export function getPreviewInfo(fileName: string): PreviewInfo {
   const media = MEDIA_KINDS[ext];
   if (media) return { kind: media };
   if (ext === 'md' || ext === 'markdown') return { kind: 'markdown', language: 'markdown' };
+  if (ext === 'html' || ext === 'htm') return { kind: 'html', language: 'markup' };
   if (ext === 'csv') return { kind: 'csv', delimiter: ',' };
   if (ext === 'tsv') return { kind: 'csv', delimiter: '\t' };
   const language = CODE_LANGUAGES[ext];

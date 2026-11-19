@@ -32,6 +32,7 @@ import { useUIStore } from '../stores/uiStore';
 import { FilePreviewPanel } from './storage/preview/FilePreviewLayouts';
 import { usePreviewNavigation } from './storage/preview/usePreviewNavigation';
 import { useResizablePane } from './storage/preview/useResizablePane';
+import { canOpenInNewTab, openFileInNewTab } from '../api/storageFileActions';
 
 interface StorageManagementModalProps {
   isOpen: boolean;
@@ -681,6 +682,11 @@ export function StorageManagementModal({ isOpen, onClose }: StorageManagementMod
               item={previewItem}
               nav={previewNav}
               onDownload={downloadItem}
+              onOpenInNewTab={
+                canOpenInNewTab(previewItem.name)
+                  ? (item) => openFileInNewTab(item.path)
+                  : undefined
+              }
               onClose={closePreview}
               isFullscreen={isPreviewFullscreen}
               onToggleFullscreen={

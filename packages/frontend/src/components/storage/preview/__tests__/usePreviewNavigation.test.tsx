@@ -52,6 +52,15 @@ describe('usePreviewNavigation', () => {
     expect(onEscape).toHaveBeenCalledTimes(1);
   });
 
+  it('leaves Esc to an in-viewer dialog', () => {
+    const { onEscape } = setup();
+    const dialog = element('div', { 'data-owns-escape': '' });
+    const button = document.createElement('button');
+    dialog.appendChild(button);
+    fireEvent.keyDown(button, { key: 'Escape' });
+    expect(onEscape).not.toHaveBeenCalled();
+  });
+
   it('ignores all keys while disabled (a dialog is stacked on top)', () => {
     const { onChange, onEscape } = setup(false);
     fireEvent.keyDown(document.body, { key: 'Escape' });
