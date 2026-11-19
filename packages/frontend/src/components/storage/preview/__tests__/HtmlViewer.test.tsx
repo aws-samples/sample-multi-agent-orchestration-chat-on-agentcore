@@ -37,7 +37,7 @@ describe('HtmlViewer', () => {
     expect(frame()).not.toBeNull();
   });
 
-  it('asks for confirmation before loading remote resources', () => {
+  it('asks for confirmation before loading remote resources', async () => {
     render(<HtmlViewer text={HTML} truncated={false} />);
     fireEvent.click(screen.getByText('storage.preview.htmlRemote'));
     // Nothing is loaded yet: the dialog is up and the CSP is still local-only.
@@ -48,7 +48,10 @@ describe('HtmlViewer', () => {
     fireEvent.click(screen.getByText('storage.preview.htmlRemoteConfirmAction'));
     expect(screen.queryByRole('alertdialog')).toBeNull();
     expect(frame()!.getAttribute('srcdoc')).toContain(sandboxCsp(true));
-    expect(screen.getByText('storage.preview.htmlRemoteWarning')).toBeInTheDocument();
+    // The warning is a hover reminder only, not a standing banner.
+    expect(screen.queryByText('storage.preview.htmlRemoteWarning')).toBeNull();
+    fireEvent.mouseOver(screen.getByText('storage.preview.htmlRemote'));
+    expect(await screen.findByText('storage.preview.htmlRemoteWarning')).toBeInTheDocument();
   });
 
   it.each([

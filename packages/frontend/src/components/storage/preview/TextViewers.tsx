@@ -96,14 +96,11 @@ export function ViewModeSwitch({
 export function TextFrame({
   toolbar,
   notice,
-  noticeTone = 'warning',
   children,
   className,
 }: {
   toolbar?: React.ReactNode;
   notice?: string | null;
-  /** `muted` for informational lines that should not compete with the content. */
-  noticeTone?: 'warning' | 'muted';
   children: React.ReactNode;
   className?: string;
 }) {
@@ -112,17 +109,7 @@ export function TextFrame({
       <div className="flex h-full min-h-0 flex-col overflow-hidden rounded-lg border border-border bg-surface-primary">
         {(toolbar || notice) && (
           <div className="flex flex-wrap items-center gap-2 border-b border-border px-3 py-1.5">
-            {notice && (
-              <span
-                className={cn(
-                  noticeTone === 'muted'
-                    ? 'text-[11px] text-fg-muted'
-                    : 'text-xs text-feedback-warning'
-                )}
-              >
-                {notice}
-              </span>
-            )}
+            {notice && <span className="text-xs text-feedback-warning">{notice}</span>}
             <div className="ml-auto flex items-center gap-1">{toolbar}</div>
           </div>
         )}

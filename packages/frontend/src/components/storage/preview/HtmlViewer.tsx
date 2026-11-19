@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { Globe } from 'lucide-react';
 import { buildSandboxedSrcDoc } from '../../../utils/htmlSandbox';
 import { Button } from '../../ui/Button';
+import { Tooltip } from '../../ui/Tooltip';
 import {
   CodeView,
   TextFrame,
@@ -36,30 +37,33 @@ export function HtmlViewer({ text, truncated, className }: TextContentProps) {
     [text, truncated, allowRemote]
   );
 
-  const notice = truncated
-    ? `${truncatedNotice} ${t('storage.preview.htmlSourceOnly')}`
-    : rendered && allowRemote
-      ? t('storage.preview.htmlRemoteWarning')
-      : null;
+  const notice = truncated ? `${truncatedNotice} ${t('storage.preview.htmlSourceOnly')}` : null;
 
   return (
     <TextFrame
       className={className}
       notice={notice}
-      // The remote-loading line is a standing reminder, not an alert.
-      noticeTone={truncated ? 'warning' : 'muted'}
       toolbar={
         !truncated && (
           <>
             {rendered && (
-              <ToolbarToggle
-                active={allowRemote}
-                // Turning remote loading off is always safe; turning it on asks first.
-                onClick={() => (allowRemote ? setAllowRemote(false) : setConfirmingRemote(true))}
+              // The risk was accepted in the confirm dialog, so while loading it
+              // is a reminder on hover rather than a standing banner.
+              <Tooltip
+                content={t('storage.preview.htmlRemoteWarning')}
+                disabled={!allowRemote}
+                position="bottom"
+                width="240px"
               >
-                <Globe className="h-3.5 w-3.5" />
-                {t('storage.preview.htmlRemote')}
-              </ToolbarToggle>
+                <ToolbarToggle
+                  active={allowRemote}
+                  // Turning remote loading off is always safe; turning it on asks first.
+                  onClick={() => (allowRemote ? setAllowRemote(false) : setConfirmingRemote(true))}
+                >
+                  <Globe className="h-3.5 w-3.5" />
+                  {t('storage.preview.htmlRemote')}
+                </ToolbarToggle>
+              </Tooltip>
             )}
             <ViewModeSwitch
               showSource={showSource}
