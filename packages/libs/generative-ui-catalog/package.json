@@ -18,8 +18,8 @@
     "test:coverage": "NODE_OPTIONS='--experimental-vm-modules --no-warnings' jest --coverage"
   },
   "dependencies": {
-    "@json-render/core": "^0.21.3",
-    "@json-render/react": "^0.21.3",
+    "@json-render/core": "^0.22.0",
+    "@json-render/react": "^0.22.0",
     "zod": "^4.2.1"
   },
   "devDependencies": {}

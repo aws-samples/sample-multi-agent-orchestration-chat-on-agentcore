@@ -20,7 +20,7 @@
     "test:integration": "vitest run --config vitest.integration.config.ts"
   },
   "devDependencies": {
-    "@aws-sdk/client-bedrock-runtime": "^3.1106.0",
+    "@aws-sdk/client-bedrock-runtime": "^3.1167.0",
     "@vitest/coverage-v8": "^4.1.12",
     "vitest": "^4.1.12"
   }
