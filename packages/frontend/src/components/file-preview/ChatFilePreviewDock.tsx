@@ -65,9 +65,9 @@ export function ChatFilePreviewDock({ chatColumnRef }: ChatFilePreviewDockProps)
           title={t('storage.preview.resizePane')}
           className={cn(
             'absolute inset-y-0 -left-1 z-20 w-2 cursor-col-resize touch-none',
-            'after:absolute after:inset-y-0 after:left-[3px] after:w-0.5 after:transition-colors',
-            'hover:after:bg-action-primary focus-visible:outline-hidden focus-visible:after:bg-action-primary',
-            pane.isResizing && 'after:bg-action-primary'
+            'after:absolute after:inset-y-0 after:left-1 after:w-px after:transition-colors',
+            'hover:after:bg-action-primary/50 focus-visible:outline-hidden focus-visible:after:bg-action-primary/50',
+            pane.isResizing && 'after:bg-action-primary/50'
           )}
         />
       )}
@@ -84,7 +84,7 @@ export function ChatFilePreviewDock({ chatColumnRef }: ChatFilePreviewDockProps)
           {/* PDF iframes would swallow pointer events mid-drag. */}
           <div
             className={cn(
-              'relative min-h-0 flex-1 bg-surface-secondary',
+              'relative min-h-0 flex-1 bg-surface-subtle',
               pane.isResizing && 'pointer-events-none'
             )}
           >
@@ -104,7 +104,7 @@ export function ChatFilePreviewDock({ chatColumnRef }: ChatFilePreviewDockProps)
             </p>
             <IconButton icon={X} label={t('storage.preview.close')} onClick={close} />
           </div>
-          <div className="flex flex-1 flex-col items-center justify-center gap-3 bg-surface-secondary p-6 text-center">
+          <div className="flex flex-1 flex-col items-center justify-center gap-3 bg-surface-subtle p-6 text-center">
             <PanelRight className="h-8 w-8 text-fg-disabled" aria-hidden />
             <p className="text-sm text-fg-secondary">{t('chat.filePreview.empty')}</p>
           </div>

@@ -97,7 +97,7 @@ export function FilePreviewPanel({
           isFullscreen ? 'bg-gradient-to-b from-black/60 to-transparent' : 'border-b border-border'
         }
       />
-      <div className={cn('relative min-h-0 flex-1', !isFullscreen && 'bg-surface-secondary')}>
+      <div className={cn('relative min-h-0 flex-1', !isFullscreen && 'bg-surface-subtle')}>
         {isFullscreen && !isMobileView && <SideArrows nav={nav} />}
         <FilePreviewBody
           item={item}

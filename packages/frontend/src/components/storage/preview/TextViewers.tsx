@@ -68,7 +68,7 @@ export function ViewModeSwitch({
     <div
       role="group"
       aria-label={t('storage.preview.viewMode')}
-      className="inline-flex rounded-md border border-border bg-surface-secondary p-0.5"
+      className="inline-flex rounded-md border border-border bg-surface-subtle p-0.5"
     >
       {options.map((o) => {
         const active = o.source === showSource;
@@ -81,7 +81,7 @@ export function ViewModeSwitch({
             className={cn(
               'rounded px-2.5 py-0.5 text-xs transition-colors',
               active
-                ? 'bg-surface-primary font-medium text-fg-default shadow-sm'
+                ? 'bg-surface-elevated font-medium text-fg-default shadow-sm'
                 : 'text-fg-secondary hover:text-fg-default'
             )}
           >

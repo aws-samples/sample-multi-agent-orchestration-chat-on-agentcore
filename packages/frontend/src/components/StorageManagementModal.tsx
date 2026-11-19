@@ -478,9 +478,9 @@ export function StorageManagementModal({ isOpen, onClose }: StorageManagementMod
       />
 
       {/* Content area: responsive layout */}
-      <div className="flex divide-x divide-gray-200 flex-1 min-h-0">
+      <div className="flex divide-x divide-border flex-1 min-h-0">
         {/* Left column: folder tree - desktop only */}
-        <div className="hidden md:block md:w-[240px] shrink-0 overflow-y-auto bg-surface-secondary">
+        <div className="hidden md:block md:w-[240px] shrink-0 overflow-y-auto bg-surface-subtle">
           <div className="px-3 py-2">
             <div className="text-xs font-semibold text-fg-muted uppercase tracking-wider mb-2 px-2">
               {t('storage.folders')}
@@ -672,9 +672,9 @@ export function StorageManagementModal({ isOpen, onClose }: StorageManagementMod
                 title={t('storage.preview.resizePane')}
                 className={cn(
                   'absolute inset-y-0 -left-1 z-20 w-2 cursor-col-resize touch-none',
-                  'after:absolute after:inset-y-0 after:left-[3px] after:w-0.5 after:transition-colors',
-                  'hover:after:bg-action-primary focus-visible:outline-hidden focus-visible:after:bg-action-primary',
-                  paneResize.isResizing && 'after:bg-action-primary'
+                  'after:absolute after:inset-y-0 after:left-1 after:w-px after:transition-colors',
+                  'hover:after:bg-action-primary/50 focus-visible:outline-hidden focus-visible:after:bg-action-primary/50',
+                  paneResize.isResizing && 'after:bg-action-primary/50'
                 )}
               />
             )}
@@ -727,7 +727,7 @@ export function StorageManagementModal({ isOpen, onClose }: StorageManagementMod
       </div>
 
       {/* Footer */}
-      <div className="border-t border-border px-4 md:px-6 py-3 md:py-4 bg-surface-secondary">
+      <div className="border-t border-border px-4 md:px-6 py-3 md:py-4 bg-surface-subtle">
         <div className="flex flex-col sm:flex-row justify-between items-stretch sm:items-center gap-2 sm:gap-0">
           <p className="text-xs text-fg-muted">{t('storage.itemCount', { count: items.length })}</p>
           <button

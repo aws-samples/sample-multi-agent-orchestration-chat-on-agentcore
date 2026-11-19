@@ -59,12 +59,18 @@
   --color-surface-primary: #ffffff;
   --color-surface-secondary: #f9fafb; /* gray-50 */
   --color-surface-elevated: #ffffff;
+  /* Panel bands (toolbars, footers, side panes, preview backdrops): a faint
+     tint in light mode; dark mode keeps them flush with surface-primary
+     (surface-secondary there is strong, meant for hover/selection). */
+  --color-surface-subtle: #f9fafb; /* gray-50 */
   --color-surface-overlay: rgba(0, 0, 0, 0.1);
 
   /* --- Border Colors --- */
   --color-border-default: #e5e7eb; /* gray-200 */
   --color-border-strong: #d1d5db; /* gray-300 */
   --color-border-focus: #2563eb; /* blue-600 */
+  /* Edge of floating panels; light mode relies on the shadow alone. */
+  --color-border-elevated: transparent;
 
   /* --- Foreground (Text) Colors --- */
   --color-fg-default: #111827; /* gray-900 */
@@ -192,12 +198,15 @@
     --color-surface-primary: #0f172a; /* slate-900 */
     --color-surface-secondary: #1e293b; /* slate-800 */
     --color-surface-elevated: #1e293b; /* slate-800 */
+    --color-surface-subtle: #0f172a; /* = surface-primary */
     --color-surface-overlay: rgba(0, 0, 0, 0.6);
 
     /* --- Border Colors --- */
     --color-border-default: #334155; /* slate-700 */
     --color-border-strong: #475569; /* slate-600 */
     --color-border-focus: #3b82f6; /* blue-500 */
+    /* Shadows vanish on a dark backdrop, so floating panels need an edge. */
+    --color-border-elevated: #334155; /* slate-700 */
 
     /* --- Foreground (Text) Colors --- */
     --color-fg-default: #f1f5f9; /* slate-100 */
