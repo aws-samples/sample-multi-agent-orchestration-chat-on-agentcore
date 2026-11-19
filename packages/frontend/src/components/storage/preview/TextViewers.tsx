@@ -46,14 +46,64 @@ export function ToolbarToggle({
   );
 }
 
+/**
+ * Rendered ⇄ source as one segmented control rather than two independent
+ * toggles, so it reads as "pick one view".
+ */
+export function ViewModeSwitch({
+  showSource,
+  onChange,
+  renderedLabel,
+}: {
+  showSource: boolean;
+  onChange: (showSource: boolean) => void;
+  renderedLabel: string;
+}) {
+  const { t } = useTranslation();
+  const options = [
+    { source: false, label: renderedLabel },
+    { source: true, label: t('storage.preview.source') },
+  ];
+  return (
+    <div
+      role="group"
+      aria-label={t('storage.preview.viewMode')}
+      className="inline-flex rounded-md border border-border bg-surface-secondary p-0.5"
+    >
+      {options.map((o) => {
+        const active = o.source === showSource;
+        return (
+          <button
+            key={String(o.source)}
+            type="button"
+            aria-pressed={active}
+            onClick={() => onChange(o.source)}
+            className={cn(
+              'rounded px-2.5 py-0.5 text-xs transition-colors',
+              active
+                ? 'bg-surface-primary font-medium text-fg-default shadow-sm'
+                : 'text-fg-secondary hover:text-fg-default'
+            )}
+          >
+            {o.label}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
 export function TextFrame({
   toolbar,
   notice,
+  noticeTone = 'warning',
   children,
   className,
 }: {
   toolbar?: React.ReactNode;
   notice?: string | null;
+  /** `muted` for informational lines that should not compete with the content. */
+  noticeTone?: 'warning' | 'muted';
   children: React.ReactNode;
   className?: string;
 }) {
@@ -62,7 +112,17 @@ export function TextFrame({
       <div className="flex h-full min-h-0 flex-col overflow-hidden rounded-lg border border-border bg-surface-primary">
         {(toolbar || notice) && (
           <div className="flex flex-wrap items-center gap-2 border-b border-border px-3 py-1.5">
-            {notice && <span className="text-xs text-feedback-warning">{notice}</span>}
+            {notice && (
+              <span
+                className={cn(
+                  noticeTone === 'muted'
+                    ? 'text-[11px] text-fg-muted'
+                    : 'text-xs text-feedback-warning'
+                )}
+              >
+                {notice}
+              </span>
+            )}
             <div className="ml-auto flex items-center gap-1">{toolbar}</div>
           </div>
         )}
@@ -208,12 +268,11 @@ export function MarkdownViewer({
       notice={notice}
       toolbar={
         <>
-          <ToolbarToggle active={!showSource} onClick={() => setShowSource(false)}>
-            {t('storage.preview.rendered')}
-          </ToolbarToggle>
-          <ToolbarToggle active={showSource} onClick={() => setShowSource(true)}>
-            {t('storage.preview.source')}
-          </ToolbarToggle>
+          <ViewModeSwitch
+            showSource={showSource}
+            onChange={setShowSource}
+            renderedLabel={t('storage.preview.rendered')}
+          />
         </>
       }
     >
@@ -268,12 +327,11 @@ export function CsvViewer({
       notice={notice}
       toolbar={
         <>
-          <ToolbarToggle active={!showSource} onClick={() => setShowSource(false)}>
-            {t('storage.preview.table')}
-          </ToolbarToggle>
-          <ToolbarToggle active={showSource} onClick={() => setShowSource(true)}>
-            {t('storage.preview.source')}
-          </ToolbarToggle>
+          <ViewModeSwitch
+            showSource={showSource}
+            onChange={setShowSource}
+            renderedLabel={t('storage.preview.table')}
+          />
         </>
       }
     >

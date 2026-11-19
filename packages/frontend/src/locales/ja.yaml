@@ -632,6 +632,7 @@ storage:
     formatJson: 整形
     rendered: プレビュー
     source: ソース
+    viewMode: 表示切り替え
     table: 表
     htmlRemote: 外部リソース
     htmlRemoteWarning: 外部リソースを読み込んでいます。HTML の内容が外部サイトに送信される可能性があります

@@ -3,7 +3,13 @@ import { useTranslation } from 'react-i18next';
 import { Globe } from 'lucide-react';
 import { buildSandboxedSrcDoc } from '../../../utils/htmlSandbox';
 import { Button } from '../../ui/Button';
-import { CodeView, TextFrame, ToolbarToggle, type TextContentProps } from './TextViewers';
+import {
+  CodeView,
+  TextFrame,
+  ToolbarToggle,
+  ViewModeSwitch,
+  type TextContentProps,
+} from './TextViewers';
 import { useTruncatedNotice } from './useTruncatedNotice';
 
 /**
@@ -40,6 +46,8 @@ export function HtmlViewer({ text, truncated, className }: TextContentProps) {
     <TextFrame
       className={className}
       notice={notice}
+      // The remote-loading line is a standing reminder, not an alert.
+      noticeTone={truncated ? 'warning' : 'muted'}
       toolbar={
         !truncated && (
           <>
@@ -53,12 +61,11 @@ export function HtmlViewer({ text, truncated, className }: TextContentProps) {
                 {t('storage.preview.htmlRemote')}
               </ToolbarToggle>
             )}
-            <ToolbarToggle active={!showSource} onClick={() => setShowSource(false)}>
-              {t('storage.preview.rendered')}
-            </ToolbarToggle>
-            <ToolbarToggle active={showSource} onClick={() => setShowSource(true)}>
-              {t('storage.preview.source')}
-            </ToolbarToggle>
+            <ViewModeSwitch
+              showSource={showSource}
+              onChange={setShowSource}
+              renderedLabel={t('storage.preview.rendered')}
+            />
           </>
         )
       }

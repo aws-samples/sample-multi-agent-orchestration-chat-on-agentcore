@@ -639,6 +639,7 @@ storage:
     formatJson: Format
     rendered: Preview
     source: Source
+    viewMode: View mode
     table: Table
     htmlRemote: Remote resources
     htmlRemoteWarning: Remote resources are loaded. The HTML content may be sent to external sites
