@@ -51,3 +51,17 @@ describe('watchStreamIdle', () => {
     expect(onStall).not.toHaveBeenCalled();
   });
 });
+
+describe('watchStreamIdle first-byte timeout', () => {
+  it('waits longer for the first byte, then falls back to the idle timeout', () => {
+    const onStall = vi.fn();
+    const watchdog = watchStreamIdle(onStall, STREAM_IDLE_TIMEOUT_MS * 2);
+
+    vi.advanceTimersByTime(STREAM_IDLE_TIMEOUT_MS + 1);
+    expect(onStall).not.toHaveBeenCalled();
+
+    watchdog.touch(); // headers arrived
+    vi.advanceTimersByTime(STREAM_IDLE_TIMEOUT_MS);
+    expect(onStall).toHaveBeenCalledTimes(1);
+  });
+});

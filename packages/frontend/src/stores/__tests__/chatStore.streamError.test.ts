@@ -9,13 +9,14 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { useChatStore } from '../chatStore';
 import { useSessionStore } from '../sessionStore';
 import { streamAgentResponse } from '../../api/agent';
+import { StreamDisconnectedError } from '../../utils/stream-idle-watchdog';
 
 vi.mock('../../api/agent', () => ({ streamAgentResponse: vi.fn() }));
 
 const SESSION_ID = 'abcdefghij0123456789ABCDEFGHIJ012';
 
 beforeEach(() => {
-  useChatStore.setState({ sessions: {}, activeSessionId: SESSION_ID });
+  useChatStore.setState({ sessions: {}, activeSessionId: SESSION_ID, lastStreamCompletedAt: {} });
   useSessionStore.setState({ sessions: [] });
   vi.mocked(streamAgentResponse).mockImplementation(async (_p, _s, callbacks) => {
     callbacks.onError?.(new Error('network error'));
@@ -63,5 +64,83 @@ describe('chatStore model stopped by a safety filter', () => {
     expect(assistant.isError).toBe(true);
     const texts = assistant.contents.filter((c) => c.type === 'text').map((c) => c.text ?? '');
     expect(texts.join('')).toContain('contentFiltered');
+  });
+});
+
+describe('chatStore stream disconnected without a verdict (#157)', () => {
+  const disconnect = () =>
+    vi.mocked(streamAgentResponse).mockImplementation(async (_p, _s, callbacks) => {
+      callbacks.onError?.(new StreamDisconnectedError(new TypeError('Load failed')));
+    });
+  const assistant = () =>
+    useChatStore.getState().sessions[SESSION_ID]!.messages.find((m) => m.type === 'assistant')!;
+  const settle = () => vi.waitFor(() => expect(resync).toHaveBeenCalled());
+  let resync: ReturnType<typeof vi.fn>;
+
+  beforeEach(() => {
+    disconnect();
+    useSessionStore.setState({ activeSessionId: SESSION_ID, sessionEvents: [] });
+    resync = vi.fn().mockResolvedValue(undefined);
+    useSessionStore.setState({
+      resyncSessionEvents: resync,
+      refreshSessions: vi.fn().mockResolvedValue(undefined),
+    } as never);
+  });
+
+  it('keeps showing a turn that is still running server-side, without an error flash', async () => {
+    useSessionStore.setState({
+      sessions: [
+        {
+          sessionId: SESSION_ID,
+          title: 't',
+          createdAt: '',
+          updatedAt: new Date().toISOString(),
+          activeTurnStartedAt: new Date().toISOString(),
+        },
+      ],
+    } as never);
+
+    await useChatStore.getState().sendPrompt('build it', SESSION_ID);
+    await settle();
+
+    const state = useChatStore.getState().sessions[SESSION_ID]!;
+    expect(assistant().isError).toBeFalsy();
+    expect(assistant().isStreaming).toBe(false);
+    expect(state.error).toBeNull();
+    expect(state.isLoading).toBe(true);
+  });
+
+  it('shows no error when the turn finished while away and history has the prompt', async () => {
+    resync.mockImplementation(async () => {
+      useSessionStore.setState({
+        sessionEvents: [
+          { id: 'e1', type: 'user', contents: [{ type: 'text', text: 'build it' }], timestamp: '' },
+          {
+            id: 'e2',
+            type: 'assistant',
+            contents: [{ type: 'text', text: 'done' }],
+            timestamp: '',
+          },
+        ],
+      } as never);
+    });
+
+    await useChatStore.getState().sendPrompt('build it', SESSION_ID);
+    await settle();
+    await vi.waitFor(() =>
+      expect(useChatStore.getState().sessions[SESSION_ID]!.isLoading).toBe(false)
+    );
+
+    expect(assistant().isError).toBeFalsy();
+    expect(useChatStore.getState().sessions[SESSION_ID]!.error).toBeNull();
+  });
+
+  it('reports the error when nothing is running and the prompt never reached the runtime', async () => {
+    await useChatStore.getState().sendPrompt('build it', SESSION_ID);
+    await settle();
+    await vi.waitFor(() => expect(assistant().isError).toBe(true));
+
+    expect(JSON.stringify(assistant().contents)).toContain('Load failed');
+    expect(useChatStore.getState().sessions[SESSION_ID]!.isLoading).toBe(false);
   });
 });

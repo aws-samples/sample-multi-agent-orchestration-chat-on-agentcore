@@ -6,7 +6,11 @@
 import { describe, it, expect, vi } from 'vitest';
 import { agentClient } from '../client/agent-client';
 import { streamAgentResponse } from '../agent';
-import { StreamStalledError, STREAM_IDLE_TIMEOUT_MS } from '../../utils/stream-idle-watchdog';
+import {
+  StreamDisconnectedError,
+  StreamStalledError,
+  STREAM_IDLE_TIMEOUT_MS,
+} from '../../utils/stream-idle-watchdog';
 
 vi.mock('../client/agent-client', () => ({ agentClient: { invoke: vi.fn() } }));
 vi.mock('../agent-token-renewal', () => ({ startAgentTokenRenewal: () => () => {} }));
@@ -75,5 +79,25 @@ describe('streamAgentResponse idle stream', () => {
     } finally {
       vi.useRealTimers();
     }
+  });
+});
+
+describe('streamAgentResponse failure classification', () => {
+  it('reports a network failure as a disconnect, not a server verdict', async () => {
+    vi.mocked(agentClient.invoke).mockRejectedValue(new TypeError('Load failed'));
+    const onError = vi.fn();
+
+    await streamAgentResponse('hi', 'S'.repeat(33), { onError });
+
+    expect(onError).toHaveBeenCalledWith(expect.any(StreamDisconnectedError));
+  });
+
+  it('reports an HTTP error as it is', async () => {
+    vi.mocked(agentClient.invoke).mockResolvedValue(new Response('{}', { status: 500 }));
+    const onError = vi.fn();
+
+    await streamAgentResponse('hi', 'S'.repeat(33), { onError });
+
+    expect(onError.mock.calls[0][0]).not.toBeInstanceOf(StreamDisconnectedError);
   });
 });

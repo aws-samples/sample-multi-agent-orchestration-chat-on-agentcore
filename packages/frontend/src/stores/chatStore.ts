@@ -18,7 +18,8 @@ import { useSessionStore } from './sessionStore';
 import { useMemoryStore } from './memoryStore';
 import { useSettingsStore } from './settingsStore';
 import { logger } from '../utils/logger';
-import { StreamStalledError } from '../utils/stream-idle-watchdog';
+import { StreamDisconnectedError } from '../utils/stream-idle-watchdog';
+import { isTurnRunning } from '../utils/turn-status';
 import toast from 'react-hot-toast';
 import i18n from '../i18n';
 import { mergeToolTurnMessages } from '../utils/tool-steps';
@@ -149,6 +150,19 @@ interface ChatActions {
 }
 
 type ChatStore = ChatState & ChatActions;
+
+/** Did the stored history record this prompt (i.e. the request reached the runtime)? */
+function promptLanded(events: ConversationMessage[], prompt: string): boolean {
+  const text = prompt.trim();
+  if (!text) return false;
+  return events.some(
+    (e) =>
+      e.type === 'user' &&
+      e.contents.some(
+        (c) => c.type === 'text' && typeof c.text === 'string' && c.text.includes(text)
+      )
+  );
+}
 
 export const useChatStore = create<ChatStore>()(
   devtools(
@@ -584,53 +598,89 @@ export const useChatStore = create<ChatStore>()(
                 }
               },
               onError: (error: Error) => {
-                // Add error message as assistant response (with isError flag)
-                const { sessions } = get();
-                const sessionState = sessions[sessionId];
-                if (!sessionState) return;
+                const showError = (): void => {
+                  // Add error message as assistant response (with isError flag)
+                  const sessionState = get().sessions[sessionId];
+                  if (!sessionState) return;
 
-                const currentMessage = sessionState.messages.find(
-                  (msg) => msg.id === assistantMessageId
-                );
+                  const currentMessage = sessionState.messages.find(
+                    (msg) => msg.id === assistantMessageId
+                  );
 
-                // Preserve existing contents and add error message
-                const existingContents = currentMessage?.contents || [];
-                const errorContent = {
-                  type: 'text' as const,
-                  text: `An error occurred: ${error.message}`,
+                  // Preserve existing contents and add error message
+                  const existingContents = currentMessage?.contents || [];
+                  const errorContent = {
+                    type: 'text' as const,
+                    text: `An error occurred: ${error.message}`,
+                  };
+
+                  updateMessage(sessionId, assistantMessageId, {
+                    contents: [...existingContents, errorContent],
+                    isStreaming: false,
+                    isError: true,
+                  });
+
+                  // Re-read: a snapshot taken before updateMessage would revert the
+                  // message to isStreaming=true — the tab then never reattaches to a
+                  // turn that keeps running server-side.
+                  const latest = get().sessions;
+                  const currentState = latest[sessionId] || createDefaultSessionState();
+
+                  set({
+                    sessions: {
+                      ...latest,
+                      [sessionId]: {
+                        ...currentState,
+                        isLoading: false,
+                        error: error.message,
+                      },
+                    },
+                  });
                 };
 
-                updateMessage(sessionId, assistantMessageId, {
-                  contents: [...existingContents, errorContent],
-                  isStreaming: false,
-                  isError: true,
-                });
-
-                // Re-read: `sessions` above predates updateMessage, and spreading
-                // it would revert the message to isStreaming=true — the tab then
-                // never reattaches to a turn that keeps running server-side.
-                const latest = get().sessions;
-                const currentState = latest[sessionId] || createDefaultSessionState();
-
-                set({
-                  sessions: {
-                    ...latest,
-                    [sessionId]: {
-                      ...currentState,
-                      isLoading: false,
-                      error: error.message,
-                    },
-                  },
-                });
-
-                // A dropped stream does not stop the server-side turn; pick up
-                // its running marker without waiting for an AppSync event.
-                void useSessionStore.getState().refreshSessions();
-                // A stalled stream may have missed messages the turn has saved
-                // since; the stored history replaces the partial reply.
-                if (error instanceof StreamStalledError) {
-                  void useSessionStore.getState().resyncSessionEvents(sessionId);
+                if (!(error instanceof StreamDisconnectedError)) {
+                  showError();
+                  // A dropped stream does not stop the server-side turn; pick up
+                  // its running marker without waiting for an AppSync event.
+                  void useSessionStore.getState().refreshSessions();
+                  return;
                 }
+
+                // The stream broke without a verdict (typically iOS killing the
+                // fetch while the PWA was in the background). Keep showing the turn
+                // as running and only report an error once the server confirms
+                // nothing is running and the prompt never landed; otherwise the
+                // user sees an error flash right before the history catches up.
+                updateMessage(sessionId, assistantMessageId, { isStreaming: false });
+                void (async () => {
+                  const sessionStore = useSessionStore.getState();
+                  if (sessionStore.activeSessionId !== sessionId) {
+                    showError();
+                    return;
+                  }
+                  await sessionStore.refreshSessions().catch(() => {});
+                  const session = useSessionStore
+                    .getState()
+                    .sessions.find((s) => s.sessionId === sessionId);
+                  const running = isTurnRunning(
+                    session,
+                    Date.now(),
+                    get().lastStreamCompletedAt?.[sessionId]
+                  );
+                  // Running: useInFlightTurn takes over (nothing is streaming here now).
+                  if (running) {
+                    void useSessionStore.getState().resyncSessionEvents(sessionId);
+                    return;
+                  }
+                  await useSessionStore.getState().resyncSessionEvents(sessionId);
+                  const { activeSessionId, sessionEvents } = useSessionStore.getState();
+                  if (activeSessionId === sessionId && promptLanded(sessionEvents, prompt)) {
+                    // The turn finished while we were away; history shows its outcome.
+                    get().setRemoteTurnRunning(sessionId, false);
+                    return;
+                  }
+                  showError();
+                })();
               },
             },
             agentConfig

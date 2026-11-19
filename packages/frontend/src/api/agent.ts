@@ -16,7 +16,12 @@ import type {
 import { agentClient } from './client/agent-client';
 import { startAgentTokenRenewal } from './agent-token-renewal';
 import { logger } from '../utils/logger';
-import { StreamStalledError, watchStreamIdle } from '../utils/stream-idle-watchdog';
+import {
+  StreamDisconnectedError,
+  StreamStalledError,
+  STREAM_FIRST_BYTE_TIMEOUT_MS,
+  watchStreamIdle,
+} from '../utils/stream-idle-watchdog';
 
 /**
  * Streaming callback types
@@ -78,6 +83,19 @@ function buildRequestBody(prompt: string, agentConfig?: AgentConfig): string {
 /**
  * Send streaming prompt to Agent
  */
+/**
+ * fetch / stream-read failures carry no server verdict (TypeError "Load
+ * failed" on iOS resume, "Failed to fetch", ...). HTTP and serverErrorEvent
+ * failures are plain Errors and are reported as they are.
+ */
+function isTransportFailure(error: unknown): boolean {
+  return (
+    error instanceof TypeError ||
+    (error instanceof DOMException &&
+      (error.name === 'AbortError' || error.name === 'NetworkError'))
+  );
+}
+
 export const streamAgentResponse = async (
   prompt: string,
   sessionId: string | undefined,
@@ -98,12 +116,26 @@ export const streamAgentResponse = async (
   // Supply the turn with fresh tokens for as long as we are streaming it.
   const stopTokenRenewal = sessionId ? startAgentTokenRenewal(sessionId) : undefined;
 
+  let stalled = false;
+  let reader: ReadableStreamDefaultReader<Uint8Array> | undefined;
+  const abort = new AbortController();
+  // Armed before the request: a fetch frozen before the headers arrive hangs
+  // just the same. Surfaces as onError, which hands the still-running turn
+  // over to useInFlightTurn / AppSync instead of leaving the reply isStreaming.
+  const watchdog = watchStreamIdle(() => {
+    stalled = true;
+    abort.abort();
+    void reader?.cancel().catch(() => {});
+  }, STREAM_FIRST_BYTE_TIMEOUT_MS);
+
   try {
     const response = await agentClient.invoke({
       method: 'POST',
       headers,
       body,
+      signal: abort.signal,
     });
+    watchdog.touch();
 
     if (!response.ok) {
       let errorMessage = `HTTP ${response.status}: ${response.statusText}`;
@@ -126,16 +158,9 @@ export const streamAgentResponse = async (
       throw new Error('Response body is missing');
     }
 
-    const reader = response.body.getReader();
+    reader = response.body.getReader();
     const decoder = new TextDecoder();
     let buffer = '';
-    let stalled = false;
-    // Surfaces as onError, which hands the still-running turn over to
-    // useInFlightTurn / AppSync instead of leaving the reply isStreaming.
-    const watchdog = watchStreamIdle(() => {
-      stalled = true;
-      void reader.cancel().catch(() => {});
-    });
 
     try {
       while (true) {
@@ -177,16 +202,21 @@ export const streamAgentResponse = async (
         }
       }
     } finally {
-      watchdog.stop();
       reader.releaseLock();
     }
-  } catch (error) {
+  } catch (caught) {
+    const error = stalled
+      ? new StreamStalledError()
+      : isTransportFailure(caught)
+        ? new StreamDisconnectedError(caught)
+        : caught;
     if (callbacks.onError) {
       callbacks.onError(error instanceof Error ? error : new Error('Agent API error'));
     } else {
       throw error;
     }
   } finally {
+    watchdog.stop();
     stopTokenRenewal?.();
   }
 };
