@@ -16,6 +16,8 @@ import type { MessageContent, Message } from '../types/index';
 import { randomId } from '../utils/randomId';
 import { logger } from '../utils/logger';
 import { appendTurnMessage } from '../utils/tool-steps';
+import { noteLiveMessage, useSessionStore } from '../stores/sessionStore';
+import { onPageWake } from '../utils/page-wake';
 
 // ============================================================
 // Constants & Channel Configuration
@@ -285,6 +287,7 @@ export function useMessageEventsSubscription(sessionId: string | null) {
             },
           });
 
+          noteLiveMessage(event.sessionId);
           logger.log(`Added message from event: ${event.message.role}`);
           break;
         }
@@ -374,7 +377,23 @@ export function useMessageEventsSubscription(sessionId: string | null) {
    * Instead, we keep the subscription always active and filter events
    * in the handler using the two-stage guard above.
    */
-  useAppSyncSubscription(channel, subscriptionId, handleMessageEvent, !!sessionId && !!userId);
+  const enabled = !!sessionId && !!userId;
+
+  /**
+   * WHY resync: AppSync Events does not replay. Whatever was published while
+   * the channel was down (PWA suspended, socket reconnecting, or before the
+   * first subscribe landed) is only recoverable from the stored history.
+   * Re-fetch after every subscribe_success (subscribe first, then fetch, so
+   * nothing falls between the two) and whenever the page wakes up.
+   */
+  const resync = useCallback(() => {
+    const id = currentSessionIdRef.current;
+    if (id) void useSessionStore.getState().resyncSessionEvents(id);
+  }, []);
+
+  useEffect(() => (enabled ? onPageWake(resync) : undefined), [enabled, resync]);
+
+  useAppSyncSubscription(channel, subscriptionId, handleMessageEvent, enabled, resync);
 
   return {
     isConnected: connectionState.isConnected,

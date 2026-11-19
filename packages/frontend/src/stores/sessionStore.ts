@@ -32,6 +32,51 @@ export const BULK_DELETE_CONCURRENCY = 2;
 const DEFAULT_PAGE_SIZE = 50;
 
 /**
+ * AppSync messages applied per session. A fetch is only trusted if none
+ * arrived while it was in flight: the agent saves before it publishes, but a
+ * message received mid-fetch may still be missing from the response, and
+ * restoring history replaces the AppSync-built messages (they carry no
+ * Memory event id to merge by).
+ */
+const liveMessageSeq = new Map<string, number>();
+
+export function noteLiveMessage(sessionId: string): void {
+  liveMessageSeq.set(sessionId, (liveMessageSeq.get(sessionId) ?? 0) + 1);
+}
+
+const MAX_FETCH_ATTEMPTS = 3;
+
+async function fetchLatestEventsSettled(sessionId: string) {
+  for (let attempt = 1; ; attempt++) {
+    const seq = liveMessageSeq.get(sessionId) ?? 0;
+    const result = await fetchSessionEvents(sessionId);
+    if ((liveMessageSeq.get(sessionId) ?? 0) === seq || attempt >= MAX_FETCH_ATTEMPTS) {
+      return result;
+    }
+    logger.log(`Live message arrived during history fetch; refetching (${sessionId})`);
+  }
+}
+
+/**
+ * Splice the latest page onto what is loaded, so older pages the user paged
+ * in survive. Returns null when the latest page does not overlap (more than a
+ * page happened while away): the caller then starts over from that page.
+ */
+export function mergeLatestEvents(
+  loaded: ConversationMessage[],
+  latest: ConversationMessage[]
+): ConversationMessage[] | null {
+  if (latest.length === 0) return loaded;
+  const overlapAt = loaded.findIndex((e) => e.id === latest[0].id);
+  if (overlapAt < 0) return null;
+  return [...loaded.slice(0, overlapAt), ...latest];
+}
+
+let selectInFlight: Promise<void> | null = null;
+let resyncInFlight: Promise<void> | null = null;
+let resyncAgain = false;
+
+/**
  * Session store state type definition
  */
 interface SessionState {
@@ -71,6 +116,11 @@ interface SessionActions {
   loadAllSessions: () => Promise<void>;
   selectSession: (sessionId: string) => Promise<void>;
   /**
+   * Catch up the open session after events may have been missed (page wake,
+   * AppSync re-subscribe): AppSync Events does not replay.
+   */
+  resyncSessionEvents: (sessionId: string) => Promise<void>;
+  /**
    * Load the next older page of events for the given session and prepend them.
    * Stale responses (active session changed while loading) are silently discarded.
    */
@@ -106,7 +156,8 @@ interface SessionActions {
 /**
  * Session management store
  */
-type SessionStore = SessionState & SessionActions;
+type SessionStore = SessionState &
+  SessionActions & { _selectSession: (sessionId: string) => Promise<void> };
 
 export const useSessionStore = create<SessionStore>()(
   devtools(
@@ -231,7 +282,60 @@ export const useSessionStore = create<SessionStore>()(
         logger.log(`All sessions loaded: ${totalSessions} items in ${iterationCount + 1} requests`);
       },
 
-      selectSession: async (sessionId: string) => {
+      selectSession: (sessionId: string) => {
+        const run = get()._selectSession(sessionId);
+        selectInFlight = run;
+        void run.finally(() => {
+          if (selectInFlight === run) selectInFlight = null;
+        });
+        return run;
+      },
+
+      resyncSessionEvents: async (sessionId: string) => {
+        if (resyncInFlight) {
+          resyncAgain = true;
+          return resyncInFlight;
+        }
+        const run = (async () => {
+          do {
+            resyncAgain = false;
+            // An in-flight select may have read before the channel subscribed.
+            if (selectInFlight) await selectInFlight;
+            if (get().activeSessionId !== sessionId) return;
+
+            void get().refreshSessions();
+            try {
+              const result = await fetchLatestEventsSettled(sessionId);
+              if (get().activeSessionId !== sessionId) return;
+              const loaded = get().sessionEvents;
+              const merged = mergeLatestEvents(loaded, result.events);
+              if (merged === null) {
+                set({
+                  sessionEvents: result.events,
+                  eventsNextCursor: result.nextCursor ?? null,
+                  eventsHasMore: result.hasMore,
+                });
+              } else if (
+                merged.length !== loaded.length ||
+                merged.some((e, i) => e.id !== loaded[i].id)
+              ) {
+                set({ sessionEvents: merged });
+              }
+              logger.log(`Session resynced (${sessionId}): ${result.events.length} latest events`);
+            } catch (error) {
+              logger.warn('Session resync failed:', error);
+            }
+          } while (resyncAgain);
+        })();
+        resyncInFlight = run;
+        try {
+          await run;
+        } finally {
+          resyncInFlight = null;
+        }
+      },
+
+      _selectSession: async (sessionId: string) => {
         try {
           set({
             isLoadingEvents: true,
@@ -266,7 +370,9 @@ export const useSessionStore = create<SessionStore>()(
             }
           }
 
-          const result = await fetchSessionEvents(sessionId);
+          const result = await fetchLatestEventsSettled(sessionId);
+          // A newer selection owns the view now.
+          if (get().activeSessionId !== sessionId) return;
 
           set({
             sessionEvents: result.events,
