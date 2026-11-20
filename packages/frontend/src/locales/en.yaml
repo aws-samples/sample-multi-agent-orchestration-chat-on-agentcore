@@ -207,6 +207,9 @@ chat:
   typingMessage: Type a message...
   thinking: Thinking...
   stopGenerating: Stop Generating
+  stopping: Stopping...
+  generationStopped: Generation stopped
+  stopFailed: Could not stop the response. Please try again.
   selectAgent: Select Agent
   changeAgent: Change Agent
   toggleWideView: Toggle wide view

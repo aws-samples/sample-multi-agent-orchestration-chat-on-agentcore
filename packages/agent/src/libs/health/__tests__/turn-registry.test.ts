@@ -4,7 +4,14 @@
  */
 
 import { describe, it, expect, beforeEach } from '@jest/globals';
-import { tryBeginTurn, endTurn, getActiveTurn, resetTurnRegistry } from '../turn-registry.js';
+import {
+  tryBeginTurn,
+  endTurn,
+  getActiveTurn,
+  makeTurnCancellable,
+  resetTurnRegistry,
+  stopTurn,
+} from '../turn-registry.js';
 import { isBusy, resetInFlight } from '../in-flight.js';
 
 beforeEach(() => {
@@ -36,5 +43,44 @@ describe('turn registry', () => {
     expect(isBusy()).toBe(true);
     endTurn('s1', 'r1');
     expect(isBusy()).toBe(false);
+  });
+
+  describe('stopTurn', () => {
+    it('aborts the signal of a cancellable turn for its owner', () => {
+      tryBeginTurn('s1', 'r1', 'user-a');
+      const signal = makeTurnCancellable('s1', 'r1');
+      expect(stopTurn('s1', 'user-a')).toBe(true);
+      expect(signal?.aborted).toBe(true);
+    });
+
+    it('refuses a stop from another user', () => {
+      tryBeginTurn('s1', 'r1', 'user-a');
+      const signal = makeTurnCancellable('s1', 'r1');
+      expect(stopTurn('s1', 'user-b')).toBe(false);
+      expect(signal?.aborted).toBe(false);
+    });
+
+    it('does not stop a turn that never opted in (workflow steps)', () => {
+      tryBeginTurn('s1', 'r1', 'user-a');
+      expect(stopTurn('s1', 'user-a')).toBe(false);
+    });
+
+    it('does not stop a turn without a recorded owner', () => {
+      tryBeginTurn('s1', 'r1');
+      makeTurnCancellable('s1', 'r1');
+      expect(stopTurn('s1', 'user-a')).toBe(false);
+    });
+
+    it('is a no-op once the turn has ended', () => {
+      tryBeginTurn('s1', 'r1', 'user-a');
+      makeTurnCancellable('s1', 'r1');
+      endTurn('s1', 'r1');
+      expect(stopTurn('s1', 'user-a')).toBe(false);
+    });
+
+    it('only the owning request gets a signal', () => {
+      tryBeginTurn('s1', 'r1', 'user-a');
+      expect(makeTurnCancellable('s1', 'r2')).toBeUndefined();
+    });
   });
 });

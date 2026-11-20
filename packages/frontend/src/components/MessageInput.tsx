@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Send, Loader2, Paperclip, CheckCircle2 } from 'lucide-react';
+import { Send, Loader2, Paperclip, CheckCircle2, Square } from 'lucide-react';
+import toast from 'react-hot-toast';
 import { randomId } from '../utils/randomId';
 import { useChatStore } from '../stores/chatStore';
 import { useAgentStore } from '../stores/agentStore';
@@ -37,7 +38,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({
   getScenarioPrompt,
 }) => {
   const { t } = useTranslation();
-  const { sendPrompt } = useChatStore();
+  const { sendPrompt, stopPrompt } = useChatStore();
   const { sendBehavior } = useSettingsStore();
   const sessionState = useChatStore((state) =>
     sessionId ? (state.sessions[sessionId] ?? null) : null
@@ -58,6 +59,17 @@ export const MessageInput: React.FC<MessageInputProps> = ({
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const prevLoadingRef = useRef(isLoading);
+  // Held from the click until the turn actually ends: a tool that is already
+  // running finishes first, which can take a while.
+  const [isStopping, setIsStopping] = useState(false);
+  // Reset when the turn ends or the session changes (adjusted during render,
+  // not in an effect, to avoid a cascading render).
+  const stopScope = `${sessionId}:${isLoading}`;
+  const [prevStopScope, setPrevStopScope] = useState(stopScope);
+  if (prevStopScope !== stopScope) {
+    setPrevStopScope(stopScope);
+    setIsStopping(false);
+  }
   const doneTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Clear the completion-message timer on unmount
@@ -419,6 +431,21 @@ export const MessageInput: React.FC<MessageInputProps> = ({
     return true;
   };
 
+  const handleStop = async () => {
+    if (!sessionId || isStopping) return;
+    setIsStopping(true);
+    try {
+      const stopped = await stopPrompt(sessionId);
+      // Nothing was running server-side (it just ended): let the user retry
+      // instead of waiting on a turn that will not report back.
+      if (!stopped) setIsStopping(false);
+    } catch (error) {
+      logger.warn('Stop failed:', error);
+      toast.error(t('chat.stopFailed'));
+      setIsStopping(false);
+    }
+  };
+
   const sendAccepted = async (text: string, images: ImageAttachment[], fromDraft: boolean) => {
     try {
       // Save message to send
@@ -596,26 +623,51 @@ export const MessageInput: React.FC<MessageInputProps> = ({
                 </button>
               </div>
 
-              {/* Send button - fixed width, pinned to the right, never overlapped. */}
-              <button
-                type="submit"
-                disabled={
-                  (!input.trim() && attachedImages.length === 0) || isLoading || isAgentStoreLoading
-                }
-                className={`ml-auto shrink-0 w-8 h-8 rounded-md flex items-center justify-center transition-all duration-200 ${
-                  (!input.trim() && attachedImages.length === 0) || isLoading || isAgentStoreLoading
-                    ? 'text-fg-disabled cursor-not-allowed'
-                    : 'text-fg-default hover:bg-surface-secondary'
-                }`}
-                title={t('chat.sendMessage')}
-                aria-label={t('chat.sendMessage')}
-              >
-                {isLoading ? (
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                ) : (
-                  <Send className="w-4 h-4" />
-                )}
-              </button>
+              {/* Send / Stop button - fixed width, pinned to the right, never overlapped. */}
+              {isLoading && sessionId ? (
+                <button
+                  type="button"
+                  onClick={() => void handleStop()}
+                  disabled={isStopping}
+                  className={`ml-auto shrink-0 w-8 h-8 rounded-md flex items-center justify-center transition-all duration-200 ${
+                    isStopping
+                      ? 'text-fg-disabled cursor-not-allowed'
+                      : 'text-fg-default hover:bg-surface-secondary'
+                  }`}
+                  title={isStopping ? t('chat.stopping') : t('chat.stopGenerating')}
+                  aria-label={isStopping ? t('chat.stopping') : t('chat.stopGenerating')}
+                >
+                  {isStopping ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <Square className="w-4 h-4 fill-current" />
+                  )}
+                </button>
+              ) : (
+                <button
+                  type="submit"
+                  disabled={
+                    (!input.trim() && attachedImages.length === 0) ||
+                    isLoading ||
+                    isAgentStoreLoading
+                  }
+                  className={`ml-auto shrink-0 w-8 h-8 rounded-md flex items-center justify-center transition-all duration-200 ${
+                    (!input.trim() && attachedImages.length === 0) ||
+                    isLoading ||
+                    isAgentStoreLoading
+                      ? 'text-fg-disabled cursor-not-allowed'
+                      : 'text-fg-default hover:bg-surface-secondary'
+                  }`}
+                  title={t('chat.sendMessage')}
+                  aria-label={t('chat.sendMessage')}
+                >
+                  {isLoading ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <Send className="w-4 h-4" />
+                  )}
+                </button>
+              )}
             </div>
           </div>
         </div>

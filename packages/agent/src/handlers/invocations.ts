@@ -43,7 +43,12 @@ import { createSessionPersistenceDeps } from '../services/session-persistence-de
 import { logger } from '../libs/logger/index.js';
 import { streamAgentResponse } from './stream-handler.js';
 import { stopOwnSession } from '../services/session-terminator.js';
-import { endTurn, getActiveTurn, tryBeginTurn } from '../libs/health/turn-registry.js';
+import {
+  endTurn,
+  getActiveTurn,
+  makeTurnCancellable,
+  tryBeginTurn,
+} from '../libs/health/turn-registry.js';
 import {
   buildStepResult,
   completeStepCallback,
@@ -66,7 +71,7 @@ export async function handleInvocation(req: Request, res: Response): Promise<voi
     return;
   }
 
-  if (!tryBeginTurn(sessionId, requestId)) {
+  if (!tryBeginTurn(sessionId, requestId, getCurrentContext()!.userId)) {
     const running = getActiveTurn(sessionId);
     logger.warn(
       { requestId, sessionId, runningRequestId: running?.requestId },
@@ -157,6 +162,9 @@ async function runAgentTurn(
   // AgentCore does not forward the Session-Type header (not allowlisted), so a
   // workflow step is marked from the body to keep it out of the chat list.
   const sessionType = workflowStep ? 'subagent' : context.sessionType;
+  // Before the first await, so a stop sent during setup is not missed.
+  const cancelSignal =
+    sessionId && !workflowStep ? makeTurnCancellable(sessionId, requestId) : undefined;
 
   logger.info(
     {
@@ -260,6 +268,7 @@ async function runAgentTurn(
     outcome = await streamAgentResponse(agent, body.prompt, body.images, res, {
       metadata,
       retryStrategy,
+      cancelSignal,
       sessionStorage: sessionResult?.storage,
       sessionConfig: sessionResult?.config,
     });

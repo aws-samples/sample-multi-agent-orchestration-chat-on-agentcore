@@ -163,11 +163,13 @@ async function handleStatus(
         };
       }
 
-      if (task.status === 'failed') {
+      // 'cancelled' is terminal too: a waitForCompletion poll would otherwise
+      // spin until maxWaitTime on a task the user stopped.
+      if (task.status === 'failed' || task.status === 'cancelled') {
         return {
           taskId: task.taskId,
           sessionId: task.sessionId,
-          status: 'failed',
+          status: task.status,
           agentId: task.agentId,
           error: task.error,
           elapsedTime,

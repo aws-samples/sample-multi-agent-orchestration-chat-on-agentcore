@@ -16,14 +16,18 @@ import { markActivity } from './last-activity.js';
 export interface ActiveTurn {
   requestId: string;
   startedAt: Date;
+  /** Verified userId of the caller who started the turn. */
+  owner?: string;
+  /** Present only once the turn has opted in to user stops. */
+  cancel?: AbortController;
 }
 
 const activeTurns = new Map<string, ActiveTurn>();
 
 /** @returns false when a turn is already running for the session. */
-export function tryBeginTurn(sessionId: string, requestId: string): boolean {
+export function tryBeginTurn(sessionId: string, requestId: string, owner?: string): boolean {
   if (activeTurns.has(sessionId)) return false;
-  activeTurns.set(sessionId, { requestId, startedAt: new Date() });
+  activeTurns.set(sessionId, { requestId, startedAt: new Date(), owner });
   markActivity();
   return true;
 }
@@ -35,6 +39,35 @@ export function endTurn(sessionId: string, requestId: string): void {
   // A turn can outlive its response (client disconnect), so its end is the
   // real start of idle time.
   markActivity();
+}
+
+/**
+ * Opt the turn in to `{ action: 'stop' }`. Workflow steps never call this:
+ * their outcome completes a durable callback, and they are stopped through
+ * the workflow's own cancel.
+ *
+ * @returns the signal to hand to `agent.stream`, or undefined when
+ *          `requestId` does not own the session's turn.
+ */
+export function makeTurnCancellable(sessionId: string, requestId: string): AbortSignal | undefined {
+  const turn = activeTurns.get(sessionId);
+  if (turn?.requestId !== requestId) return undefined;
+  turn.cancel ??= new AbortController();
+  return turn.cancel.signal;
+}
+
+/**
+ * Abort the session's running turn. AgentCore sessions are not bound to a
+ * user (any valid JWT can address any session id), so only the user who
+ * started the turn may stop it.
+ *
+ * @returns true when a stop was signalled.
+ */
+export function stopTurn(sessionId: string, userId: string): boolean {
+  const turn = activeTurns.get(sessionId);
+  if (!turn?.cancel || !turn.owner || turn.owner !== userId) return false;
+  turn.cancel.abort();
+  return true;
 }
 
 export function getActiveTurn(sessionId: string): ActiveTurn | undefined {

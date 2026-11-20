@@ -35,6 +35,8 @@ interface StreamingCallbacks {
   onToolInputUpdate?: (toolUseId: string, input: Record<string, unknown>) => void;
   onToolResult?: (toolResult: ToolResult) => void;
   onComplete?: (metadata: Record<string, unknown>) => void;
+  /** The turn was stopped by `stopAgentTurn`; the stream ends right after. */
+  onCancel?: () => void;
   onError?: (error: Error) => void;
   onWarning?: (warning: ServerWarning) => void;
   onTurnInProgress?: (turn: { startedAt: string }) => void;
@@ -221,6 +223,29 @@ export const streamAgentResponse = async (
   }
 };
 
+/**
+ * Ask the Runtime to stop the session's running turn. Aborting the streaming
+ * fetch would not do it: AgentCore keeps running a turn whose client went
+ * away. AgentCore routes this to the microVM running the turn, which answers
+ * at once; the turn itself ends with `serverCancelledEvent` (or, for a turn
+ * this tab is not streaming, AGENT_COMPLETE over AppSync).
+ *
+ * @returns whether a running turn was signalled
+ */
+export async function stopAgentTurn(sessionId: string): Promise<boolean> {
+  const response = await agentClient.invoke({
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-Amzn-Bedrock-AgentCore-Runtime-Session-Id': sessionId,
+    },
+    body: JSON.stringify({ action: 'stop' }),
+  });
+  if (!response.ok) throw new Error(`Stop failed: HTTP ${response.status}`);
+  const body = (await response.json()) as { stopped?: boolean };
+  return body.stopped === true;
+}
+
 const warmedSessionIds = new Set<string>();
 
 /**
@@ -392,6 +417,11 @@ const handleStreamEvent = (event: AgentStreamEvent, callbacks: StreamingCallback
       if (callbacks.onComplete) {
         callbacks.onComplete(completionEvent.metadata);
       }
+      break;
+    }
+
+    case 'serverCancelledEvent': {
+      callbacks.onCancel?.();
       break;
     }
 

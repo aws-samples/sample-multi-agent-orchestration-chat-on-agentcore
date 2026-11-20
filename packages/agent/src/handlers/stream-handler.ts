@@ -33,6 +33,8 @@ export interface StreamOptions {
    * thread it through (e.g. some tests) still type-check.
    */
   retryStrategy?: StreamTerminationRetryStrategy;
+  /** Aborted by a user stop (`{ action: 'stop' }`); see turn-registry. */
+  cancelSignal?: AbortSignal;
   /** Session storage (for saving error messages on stream failure) */
   sessionStorage?: SessionStorage;
   /** Session config (for saving error messages on stream failure) */
@@ -46,7 +48,7 @@ export interface StreamOptions {
  * server-side. A periodic no-op event keeps bytes flowing.
  */
 /** Whether the turn finished normally; errors were already reported to the client. */
-export type StreamOutcome = { ok: true } | { ok: false; error: string };
+export type StreamOutcome = { ok: true; cancelled?: boolean } | { ok: false; error: string };
 
 export const HEARTBEAT_INTERVAL_MS = 30_000;
 
@@ -70,11 +72,16 @@ function setStreamingHeaders(res: Response): void {
 /**
  * Send a completion event with metadata.
  */
-function sendCompletionEvent(res: Response, agent: Agent, options: StreamOptions): void {
+function sendCompletionEvent(
+  res: Response,
+  agent: Agent,
+  options: StreamOptions,
+  cancelled = false
+): void {
   const context = getCurrentContext();
   const contextMeta = getContextMetadata();
   const completionEvent = {
-    type: 'serverCompletionEvent',
+    type: cancelled ? 'serverCancelledEvent' : 'serverCompletionEvent',
     metadata: {
       requestId: context?.requestId,
       duration: contextMeta.duration,
@@ -210,11 +217,13 @@ export async function streamAgentResponse(
     // aggregator only works when the canonical
     // `POST → invoke_agent → execute_event_loop_cycle → chat` hierarchy
     // is preserved.
-    for await (const event of agent.stream(agentInput)) {
+    let cancelled = false;
+    for await (const event of agent.stream(agentInput, { cancelSignal: options.cancelSignal })) {
       const stopReason =
         (event as { type?: string; result?: { stopReason?: string } }).type === 'agentResultEvent'
           ? (event as { result?: { stopReason?: string } }).result?.stopReason
           : undefined;
+      if (stopReason === 'cancelled') cancelled = true;
       if (stopReason && USER_VISIBLE_STOP_REASONS.has(stopReason)) {
         logger.warn({ requestId, stopReason }, 'Turn ended by the model without an answer');
         writeEvent({
@@ -230,6 +239,15 @@ export async function streamAgentResponse(
       for (const safeEvent of safeEvents) {
         res.write(`${JSON.stringify(safeEvent)}\n`);
       }
+    }
+
+    if (cancelled) {
+      // Not an error: the SDK has already closed the history with a
+      // "Cancelled by user" assistant message, so the next turn can resume.
+      logger.info({ requestId }, 'Agent turn cancelled by user');
+      sendCompletionEvent(res, agent, options, true);
+      res.end();
+      return { ok: true, cancelled: true };
     }
 
     logger.info({ requestId }, 'Agent streaming completed:');
