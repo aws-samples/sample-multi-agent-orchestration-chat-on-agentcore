@@ -2,18 +2,26 @@ import { useTranslation } from 'react-i18next';
 import { PanelRight } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { useFilePreviewStore } from '../../stores/filePreviewStore';
+import {
+  useFilePreviewAvailable,
+  useFilePreviewDockVisible,
+} from '../../hooks/useFilePreviewAvailable';
 
 export function FilePreviewToggle() {
   const { t } = useTranslation();
-  const isOpen = useFilePreviewStore((s) => s.isOpen);
+  const isOpen = useFilePreviewDockVisible();
   const hasFile = useFilePreviewStore((s) => s.path !== null);
-  const toggle = useFilePreviewStore((s) => s.toggle);
+  const show = useFilePreviewStore((s) => s.show);
+  const close = useFilePreviewStore((s) => s.close);
+  const available = useFilePreviewAvailable();
   const label = isOpen ? t('chat.filePreview.hide') : t('chat.filePreview.show');
+
+  if (!available) return null;
 
   return (
     <button
       type="button"
-      onClick={toggle}
+      onClick={isOpen ? close : show}
       title={label}
       aria-label={label}
       aria-pressed={isOpen}

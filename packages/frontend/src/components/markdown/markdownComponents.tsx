@@ -12,10 +12,7 @@ import { MermaidDiagram } from '../MermaidDiagram';
 import { S3FileLink } from '../S3FileLink';
 import { S3Image } from '../S3Image';
 import { S3Video } from '../S3Video';
-
-/** Absolute user-storage path (not protocol-relative, not the same-origin API). */
-export const isStoragePath = (href: string): boolean =>
-  href.startsWith('/') && !href.startsWith('//') && !href.startsWith('/api/');
+import { isStoragePath } from '../../utils/storagePath';
 
 /**
  * Resolves Markdown links/images against the file's folder so `![](./a.png)`

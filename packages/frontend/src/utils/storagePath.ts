@@ -8,3 +8,7 @@ export function storageDirname(path: string): string {
   const i = path.lastIndexOf('/');
   return i > 0 ? path.slice(0, i) : '/';
 }
+
+/** Absolute user-storage path (not protocol-relative, not the same-origin API). */
+export const isStoragePath = (href: string): boolean =>
+  href.startsWith('/') && !href.startsWith('//') && !href.startsWith('/api/');

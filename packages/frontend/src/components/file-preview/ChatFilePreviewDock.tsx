@@ -7,6 +7,7 @@ import { PanelRight, X } from 'lucide-react';
 import type { StorageItem } from '../../api/storage';
 import { cn } from '../../lib/utils';
 import { useFilePreviewStore } from '../../stores/filePreviewStore';
+import { useFilePreviewDockVisible } from '../../hooks/useFilePreviewAvailable';
 import { useUIStore } from '../../stores/uiStore';
 import { IconButton } from '../ui/Button';
 import { FilePreviewBody } from '../storage/preview/FilePreviewBody';
@@ -38,7 +39,7 @@ interface ChatFilePreviewDockProps {
 
 export function ChatFilePreviewDock({ chatColumnRef }: ChatFilePreviewDockProps) {
   const { t } = useTranslation();
-  const isOpen = useFilePreviewStore((s) => s.isOpen);
+  const isOpen = useFilePreviewDockVisible();
   const path = useFilePreviewStore((s) => s.path);
   const close = useFilePreviewStore((s) => s.close);
   const openFile = useFilePreviewStore((s) => s.open);
