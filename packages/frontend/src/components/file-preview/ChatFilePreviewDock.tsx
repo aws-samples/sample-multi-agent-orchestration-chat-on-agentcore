@@ -7,7 +7,7 @@ import { PanelRight, X } from 'lucide-react';
 import type { StorageItem } from '../../api/storage';
 import { cn } from '../../lib/utils';
 import { useFilePreviewStore } from '../../stores/filePreviewStore';
-import { useFilePreviewAvailable } from '../../hooks/useFilePreviewAvailable';
+import { useFilePreviewDockVisible } from '../../hooks/useFilePreviewAvailable';
 import { useUIStore } from '../../stores/uiStore';
 import { IconButton } from '../ui/Button';
 import { FilePreviewBody } from '../storage/preview/FilePreviewBody';
@@ -39,17 +39,15 @@ interface ChatFilePreviewDockProps {
 
 export function ChatFilePreviewDock({ chatColumnRef }: ChatFilePreviewDockProps) {
   const { t } = useTranslation();
-  const isOpen = useFilePreviewStore((s) => s.isOpen);
+  const isOpen = useFilePreviewDockVisible();
   const path = useFilePreviewStore((s) => s.path);
   const close = useFilePreviewStore((s) => s.close);
   const openFile = useFilePreviewStore((s) => s.open);
   const isMobileView = useUIStore((s) => s.isMobileView);
-  const available = useFilePreviewAvailable();
-  const emptyRequested = useFilePreviewStore((s) => s.emptyRequested);
   const pane = useResizablePane(chatColumnRef, PANE_OPTIONS);
   const item = useMemo(() => (path ? toItem(path) : null), [path]);
 
-  if (!isOpen || !(path || (emptyRequested && available))) return null;
+  if (!isOpen) return null;
 
   return (
     <aside

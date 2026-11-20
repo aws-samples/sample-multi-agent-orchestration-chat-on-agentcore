@@ -22,3 +22,15 @@ export function useFilePreviewAvailable(): boolean {
   );
   return hasFile || hasLinks;
 }
+
+/**
+ * Whether the dock is on screen. Not just `isOpen`: that is a persisted
+ * preference, and toggling it while the dock is hidden would look like a
+ * no-op click.
+ */
+export function useFilePreviewDockVisible(): boolean {
+  const available = useFilePreviewAvailable();
+  return useFilePreviewStore(
+    (s) => s.isOpen && (s.path !== null || (s.emptyRequested && available))
+  );
+}

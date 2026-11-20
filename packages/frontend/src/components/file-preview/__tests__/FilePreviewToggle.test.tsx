@@ -79,6 +79,18 @@ describe('file preview toggle and dock visibility', () => {
     expect(dock()).toBeInTheDocument();
   });
 
+  it('opens the hidden dock on the first click even when the saved preference is "open"', () => {
+    useFilePreviewStore.setState({ isOpen: true });
+    showMessages('Saved to [report](/docs/report.md).');
+    renderChrome();
+
+    fireEvent.click(toggle()!);
+    expect(dock()).toBeInTheDocument();
+
+    fireEvent.click(toggle()!);
+    expect(dock()).not.toBeInTheDocument();
+  });
+
   it('shows the dock with a loaded file', () => {
     renderChrome();
     act(() => useFilePreviewStore.getState().open('/docs/report.md'));

@@ -14,7 +14,8 @@ interface FilePreviewState {
   emptyRequested: boolean;
   /** Shows `path` in the dock, opening it if hidden. */
   open: (path: string) => void;
-  toggle: () => void;
+  /** Shows the dock, with the empty state if no file is loaded. */
+  show: () => void;
   close: () => void;
   /** Forgets the file (e.g. on session switch) without changing visibility. */
   clearFile: () => void;
@@ -28,7 +29,7 @@ export const useFilePreviewStore = create<FilePreviewState>()(
         path: null,
         emptyRequested: false,
         open: (path) => set({ isOpen: true, path }),
-        toggle: () => set((s) => ({ isOpen: !s.isOpen, emptyRequested: !s.isOpen })),
+        show: () => set({ isOpen: true, emptyRequested: true }),
         close: () => set({ isOpen: false, emptyRequested: false }),
         clearFile: () => set({ path: null, emptyRequested: false }),
       }),
