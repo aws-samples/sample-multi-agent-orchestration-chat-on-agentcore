@@ -1,7 +1,8 @@
 import { useTranslation } from 'react-i18next';
 import { PanelRight } from 'lucide-react';
 import { cn } from '../../lib/utils';
-import { useFilePreviewAvailable, useFilePreviewStore } from '../../stores/filePreviewStore';
+import { useFilePreviewStore } from '../../stores/filePreviewStore';
+import { useFilePreviewAvailable } from '../../hooks/useFilePreviewAvailable';
 
 export function FilePreviewToggle() {
   const { t } = useTranslation();

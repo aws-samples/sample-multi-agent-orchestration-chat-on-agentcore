@@ -6,10 +6,12 @@ interface FilePreviewState {
   isOpen: boolean;
   /** Storage path shown in the dock; null shows the empty state. */
   path: string | null;
-  /** In-app file links currently rendered (S3FileLink with onOpen). */
-  linkCount: number;
-  /** Counts a rendered file link; returns the matching unregister. */
-  registerLink: () => () => void;
+  /**
+   * The user opened the dock with no file in it. Only then is the empty state
+   * shown: a persisted "open" alone would pop an empty dock over the chat the
+   * moment the first file link streams in.
+   */
+  emptyRequested: boolean;
   /** Shows `path` in the dock, opening it if hidden. */
   open: (path: string) => void;
   toggle: () => void;
@@ -24,15 +26,11 @@ export const useFilePreviewStore = create<FilePreviewState>()(
       (set) => ({
         isOpen: false,
         path: null,
-        linkCount: 0,
-        registerLink: () => {
-          set((s) => ({ linkCount: s.linkCount + 1 }));
-          return () => set((s) => ({ linkCount: s.linkCount - 1 }));
-        },
+        emptyRequested: false,
         open: (path) => set({ isOpen: true, path }),
-        toggle: () => set((s) => ({ isOpen: !s.isOpen })),
-        close: () => set({ isOpen: false }),
-        clearFile: () => set({ path: null }),
+        toggle: () => set((s) => ({ isOpen: !s.isOpen, emptyRequested: !s.isOpen })),
+        close: () => set({ isOpen: false, emptyRequested: false }),
+        clearFile: () => set({ path: null, emptyRequested: false }),
       }),
       {
         name: 'file-preview-storage',
@@ -42,12 +40,3 @@ export const useFilePreviewStore = create<FilePreviewState>()(
     { name: 'file-preview-store' }
   )
 );
-
-/**
- * Whether the dock has anything to show: a file is loaded, or the conversation
- * links to one. Without this the toggle and an empty dock (the open state is
- * a persisted preference) appear in chats that never mention a file.
- */
-export function useFilePreviewAvailable(): boolean {
-  return useFilePreviewStore((s) => s.path !== null || s.linkCount > 0);
-}

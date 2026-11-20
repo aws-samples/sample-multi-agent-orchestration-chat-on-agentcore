@@ -1,62 +1,96 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, act } from '@testing-library/react';
+import { render, screen, act, fireEvent } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import { FilePreviewToggle } from '../FilePreviewToggle';
-import { S3FileLink } from '../../S3FileLink';
+import { ChatFilePreviewDock } from '../ChatFilePreviewDock';
 import { useFilePreviewStore } from '../../../stores/filePreviewStore';
+import { useChatStore } from '../../../stores/chatStore';
+import type { Message } from '../../../types/index';
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({ t: (key: string) => key }),
 }));
-vi.mock('../../../api/storage', () => ({ generateDownloadUrl: vi.fn() }));
+vi.mock('../../../i18n', () => ({ default: { t: (key: string) => key } }));
+// The dock body renders real previews; only whether the dock shows matters here.
+vi.mock('../../storage/preview/FilePreviewBody', () => ({ FilePreviewBody: () => null }));
+vi.mock('../../storage/preview/PreviewHeader', () => ({ PreviewHeader: () => null }));
+
+const SESSION = 'session-1';
+
+function showMessages(...texts: string[]) {
+  const messages: Message[] = texts.map((text, i) => ({
+    id: `m${i}`,
+    type: 'assistant',
+    contents: [{ type: 'text', text }],
+    timestamp: new Date(),
+  }));
+  act(() =>
+    useChatStore.setState({
+      activeSessionId: SESSION,
+      sessions: { [SESSION]: { messages, isLoading: false, error: null, lastUpdated: new Date() } },
+    })
+  );
+}
+
+function renderChrome() {
+  const ref = { current: null };
+  return render(
+    <>
+      <FilePreviewToggle />
+      <ChatFilePreviewDock chatColumnRef={ref} />
+    </>
+  );
+}
+
+const toggle = () => screen.queryByRole('button', { name: /chat\.filePreview\.(show|hide)/ });
+const dock = () => screen.queryByRole('complementary');
 
 beforeEach(() => {
-  useFilePreviewStore.setState({ isOpen: false, path: null, linkCount: 0 });
+  useFilePreviewStore.setState({ isOpen: false, path: null, emptyRequested: false });
+  useChatStore.setState({ activeSessionId: null, sessions: {} });
 });
 
-const toggle = () => screen.queryByRole('button', { name: /chat\.filePreview\./ });
-
-describe('FilePreviewToggle visibility', () => {
-  it('is hidden in a conversation without file links', () => {
-    render(<FilePreviewToggle />);
-    expect(toggle()).not.toBeInTheDocument();
-  });
-
-  it('is hidden even when the dock preference is open', () => {
+describe('file preview toggle and dock visibility', () => {
+  it('shows neither in a conversation without file links, even if the dock was left open', () => {
     useFilePreviewStore.setState({ isOpen: true });
-    render(<FilePreviewToggle />);
+    showMessages('no files here, see [docs](https://example.com)');
+    renderChrome();
+
     expect(toggle()).not.toBeInTheDocument();
+    expect(dock()).not.toBeInTheDocument();
   });
 
-  it('appears while an in-app file link is rendered and goes away with it', () => {
-    const { rerender } = render(
-      <>
-        <FilePreviewToggle />
-        <S3FileLink path="/docs/report.md" onOpen={vi.fn()}>
-          report.md
-        </S3FileLink>
-      </>
-    );
+  it('shows the toggle once the conversation links a file, without popping open an empty dock', () => {
+    useFilePreviewStore.setState({ isOpen: true }); // persisted preference
+    renderChrome();
+    showMessages('Saved to [report](/docs/report.md).');
+
     expect(toggle()).toBeInTheDocument();
-
-    rerender(<FilePreviewToggle />);
-    expect(toggle()).not.toBeInTheDocument();
+    expect(dock()).not.toBeInTheDocument();
   });
 
-  it('does not count links that open outside the app', () => {
-    render(
-      <>
-        <FilePreviewToggle />
-        <S3FileLink path="/docs/report.md">report.md</S3FileLink>
-      </>
-    );
-    expect(toggle()).not.toBeInTheDocument();
+  it('opens the empty dock when the user asks for it', () => {
+    showMessages('Saved to [report](/docs/report.md).');
+    renderChrome();
+
+    fireEvent.click(toggle()!);
+
+    expect(dock()).toBeInTheDocument();
   });
 
-  it('stays while a file is loaded in the dock', () => {
-    render(<FilePreviewToggle />);
-    act(() => useFilePreviewStore.setState({ path: '/docs/report.md' }));
+  it('shows the dock with a loaded file', () => {
+    renderChrome();
+    act(() => useFilePreviewStore.getState().open('/docs/report.md'));
+
     expect(toggle()).toBeInTheDocument();
+    expect(dock()).toBeInTheDocument();
+  });
+
+  it('ignores video links, which play inline instead of opening the dock', () => {
+    showMessages('[clip](/videos/demo.mp4)');
+    renderChrome();
+
+    expect(toggle()).not.toBeInTheDocument();
   });
 });

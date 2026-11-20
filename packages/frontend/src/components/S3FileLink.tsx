@@ -6,7 +6,6 @@ import { downloadWithAsyncUrl } from '../utils/download';
 import { logger } from '../utils/logger';
 import { canOpenInNewTab } from '../api/storageFileActions';
 import { storageBasename } from '../utils/storagePath';
-import { useFilePreviewStore } from '../stores/filePreviewStore';
 
 interface S3FileLinkProps {
   path: string;
@@ -71,10 +70,6 @@ export const S3FileLink: React.FC<S3FileLinkProps> = ({ path, children, onOpen }
   // The link opens in a new tab, so viewable types get an inline URL; the
   // rest (zip, docx…) keep the attachment URL and download.
   const inline = canOpenInNewTab(fileName);
-
-  const registerLink = useFilePreviewStore((s) => s.registerLink);
-  const opensInApp = !!onOpen;
-  useEffect(() => (opensInApp ? registerLink() : undefined), [opensInApp, registerLink]);
 
   // Pre-fetch presigned URL on mount + refresh periodically before expiry.
   //
