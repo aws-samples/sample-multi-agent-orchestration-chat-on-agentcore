@@ -10,19 +10,22 @@ import type {
   ToolResult,
   ImageAttachment,
 } from '../types/index';
-import { streamAgentResponse } from '../api/agent';
+import { stopAgentTurn, streamAgentResponse } from '../api/agent';
 import type { ConversationMessage } from '../api/sessions';
 import { useAgentStore } from './agentStore';
 import { useStorageStore } from './storageStore';
 import { useSessionStore } from './sessionStore';
 import { useMemoryStore } from './memoryStore';
 import { useSettingsStore } from './settingsStore';
+import { useWorkflowStore } from './workflowStore';
 import { logger } from '../utils/logger';
 import { StreamDisconnectedError } from '../utils/stream-idle-watchdog';
 import { isTurnRunning } from '../utils/turn-status';
 import toast from 'react-hot-toast';
 import i18n from '../i18n';
 import { mergeToolTurnMessages } from '../utils/tool-steps';
+import { extractSessionWorkflowIds } from '../utils/session-workflows';
+import { isTerminalWorkflowStatus } from '../types/workflow';
 
 // Helper function: Convert image to Base64
 const convertImageToBase64 = (file: File): Promise<string> => {
@@ -126,6 +129,13 @@ interface ChatActions {
   addMessage: (sessionId: string, message: Omit<Message, 'id' | 'timestamp'>) => string;
   updateMessage: (sessionId: string, messageId: string, updates: Partial<Message>) => void;
   sendPrompt: (prompt: string, sessionId: string, images?: ImageAttachment[]) => Promise<void>;
+  /**
+   * Stop the session's running turn and the workflows it started. The turn
+   * settles through its own stream (or AGENT_COMPLETE), not here.
+   *
+   * @returns whether the Runtime found a running turn to stop
+   */
+  stopPrompt: (sessionId: string) => Promise<boolean>;
   clearSession: (sessionId: string) => void;
   setLoading: (sessionId: string, loading: boolean) => void;
   /**
@@ -544,6 +554,31 @@ export const useChatStore = create<ChatStore>()(
                   useSessionStore.getState().refreshSessions();
                 }
               },
+              onCancel: () => {
+                const current = get().sessions[sessionId]?.messages.find(
+                  (msg) => msg.id === assistantMessageId
+                );
+                updateMessage(sessionId, assistantMessageId, {
+                  contents: [
+                    ...(current?.contents ?? []),
+                    { type: 'text', text: `_${i18n.t('chat.generationStopped')}_` },
+                  ],
+                  isStreaming: false,
+                });
+                // Re-read after updateMessage, or the notice is overwritten.
+                const { sessions, lastStreamCompletedAt } = get();
+                set({
+                  sessions: {
+                    ...sessions,
+                    [sessionId]: {
+                      ...(sessions[sessionId] || createDefaultSessionState()),
+                      isLoading: false,
+                    },
+                  },
+                  lastStreamCompletedAt: { ...lastStreamCompletedAt, [sessionId]: Date.now() },
+                });
+                if (isNewSession) useSessionStore.getState().refreshSessions();
+              },
               onTurnInProgress: (turn) => {
                 // The runtime refused this prompt: a turn started elsewhere
                 // (or before a reload) is still running. Drop the optimistic
@@ -702,6 +737,20 @@ export const useChatStore = create<ChatStore>()(
             },
           });
         }
+      },
+
+      stopPrompt: async (sessionId: string) => {
+        const messages = get().sessions[sessionId]?.messages ?? [];
+        const workflowStore = useWorkflowStore.getState();
+        for (const workflowId of extractSessionWorkflowIds(messages)) {
+          const known = workflowStore.workflows[workflowId]?.data;
+          if (known && (isTerminalWorkflowStatus(known.status) || known.cancelRequested)) continue;
+          // Idempotent on the Backend for a workflow that already ended.
+          workflowStore.cancel(workflowId).catch((error) => {
+            logger.warn(`[chatStore] cancelling workflow ${workflowId} failed:`, error);
+          });
+        }
+        return stopAgentTurn(sessionId);
       },
 
       clearSession: (sessionId: string) => {

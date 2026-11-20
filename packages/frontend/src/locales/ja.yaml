@@ -205,6 +205,9 @@ chat:
   typingMessage: メッセージを入力...
   thinking: 考え中...
   stopGenerating: 生成を停止
+  stopping: 停止中...
+  generationStopped: 生成を停止しました
+  stopFailed: 停止できませんでした。もう一度お試しください。
   selectAgent: エージェントを選択
   changeAgent: エージェントを変更
   toggleWideView: 画面幅を切り替え

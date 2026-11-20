@@ -11,4 +11,5 @@ export { identityResolverMiddleware } from './identity-resolver.js';
 export { errorHandlerMiddleware, notFoundMiddleware } from './error-handler.js';
 export { trackInFlightMiddleware } from './track-in-flight.js';
 export { renewTokensMiddleware } from './renew-tokens.js';
+export { stopTurnMiddleware } from './stop-turn.js';
 export { warmupMiddleware } from './warmup.js';

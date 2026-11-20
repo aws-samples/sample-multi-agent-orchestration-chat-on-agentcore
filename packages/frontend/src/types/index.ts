@@ -243,6 +243,12 @@ export interface ServerWarningEvent extends AgentStreamEvent {
   warning: ServerWarning;
 }
 
+/** The turn was stopped by the user; same metadata as a completion. */
+export interface ServerCancelledEvent extends AgentStreamEvent {
+  type: 'serverCancelledEvent';
+  metadata: ServerCompletionEvent['metadata'];
+}
+
 /** The session already has a turn running; this prompt was not processed. */
 export interface ServerTurnInProgressEvent extends AgentStreamEvent {
   type: 'serverTurnInProgressEvent';

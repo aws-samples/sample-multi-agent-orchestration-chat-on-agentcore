@@ -34,7 +34,7 @@ import type { CreateAgentOptions } from '../types/agent-types.js';
 /**
  * Task status
  */
-export type TaskStatus = 'pending' | 'running' | 'completed' | 'failed';
+export type TaskStatus = 'pending' | 'running' | 'completed' | 'failed' | 'cancelled';
 
 /**
  * Sub-agent task definition
@@ -68,6 +68,8 @@ export interface SubAgentTask {
   /** Parent Runtime session whose token renewals the task follows */
   tokenSessionId?: SessionId;
   tokenOwner?: string;
+  /** Lives only while the task runs; fed to `agent.invoke` as `cancelSignal`. */
+  abortController?: AbortController;
 }
 
 /**
@@ -158,6 +160,7 @@ class SubAgentTaskManager {
       idToken,
       tokenSessionId,
       tokenOwner,
+      abortController: new AbortController(),
     };
 
     this.tasks.set(taskId, task);
@@ -342,8 +345,14 @@ class SubAgentTaskManager {
 
       this.updateTaskStatus(taskId, 'running', 'Executing query...');
 
-      // Execute query
-      const result = await agent.invoke(task.query);
+      const result = await agent.invoke(task.query, {
+        cancelSignal: task.abortController?.signal,
+      });
+      if (result.stopReason === 'cancelled') {
+        this.updateTaskStatus(taskId, 'cancelled', undefined, 'Cancelled by user');
+        logger.info({ taskId, agentId: task.agentId }, 'Sub-agent task cancelled:');
+        return;
+      }
 
       // Update to completed
       this.updateTaskStatus(taskId, 'completed', String(result));
@@ -397,6 +406,30 @@ class SubAgentTaskManager {
   }
 
   /**
+   * Stop every unsettled task the session started. Cooperative: each task
+   * stops at its agent's next checkpoint and then turns 'cancelled'.
+   *
+   * @param userId only tasks started by this user are stopped
+   * @returns the number of tasks signalled
+   */
+  cancelTasksByParentSession(parentSessionId: string, userId: string): number {
+    let count = 0;
+    for (const task of this.tasks.values()) {
+      if (
+        task.parentSessionId === parentSessionId &&
+        task.userId === userId &&
+        (task.status === 'pending' || task.status === 'running') &&
+        task.abortController &&
+        !task.abortController.signal.aborted
+      ) {
+        task.abortController.abort();
+        count++;
+      }
+    }
+    return count;
+  }
+
+  /**
    * Get task by ID
    */
   async getTask(taskId: string): Promise<SubAgentTask | null> {
@@ -412,7 +445,10 @@ class SubAgentTaskManager {
 
     for (const [taskId, task] of this.tasks.entries()) {
       const age = now - task.createdAt;
-      if (age > this.TASK_EXPIRATION_MS && ['completed', 'failed'].includes(task.status)) {
+      if (
+        age > this.TASK_EXPIRATION_MS &&
+        ['completed', 'failed', 'cancelled'].includes(task.status)
+      ) {
         this.tasks.delete(taskId);
         cleanedCount++;
       }
@@ -432,6 +468,7 @@ class SubAgentTaskManager {
     running: number;
     completed: number;
     failed: number;
+    cancelled: number;
   } {
     const tasks = Array.from(this.tasks.values());
     return {
@@ -440,6 +477,7 @@ class SubAgentTaskManager {
       running: tasks.filter((t) => t.status === 'running').length,
       completed: tasks.filter((t) => t.status === 'completed').length,
       failed: tasks.filter((t) => t.status === 'failed').length,
+      cancelled: tasks.filter((t) => t.status === 'cancelled').length,
     };
   }
 }

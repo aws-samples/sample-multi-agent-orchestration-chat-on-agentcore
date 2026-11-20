@@ -10,6 +10,7 @@
  *   cors → json
  *     → requestContextMiddleware   (AsyncLocalStorage-backed ctx)
  *     → authResolverMiddleware     (enrich ctx.userId / storagePath)
+ *     → stopTurnMiddleware         (`{ action: 'stop' }` → cancel the owner's running turn)
  *     → identityResolverMiddleware (UserId → IdentityId exchange)
  *     → warmupMiddleware           (`{ warmup: true }` → 200 + workspace prefetch, no agent work)
  *     → validateInvocationMiddleware
@@ -38,6 +39,7 @@ import {
   notFoundMiddleware,
   trackInFlightMiddleware,
   renewTokensMiddleware,
+  stopTurnMiddleware,
   warmupMiddleware,
 } from './libs/middleware/index.js';
 import { handleInvocation, handlePing, handleRoot } from './handlers/index.js';
@@ -64,6 +66,7 @@ export function createApp(): Express {
   //                          (+ records the tokens as freshest for the session)
   //   renewTokens        → `{ action: 'renewTokens' }` side channel; answers here
   //   authResolver       → resolves branded UserId, enriches ctx.userId
+  //   stopTurn           → `{ action: 'stop' }` side channel; answers here
   //   identityResolver   → exchanges UserId → IdentityId, caches on ctx
   //   warmup             → `{ warmup: true }` → 200 { status: 'warm' } (+ workspace prefetch)
   //   validateInvocation → prompt / images → 400 on failure
@@ -78,6 +81,7 @@ export function createApp(): Express {
     requestContextMiddleware,
     renewTokensMiddleware,
     authResolverMiddleware,
+    stopTurnMiddleware,
     identityResolverMiddleware,
     warmupMiddleware,
     validateInvocationMiddleware,

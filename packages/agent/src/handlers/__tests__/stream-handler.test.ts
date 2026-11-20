@@ -432,4 +432,29 @@ describe('streamAgentResponse', () => {
       ).toBe(false);
     });
   });
+
+  describe('user stop', () => {
+    it('hands the cancel signal to agent.stream', async () => {
+      const agent = createMockAgent();
+      const controller = new AbortController();
+      await streamAgentResponse(agent, 'Hello', undefined, res, {
+        ...defaultOptions,
+        cancelSignal: controller.signal,
+      });
+      expect(agent.stream).toHaveBeenCalledWith('Hello', { cancelSignal: controller.signal });
+    });
+
+    it('ends a cancelled turn with serverCancelledEvent, not completion or error', async () => {
+      const agent = createMockAgent([
+        { type: 'agentResultEvent', result: { stopReason: 'cancelled' } },
+      ]);
+      const outcome = await streamAgentResponse(agent, 'Hello', undefined, res, defaultOptions);
+      const types = res.write.mock.calls.map((c: unknown[]) => JSON.parse(String(c[0])).type);
+      expect(types).toContain('serverCancelledEvent');
+      expect(types).not.toContain('serverCompletionEvent');
+      expect(types).not.toContain('serverErrorEvent');
+      expect(res.end).toHaveBeenCalled();
+      expect(outcome).toEqual({ ok: true, cancelled: true });
+    });
+  });
 });
