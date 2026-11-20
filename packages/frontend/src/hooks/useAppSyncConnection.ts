@@ -11,7 +11,7 @@
  *
  * The shared connection is managed by appsyncConnectionStore, which handles:
  * - Single WebSocket connection for all subscriptions
- * - Automatic reconnection with exponential backoff
+ * - Automatic reconnection with exponential backoff (and immediately on page wake)
  * - Re-subscription after reconnection
  */
 import { useEffect } from 'react';
@@ -20,6 +20,7 @@ import {
   useAppSyncConnectionStore,
   useAppSyncConnectionState,
 } from '../stores/appsyncConnectionStore';
+import { onPageWake } from '../utils/page-wake';
 
 /**
  * Initialize and manage the shared AppSync WebSocket connection.
@@ -57,6 +58,8 @@ export function useAppSyncConnection() {
      */
     return () => {};
   }, [user?.userId, connect, disconnect]);
+
+  useEffect(() => onPageWake(() => useAppSyncConnectionStore.getState().wake()), []);
 
   return connectionState;
 }

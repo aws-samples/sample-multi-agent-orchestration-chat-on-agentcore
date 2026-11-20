@@ -65,3 +65,37 @@ describe('chatStore.setRemoteTurnRunning', () => {
     expect(useChatStore.getState().sessions[SESSION_ID]?.isLoading).toBe(true);
   });
 });
+
+describe('chatStore.loadSessionHistory', () => {
+  const history = [
+    {
+      id: 'ev-1',
+      type: 'user' as const,
+      contents: [{ type: 'text' as const, text: 'build it' }],
+      timestamp: '2026-11-01T00:00:00.000Z',
+    },
+  ];
+
+  it('keeps the running state set before the history response landed (#157)', () => {
+    const chat = useChatStore.getState();
+    chat.switchSession(SESSION_ID);
+    chat.setRemoteTurnRunning(SESSION_ID, true);
+
+    chat.loadSessionHistory(SESSION_ID, history);
+
+    const state = useChatStore.getState().sessions[SESSION_ID];
+    expect(state?.isLoading).toBe(true);
+    expect(state?.messages.map((m) => m.id)).toEqual(['ev-1']);
+  });
+
+  it('does not replace a reply this tab is streaming', () => {
+    const chat = useChatStore.getState();
+    chat.addMessage(SESSION_ID, { type: 'assistant', contents: [], isStreaming: true });
+
+    chat.loadSessionHistory(SESSION_ID, history);
+
+    const messages = useChatStore.getState().sessions[SESSION_ID]?.messages;
+    expect(messages).toHaveLength(1);
+    expect(messages?.[0].isStreaming).toBe(true);
+  });
+});

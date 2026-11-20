@@ -30,9 +30,29 @@ import type { AppSyncMessage } from '../types/appsync';
 import { logger } from '../utils/logger';
 
 /**
- * Maximum number of reconnection attempts
+ * Used until connection_ack tells us the server's value.
  */
-const MAX_RECONNECT_ATTEMPTS = 5;
+const DEFAULT_CONNECTION_TIMEOUT_MS = 300_000;
+
+/**
+ * On wake, a socket that has received nothing (not even a `ka`, sent about
+ * once a minute) for this long is treated as dead. iOS resumes suspended PWAs
+ * with sockets that still report OPEN but never deliver again, and the
+ * keep-alive watchdog's timer was frozen with the page.
+ */
+export const WAKE_STALE_AFTER_MS = 90_000;
+
+/**
+ * Wake handlers run before the browser delivers frames queued while frozen;
+ * a live socket gets this long to show it is alive before being replaced.
+ */
+export const WAKE_RECHECK_MS = 3_000;
+
+/**
+ * A handshake frozen mid-way may never fire onopen/onerror/onclose, and
+ * _isConnecting would then block every later connect().
+ */
+export const CONNECT_TIMEOUT_MS = 15_000;
 
 /**
  * Subscription handler type - callback function to process incoming events
@@ -51,10 +71,21 @@ interface AppSyncConnectionState {
   // Internal refs (not reactive - prefixed with _ to indicate internal use)
   _ws: WebSocket | null;
   _reconnectTimeout: ReturnType<typeof setTimeout> | null;
+  /** Keep-alive watchdog; until connection_ack, the connect timeout. */
   _keepAliveTimeout: ReturnType<typeof setTimeout> | null;
+  _wakeCheckTimeout: ReturnType<typeof setTimeout> | null;
+  _connectionTimeoutMs: number;
+  _lastMessageAt: number;
   _reconnectAttempts: number;
   _isConnecting: boolean;
   _subscriptionHandlers: Map<string, SubscriptionHandler>;
+
+  /**
+   * Called on every subscribe_success, including re-subscribes after a
+   * reconnect: events published while the channel was down are not replayed,
+   * so this is where subscribers catch up.
+   */
+  _subscribedCallbacks: Map<string, () => void>;
 
   /**
    * WHY: _channelMap stores subscriptionId → channel path mapping
@@ -78,14 +109,38 @@ interface AppSyncConnectionState {
    * 2. Between sending 'subscribe' and receiving 'subscribe_success', the subscription is "pending"
    * 3. Multiple React renders or reconnection logic might try to subscribe again
    * 4. By checking this Set, we skip subscriptions that are already in-flight
+   *
+   * Pending state belongs to one socket: it is cleared whenever the socket goes
+   * away, otherwise a subscribe sent on a dying socket is never re-sent.
    */
   _pendingSubscriptions: Set<string>;
 
   // Actions
   connect: () => void;
   disconnect: () => void;
-  subscribe: (channel: string, subscriptionId: string, handler: SubscriptionHandler) => void;
+  /**
+   * The page woke up (visible / pageshow / online): reconnect now instead of
+   * waiting for the backoff, and replace a socket that has gone silent.
+   */
+  wake: () => void;
+  subscribe: (
+    channel: string,
+    subscriptionId: string,
+    handler: SubscriptionHandler,
+    onSubscribed?: () => void
+  ) => void;
   unsubscribe: (subscriptionId: string) => void;
+
+  _armKeepAlive: () => void;
+  _dropConnection: (reason: string) => void;
+  _scheduleReconnect: () => void;
+}
+
+function detach(ws: WebSocket): void {
+  ws.onopen = null;
+  ws.onmessage = null;
+  ws.onerror = null;
+  ws.onclose = null;
 }
 
 /**
@@ -102,9 +157,13 @@ export const useAppSyncConnectionStore = create<AppSyncConnectionState>()(
     _ws: null,
     _reconnectTimeout: null,
     _keepAliveTimeout: null,
+    _wakeCheckTimeout: null,
+    _connectionTimeoutMs: DEFAULT_CONNECTION_TIMEOUT_MS,
+    _lastMessageAt: 0,
     _reconnectAttempts: 0,
     _isConnecting: false,
     _subscriptionHandlers: new Map(),
+    _subscribedCallbacks: new Map(),
     _channelMap: new Map(),
     _pendingSubscriptions: new Set(),
 
@@ -167,6 +226,7 @@ export const useAppSyncConnectionStore = create<AppSyncConnectionState>()(
       } catch (err) {
         logger.log('No auth token available, skipping', err);
         set({ _isConnecting: false });
+        get()._scheduleReconnect();
         return;
       }
       const userId = useAuthStore.getState().user?.userId;
@@ -177,9 +237,22 @@ export const useAppSyncConnectionStore = create<AppSyncConnectionState>()(
         return;
       }
 
-      // Close existing connection if any
-      if (state._ws) {
-        state._ws.close(1000, 'Reconnecting');
+      // Close existing connection if any. Detached, its onclose will not run,
+      // so drop its per-socket state here: a pending subscribe left behind
+      // would be skipped by the new socket's re-subscribe.
+      const previous = get()._ws;
+      if (previous) {
+        detach(previous);
+        previous.close(1000, 'Reconnecting');
+        const { _keepAliveTimeout } = get();
+        if (_keepAliveTimeout) clearTimeout(_keepAliveTimeout);
+        set({
+          _ws: null,
+          isConnected: false,
+          isConnectionAcknowledged: false,
+          _keepAliveTimeout: null,
+          _pendingSubscriptions: new Set(),
+        });
       }
 
       try {
@@ -195,8 +268,8 @@ export const useAppSyncConnectionStore = create<AppSyncConnectionState>()(
           logger.log('WebSocket connected');
           set({
             _ws: ws,
-            _reconnectAttempts: 0,
             _isConnecting: false,
+            _lastMessageAt: Date.now(),
             isConnected: true,
             httpHost: newHttpHost,
           });
@@ -206,7 +279,9 @@ export const useAppSyncConnectionStore = create<AppSyncConnectionState>()(
         };
 
         ws.onmessage = (event) => {
-          const currentState = get();
+          // Any frame proves the socket is alive.
+          set({ _lastMessageAt: Date.now() });
+          get()._armKeepAlive();
 
           try {
             const message: AppSyncMessage = JSON.parse(event.data);
@@ -214,7 +289,15 @@ export const useAppSyncConnectionStore = create<AppSyncConnectionState>()(
             switch (message.type) {
               case 'connection_ack': {
                 logger.log('Connection acknowledged');
-                set({ isConnectionAcknowledged: true });
+                set({
+                  isConnectionAcknowledged: true,
+                  // Reset only once the server accepted us: a socket that opens
+                  // and is closed right away must keep backing off.
+                  _reconnectAttempts: 0,
+                  _connectionTimeoutMs:
+                    message.connectionTimeoutMs ?? DEFAULT_CONNECTION_TIMEOUT_MS,
+                });
+                get()._armKeepAlive();
 
                 /**
                  * WHY: Re-subscribe after connection_ack
@@ -235,14 +318,16 @@ export const useAppSyncConnectionStore = create<AppSyncConnectionState>()(
                 authService
                   .getTokens()
                   .then(({ accessToken: freshToken }) => {
-                    currentState._channelMap.forEach((channel, subscriptionId) => {
+                    const current = get();
+                    if (current._ws !== ws) return;
+                    current._channelMap.forEach((channel, subscriptionId) => {
                       // Skip if already pending (subscription was sent before ack)
-                      if (currentState._pendingSubscriptions.has(subscriptionId)) {
+                      if (get()._pendingSubscriptions.has(subscriptionId)) {
                         logger.log(`Skipping re-subscribe (already pending): ${subscriptionId}`);
                         return;
                       }
 
-                      const handler = currentState._subscriptionHandlers.get(subscriptionId);
+                      const handler = current._subscriptionHandlers.get(subscriptionId);
                       if (handler && ws.readyState === WebSocket.OPEN) {
                         logger.log(`Re-subscribing after reconnect: ${subscriptionId}`);
 
@@ -258,7 +343,7 @@ export const useAppSyncConnectionStore = create<AppSyncConnectionState>()(
                             channel,
                             authorization: {
                               Authorization: freshToken,
-                              host: currentState.httpHost,
+                              host: current.httpHost,
                             },
                           })
                         );
@@ -274,9 +359,10 @@ export const useAppSyncConnectionStore = create<AppSyncConnectionState>()(
               case 'subscribe_success': {
                 logger.log('Subscription successful:', message.id);
                 if (message.id) {
-                  const pending = new Set(currentState._pendingSubscriptions);
+                  const pending = new Set(get()._pendingSubscriptions);
                   pending.delete(message.id);
                   set({ _pendingSubscriptions: pending });
+                  get()._subscribedCallbacks.get(message.id)?.();
                 }
                 break;
               }
@@ -284,7 +370,7 @@ export const useAppSyncConnectionStore = create<AppSyncConnectionState>()(
               case 'subscribe_error': {
                 logger.error('Subscription error:', message);
                 if (message.id) {
-                  const pending = new Set(currentState._pendingSubscriptions);
+                  const pending = new Set(get()._pendingSubscriptions);
                   pending.delete(message.id);
                   set({ _pendingSubscriptions: pending });
                 }
@@ -294,7 +380,7 @@ export const useAppSyncConnectionStore = create<AppSyncConnectionState>()(
               case 'data': {
                 if (message.event && message.id) {
                   // Route to the appropriate handler
-                  const handler = currentState._subscriptionHandlers.get(message.id);
+                  const handler = get()._subscriptionHandlers.get(message.id);
                   if (handler) {
                     handler(message.event);
                   }
@@ -303,10 +389,7 @@ export const useAppSyncConnectionStore = create<AppSyncConnectionState>()(
               }
 
               case 'ka': {
-                // Keep-alive received
-                if (currentState._keepAliveTimeout) {
-                  clearTimeout(currentState._keepAliveTimeout);
-                }
+                // Keep-alive: the watchdog was re-armed above.
                 break;
               }
 
@@ -327,41 +410,34 @@ export const useAppSyncConnectionStore = create<AppSyncConnectionState>()(
 
         ws.onclose = (event) => {
           logger.log(`WebSocket closed: code=${event.code}`);
-          const currentState = get();
+          if (get()._ws !== ws) return;
+
+          const { _keepAliveTimeout } = get();
+          if (_keepAliveTimeout) clearTimeout(_keepAliveTimeout);
 
           set({
             isConnected: false,
             isConnectionAcknowledged: false,
             _isConnecting: false,
             _ws: null,
+            _keepAliveTimeout: null,
+            _pendingSubscriptions: new Set(),
           });
 
-          // Clear keep-alive timeout
-          if (currentState._keepAliveTimeout) {
-            clearTimeout(currentState._keepAliveTimeout);
-            set({ _keepAliveTimeout: null });
-          }
-
           // Attempt reconnection if not intentionally closed
-          if (event.code !== 1000 && currentState._reconnectAttempts < MAX_RECONNECT_ATTEMPTS) {
-            const delay = calculateReconnectDelay(currentState._reconnectAttempts);
-            logger.log(
-              `Reconnecting in ${delay}ms (attempt ${currentState._reconnectAttempts + 1})`
-            );
-
-            const timeout = setTimeout(() => {
-              set({ _reconnectAttempts: currentState._reconnectAttempts + 1 });
-              get().connect();
-            }, delay);
-
-            set({ _reconnectTimeout: timeout });
-          }
+          if (event.code !== 1000) get()._scheduleReconnect();
         };
 
-        set({ _ws: ws });
+        set({
+          _ws: ws,
+          _keepAliveTimeout: setTimeout(() => {
+            if (get()._ws === ws) get()._dropConnection('connect timeout');
+          }, CONNECT_TIMEOUT_MS),
+        });
       } catch (error) {
         logger.error('Failed to connect:', error);
         set({ _isConnecting: false });
+        get()._scheduleReconnect();
       }
     },
 
@@ -379,7 +455,12 @@ export const useAppSyncConnectionStore = create<AppSyncConnectionState>()(
         clearTimeout(state._keepAliveTimeout);
       }
 
+      if (state._wakeCheckTimeout) {
+        clearTimeout(state._wakeCheckTimeout);
+      }
+
       if (state._ws) {
+        detach(state._ws);
         if (state._ws.readyState === WebSocket.OPEN) {
           state._ws.close(1000, 'Disconnect requested');
         }
@@ -391,20 +472,120 @@ export const useAppSyncConnectionStore = create<AppSyncConnectionState>()(
         _ws: null,
         _reconnectTimeout: null,
         _keepAliveTimeout: null,
+        _wakeCheckTimeout: null,
+        _reconnectAttempts: 0,
         _isConnecting: false,
+        _pendingSubscriptions: new Set(),
+      });
+    },
+
+    wake: () => {
+      if (!useAuthStore.getState().user?.userId) return;
+      const state = get();
+
+      const ws = state._ws;
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        if (state._wakeCheckTimeout || Date.now() - state._lastMessageAt <= WAKE_STALE_AFTER_MS) {
+          return;
+        }
+        const wokeAt = Date.now();
+        set({
+          _wakeCheckTimeout: setTimeout(() => {
+            set({ _wakeCheckTimeout: null });
+            if (get()._ws === ws && get()._lastMessageAt < wokeAt) {
+              get()._dropConnection('silent socket after wake');
+            }
+          }, WAKE_RECHECK_MS),
+        });
+        return;
+      }
+      // The connect timeout covers a handshake that never completes.
+      if (ws && ws.readyState === WebSocket.CONNECTING) return;
+
+      // Waiting in backoff (or gave up): try right away, with a fresh backoff.
+      if (state._reconnectTimeout) clearTimeout(state._reconnectTimeout);
+      set({ _reconnectTimeout: null, _reconnectAttempts: 0 });
+      void get().connect();
+    },
+
+    _armKeepAlive: () => {
+      const { _keepAliveTimeout, _connectionTimeoutMs } = get();
+      if (_keepAliveTimeout) clearTimeout(_keepAliveTimeout);
+      set({
+        _keepAliveTimeout: setTimeout(
+          () => get()._dropConnection('keep-alive timeout'),
+          _connectionTimeoutMs
+        ),
+      });
+    },
+
+    /**
+     * Abandon the current socket and reconnect without waiting for onclose: a
+     * dead socket may never deliver one.
+     */
+    _dropConnection: (reason: string) => {
+      const { _ws: ws, _keepAliveTimeout, _reconnectTimeout } = get();
+      logger.warn(`Dropping AppSync connection: ${reason}`);
+      if (_keepAliveTimeout) clearTimeout(_keepAliveTimeout);
+      if (_reconnectTimeout) clearTimeout(_reconnectTimeout);
+      if (ws) {
+        detach(ws);
+        try {
+          ws.close(4000, reason);
+        } catch {
+          // Already closing; nothing left to release.
+        }
+      }
+      set({
+        isConnected: false,
+        isConnectionAcknowledged: false,
+        _ws: null,
+        _keepAliveTimeout: null,
+        _reconnectTimeout: null,
+        _reconnectAttempts: 0,
+        _isConnecting: false,
+        _pendingSubscriptions: new Set(),
+      });
+      void get().connect();
+    },
+
+    /**
+     * Retry forever with capped backoff: giving up leaves the tab deaf until
+     * a reload, and wake() short-circuits the wait when the user comes back.
+     */
+    _scheduleReconnect: () => {
+      const state = get();
+      if (state._reconnectTimeout) return;
+      if (!useAuthStore.getState().user?.userId) return;
+      const delay = calculateReconnectDelay(state._reconnectAttempts);
+      logger.log(`Reconnecting in ${delay}ms (attempt ${state._reconnectAttempts + 1})`);
+      set({
+        _reconnectAttempts: state._reconnectAttempts + 1,
+        _reconnectTimeout: setTimeout(() => {
+          set({ _reconnectTimeout: null });
+          void get().connect();
+        }, delay),
       });
     },
 
     /**
      * Subscribe to a channel
      */
-    subscribe: async (channel: string, subscriptionId: string, handler: SubscriptionHandler) => {
+    subscribe: async (
+      channel: string,
+      subscriptionId: string,
+      handler: SubscriptionHandler,
+      onSubscribed?: () => void
+    ) => {
       const state = get();
 
       // Register handler
       const handlers = new Map(state._subscriptionHandlers);
       handlers.set(subscriptionId, handler);
-      set({ _subscriptionHandlers: handlers });
+      const callbacks = new Map(state._subscribedCallbacks);
+      if (onSubscribed) callbacks.set(subscriptionId, onSubscribed);
+      else callbacks.delete(subscriptionId);
+      set({ _subscriptionHandlers: handlers, _subscribedCallbacks: callbacks });
 
       // Skip if already subscribed
       if (state._channelMap.has(subscriptionId)) {
@@ -442,10 +623,14 @@ export const useAppSyncConnectionStore = create<AppSyncConnectionState>()(
         return;
       }
 
+      // The socket may have been replaced while waiting for the token; the
+      // new one's connection_ack re-subscribes from _channelMap.
+      if (get()._ws !== ws || get()._pendingSubscriptions.has(subscriptionId)) return;
+
       logger.log(`Subscribing to: ${channel} (id: ${subscriptionId})`);
 
       // Mark as pending
-      const pending = new Set(state._pendingSubscriptions);
+      const pending = new Set(get()._pendingSubscriptions);
       pending.add(subscriptionId);
       set({ _pendingSubscriptions: pending });
 
@@ -471,6 +656,8 @@ export const useAppSyncConnectionStore = create<AppSyncConnectionState>()(
       // Remove handler
       const handlers = new Map(state._subscriptionHandlers);
       handlers.delete(subscriptionId);
+      const callbacks = new Map(state._subscribedCallbacks);
+      callbacks.delete(subscriptionId);
 
       // Remove from channel map
       const channelMap = new Map(state._channelMap);
@@ -482,6 +669,7 @@ export const useAppSyncConnectionStore = create<AppSyncConnectionState>()(
 
       set({
         _subscriptionHandlers: handlers,
+        _subscribedCallbacks: callbacks,
         _channelMap: channelMap,
         _pendingSubscriptions: pending,
       });
