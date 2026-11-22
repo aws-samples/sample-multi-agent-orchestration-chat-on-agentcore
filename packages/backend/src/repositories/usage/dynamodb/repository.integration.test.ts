@@ -7,7 +7,7 @@ import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 import { GetItemCommand, type DynamoDBClient } from '@aws-sdk/client-dynamodb';
 import type { UserId } from '@moca/core';
 import { DynamoDBUsageRepository } from './repository.js';
-import { keyAttr, ttlForMonth } from './item.js';
+import { batchMarkerKey, keyAttr, ttlForMonth } from './item.js';
 import { makeLocalClient } from '../../../tests/integration/client.js';
 import {
   createUsageTable,
@@ -18,6 +18,8 @@ import {
 const USER = 'user-usage-a' as UserId;
 const OTHER = 'user-usage-b' as UserId;
 const MODEL = 'anthropic.claude-sonnet-4-6';
+import { randomUUID } from 'node:crypto';
+const one = (modelKey: string, d: typeof delta) => new Map([[modelKey, d]]);
 const delta = {
   uncachedInputTokens: 1,
   cacheReadInputTokens: 10,
@@ -45,7 +47,9 @@ afterAll(async () => {
 describe('DynamoDBUsageRepository', () => {
   it('adds concurrent deltas atomically', async () => {
     await Promise.all(
-      Array.from({ length: 20 }, () => repo.addUsage(USER, '2026-11', MODEL, delta))
+      Array.from({ length: 20 }, () =>
+        repo.addBatch(USER, '2026-11', randomUUID(), one(MODEL, delta))
+      )
     );
     const [row] = await repo.getMonth(USER, '2026-11');
     expect(row).toEqual({
@@ -60,8 +64,8 @@ describe('DynamoDBUsageRepository', () => {
   });
 
   it('keeps months and users apart', async () => {
-    await repo.addUsage(USER, '2026-12', MODEL, delta);
-    await repo.addUsage(OTHER, '2026-11', 'openai.gpt-oss-120b-1:0', delta);
+    await repo.addBatch(USER, '2026-12', randomUUID(), one(MODEL, delta));
+    await repo.addBatch(OTHER, '2026-11', randomUUID(), one('openai.gpt-oss-120b-1:0', delta));
     expect((await repo.getMonth(USER, '2026-12')).map((r) => r.outputTokens)).toEqual([7]);
     expect((await repo.getMonth(OTHER, '2026-11')).map((r) => r.modelKey)).toEqual([
       'openai.gpt-oss-120b-1:0',
@@ -73,5 +77,35 @@ describe('DynamoDBUsageRepository', () => {
       new GetItemCommand({ TableName: tableName, Key: keyAttr(USER, '2026-11', MODEL) })
     );
     expect(Number(item.Item?.ttl?.N)).toBe(ttlForMonth('2026-11'));
+  });
+
+  it('applies a batch at most once, even under concurrent retries', async () => {
+    const batchId = randomUUID();
+    const deltas = new Map([
+      ['dedupe.model-a', delta],
+      ['dedupe.model-b', delta],
+    ]);
+    const results = await Promise.all(
+      Array.from({ length: 5 }, () => repo.addBatch(USER, '2027-01', batchId, deltas))
+    );
+    expect(results.filter((r) => r === 'applied')).toHaveLength(1);
+    expect(results.filter((r) => r === 'duplicate')).toHaveLength(4);
+    const rows = await repo.getMonth(USER, '2027-01');
+    expect(rows.map((r) => [r.modelKey, r.outputTokens]).sort()).toEqual([
+      ['dedupe.model-a', 7],
+      ['dedupe.model-b', 7],
+    ]);
+  });
+
+  it('keeps batch markers out of the monthly rows and expires them', async () => {
+    const batchId = randomUUID();
+    await repo.addBatch(USER, '2027-02', batchId, one(MODEL, delta));
+    expect((await repo.getMonth(USER, '2027-02')).map((r) => r.modelKey)).toEqual([MODEL]);
+    const marker = await client.send(
+      new GetItemCommand({ TableName: tableName, Key: batchMarkerKey(USER, batchId) })
+    );
+    const ttl = Number(marker.Item?.ttl?.N);
+    expect(ttl).toBeGreaterThan(Date.now() / 1000);
+    expect(ttl).toBeLessThan(Date.now() / 1000 + 2 * 86_400);
   });
 });

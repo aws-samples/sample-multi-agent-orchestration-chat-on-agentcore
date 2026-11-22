@@ -13,6 +13,13 @@ export function monthPrefix(month: string): string {
   return `M#${month}#`;
 }
 
+/** Batch markers only need to outlive the Runtime's retries (seconds); a day is plenty. */
+export const BATCH_MARKER_TTL_SECONDS = 86_400;
+
+export function batchMarkerKey(userId: UserId, batchId: string): Record<string, AttributeValue> {
+  return { userId: { S: userId }, sk: { S: `B#${batchId}` } };
+}
+
 export function ttlForMonth(month: string): number {
   const [y, m] = month.split('-').map(Number);
   const monthEnd = Date.UTC(y, m, 1); // first instant of the next month (UTC)

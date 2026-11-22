@@ -91,7 +91,7 @@ describe('AgentCoreStack with tokenLimits', () => {
     });
   });
 
-  it('lets only the Backend role reach the usage table, with Query/UpdateItem only', () => {
+  it('lets only the Backend role reach the usage table, with Query/UpdateItem/PutItem only', () => {
     const holders = policiesMentioning(usageTableId);
     expect(holders).toEqual([expect.stringMatching(/^TokenLimitsBackendPolicy/)]);
     const policy = template.findResources('AWS::IAM::Policy')[holders[0]];
@@ -101,7 +101,7 @@ describe('AgentCoreStack with tokenLimits', () => {
         Statement: Match.arrayWith([
           Match.objectLike({
             Sid: 'UsageTableReadAdd',
-            Action: ['dynamodb:Query', 'dynamodb:UpdateItem'],
+            Action: ['dynamodb:Query', 'dynamodb:UpdateItem', 'dynamodb:PutItem'],
           }),
         ]),
       },

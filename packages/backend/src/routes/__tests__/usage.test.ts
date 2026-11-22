@@ -23,14 +23,22 @@ jest.mock('../../config/index', () => ({
   },
 }));
 
-const addUsage = jest.fn(async () => {});
+const addBatch = jest.fn(
+  async (_u: string, _m: string, _b: string, _d: Map<string, unknown>) => 'applied' as const
+);
+/** (userId, modelKey) pairs written, flattened from the batches. */
+const writes = () => addBatch.mock.calls.flatMap(([u, , , d]) => [...d.keys()].map((k) => [u, k]));
 jest.mock('../../repositories/usage/usage-repository.factory', () => ({
-  getUsageRepository: () => ({ isConfigured: () => true, addUsage, getMonth: async () => [] }),
+  getUsageRepository: () => ({ isConfigured: () => true, addBatch, getMonth: async () => [] }),
 }));
 const getGroupsForUserSub = jest.fn(async () => ['admin']);
 jest.mock('../../services/cognito-groups', () => ({ getGroupsForUserSub }));
 
-import usageRouter, { RECORDS_PER_MINUTE, resetRateLimitForTest } from '../usage';
+import usageRouter, {
+  RECORDS_PER_MINUTE,
+  rateLimitWindowCount,
+  resetRateLimitForTest,
+} from '../usage';
 import { errorHandlerMiddleware } from '../../middleware/error-handler';
 
 const USER_ID = '97745a78-00b1-70ed-13a3-1032026f75b4';
@@ -65,7 +73,7 @@ afterAll(() => new Promise<void>((resolve) => server.close(() => resolve())));
 
 beforeEach(() => {
   machine = false;
-  addUsage.mockClear();
+  addBatch.mockClear();
   getGroupsForUserSub.mockClear();
   resetRateLimitForTest();
 });
@@ -80,23 +88,21 @@ const record = (overrides: Record<string, unknown> = {}) => ({
   ...overrides,
 });
 
-const post = (body: unknown, headers: Record<string, string> = {}) =>
+const BATCH = '5f0c6c2e-1b7a-4c1e-9d6b-2f4f7b8a9c01';
+const post = (body: Record<string, unknown>, headers: Record<string, string> = {}) =>
   fetch(`${baseUrl}/usage/records`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...headers },
-    body: JSON.stringify(body),
+    body: JSON.stringify({ batchId: BATCH, ...body }),
   });
 
 describe('POST /usage/records', () => {
   it('records valid usage for the caller', async () => {
     const res = await post({ records: [record()] });
     expect(res.status).toBe(204);
-    expect(addUsage).toHaveBeenCalledWith(
-      USER_ID,
-      expect.any(String),
-      'anthropic.claude-opus-5-5',
-      expect.objectContaining({ outputTokens: 4 })
-    );
+    expect(writes()).toEqual([[USER_ID, 'anthropic.claude-opus-5-5']]);
+    expect(addBatch.mock.calls[0][2]).toBe(BATCH);
+    expect([...addBatch.mock.calls[0][3].values()][0]).toMatchObject({ outputTokens: 4 });
   });
 
   it.each([
@@ -106,7 +112,17 @@ describe('POST /usage/records', () => {
   ])('rejects %s', async (_name, overrides) => {
     const res = await post({ records: [record(overrides)] });
     expect(res.status).toBe(400);
-    expect(addUsage).not.toHaveBeenCalled();
+    expect(addBatch).not.toHaveBeenCalled();
+  });
+
+  it('accepts a report without a batch id (Runtime from before the field)', async () => {
+    const res = await post({ batchId: undefined, records: [record()] });
+    expect(res.status).toBe(204);
+    expect(addBatch.mock.calls[0][2]).toMatch(/^[0-9a-f-]{36}$/);
+  });
+
+  it('rejects a malformed batch id', async () => {
+    expect((await post({ batchId: 'not-a-uuid', records: [record()] })).status).toBe(400);
   });
 
   it('rejects more than 50 records', async () => {
@@ -124,36 +140,44 @@ describe('POST /usage/records', () => {
   it('ignores X-Target-User-Id from a regular user', async () => {
     const res = await post({ records: [record()] }, { 'X-Target-User-Id': TARGET });
     expect(res.status).toBe(204);
-    expect(addUsage).toHaveBeenCalledWith(
-      USER_ID,
-      expect.any(String),
-      expect.any(String),
-      expect.anything()
-    );
-    expect(addUsage).not.toHaveBeenCalledWith(
-      TARGET,
-      expect.anything(),
-      expect.anything(),
-      expect.anything()
-    );
+    expect(writes().map(([u]) => u)).toEqual([USER_ID]);
   });
 
   it('requires X-Target-User-Id from a machine user', async () => {
     machine = true;
     expect((await post({ records: [record()] })).status).toBe(400);
-    expect(addUsage).not.toHaveBeenCalled();
+    expect(addBatch).not.toHaveBeenCalled();
   });
 
   it('records machine-user usage for X-Target-User-Id', async () => {
     machine = true;
     const res = await post({ records: [record()] }, { 'X-Target-User-Id': TARGET });
     expect(res.status).toBe(204);
-    expect(addUsage).toHaveBeenCalledWith(
-      TARGET,
-      expect.any(String),
-      expect.any(String),
-      expect.anything()
-    );
+    expect(writes().map(([u]) => u)).toEqual([TARGET]);
+  });
+});
+
+describe('rate-limit windows', () => {
+  it('drops expired windows so the map cannot grow without bound', async () => {
+    jest.useFakeTimers({
+      now: 1_000_000,
+      doNotFake: ['nextTick', 'setImmediate', 'queueMicrotask'],
+    });
+    try {
+      machine = true;
+      for (const n of [1, 2, 3]) {
+        await post(
+          { records: [record()] },
+          { 'X-Target-User-Id': `0a1b2c3d-0000-4000-8000-00000000000${n}` }
+        );
+      }
+      expect(rateLimitWindowCount()).toBe(3);
+      jest.setSystemTime(1_000_000 + 61_000);
+      await post({ records: [record()] }, { 'X-Target-User-Id': TARGET });
+      expect(rateLimitWindowCount()).toBe(1);
+    } finally {
+      jest.useRealTimers();
+    }
   });
 });
 

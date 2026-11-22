@@ -50,6 +50,9 @@ interface FakeBackend {
   limits: Map<string, { input: number | null; output: number | null }>;
   /** Force a status for an endpoint (e.g. 401, 429, 500); `once` resets after one use. */
   fail: { me?: number; records?: number; recordsOnce?: number };
+  /** Apply the next records POST, but answer only after this many ms (client timeout is 5 s). */
+  slowRecordsOnceMs?: number;
+  batches: Set<string>;
   posts: { records: number; at: number }[];
   gets: number;
 }
@@ -59,6 +62,7 @@ const backend: FakeBackend = {
   fail: {},
   posts: [],
   gets: 0,
+  batches: new Set(),
 };
 
 const inputOf = (r: Row) =>
@@ -107,8 +111,16 @@ async function startBackend(): Promise<string> {
       const status = backend.fail.recordsOnce ?? backend.fail.records;
       backend.fail.recordsOnce = undefined;
       if (status) return res.writeHead(status).end();
-      const { records } = JSON.parse(body) as { records: (Row & { modelId: string })[] };
+      const { batchId, records } = JSON.parse(body) as {
+        batchId: string;
+        records: (Row & { modelId: string })[];
+      };
       backend.posts.push({ records: records.length, at: Date.now() });
+      // Same contract as the Backend: a batch is applied at most once.
+      if (backend.batches.has(batchId)) return res.writeHead(204).end();
+      backend.batches.add(batchId);
+      const delay = backend.slowRecordsOnceMs;
+      backend.slowRecordsOnceMs = undefined;
       for (const r of records) {
         const key = modelUsageKey(r.modelId);
         const row = backend.rows.get(key) ?? {
@@ -125,6 +137,7 @@ async function startBackend(): Promise<string> {
         row.calls += 1;
         backend.rows.set(key, row);
       }
+      if (delay) await new Promise((r) => setTimeout(r, delay));
       return res.writeHead(204).end();
     }
     res.writeHead(404).end();
@@ -156,12 +169,15 @@ const { normalizeUsage, totalInput } = await import('../../usage/normalize.js');
 // ─── Harness ────────────────────────────────────────────────────────────────
 
 const lookupCalls: string[] = [];
+/** Order of tool runs and limit notices within a turn. */
+const timeline: string[] = [];
 const lookupTool = tool({
   name: 'lookup',
   description: 'Look up a fact about a city. Returns one short sentence.',
   inputSchema: z.object({ city: z.string() }),
   callback: async ({ city }) => {
     lookupCalls.push(city);
+    timeline.push('lookup');
     return `${city} is a city. (fact #${lookupCalls.length})`;
   },
 });
@@ -208,7 +224,10 @@ async function runTurn(
     userId: USER,
     authorizationHeader: 'Bearer integration-test',
     storagePath: '/',
-    emitClientEvent: (e: Record<string, unknown>) => obs.clientEvents.push(e),
+    emitClientEvent: (e: Record<string, unknown>) => {
+      obs.clientEvents.push(e);
+      timeline.push(`event:${(e.warning as { code?: string })?.code ?? e.type}`);
+    },
   } as never;
   await runWithContext(ctx, async () => {
     try {
@@ -283,9 +302,10 @@ const capFor = (modelId: string, agent: InstanceType<typeof Agent>) => {
 };
 /** Small configured maxTokens so the cap (min(configured, floor)) is always hit by a long answer. */
 const SMALL_MAX_TOKENS = 1000;
-
-const LONG_SECTIONS =
-  'Write 60 numbered sections about the history of Rome, sections 1 through 60, each about 300 words. Write every section in full; never summarize, skip or stop early.';
+/** Neutral system prompt for long-answer tests ("Be brief" makes models cut answers short). */
+const NEUTRAL = "Follow the user's instructions fully.";
+const LONG_ESSAY =
+  'Write a 6000-word essay on the history of Rome, in full detail. Do not summarize or stop early.';
 
 const SEQUENTIAL_LOOKUPS =
   'Call the lookup tool for each of these cities, ONE call per response, in this order: ' +
@@ -302,7 +322,10 @@ beforeEach(() => {
   backend.fail = {};
   backend.posts = [];
   backend.gets = 0;
+  backend.batches.clear();
+  backend.slowRecordsOnceMs = undefined;
   lookupCalls.length = 0;
+  timeline.length = 0;
   clearSummaryCacheForTest();
 });
 
@@ -399,20 +422,23 @@ describeBedrock('token limits with real Bedrock', () => {
   // Regression (observed): the capped call hit maxTokens and the SDK threw
   // MaxTokensError — the turn failed and the generated answer was lost.
   it('keeps an answer the cap cut off and ends the turn without an error', async () => {
-    backend.limits.set(modelUsageKey(HAIKU), { input: 10_000_000, output: 200 });
-    const agent = makeAgent(HAIKU, undefined, 'off', SMALL_MAX_TOKENS);
-    const o = await runTurn(agent, HAIKU, LONG_SECTIONS);
+    // Sonnet 4.6 does not reason by default: cap floor 4096, well under its own 64K.
+    backend.limits.set(modelUsageKey(SONNET), { input: 10_000_000, output: 200 });
+    const agent = makeAgent(SONNET, NEUTRAL);
+    expect(capFor(SONNET, agent)).toBe(GRACE_MAX_OUTPUT_TOKENS);
+    const o = await runTurn(agent, SONNET, LONG_ESSAY);
     expect(o.error).toBeUndefined();
-    expect(o.calls).toHaveLength(1); // the replay does not call Bedrock again
-    expect(o.calls[0].outputTokens).toBe(capFor(HAIKU, agent));
-    expect(o.text.length).toBeGreaterThan(1000);
+    // The model may call tools first; the long answer is the last Bedrock call
+    // (stopped at the cap), and the replay after the cut adds no further call.
+    expect(o.calls[o.calls.length - 1].outputTokens).toBe(GRACE_MAX_OUTPUT_TOKENS);
+    expect(o.text.length).toBeGreaterThan(4000);
     expect(o.text).toContain('cut short');
     expect(warnings(o, 'tokenLimitReached')).toHaveLength(1);
-    expect(reported(HAIKU)!.outputTokens).toBe(capFor(HAIKU, agent));
+    expect(reported(SONNET)!.outputTokens).toBe(sum(o.calls).output);
 
-    backend.limits.set(modelUsageKey(HAIKU), { input: 10_000_000, output: 1_000_000 });
+    backend.limits.set(modelUsageKey(SONNET), { input: 10_000_000, output: 1_000_000 });
     clearSummaryCacheForTest();
-    const next = await runTurn(agent, HAIKU, 'Reply with the single word OK.');
+    const next = await runTurn(agent, SONNET, 'Reply with the single word OK.');
     expect(next.error).toBeUndefined();
     expect(next.text.toUpperCase()).toContain('OK');
   });
@@ -430,7 +456,13 @@ describeBedrock('token limits with real Bedrock', () => {
     );
 
     expect(o.error).toBeUndefined();
-    expect(o.toolResults.some((r) => r.includes('monthly token limit'))).toBe(true);
+    // Whether a refusal shows up depends on the model (it may batch every
+    // lookup into the first call). What must hold: once the limit is reached
+    // no further tool runs, and the turn ends within the grace allowance.
+    const reachedAt = timeline.indexOf('event:tokenLimitReached');
+    expect(reachedAt).toBeGreaterThanOrEqual(0);
+    expect(timeline.slice(reachedAt + 1)).not.toContain('lookup');
+    expect(o.calls.length).toBeLessThanOrEqual(1 + GRACE_MODEL_CALLS + 1);
     // Either the model gave up after the refusal, or the hook cancelled it.
     const cancelled = o.text.includes('[Stopped');
     if (cancelled) expect(o.text).toContain('monthly token limit');
@@ -502,6 +534,30 @@ describeBedrock('token limits with real Bedrock', () => {
     expect(o.error).toBeUndefined();
     expect(lookupCalls.sort()).toEqual(['Paris', 'Rome']);
     expect(o.clientEvents).toHaveLength(0);
+  });
+
+  // Regression: every call with an output limit counted as "capped", so a
+  // model's own maxTokens stop far from the limit was reported as the limit.
+  it('keeps a normal MaxTokensError when the stop is not caused by the limit', async () => {
+    backend.limits.set(modelUsageKey(HAIKU), { input: 10_000_000, output: 10_000_000 });
+    const agent = makeAgent(HAIKU, NEUTRAL, 'off', SMALL_MAX_TOKENS);
+    const o = await runTurn(agent, HAIKU, LONG_ESSAY);
+    expect((o.error as Error | undefined)?.name).toBe('MaxTokensError');
+    expect(warnings(o, 'tokenLimitReached')).toHaveLength(0);
+    // The call was still metered.
+    expect(reported(HAIKU)!.outputTokens).toBe(SMALL_MAX_TOKENS);
+  });
+
+  // Regression: a report applied by the Backend but answered after the
+  // client's 5 s timeout was retried and counted again.
+  it('does not double count when the Backend answers a report too late', async () => {
+    backend.limits.set(modelUsageKey(HAIKU), { input: 10_000_000, output: 1_000_000 });
+    backend.slowRecordsOnceMs = 6_000;
+    const agent = makeAgent(HAIKU);
+    const o = await runTurn(agent, HAIKU, 'Reply with the single word OK.');
+    expect(backend.posts.length).toBeGreaterThanOrEqual(2); // the client retried
+    expect(reported(HAIKU)!.outputTokens).toBe(sum(o.calls).output); // once
+    expect(reported(HAIKU)!.calls).toBe(o.calls.length);
   });
 
   it('re-sends usage the Backend throttled (429) instead of losing it', async () => {
@@ -598,13 +654,16 @@ const describeOpenAI = describeIfEnv(
 );
 
 describeOpenAI('token limits on the OpenAI-compatible endpoint (gpt-oss)', () => {
-  it('caps max_completion_tokens and keeps a cut-off answer (finish_reason=length)', async () => {
+  // gpt-oss declines very long answers on its own, so the cut itself cannot be
+  // forced here; the replay path it would take is the same code as Converse's
+  // (MaxTokensError from the shared model base), covered above with Sonnet.
+  it('caps max_completion_tokens near the limit and meters exactly', async () => {
     backend.limits.set(modelUsageKey(GPT_OSS), { input: 10_000_000, output: 200 });
-    const agent = makeAgent(GPT_OSS, undefined, undefined, SMALL_MAX_TOKENS);
-    const o = await runTurn(agent, GPT_OSS, 'Write a 1500-word essay about the history of Rome.');
+    const agent = makeAgent(GPT_OSS, NEUTRAL);
+    expect(capFor(GPT_OSS, agent)).toBe(GRACE_MAX_OUTPUT_TOKENS);
+    const o = await runTurn(agent, GPT_OSS, LONG_ESSAY);
     expect(o.error).toBeUndefined();
-    for (const c of o.calls) expect(c.outputTokens).toBeLessThanOrEqual(capFor(GPT_OSS, agent));
-    expect(o.text).toMatch(/cut short|before an answer was written/);
+    for (const c of o.calls) expect(c.outputTokens).toBeLessThanOrEqual(GRACE_MAX_OUTPUT_TOKENS);
     expect(reported(GPT_OSS)!.outputTokens).toBe(sum(o.calls).output);
   });
 

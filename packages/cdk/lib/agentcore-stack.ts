@@ -517,14 +517,15 @@ export class AgentCoreStack extends cdk.Stack {
       // A dedicated policy, not the role's DefaultPolicy: the Backend's default
       // policy is near the inline size limit, and growing it spills statements
       // into an OverflowPolicy that the existing cdk-nag suppressions do not
-      // cover (synth fails). Least privilege: the repository only Queries and
-      // ADDs (no Get/Put/Delete/Scan), and nothing else may touch the table.
+      // cover (synth fails). Least privilege: the repository Queries, ADDs, and
+      // Puts a per-batch de-duplication marker in the same transaction (no
+      // Get/Delete/Scan), and nothing else may touch the table.
       new cdk.aws_iam.Policy(this, 'TokenLimitsBackendPolicy', {
         roles: [this.backendApi.role],
         statements: [
           new cdk.aws_iam.PolicyStatement({
             sid: 'UsageTableReadAdd',
-            actions: ['dynamodb:Query', 'dynamodb:UpdateItem'],
+            actions: ['dynamodb:Query', 'dynamodb:UpdateItem', 'dynamodb:PutItem'],
             resources: [usageTable.table.tableArn],
           }),
           // Machine-user (Trigger / Workflow) requests carry no user groups.

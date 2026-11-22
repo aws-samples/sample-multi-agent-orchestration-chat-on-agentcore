@@ -68,12 +68,21 @@ credentials, which `execute_command` also holds.
 - Trigger turns that run longer than ~1 h now stop at the first refused usage
   report (their machine token expires). They already could not call the
   Backend or Gateway past that point.
-- A retried `POST /usage/records` can double count. It only ever over-counts,
-  so it is accepted; dropped batches are logged as `usage_record_dropped`.
+- A report is applied at most once: the Runtime sends a `batchId` that stays
+  the same across retries, and the Backend writes a short-lived marker for it
+  in the same DynamoDB transaction as the increments. A retry after an
+  ambiguous failure (client timeout on a slow cold start, 5xx after a partial
+  write) is then a no-op instead of counting the batch again. Dropped batches
+  are logged as `usage_record_dropped`.
 - Models outside the deployment's `bedrockModels` (plus the `image_to_text`
   vision models) are metered into a single `other` row, so arbitrary
   `modelId`s cannot grow the table. `/invocations` and `call_agent` also reject
   model ids outside the deployment.
+- Usage the Runtime has recorded but the Backend has not acknowledged is kept
+  per user *and model*, since limits are per model.
+- Near the limit, only a `maxTokens` stop that the Runtime's own cap caused is
+  turned into the cut-off answer; a model hitting its own configured ceiling
+  far from the limit keeps the usual MaxTokensError.
 - `POST /usage/records` is rate-limited per user (per Lambda instance) so a
   flood cannot exhaust Backend concurrency and push everyone into fail-open.
   The cap is generous (600/min) because one user can run many reporters at

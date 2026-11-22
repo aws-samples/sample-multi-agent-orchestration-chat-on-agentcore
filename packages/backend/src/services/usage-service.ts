@@ -120,10 +120,11 @@ export class UsageService {
    */
   async record(
     userId: UserId,
+    batchId: string,
     records: readonly UsageRecordInput[],
     now = new Date()
-  ): Promise<void> {
-    if (!this.enabled) return;
+  ): Promise<'applied' | 'duplicate' | 'disabled'> {
+    if (!this.enabled) return 'disabled';
     const month = usageMonth(now, this.limits!.timezone);
     const byKey = new Map<string, UsageDelta>();
     for (const r of records) {
@@ -137,9 +138,7 @@ export class UsageService {
         calls: (prev?.calls ?? 0) + 1,
       });
     }
-    await Promise.all(
-      [...byKey].map(([key, delta]) => this.repo.addUsage(userId, month, key, delta))
-    );
+    return this.repo.addBatch(userId, month, batchId, byKey);
   }
 }
 

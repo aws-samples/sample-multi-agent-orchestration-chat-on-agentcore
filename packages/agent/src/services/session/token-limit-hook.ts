@@ -183,7 +183,7 @@ export class TokenLimitHook implements Plugin {
     // (queued or in flight); without subtracting it, every refresh would hand
     // back tokens already spent this turn.
     const remaining = remainingFor(result.value, this.modelKey);
-    const pending = unacknowledgedFor(this.ctx?.userId);
+    const pending = unacknowledgedFor(this.ctx?.userId, this.modelKey);
     if (remaining) {
       if (remaining.input !== null) remaining.input -= pending.input;
       if (remaining.output !== null) remaining.output -= pending.output;
@@ -211,6 +211,17 @@ export class TokenLimitHook implements Plugin {
 
   private onBeforeModelCall(event: BeforeModelCallEvent): void {
     this.modelCalls++;
+    // First, before any limit logic: the limit may have vanished since the cut
+    // (refresh), and the retried call must still replay instead of calling Bedrock.
+    if (this.truncatedAnswer !== undefined) {
+      // Replay the answer our cap cut off as the turn's final message instead
+      // of a MaxTokensError (no further Bedrock call).
+      event.cancel = this.truncatedAnswer.trim()
+        ? `${this.truncatedAnswer}\n\n[Stopped: the answer was cut short because the monthly token limit for ${this.modelKey} is nearly or fully used.]`
+        : `[Stopped: the monthly token limit for ${this.modelKey} is nearly or fully used, and it ran out before an answer was written (the model spent it reasoning). Try a lower reasoning depth or another model.]`;
+      this.truncatedAnswer = undefined;
+      return;
+    }
     this.refreshInBackground();
 
     if (!this.exhaustion) {
@@ -226,15 +237,6 @@ export class TokenLimitHook implements Plugin {
       }
       this.exhaust({ code: TOKEN_LIMIT_REACHED, detail: this.detail(dimension) });
       this.capOutput(event.model, this.floor(event.model));
-      return;
-    }
-    if (this.truncatedAnswer !== undefined) {
-      // Replay the answer our cap cut off as the turn's final message instead
-      // of a MaxTokensError (no further Bedrock call).
-      event.cancel = this.truncatedAnswer.trim()
-        ? `${this.truncatedAnswer}\n\n[Stopped: the answer was cut short because the monthly token limit for ${this.modelKey} is nearly or fully used.]`
-        : `[Stopped: the monthly token limit for ${this.modelKey} is nearly or fully used, and it ran out before an answer was written (the model spent it reasoning). Try a lower reasoning depth or another model.]`;
-      this.truncatedAnswer = undefined;
       return;
     }
     this.capOutput(event.model, this.floor(event.model));
@@ -260,14 +262,18 @@ export class TokenLimitHook implements Plugin {
    */
   private onAfterModelCall(event: AfterModelCallEvent): void {
     const error = event.error as (Error & { partialMessage?: { content?: unknown[] } }) | undefined;
-    if (!error || error.name !== 'MaxTokensError' || this.savedMaxTokens === null) return;
+    // Only a stop our cap caused: a call that hit the model's own configured
+    // maxTokens (far from the limit) keeps its normal MaxTokensError.
+    if (!error || error.name !== 'MaxTokensError' || !this.isLowered(event.model)) return;
     this.truncatedAnswer = (error.partialMessage?.content ?? [])
       .filter(
         (b): b is { type: string; text: string } => (b as { type?: string }).type === 'textBlock'
       )
       .map((b) => b.text)
       .join('');
-    if (!this.exhaustion) {
+    // A refresh can drop the limit mid-turn (group change, feature off). The cut
+    // was still ours, so the answer is kept; there is just no limit to report.
+    if (!this.exhaustion && this.remaining) {
       const dimension = exhaustedDimension(this.remaining) ?? 'output';
       this.exhaust({ code: TOKEN_LIMIT_REACHED, detail: this.detail(dimension) });
     }
@@ -287,6 +293,18 @@ export class TokenLimitHook implements Plugin {
     const configured = this.savedMaxTokens ?? getMaxOutputTokens(this.modelId);
     const next = configured === undefined ? cap : Math.min(configured, cap);
     if (next !== current) model.updateConfig({ maxTokens: next } as never);
+  }
+
+  /**
+   * Whether the maxTokens now in force is below what was configured — i.e. a
+   * maxTokens stop is ours, not the model's own ceiling. Read from the model,
+   * not tracked: a cap set on an earlier call stays in force until the turn ends.
+   */
+  private isLowered(model: Model): boolean {
+    if (this.savedMaxTokens === null) return false;
+    const configured = this.savedMaxTokens ?? getMaxOutputTokens(this.modelId);
+    const current = (model.getConfig() as { maxTokens?: number }).maxTokens;
+    return current !== undefined && (configured === undefined || current < configured);
   }
 
   private restoreOutput(model: Model | undefined): void {
@@ -313,7 +331,8 @@ export class TokenLimitHook implements Plugin {
   }
 
   private detail(dimension: TokenDimension): TokenLimitEventDetail {
-    const r = this.remaining!;
+    const r = this.remaining;
+    if (!r) return { modelKey: this.modelKey, dimension, used: 0, limit: 0, resetsAt: '' };
     const limit = (dimension === 'input' ? r.limitInput : r.limitOutput) ?? 0;
     const left = (dimension === 'input' ? r.input : r.output) ?? 0;
     return { modelKey: this.modelKey, dimension, used: limit - left, limit, resetsAt: r.resetsAt };

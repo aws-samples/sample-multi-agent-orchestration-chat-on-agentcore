@@ -355,4 +355,44 @@ describe('TokenLimitHook', () => {
     expect(reasoningActive('openai.gpt-oss-120b-1:0', model())).toBe(false);
     expect(REASONING_GRACE_MAX_OUTPUT_TOKENS).toBeGreaterThan(4096);
   });
+
+  // Regression: every call with an output limit went through capOutput, so a
+  // MaxTokensError from the model's own ceiling was reported as the monthly limit.
+  it('leaves a MaxTokensError alone when the cap did not lower maxTokens', async () => {
+    const roomy = summary(0);
+    if (roomy.kind === 'ok') {
+      (roomy.value.models[0] as { output: { used: number; limit: number } }).output = {
+        used: 0,
+        limit: 10_000_000,
+      };
+    }
+    getSummary.mockResolvedValue(roomy);
+    const h = setup();
+    await h.start();
+    h.modelCall();
+    expect(h.maxTokens()).toBe(64_000); // far from the limit: not lowered
+    expect(h.afterModelError(maxTokensError('long answer'))).toBeFalsy();
+    expect(emitClientEvent).not.toHaveBeenCalled();
+  });
+
+  // Regression: a refresh that drops the limit mid-turn crashed detail() on null.
+  it('keeps a cut-off answer without crashing when the limit vanished mid-turn', async () => {
+    getSummary.mockResolvedValue(summary(0)); // capped from the first call
+    const unlimited = summary(0, null);
+    if (unlimited.kind === 'ok') {
+      (
+        unlimited.value.models[0] as { output: { used: number; limit: number | null } }
+      ).output.limit = null;
+    }
+    fetchSummary.mockResolvedValue(unlimited);
+    const h = setup();
+    await h.start();
+    h.modelCall();
+    h.advance(60_000);
+    h.modelCall(); // refresh → remaining becomes null; cap still in force
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(() => h.afterModelError(maxTokensError('partial'))).not.toThrow();
+    expect(h.modelCall()).toEqual(expect.stringContaining('partial'));
+  });
 });

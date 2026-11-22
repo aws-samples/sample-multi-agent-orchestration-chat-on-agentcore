@@ -10,14 +10,19 @@ import type {
 } from '../../repositories/usage/index.js';
 import { UsageService, parseTokenLimitsConfig } from '../usage-service';
 
+const SONNET = 'global.anthropic.claude-sonnet-4-6';
 const USER = '97745a78-00b1-70ed-13a3-1032026f75b4' as UserId;
 
 function fakeRepo(rows: MonthlyModelUsage[] = []) {
   const added: { month: string; key: string; delta: UsageDelta }[] = [];
+  const seen = new Set<string>();
   const repo: UsageRepository = {
     isConfigured: () => true,
-    addUsage: async (_u, month, key, delta) => {
-      added.push({ month, key, delta });
+    addBatch: async (_u, month, batchId, deltas) => {
+      if (seen.has(batchId)) return 'duplicate';
+      seen.add(batchId);
+      for (const [key, delta] of deltas) added.push({ month, key, delta });
+      return 'applied';
     },
     getMonth: async () => rows,
   };
@@ -124,6 +129,7 @@ describe('UsageService.record', () => {
     // 15:30Z on 11/30 is already December in Tokyo.
     await new UsageService(config, repo).record(
       USER,
+      'b1',
       [rec('jp.anthropic.claude-sonnet-4-6'), rec('global.anthropic.claude-sonnet-4-6', 7)],
       new Date('2026-11-30T15:30:00Z')
     );
@@ -144,13 +150,26 @@ describe('UsageService.record', () => {
 
   it('folds models outside the allow-list into one "other" row', async () => {
     const { repo, added } = fakeRepo();
-    await new UsageService(config, repo).record(USER, [rec('evil.model-1'), rec('evil.model-2')]);
+    await new UsageService(config, repo).record(USER, 'b1', [
+      rec('evil.model-1'),
+      rec('evil.model-2'),
+    ]);
     expect(added.map((a) => a.key)).toEqual(['other']);
+  });
+
+  it('passes the batch id through so a retried batch is applied once', async () => {
+    const { repo, added } = fakeRepo();
+    const service = new UsageService(config, repo);
+    expect(await service.record(USER, 'batch-x', [rec(SONNET)])).toBe('applied');
+    expect(await service.record(USER, 'batch-x', [rec(SONNET)])).toBe('duplicate');
+    expect(added).toHaveLength(1);
   });
 
   it('does nothing when disabled', async () => {
     const { repo, added } = fakeRepo();
-    await new UsageService(null, repo).record(USER, [rec('global.anthropic.claude-sonnet-4-6')]);
+    await new UsageService(null, repo).record(USER, 'b1', [
+      rec('global.anthropic.claude-sonnet-4-6'),
+    ]);
     expect(added).toEqual([]);
   });
 });

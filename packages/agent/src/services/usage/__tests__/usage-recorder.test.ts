@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, jest } from '@jest/globals';
 
-const postRecords = jest.fn<(r: unknown[]) => Promise<{ kind: string }>>();
+const postRecords =
+  jest.fn<(r: unknown[], ctx?: unknown, batchId?: string) => Promise<{ kind: string }>>();
 const invalidateSummary = jest.fn();
 jest.unstable_mockModule('../usage-client.js', () => ({ postRecords, invalidateSummary }));
 const logger = { info: jest.fn(), warn: jest.fn(), error: jest.fn(), debug: jest.fn() };
@@ -9,14 +10,21 @@ jest.unstable_mockModule('../../../libs/logger/index.js', () => ({
   createLogger: () => logger,
 }));
 
-const { UsageRecorder, BATCH_SIZE, THROTTLE_RETRY_MS, drainUsage, unacknowledgedFor } =
-  await import('../usage-recorder.js');
+const {
+  UsageRecorder,
+  BATCH_SIZE,
+  THROTTLE_RETRY_MS,
+  drainUsage,
+  unacknowledgedFor,
+  resetUsageRecordersForTest,
+} = await import('../usage-recorder.js');
 const { isBusy, resetInFlight } = await import('../../../libs/health/in-flight.js');
 
 const usage = { inputTokens: 10, outputTokens: 2 };
 
 beforeEach(() => {
   postRecords.mockReset();
+  resetUsageRecordersForTest();
   logger.error.mockClear();
   resetInFlight();
 });
@@ -94,13 +102,13 @@ describe('UsageRecorder', () => {
     rec.record('m.x', usage);
     await rec.flush();
     expect(postRecords).toHaveBeenCalledTimes(1);
-    expect(unacknowledgedFor('u-throttle')).toEqual({ input: 10, output: 2 });
+    expect(unacknowledgedFor('u-throttle', 'm.x')).toEqual({ input: 10, output: 2 });
     await jest.advanceTimersByTimeAsync(THROTTLE_RETRY_MS);
     await rec.flush();
     jest.useRealTimers();
     expect(postRecords).toHaveBeenCalledTimes(2);
     expect(postRecords.mock.calls[1][0]).toHaveLength(1);
-    expect(unacknowledgedFor('u-throttle')).toEqual({ input: 0, output: 0 });
+    expect(unacknowledgedFor('u-throttle', 'm.x')).toEqual({ input: 0, output: 0 });
     expect(logger.error).not.toHaveBeenCalled();
   });
 
@@ -115,13 +123,22 @@ describe('UsageRecorder', () => {
       outputTokens: 1,
       cacheReadInputTokens: 50,
     });
-    expect(unacknowledgedFor('u-pend')).toEqual({ input: 155, output: 11 });
+    expect(unacknowledgedFor('u-pend', 'anthropic.claude-sonnet-4-6')).toEqual({
+      input: 155,
+      output: 11,
+    });
     const done = parent.flush();
     await Promise.resolve();
     release();
     await done;
-    expect(unacknowledgedFor('u-pend')).toEqual({ input: 55, output: 1 });
-    expect(unacknowledgedFor('someone-else')).toEqual({ input: 0, output: 0 });
+    expect(unacknowledgedFor('u-pend', 'anthropic.claude-sonnet-4-6')).toEqual({
+      input: 55,
+      output: 1,
+    });
+    expect(unacknowledgedFor('someone-else', 'anthropic.claude-sonnet-4-6')).toEqual({
+      input: 0,
+      output: 0,
+    });
   });
 
   it('invalidates the cached summary whenever usage is recorded', () => {
@@ -151,5 +168,53 @@ describe('UsageRecorder', () => {
     const started = Date.now();
     await drainUsage(50);
     expect(Date.now() - started).toBeLessThan(1000);
+  });
+
+  // Regression: pending usage was per user, so another model's pending tokens
+  // counted against this model's limit.
+  it('keeps unacknowledged usage apart per model', () => {
+    postRecords.mockImplementation(() => new Promise(() => {}));
+    const rec = new UsageRecorder({ userId: 'u-model' } as never);
+    rec.record('global.anthropic.claude-opus-5-5', { inputTokens: 400_000, outputTokens: 0 });
+    rec.record('jp.anthropic.claude-haiku-5-5', { inputTokens: 10, outputTokens: 1 });
+    expect(unacknowledgedFor('u-model', 'anthropic.claude-sonnet-4-6')).toEqual({
+      input: 0,
+      output: 0,
+    });
+    expect(unacknowledgedFor('u-model', 'anthropic.claude-opus-5-5').input).toBe(400_000);
+    // cross-region profiles share one key
+    expect(unacknowledgedFor('u-model', 'anthropic.claude-haiku-5-5')).toEqual({
+      input: 10,
+      output: 1,
+    });
+  });
+
+  // Regression: a retry after an ambiguous failure must reuse the batch id
+  // so the Backend can drop the duplicate.
+  it('reuses the batch id on every retry of the same records', async () => {
+    jest.useFakeTimers({ doNotFake: ['queueMicrotask', 'nextTick'] });
+    postRecords.mockResolvedValueOnce({ kind: 'unavailable' }).mockResolvedValue({ kind: 'ok' });
+    const rec = new UsageRecorder(undefined);
+    rec.record('m.x', usage);
+    const done = rec.flush();
+    await jest.runAllTimersAsync();
+    await done;
+    jest.useRealTimers();
+    const ids = postRecords.mock.calls.map((c) => c[2]);
+    expect(ids).toHaveLength(2);
+    expect(ids[0]).toBe(ids[1]);
+    expect(ids[0]).toMatch(/^[0-9a-f-]{36}$/);
+  });
+
+  // Regression: drainUsage ignored records re-queued after a 429.
+  it('drainUsage sends records still queued after a 429', async () => {
+    postRecords.mockResolvedValueOnce({ kind: 'throttled' }).mockResolvedValue({ kind: 'ok' });
+    const rec = new UsageRecorder({ userId: 'u-drain' } as never);
+    rec.record('m.x', usage);
+    await rec.flush(); // throttled → re-queued behind a 10 s timer
+    expect(postRecords).toHaveBeenCalledTimes(1);
+    await drainUsage();
+    expect(postRecords).toHaveBeenCalledTimes(2);
+    expect(unacknowledgedFor('u-drain', 'm.x')).toEqual({ input: 0, output: 0 });
   });
 });

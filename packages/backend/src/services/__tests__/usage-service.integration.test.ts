@@ -8,6 +8,7 @@ import { afterAll, beforeAll, describe, expect, it, jest } from '@jest/globals';
 
 jest.mock('../../config/index', () => ({ config: { AWS_REGION: 'ap-northeast-1' } }));
 
+import { randomUUID } from 'node:crypto';
 import type { DynamoDBClient } from '@aws-sdk/client-dynamodb';
 import type { UserId } from '@moca/core';
 import { DynamoDBUsageRepository } from '../../repositories/usage/dynamodb/repository.js';
@@ -64,14 +65,19 @@ describe('UsageService (DynamoDB Local)', () => {
 
   it('accumulates concurrent reports exactly and flips status at 80% / 100%', async () => {
     await Promise.all(
-      Array.from({ length: 16 }, () => service.record(USER, [rec(HAIKU, 50, 5)], NOV))
+      Array.from({ length: 16 }, () => service.record(USER, randomUUID(), [rec(HAIKU, 50, 5)], NOV))
     );
     expect(await model([], 'anthropic.claude-haiku-5-5')).toMatchObject({
       input: { used: 800 },
       output: { used: 80 },
       status: 'warning',
     });
-    await service.record(USER, [rec(`jp.${HAIKU.slice('global.'.length)}`, 200, 0)], NOV);
+    await service.record(
+      USER,
+      randomUUID(),
+      [rec(`jp.${HAIKU.slice('global.'.length)}`, 200, 0)],
+      NOV
+    );
     expect(await model([], 'anthropic.claude-haiku-5-5')).toMatchObject({
       input: { used: 1000 },
       status: 'exceeded',
@@ -88,7 +94,7 @@ describe('UsageService (DynamoDB Local)', () => {
 
   it('starts a new month at the JST boundary', async () => {
     const dec = new Date('2026-11-30T15:00:00Z'); // 12/1 00:00 JST
-    await service.record(USER, [rec(HAIKU, 1, 1)], dec);
+    await service.record(USER, randomUUID(), [rec(HAIKU, 1, 1)], dec);
     const s = await service.getSummary(USER, [], dec);
     expect(s.period.month).toBe('2026-12');
     expect(s.models.find((m) => m.modelKey === 'anthropic.claude-haiku-5-5')).toMatchObject({
@@ -97,8 +103,21 @@ describe('UsageService (DynamoDB Local)', () => {
     });
   });
 
+  it('does not double count a retried batch', async () => {
+    const batchId = randomUUID();
+    const before = (await model([], 'anthropic.claude-opus-5-5'))!.output.used;
+    expect(await service.record(USER, batchId, [rec(OPUS, 1, 3)], NOV)).toBe('applied');
+    expect(await service.record(USER, batchId, [rec(OPUS, 1, 3)], NOV)).toBe('duplicate');
+    expect((await model([], 'anthropic.claude-opus-5-5'))!.output.used).toBe(before + 3);
+  });
+
   it('meters unknown models into one "other" row', async () => {
-    await service.record(USER, [rec('attacker.model-a', 1, 1), rec('attacker.model-b', 1, 1)], NOV);
+    await service.record(
+      USER,
+      randomUUID(),
+      [rec('attacker.model-a', 1, 1), rec('attacker.model-b', 1, 1)],
+      NOV
+    );
     const rows = await new DynamoDBUsageRepository(client, tableName).getMonth(USER, '2026-11');
     expect(rows.filter((r) => r.modelKey === 'other')).toHaveLength(1);
     expect(rows.some((r) => r.modelKey.startsWith('attacker'))).toBe(false);

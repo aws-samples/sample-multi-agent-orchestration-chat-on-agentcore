@@ -4,6 +4,12 @@ import { z } from 'zod';
 const tokens = (max: number) => z.number().int().min(0).max(max);
 
 export const usageRecordsBody = z.object({
+  /**
+   * Same on every retry of a batch; the Backend applies a batch at most once.
+   * Optional only so a Runtime from before this field keeps metering during a
+   * rolling deploy (its batches are then not de-duplicated).
+   */
+  batchId: z.string().uuid().optional(),
   records: z
     .array(
       z.object({

@@ -119,11 +119,13 @@ export async function getSummary(
 
 export async function postRecords(
   records: readonly UsageRecord[],
-  ctx: RequestContext | undefined
+  ctx: RequestContext | undefined,
+  /** Same id on every retry of these records; the Backend applies each batch once. */
+  batchId: string
 ): Promise<UsageCallResult<void>> {
   return call(
     '/usage/records',
-    { method: 'POST', body: JSON.stringify({ records }) },
+    { method: 'POST', body: JSON.stringify({ batchId, records }) },
     ctx,
     async () => undefined
   );

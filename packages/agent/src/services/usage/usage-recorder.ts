@@ -8,6 +8,7 @@
  */
 
 import { randomUUID } from 'node:crypto';
+import { modelUsageKey } from '@moca/core';
 import { logger } from '../../libs/logger/index.js';
 import { beginInvocation, endInvocation } from '../../libs/health/in-flight.js';
 import { getCurrentContext, type RequestContext } from '../../libs/context/request-context.js';
@@ -27,34 +28,51 @@ const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 /** Every send in flight, so a turn can wait for them before its microVM is stopped. */
 const inFlightSends = new Set<Promise<void>>();
+/** Recorders holding queued (not yet sent) records — e.g. re-queued after a 429. */
+const recordersWithQueue = new Set<UsageRecorder>();
 
 /**
- * Per user, tokens this process recorded that the Backend has not acknowledged
- * yet — across every recorder (parent turn, sub-agents, title generation,
- * image_to_text). Any Backend summary is missing exactly these.
+ * Per (user, model), tokens this process recorded that the Backend has not
+ * acknowledged yet — across every recorder (parent turn, sub-agents, title
+ * generation, image_to_text). Any Backend summary is missing exactly these.
+ * Per model, because limits are per model: another model's pending usage must
+ * not count against this one's.
  */
-const pendingByUser = new Map<string, { input: number; output: number }>();
+const pending = new Map<string, { input: number; output: number }>();
+const pendingKey = (userId: string, modelKey: string) => `${userId}\u0000${modelKey}`;
 
-export function unacknowledgedFor(userId: string | undefined): { input: number; output: number } {
-  const p = userId ? pendingByUser.get(userId) : undefined;
+export function unacknowledgedFor(
+  userId: string | undefined,
+  modelKey: string
+): { input: number; output: number } {
+  const p = userId ? pending.get(pendingKey(userId, modelKey)) : undefined;
   return p ? { ...p } : { input: 0, output: 0 };
 }
 
-function addPending(userId: string | undefined, input: number, output: number): void {
+function addPending(
+  userId: string | undefined,
+  modelId: string,
+  input: number,
+  output: number
+): void {
   if (!userId) return;
-  const p = pendingByUser.get(userId) ?? { input: 0, output: 0 };
+  const key = pendingKey(userId, modelUsageKey(modelId));
+  const p = pending.get(key) ?? { input: 0, output: 0 };
   p.input += input;
   p.output += output;
-  if (p.input <= 0 && p.output <= 0) pendingByUser.delete(userId);
-  else pendingByUser.set(userId, p);
+  if (p.input <= 0 && p.output <= 0) pending.delete(key);
+  else pending.set(key, p);
 }
 
 /**
- * Wait (bounded) for every usage send in flight. Call before stopping the
- * Runtime session: StopRuntimeSession kills the microVM — and any queued usage
- * with it — and beginInvocation only defers idle reclaim, not an explicit stop.
+ * Send everything still queued and wait (bounded) for every send in flight.
+ * Call before stopping the Runtime session: StopRuntimeSession kills the
+ * microVM — and any queued usage with it — and beginInvocation only defers
+ * idle reclaim, not an explicit stop. Queued records include batches put back
+ * after a 429, whose retry timer would otherwise never fire.
  */
 export async function drainUsage(timeoutMs = 5_000): Promise<void> {
+  for (const recorder of [...recordersWithQueue]) void recorder.flush();
   if (inFlightSends.size === 0) return;
   let timer: NodeJS.Timeout | undefined;
   await Promise.race([
@@ -64,6 +82,12 @@ export async function drainUsage(timeoutMs = 5_000): Promise<void> {
     }),
   ]);
   clearTimeout(timer);
+}
+
+interface Batch {
+  /** Stable across retries of the same records, so the Backend can drop duplicates. */
+  batchId: string;
+  records: UsageRecord[];
 }
 
 export class UsageRecorder {
@@ -80,8 +104,8 @@ export class UsageRecorder {
   record(modelId: string, usage: SdkUsage): void {
     const n = normalizeUsage(modelId, usage);
     if (totalInput(n) + n.outputTokens === 0) return;
-    this.queue.push({ recordId: randomUUID(), modelId, at: new Date().toISOString(), ...n });
-    addPending(this.ctx?.userId, totalInput(n), n.outputTokens);
+    this.enqueue([{ recordId: randomUUID(), modelId, at: new Date().toISOString(), ...n }]);
+    addPending(this.ctx?.userId, modelId, totalInput(n), n.outputTokens);
     invalidateSummary(this.ctx?.userId);
     if (this.queue.length >= BATCH_SIZE) {
       void this.flush();
@@ -96,14 +120,28 @@ export class UsageRecorder {
       clearTimeout(this.timer);
       this.timer = undefined;
     }
-    const batch = this.queue.splice(0);
-    if (batch.length === 0) return this.inFlight;
+    const records = this.queue.splice(0);
+    recordersWithQueue.delete(this);
+    if (records.length === 0) return this.inFlight;
+    const batches: Batch[] = [];
+    for (let i = 0; i < records.length; i += MAX_RECORDS_PER_REQUEST) {
+      batches.push({
+        batchId: randomUUID(),
+        records: records.slice(i, i + MAX_RECORDS_PER_REQUEST),
+      });
+    }
     beginInvocation();
-    const send = this.inFlight.then(() => this.send(batch)).finally(endInvocation);
+    const send = this.inFlight.then(() => this.send(batches)).finally(endInvocation);
     this.inFlight = send;
     inFlightSends.add(send);
     void send.finally(() => inFlightSends.delete(send));
     return send;
+  }
+
+  private enqueue(records: UsageRecord[], front = false): void {
+    if (front) this.queue.unshift(...records);
+    else this.queue.push(...records);
+    if (this.queue.length > 0) recordersWithQueue.add(this);
   }
 
   private schedule(ms: number): void {
@@ -111,26 +149,28 @@ export class UsageRecorder {
     this.timer.unref?.();
   }
 
-  private async send(batch: UsageRecord[]): Promise<void> {
-    for (let i = 0; i < batch.length; i += MAX_RECORDS_PER_REQUEST) {
-      const chunk = batch.slice(i, i + MAX_RECORDS_PER_REQUEST);
+  private async send(batches: Batch[]): Promise<void> {
+    for (let b = 0; b < batches.length; b++) {
+      const { batchId, records } = batches[b];
       for (let attempt = 0; ; attempt++) {
-        const result = await postRecords(chunk, this.ctx);
+        // The same batchId on every attempt: a retry after an ambiguous
+        // failure (timeout, 5xx after a partial write) must not add twice.
+        const result = await postRecords(records, this.ctx, batchId);
         if (result.kind === 'ok') {
-          this.settle(chunk);
+          this.settle(records);
           break;
         }
         if (result.kind === 'throttled') {
-          this.requeue(batch.slice(i));
+          this.requeue(batches.slice(b).flatMap((x) => x.records));
           return;
         }
         if (result.kind === 'unauthorized') {
           this.onUnauthorized();
-          this.drop(chunk, 'unauthorized');
+          this.drop(records, 'unauthorized');
           break;
         }
         if (attempt + 1 >= RETRIES) {
-          this.drop(chunk, 'unavailable');
+          this.drop(records, 'unavailable');
           break;
         }
         await sleep(500 * 2 ** attempt);
@@ -140,7 +180,7 @@ export class UsageRecorder {
 
   /** Throttled: keep the records (bounded) and try again later instead of losing them. */
   private requeue(records: UsageRecord[]): void {
-    this.queue.unshift(...records);
+    this.enqueue(records, true);
     const overflow = this.queue.length - MAX_QUEUED;
     if (overflow > 0) this.drop(this.queue.splice(0, overflow), 'queue_overflow');
     this.schedule(THROTTLE_RETRY_MS);
@@ -148,7 +188,7 @@ export class UsageRecorder {
 
   private settle(records: UsageRecord[]): void {
     for (const r of records) {
-      addPending(this.ctx?.userId, -totalInput(r), -r.outputTokens);
+      addPending(this.ctx?.userId, r.modelId, -totalInput(r), -r.outputTokens);
     }
   }
 
@@ -157,6 +197,13 @@ export class UsageRecorder {
     this.settle(records);
     logger.error({ reason, userId: this.ctx?.userId, records }, 'usage_record_dropped');
   }
+}
+
+/** Test hook: forget all process-wide recorder state. */
+export function resetUsageRecordersForTest(): void {
+  inFlightSends.clear();
+  recordersWithQueue.clear();
+  pending.clear();
 }
 
 /**

@@ -7,8 +7,17 @@ import type { MonthlyModelUsage, UsageDelta } from './types.js';
  */
 export interface UsageRepository {
   isConfigured(): boolean;
-  /** Atomically add `delta` to the (user, month, model) row, creating it if absent. */
-  addUsage(userId: UserId, month: string, modelKey: string, delta: UsageDelta): Promise<void>;
+  /**
+   * Atomically add each delta to its (user, month, model) row — once per
+   * `batchId`. A retried batch (the Runtime could not tell whether the first
+   * attempt landed) returns 'duplicate' and changes nothing.
+   */
+  addBatch(
+    userId: UserId,
+    month: string,
+    batchId: string,
+    deltas: ReadonlyMap<string, UsageDelta>
+  ): Promise<'applied' | 'duplicate'>;
   /** All model rows of `month` (`YYYY-MM`) for the user. */
   getMonth(userId: UserId, month: string): Promise<MonthlyModelUsage[]>;
 }

@@ -17,7 +17,7 @@ export async function checkTokenLimit(
   const reported = result.value.models.find((m) => m.modelKey === modelKey);
   if (!reported) return undefined;
   // Usage this process has not reported yet (a turn that just ended) counts too.
-  const pending = unacknowledgedFor(ctx?.userId);
+  const pending = unacknowledgedFor(ctx?.userId, modelKey);
   const usage = {
     input: { ...reported.input, used: reported.input.used + pending.input },
     output: { ...reported.output, used: reported.output.used + pending.output },
