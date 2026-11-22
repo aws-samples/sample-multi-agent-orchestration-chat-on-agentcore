@@ -11,6 +11,7 @@ import type { SessionStorage, SessionConfig } from './session-types.js';
 // Type-only import: no runtime dependency on the runtime/ layer, so this does
 // not introduce a layering violation or import cycle.
 import type { StreamTerminationRetryStrategy } from '../runtime/agent/stream-termination-retry-strategy.js';
+import type { TurnBudget } from '../services/session/turn-budget-hook.js';
 
 /**
  * Strands Agent creation options for AgentCore Runtime.
@@ -59,6 +60,8 @@ export interface CreateAgentOptions {
   agentId?: string;
   /** Request-scoped tools appended after `enabledTools` filtering (never filtered out). */
   additionalTools?: Tool[];
+  /** Per-turn limits enforced by TurnBudgetHook. Defaults to MAIN_TURN_BUDGET. */
+  turnBudget?: TurnBudget;
 }
 
 /**
