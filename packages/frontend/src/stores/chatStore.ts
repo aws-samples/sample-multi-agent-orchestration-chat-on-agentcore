@@ -149,6 +149,12 @@ interface ChatActions {
   switchSession: (sessionId: string) => void;
   addMessage: (sessionId: string, message: Omit<Message, 'id' | 'timestamp'>) => string;
   updateMessage: (sessionId: string, messageId: string, updates: Partial<Message>) => void;
+  /**
+   * Remove a refused turn (the assistant refusal and the user prompt before it).
+   * Used before resending: the turn was never saved, so keeping it on screen
+   * would show the prompt twice until a reload drops one.
+   */
+  discardRefusedTurn: (sessionId: string, assistantMessageId: string) => void;
   sendPrompt: (prompt: string, sessionId: string, images?: ImageAttachment[]) => Promise<void>;
   clearSession: (sessionId: string) => void;
   setLoading: (sessionId: string, loading: boolean) => void;
@@ -278,6 +284,22 @@ export const useChatStore = create<ChatStore>()(
               ),
               lastUpdated: new Date(),
             },
+          },
+        });
+      },
+
+      discardRefusedTurn: (sessionId: string, assistantMessageId: string) => {
+        const { sessions } = get();
+        const sessionState = getOrCreateSessionState(sessions, sessionId);
+        const messages = [...sessionState.messages];
+        const index = messages.findIndex((m) => m.id === assistantMessageId);
+        if (index < 0) return;
+        const start = index > 0 && messages[index - 1].type === 'user' ? index - 1 : index;
+        messages.splice(start, index - start + 1);
+        set({
+          sessions: {
+            ...sessions,
+            [sessionId]: { ...sessionState, messages, lastUpdated: new Date() },
           },
         });
       },
@@ -654,6 +676,7 @@ export const useChatStore = create<ChatStore>()(
                     tokenLimitRetry: {
                       prompt,
                       sessionId,
+                      messageId: assistantMessageId,
                       modelKey: String(error.detail.modelKey ?? ''),
                     },
                   });

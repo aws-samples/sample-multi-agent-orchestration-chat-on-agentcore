@@ -18,7 +18,7 @@ const checkTokenLimit = jest.fn<() => Promise<unknown>>();
 const drainUsage = jest.fn(async () => {
   order.push('drainUsage');
 });
-const send = jest.fn(async () => {
+const send = jest.fn(async (_command: { constructor: { name: string } }) => {
   order.push('callback');
   return {};
 });
@@ -183,5 +183,36 @@ describe('draining usage before the microVM goes away', () => {
     Object.assign(context, { sessionId: 'sess-1', sessionType: undefined });
     await handleInvocation({ body: { prompt: 'hi' } } as Request, mockResponse().res);
     expect(drainUsage).not.toHaveBeenCalled();
+  });
+});
+
+describe('workflow steps stopped by the limit', () => {
+  const step = { workflowId: 'wf', stepId: 's', role: 'worker', callbackId: 'cb' };
+
+  // Regression: the stop message was reported as a successful deliverable.
+  it('reports the step as failed when the hook stopped the turn', async () => {
+    Object.assign(context, { isMachineUser: true });
+    streamAgentResponse.mockImplementation(async () => {
+      context.tokenLimitStopped = { code: 'tokenLimitReached', message: 'limit reached' };
+      return { ok: true };
+    });
+    await handleInvocation(
+      { body: { prompt: 'hi', workflowStep: step } } as Request,
+      mockResponse().res
+    );
+    const commands = send.mock.calls.map(([c]) => c.constructor.name);
+    expect(commands).toContain('SendDurableExecutionCallbackFailureCommand');
+    expect(commands).not.toContain('SendDurableExecutionCallbackSuccessCommand');
+  });
+
+  it('reports success when the limit did not interfere', async () => {
+    Object.assign(context, { isMachineUser: true });
+    await handleInvocation(
+      { body: { prompt: 'hi', workflowStep: step } } as Request,
+      mockResponse().res
+    );
+    expect(send.mock.calls.map(([c]) => c.constructor.name)).toContain(
+      'SendDurableExecutionCallbackSuccessCommand'
+    );
   });
 });

@@ -72,6 +72,8 @@ describe('chatStore tokenLimitExceeded (pre-turn refusal)', () => {
     expect(text).toContain('12/1 00:00');
     expect(text).not.toContain('An error occurred');
     expect(message.tokenLimitRetry).toEqual({
+      // Lets the resend replace this refused turn (see TokenLimitRetryButton).
+      messageId: message.id,
       prompt: 'summarize',
       sessionId: SESSION_ID,
       modelKey: 'anthropic.claude-opus-5-5',

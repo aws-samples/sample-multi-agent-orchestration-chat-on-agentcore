@@ -25,11 +25,13 @@ jest.unstable_mockModule('../../usage/usage-recorder.js', () => ({
     unauthorizedCallback = onUnauthorized;
     return { record, flush };
   }),
-  unacknowledgedFor: () => pending,
+  acknowledgedSnapshot: () => ({ input: 0, output: 0 }),
+  missingFromSummary: () => pending,
 }));
 const emitClientEvent = jest.fn();
+const ctxObj: Record<string, unknown> = { userId: 'u', emitClientEvent };
 jest.unstable_mockModule('../../../libs/context/request-context.js', () => ({
-  getCurrentContext: () => ({ userId: 'u', emitClientEvent }),
+  getCurrentContext: () => ctxObj,
 }));
 const logger = { info: jest.fn(), warn: jest.fn(), error: jest.fn(), debug: jest.fn() };
 jest.unstable_mockModule('../../../libs/logger/index.js', () => ({
@@ -344,7 +346,8 @@ describe('TokenLimitHook', () => {
     expect(reasoningActive('global.anthropic.claude-opus-5-5', model({ type: 'disabled' }))).toBe(
       false
     );
-    expect(reasoningActive('openai.gpt-5.5', model())).toBe(true);
+    // Mantle gpt-5.x are always sent reasoning effort 'none'.
+    expect(reasoningActive('openai.gpt-5.5', model())).toBe(false);
     // Default with no thinking field follows the registry (off payload ⇒ default on).
     const core = await import('@moca/core');
     for (const id of ['global.anthropic.claude-haiku-5-5', 'global.anthropic.claude-sonnet-4-6']) {
@@ -394,5 +397,53 @@ describe('TokenLimitHook', () => {
     await Promise.resolve();
     expect(() => h.afterModelError(maxTokensError('partial'))).not.toThrow();
     expect(h.modelCall()).toEqual(expect.stringContaining('partial'));
+  });
+
+  // Regression: a stopped workflow step / sub-agent was reported as a success.
+  it('flags the request context when it refuses or winds down a turn', async () => {
+    getSummary.mockResolvedValue(summary(1000));
+    await setup().start();
+    expect(ctxObj.tokenLimitStopped).toMatchObject({ code: 'tokenLimitReached' });
+
+    getSummary.mockResolvedValue(summary(990));
+    const h = setup();
+    await h.start(); // resets the flag
+    expect(ctxObj.tokenLimitStopped).toBeUndefined();
+    h.modelCall();
+    h.usage(20);
+    h.modelCall(); // exhausted mid-turn
+    expect(ctxObj.tokenLimitStopped).toMatchObject({ code: 'tokenLimitReached' });
+  });
+
+  // Regression: a model missing from the registry has no known ceiling; the
+  // cap used to set maxTokens to the remaining limit (millions) and fail.
+  it('never caps a model whose output ceiling is unknown', async () => {
+    const unknown = summary(0);
+    if (unknown.kind === 'ok') {
+      (unknown.value.models[0] as { modelKey: string }).modelKey = 'acme.unknown-model';
+    }
+    getSummary.mockResolvedValue(unknown);
+    let maxTokens: number | undefined;
+    const handlers = new Map<unknown, (e: unknown) => unknown>();
+    new TokenLimitHook('global.acme.unknown-model').initAgent({
+      addHook: (t: unknown, cb: (e: unknown) => unknown) => {
+        handlers.set(t, cb);
+        return () => {};
+      },
+    } as never);
+    const model = {
+      getConfig: () => ({ maxTokens }),
+      updateConfig: (c: { maxTokens?: number }) => {
+        maxTokens = c.maxTokens;
+      },
+    };
+    const agent = { model } as never;
+    await handlers.get(sdk.BeforeInvocationEvent)!(
+      new sdk.BeforeInvocationEvent({ agent, messages: [], invocationState: {} as never })
+    );
+    handlers.get(sdk.BeforeModelCallEvent)!(
+      new sdk.BeforeModelCallEvent({ agent, model: model as never, invocationState: {} as never })
+    );
+    expect(maxTokens).toBeUndefined();
   });
 });

@@ -47,7 +47,11 @@ import {
   getSummary,
   type UsageCallResult,
 } from '../usage/usage-client.js';
-import { UsageRecorder, unacknowledgedFor } from '../usage/usage-recorder.js';
+import {
+  UsageRecorder,
+  acknowledgedSnapshot,
+  missingFromSummary,
+} from '../usage/usage-recorder.js';
 
 /** Consecutive 401/403 responses that mean "tokens are no longer renewed". */
 export const UNAUTHORIZED_STRIKES_TO_STOP = 2;
@@ -71,7 +75,9 @@ export const REASONING_GRACE_MAX_OUTPUT_TOKENS = 16_384;
 
 /** Whether calls of this model spend output tokens on reasoning. */
 export function reasoningActive(modelId: string, model: Model): boolean {
-  if (getBedrockEndpoint(modelId) === 'mantle') return true; // gpt-5.x reason by default
+  // gpt-5.x on Mantle are always sent `reasoning: { effort: 'none' }`
+  // (bedrock-openai-model.ts), so they never spend output on reasoning here.
+  if (getBedrockEndpoint(modelId) === 'mantle') return false;
   const thinking = (
     model.getConfig() as { additionalRequestFields?: { thinking?: { type?: string } } }
   ).additionalRequestFields?.thinking;
@@ -159,8 +165,10 @@ export class TokenLimitHook implements Plugin {
     this.exhaustion = undefined;
     this.unauthorizedStrikes = 0;
     this.truncatedAnswer = undefined;
+    if (this.ctx) this.ctx.tokenLimitStopped = undefined;
 
-    this.apply(await getSummary(this.ctx));
+    const snapshot = acknowledgedSnapshot(this.ctx?.userId, this.modelKey);
+    this.apply(await getSummary(this.ctx), snapshot);
     const dimension = exhaustedDimension(this.remaining);
     if (dimension) {
       // Already over the limit (sub-agents, workflow steps — the main turn is
@@ -168,10 +176,14 @@ export class TokenLimitHook implements Plugin {
       const detail = this.detail(dimension);
       logger.warn({ ...detail }, '[TOKEN_LIMIT] Refusing turn: monthly limit already reached');
       event.cancel = `[Stopped: the monthly ${dimension} token limit for ${this.modelKey} is reached (${detail.used} / ${detail.limit}). It resets at ${detail.resetsAt}.]`;
+      this.markStopped(TOKEN_LIMIT_REACHED, event.cancel);
     }
   }
 
-  private apply(result: UsageCallResult<UsageSummary>): void {
+  private apply(
+    result: UsageCallResult<UsageSummary>,
+    snapshot: { input: number; output: number }
+  ): void {
     if (result.kind === 'unauthorized') {
       this.onUnauthorized();
       return;
@@ -183,7 +195,7 @@ export class TokenLimitHook implements Plugin {
     // (queued or in flight); without subtracting it, every refresh would hand
     // back tokens already spent this turn.
     const remaining = remainingFor(result.value, this.modelKey);
-    const pending = unacknowledgedFor(this.ctx?.userId, this.modelKey);
+    const pending = missingFromSummary(this.ctx?.userId, this.modelKey, snapshot);
     if (remaining) {
       if (remaining.input !== null) remaining.input -= pending.input;
       if (remaining.output !== null) remaining.output -= pending.output;
@@ -280,6 +292,10 @@ export class TokenLimitHook implements Plugin {
     event.retry = true;
   }
 
+  private markStopped(code: string, message: string): void {
+    if (this.ctx && !this.ctx.tokenLimitStopped) this.ctx.tokenLimitStopped = { code, message };
+  }
+
   private floor(model: Model): number {
     return reasoningActive(this.modelId, model)
       ? REASONING_GRACE_MAX_OUTPUT_TOKENS
@@ -289,9 +305,14 @@ export class TokenLimitHook implements Plugin {
   /** Lower the model's maxTokens to `cap` (never raise it above what was configured). */
   private capOutput(model: Model, cap: number): void {
     const current = (model.getConfig() as { maxTokens?: number }).maxTokens;
+    const configured =
+      (this.savedMaxTokens === null ? current : this.savedMaxTokens) ??
+      getMaxOutputTokens(this.modelId);
+    // Unknown ceiling (a deployed model missing from the registry): any value
+    // could exceed what the model accepts and fail every call, so don't cap.
+    if (configured === undefined) return;
     if (this.savedMaxTokens === null) this.savedMaxTokens = current;
-    const configured = this.savedMaxTokens ?? getMaxOutputTokens(this.modelId);
-    const next = configured === undefined ? cap : Math.min(configured, cap);
+    const next = Math.min(configured, cap);
     if (next !== current) model.updateConfig({ maxTokens: next } as never);
   }
 
@@ -323,8 +344,9 @@ export class TokenLimitHook implements Plugin {
   private refreshInBackground(): void {
     if (this.refreshing || this.now() - this.fetchedAt < SUMMARY_TTL_MS) return;
     this.refreshing = true;
+    const snapshot = acknowledgedSnapshot(this.ctx?.userId, this.modelKey);
     void fetchSummary(this.ctx)
-      .then((r) => this.apply(r))
+      .then((r) => this.apply(r, snapshot))
       .finally(() => {
         this.refreshing = false;
       });
@@ -340,6 +362,12 @@ export class TokenLimitHook implements Plugin {
 
   private exhaust(exhaustion: Exhaustion): void {
     this.exhaustion = exhaustion;
+    this.markStopped(
+      exhaustion.code,
+      exhaustion.code === USAGE_METERING_UNAVAILABLE
+        ? 'Usage could not be metered because the sign-in session expired.'
+        : `The monthly token limit for ${this.modelKey} was reached; the turn was wound down.`
+    );
     this.exhaustedAtCall = this.modelCalls;
     logger.warn(
       { code: exhaustion.code, ...exhaustion.detail, modelCalls: this.modelCalls },

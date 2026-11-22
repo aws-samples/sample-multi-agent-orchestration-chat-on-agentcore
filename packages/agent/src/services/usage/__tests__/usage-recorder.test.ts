@@ -17,6 +17,8 @@ const {
   drainUsage,
   unacknowledgedFor,
   resetUsageRecordersForTest,
+  acknowledgedSnapshot,
+  missingFromSummary,
 } = await import('../usage-recorder.js');
 const { isBusy, resetInFlight } = await import('../../../libs/health/in-flight.js');
 
@@ -216,5 +218,33 @@ describe('UsageRecorder', () => {
     await drainUsage();
     expect(postRecords).toHaveBeenCalledTimes(2);
     expect(unacknowledgedFor('u-drain', 'm.x')).toEqual({ input: 0, output: 0 });
+  });
+
+  // Regression: a summary fetched while a batch was acknowledged could miss
+  // that batch after it had already left `pending`.
+  it('reports usage acknowledged during a fetch as possibly missing from it', async () => {
+    let release!: () => void;
+    postRecords.mockImplementationOnce(
+      () => new Promise((r) => (release = () => r({ kind: 'ok' })))
+    );
+    const rec = new UsageRecorder({ userId: 'u-race' } as never);
+    rec.record('m.x', { inputTokens: 100, outputTokens: 10 });
+    const sent = rec.flush();
+    await Promise.resolve();
+    const snapshot = acknowledgedSnapshot('u-race', 'm.x'); // fetch starts
+    expect(missingFromSummary('u-race', 'm.x', snapshot)).toEqual({ input: 100, output: 10 });
+    release();
+    await sent; // acknowledged while the fetch is "in flight"
+    expect(unacknowledgedFor('u-race', 'm.x')).toEqual({ input: 0, output: 0 });
+    expect(missingFromSummary('u-race', 'm.x', snapshot)).toEqual({ input: 100, output: 10 });
+    // A fetch started after the acknowledgement misses nothing.
+    expect(missingFromSummary('u-race', 'm.x', acknowledgedSnapshot('u-race', 'm.x'))).toEqual({
+      input: 0,
+      output: 0,
+    });
+    expect(invalidateSummary).toHaveBeenCalledWith('u-race'); // on record and on ack
+    expect(
+      invalidateSummary.mock.calls.filter((c) => c[0] === 'u-race').length
+    ).toBeGreaterThanOrEqual(2);
   });
 });

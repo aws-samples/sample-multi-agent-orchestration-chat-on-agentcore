@@ -39,6 +39,13 @@ const recordersWithQueue = new Set<UsageRecorder>();
  * not count against this one's.
  */
 const pending = new Map<string, { input: number; output: number }>();
+/**
+ * Per (user, model), tokens the Backend has acknowledged since this process
+ * started. A summary fetched while a batch was acknowledged may or may not
+ * contain it, and the batch has already left `pending`; snapshot this before a
+ * fetch and subtract the growth (see {@link missingFromSummary}).
+ */
+const acknowledged = new Map<string, { input: number; output: number }>();
 const pendingKey = (userId: string, modelKey: string) => `${userId}\u0000${modelKey}`;
 
 export function unacknowledgedFor(
@@ -47,6 +54,34 @@ export function unacknowledgedFor(
 ): { input: number; output: number } {
   const p = userId ? pending.get(pendingKey(userId, modelKey)) : undefined;
   return p ? { ...p } : { input: 0, output: 0 };
+}
+
+/** Opaque snapshot to take right before fetching a summary. */
+export function acknowledgedSnapshot(
+  userId: string | undefined,
+  modelKey: string
+): { input: number; output: number } {
+  const a = userId ? acknowledged.get(pendingKey(userId, modelKey)) : undefined;
+  return a ? { ...a } : { input: 0, output: 0 };
+}
+
+/**
+ * Usage a summary fetched after `snapshot` may be missing: what is still
+ * pending, plus what was acknowledged while the fetch was in flight. The
+ * latter may already be in the summary — counting it twice errs on the side
+ * of the limit, and lasts only until the next refresh.
+ */
+export function missingFromSummary(
+  userId: string | undefined,
+  modelKey: string,
+  snapshot: { input: number; output: number }
+): { input: number; output: number } {
+  const p = unacknowledgedFor(userId, modelKey);
+  const a = acknowledgedSnapshot(userId, modelKey);
+  return {
+    input: p.input + a.input - snapshot.input,
+    output: p.output + a.output - snapshot.output,
+  };
 }
 
 function addPending(
@@ -62,6 +97,15 @@ function addPending(
   p.output += output;
   if (p.input <= 0 && p.output <= 0) pending.delete(key);
   else pending.set(key, p);
+}
+
+function addAcknowledged(userId: string | undefined, r: UsageRecord): void {
+  if (!userId) return;
+  const key = pendingKey(userId, modelUsageKey(r.modelId));
+  const a = acknowledged.get(key) ?? { input: 0, output: 0 };
+  a.input += totalInput(r);
+  a.output += r.outputTokens;
+  acknowledged.set(key, a);
 }
 
 /**
@@ -158,6 +202,8 @@ export class UsageRecorder {
         const result = await postRecords(records, this.ctx, batchId);
         if (result.kind === 'ok') {
           this.settle(records);
+          for (const r of records) addAcknowledged(this.ctx?.userId, r);
+          invalidateSummary(this.ctx?.userId);
           break;
         }
         if (result.kind === 'throttled') {
@@ -204,6 +250,7 @@ export function resetUsageRecordersForTest(): void {
   inFlightSends.clear();
   recordersWithQueue.clear();
   pending.clear();
+  acknowledged.clear();
 }
 
 /**

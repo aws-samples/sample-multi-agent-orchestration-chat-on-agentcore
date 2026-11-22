@@ -8,6 +8,8 @@ import {
   validateWebSearchConfig,
   validateRuntimeResources,
   validateTokenLimits,
+  IMAGE_TO_TEXT_MODEL_IDS,
+  TOKEN_LIMITS_CONFIG_MAX_BYTES,
 } from './environment-utils';
 
 jest.mock('./environments', () => ({
@@ -840,5 +842,68 @@ describe('validateTokenLimits', () => {
     ['a bad group cap', { groups: { g: { default: { input: -1, output: 1 } } } }, /groups\['g'\]/],
   ])('rejects %s', (_name, tokenLimits, message) => {
     expect(() => validateTokenLimits({ tokenLimits }, 'dev')).toThrow(message);
+  });
+});
+
+describe('validateTokenLimits — deployed models and size', () => {
+  const models = [
+    { id: 'global.anthropic.claude-sonnet-4-6', name: 'S', provider: 'Anthropic' as const },
+  ];
+
+  // Regression: a limit on a model that is not deployed passed and never applied.
+  it('rejects a limit on a model that is not deployed', () => {
+    expect(() =>
+      validateTokenLimits(
+        {
+          tokenLimits: { limits: { 'global.anthropic.claude-opus-4-7': { input: 1, output: 1 } } },
+        },
+        'dev',
+        models
+      )
+    ).toThrow(/not in bedrockModels/);
+  });
+
+  it('accepts deployed models under any profile prefix, and image_to_text models', () => {
+    expect(() =>
+      validateTokenLimits(
+        {
+          tokenLimits: {
+            limits: {
+              'jp.anthropic.claude-sonnet-4-6': { input: 1, output: 1 },
+              'global.anthropic.claude-haiku-4-5-20251001-v1:0': 'unlimited',
+            },
+          },
+        },
+        'dev',
+        models
+      )
+    ).not.toThrow();
+  });
+
+  it('rejects a config too large for the Lambda environment', () => {
+    const groups = Object.fromEntries(
+      Array.from({ length: 60 }, (_, i) => [
+        `group-${i}`,
+        { default: { input: 1_000_000, output: 1_000 } },
+      ])
+    );
+    expect(() => validateTokenLimits({ tokenLimits: { groups } }, 'dev', models)).toThrow(
+      new RegExp(`under ${TOKEN_LIMITS_CONFIG_MAX_BYTES}`)
+    );
+  });
+
+  // CDK mirrors the tool's list by hand; fail when they drift.
+  it('mirrors IMAGE_TO_TEXT_MODEL_IDS from tool-definitions', () => {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const { readFileSync } = require('node:fs');
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const { join } = require('node:path');
+    const src: string = readFileSync(
+      join(__dirname, '../../libs/tool-definitions/src/definitions/image-to-text.ts'),
+      'utf8'
+    );
+    const block = src.slice(src.indexOf('IMAGE_TO_TEXT_MODEL_IDS = ['), src.indexOf('] as const'));
+    const ids = [...block.matchAll(/'([^']+)'/g)].map((m) => m[1]);
+    expect(ids).toEqual([...IMAGE_TO_TEXT_MODEL_IDS]);
   });
 });

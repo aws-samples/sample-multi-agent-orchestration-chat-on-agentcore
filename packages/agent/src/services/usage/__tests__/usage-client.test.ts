@@ -128,4 +128,17 @@ describe('usage-client', () => {
     await getSummary(ctx);
     expect(fetchMock).toHaveBeenCalledTimes(2);
   });
+
+  it('does not cache a summary whose fetch spanned recorded or acknowledged usage', async () => {
+    let resolve!: (r: Response) => void;
+    fetchMock.mockImplementationOnce(() => new Promise((r) => (resolve = r)));
+    const pendingFetch = fetchSummary(ctx);
+    await Promise.resolve();
+    invalidateSummary('user-1'); // usage recorded / acknowledged meanwhile
+    resolve(new Response(JSON.stringify(summary), { status: 200 }));
+    expect((await pendingFetch).kind).toBe('ok');
+    respond(200, summary);
+    await getSummary(ctx); // must go to the Backend, not a cached stale value
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
 });

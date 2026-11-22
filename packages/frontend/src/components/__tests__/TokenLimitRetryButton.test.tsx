@@ -43,4 +43,36 @@ describe('TokenLimitRetryButton', () => {
     render(<TokenLimitRetryButton retry={retry} />);
     expect(screen.getByRole('button')).toBeDisabled();
   });
+
+  // Regression: the refused prompt stayed on screen and the resend added it again.
+  it('replaces the refused turn instead of showing the prompt twice', () => {
+    const msg = (id: string, type: 'user' | 'assistant') => ({
+      id,
+      type,
+      contents: [{ type: 'text', text: id }],
+      timestamp: new Date(),
+    });
+    useChatStore.setState({
+      sessions: {
+        [SESSION_ID]: {
+          messages: [
+            msg('u0', 'user'),
+            msg('a0', 'assistant'),
+            msg('u1', 'user'),
+            msg('a1', 'assistant'),
+          ],
+          isLoading: false,
+          error: null,
+          lastUpdated: new Date(),
+        },
+      },
+    } as never);
+    render(<TokenLimitRetryButton retry={{ ...retry, messageId: 'a1' }} />);
+    fireEvent.click(screen.getByRole('button'));
+    expect(useChatStore.getState().sessions[SESSION_ID].messages.map((m) => m.id)).toEqual([
+      'u0',
+      'a0',
+    ]);
+    expect(sendPrompt).toHaveBeenCalledWith('summarize', SESSION_ID);
+  });
 });

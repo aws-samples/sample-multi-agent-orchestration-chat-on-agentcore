@@ -80,11 +80,18 @@ async function call<T>(
 }
 
 const summaryCache = new Map<string, { summary: UsageSummary; at: number }>();
+/**
+ * Bumped whenever this process records or the Backend acknowledges usage for
+ * a user. A summary whose fetch spans a bump may predate a batch that is no
+ * longer pending locally, so it is not cached (callers correct it themselves).
+ */
+const generation = new Map<string, number>();
 
 /** Fetch (and cache) this month's usage for the caller. */
 export async function fetchSummary(
   ctx: RequestContext | undefined
 ): Promise<UsageCallResult<UsageSummary>> {
+  const startGeneration = ctx?.userId ? (generation.get(ctx.userId) ?? 0) : 0;
   const result = await call(
     '/usage/me',
     { method: 'GET' },
@@ -93,7 +100,9 @@ export async function fetchSummary(
   );
   if (result.kind !== 'ok') return result;
   const at = Date.now();
-  if (ctx?.userId) summaryCache.set(ctx.userId, { summary: result.value, at });
+  if (ctx?.userId && (generation.get(ctx.userId) ?? 0) === startGeneration) {
+    summaryCache.set(ctx.userId, { summary: result.value, at });
+  }
   return { ...result, at };
 }
 
@@ -133,12 +142,15 @@ export async function postRecords(
 
 /** Drop the caller's cached summary: this process just consumed tokens it does not reflect. */
 export function invalidateSummary(userId: string | undefined): void {
-  if (userId) summaryCache.delete(userId);
+  if (!userId) return;
+  summaryCache.delete(userId);
+  generation.set(userId, (generation.get(userId) ?? 0) + 1);
 }
 
 /** Test hook. */
 export function clearSummaryCacheForTest(): void {
   summaryCache.clear();
+  generation.clear();
 }
 
 /** Test hook: seed the cache with an entry read at `at`. */

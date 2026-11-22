@@ -85,6 +85,13 @@ export interface RequestContext {
   emitClientEvent?: (event: Record<string, unknown>) => void;
   /** Set once persistence degradation has been surfaced for this turn. */
   persistenceDegradedReported?: boolean;
+  /**
+   * Set by TokenLimitHook when it refused or wound down this turn. The turn
+   * still ends normally (with a stop message), so callers that report an
+   * outcome — workflow steps, sub-agent tasks — read this to report a failure
+   * instead of passing the stop message on as a deliverable.
+   */
+  tokenLimitStopped?: { code: string; message: string };
   /** Session type (from x-amzn-bedrock-agentcore-runtime-session-type header) */
   sessionType?: SessionType;
   /** Agent / model of the current turn, so background work started by a tool can resume it. */

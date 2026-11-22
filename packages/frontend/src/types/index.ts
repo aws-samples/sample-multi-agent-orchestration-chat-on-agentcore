@@ -96,7 +96,7 @@ export interface Message {
   /** Muted note rendered below the contents (e.g. why the turn stopped). */
   notice?: string;
   /** Set on a pre-turn token-limit refusal: lets the user resend with another model. */
-  tokenLimitRetry?: { prompt: string; sessionId: string; modelKey: string };
+  tokenLimitRetry?: { prompt: string; sessionId: string; modelKey: string; messageId?: string };
 }
 
 // Session-specific chat state

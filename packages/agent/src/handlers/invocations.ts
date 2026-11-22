@@ -311,6 +311,12 @@ async function runAgentTurn(
     stopHeartbeat?.();
   }
 
+  // The turn "succeeded" with a stop message; a workflow step must not hand
+  // that message to the next step as its deliverable.
+  if (workflowStep && outcome.ok && context.tokenLimitStopped) {
+    outcome = { ok: false, error: context.tokenLimitStopped.message };
+  }
+
   // Flush before the callback and stopOwnSession: a downstream step pulls from
   // S3 right after the callback, and stopping the session kills a pending push.
   let conflicts: SyncConflict[] = [];

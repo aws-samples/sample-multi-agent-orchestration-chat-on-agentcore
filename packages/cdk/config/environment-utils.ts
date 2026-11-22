@@ -510,13 +510,47 @@ export function validateWebSearchConfig(input: EnvironmentConfigInput, env: Envi
  */
 export const RUNTIME_MINIMUM_MEMORY_CFN_SUPPORTED = false;
 
+/**
+ * Models `image_to_text` can call besides the deployment's `bedrockModels`;
+ * they are metered too, so a limit on them is valid. Mirrors
+ * IMAGE_TO_TEXT_MODEL_IDS in packages/libs/tool-definitions (CDK does not import
+ * @moca/*); environment-utils.test.ts fails if the two drift apart.
+ */
+export const IMAGE_TO_TEXT_MODEL_IDS = [
+  'global.anthropic.claude-sonnet-4-6',
+  'global.anthropic.claude-sonnet-4-5-20250929-v1:0',
+  'global.anthropic.claude-haiku-4-5-20251001-v1:0',
+  'global.amazon.nova-2-lite-v1:0',
+] as const;
+
+/**
+ * Budget for TOKEN_LIMITS_CONFIG. Lambda caps ALL environment variables of a
+ * function at 4 KB together, and the Backend already uses a good part of it;
+ * past this the deploy fails with an opaque Lambda error.
+ */
+export const TOKEN_LIMITS_CONFIG_MAX_BYTES = 1536;
+
+const profileless = (id: string) => id.replace(/^(global|us|eu|apac|au|jp)\./, '');
+
 /** Cognito group names: 1-128 chars, no whitespace control characters. */
 const COGNITO_GROUP_NAME = /^[\p{L}\p{M}\p{S}\p{N}\p{P}]{1,128}$/u;
 
-function validateLimitMap(map: ModelTokenLimits, where: string, env: Environment): void {
+function validateLimitMap(
+  map: ModelTokenLimits,
+  where: string,
+  env: Environment,
+  meteredModels: ReadonlySet<string>
+): void {
   for (const [id, value] of Object.entries(map)) {
     if (id !== 'default' && !NAMESPACED_MODEL_ID.test(id)) {
       throw new Error(`[${env}] tokenLimits${where}: invalid model id '${id}'`);
+    }
+    // A limit on a model that is not deployed never applies (its usage, if
+    // any, is metered as 'other'): almost always a typo or a stale id.
+    if (id !== 'default' && !meteredModels.has(profileless(id))) {
+      throw new Error(
+        `[${env}] tokenLimits${where}: '${id}' is not in bedrockModels (nor an image_to_text model), so this limit would never apply`
+      );
     }
     if (value === 'unlimited') continue;
     for (const dim of ['input', 'output'] as const) {
@@ -532,9 +566,22 @@ function validateLimitMap(map: ModelTokenLimits, where: string, env: Environment
  * Validate `tokenLimits`: model ids, positive integer caps, a valid time zone,
  * and Cognito-compatible group names.
  */
-export function validateTokenLimits(input: EnvironmentConfigInput, env: Environment): void {
+export function validateTokenLimits(
+  input: EnvironmentConfigInput,
+  env: Environment,
+  bedrockModels: readonly BedrockModelConfig[] = input.bedrockModels ?? DEFAULT_CONFIG.bedrockModels
+): void {
   const tl = input.tokenLimits;
   if (!tl) return;
+  const metered = new Set(
+    [...bedrockModels.map((m) => m.id), ...IMAGE_TO_TEXT_MODEL_IDS].map(profileless)
+  );
+  const bytes = Buffer.byteLength(JSON.stringify(tl), 'utf8');
+  if (bytes > TOKEN_LIMITS_CONFIG_MAX_BYTES) {
+    throw new Error(
+      `[${env}] tokenLimits is ${bytes} bytes as JSON; keep it under ${TOKEN_LIMITS_CONFIG_MAX_BYTES} (Lambda allows 4 KB of environment variables in total). Use 'default' entries instead of listing every model.`
+    );
+  }
   if (tl.timezone !== undefined) {
     try {
       new Intl.DateTimeFormat('en-US', { timeZone: tl.timezone });
@@ -544,12 +591,12 @@ export function validateTokenLimits(input: EnvironmentConfigInput, env: Environm
       );
     }
   }
-  if (tl.limits) validateLimitMap(tl.limits, '.limits', env);
+  if (tl.limits) validateLimitMap(tl.limits, '.limits', env, metered);
   for (const [group, value] of Object.entries(tl.groups ?? {})) {
     if (!COGNITO_GROUP_NAME.test(group)) {
       throw new Error(`[${env}] tokenLimits.groups: invalid Cognito group name '${group}'`);
     }
-    if (value !== 'unlimited') validateLimitMap(value, `.groups['${group}']`, env);
+    if (value !== 'unlimited') validateLimitMap(value, `.groups['${group}']`, env, metered);
   }
 }
 
@@ -604,7 +651,7 @@ function resolveConfig(env: Environment, input: EnvironmentConfigInput): Environ
   validateCognitoDomainPrefix(input.cognitoDomainPrefix, env);
   validateWebSearchConfig(input, env);
   validateRuntimeResources(input, env);
-  validateTokenLimits(input, env);
+  validateTokenLimits(input, env, bedrockModels);
 
   return {
     // Spread input first so optional properties are automatically passed through.

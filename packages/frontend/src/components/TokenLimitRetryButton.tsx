@@ -35,7 +35,11 @@ export const TokenLimitRetryButton: React.FC<TokenLimitRetryButtonProps> = ({ re
 
   const resend = () => {
     useSettingsStore.getState().setSelectedModelId(model.id);
-    void useChatStore.getState().sendPrompt(retry.prompt, retry.sessionId);
+    const chat = useChatStore.getState();
+    // The refused turn was never saved; replace it rather than leave the
+    // prompt on screen twice.
+    if (retry.messageId) chat.discardRefusedTurn(retry.sessionId, retry.messageId);
+    void chat.sendPrompt(retry.prompt, retry.sessionId);
   };
 
   return (

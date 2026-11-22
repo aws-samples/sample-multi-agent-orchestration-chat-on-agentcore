@@ -349,6 +349,19 @@ class SubAgentTaskManager {
       // Execute query
       const result = await agent.invoke(task.query);
 
+      // Stopped by the monthly token limit: report a failure, not the stop
+      // message as the sub-agent's answer.
+      const stopped = getCurrentContext()?.tokenLimitStopped;
+      if (stopped) {
+        this.updateTaskStatus(
+          taskId,
+          'failed',
+          undefined,
+          `${stopped.message} ${String(result)}`.trim()
+        );
+        return;
+      }
+
       // Update to completed
       this.updateTaskStatus(taskId, 'completed', String(result));
 

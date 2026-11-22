@@ -4,7 +4,10 @@ import type { UsageSummary } from '@moca/core';
 const getSummary = jest.fn<() => Promise<unknown>>();
 jest.unstable_mockModule('../usage-client.js', () => ({ getSummary }));
 let pending = { input: 0, output: 0 };
-jest.unstable_mockModule('../usage-recorder.js', () => ({ unacknowledgedFor: () => pending }));
+jest.unstable_mockModule('../usage-recorder.js', () => ({
+  acknowledgedSnapshot: () => ({ input: 0, output: 0 }),
+  missingFromSummary: () => pending,
+}));
 
 const { checkTokenLimit } = await import('../limit-check.js');
 
