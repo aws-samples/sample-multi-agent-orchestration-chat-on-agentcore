@@ -15,6 +15,7 @@ import { StorageManagementModal } from './StorageManagementModal';
 import { WorkflowStatusLauncher } from './workflow/WorkflowStatusLauncher';
 import { FilePreviewToggle } from './file-preview/FilePreviewToggle';
 import { ModelReasoningSelector } from './ui/ModelReasoningSelector';
+import { useModelUsageIndicators } from '../hooks/useModelUsageIndicators';
 import { ImagePreview } from './ImagePreview';
 import type { ImageAttachment } from '../types/index';
 import { IMAGE_ATTACHMENT_CONFIG } from '../types/index';
@@ -46,6 +47,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({
   const isAgentStoreLoading = useAgentStore((state) => state.isLoading);
   const isWideView = useUIStore((state) => state.isWideView);
   const agentWorkingDirectory = useStorageStore((state) => state.agentWorkingDirectory);
+  const modelUsageFor = useModelUsageIndicators();
   const [input, setInput] = useState('');
   const pendingSessionIdRef = useRef<string | null>(null);
   const [attachedImages, setAttachedImages] = useState<ImageAttachment[]>([]);
@@ -578,7 +580,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({
                   also clip overflow-y and hide the upward-opening model/depth
                   dropdowns (they render with `absolute bottom-full`). */}
               <div className="flex items-center gap-1 min-w-0">
-                <ModelReasoningSelector />
+                <ModelReasoningSelector usageFor={modelUsageFor} usageHref="/settings" />
                 {/* Image attachment button */}
                 <button
                   type="button"

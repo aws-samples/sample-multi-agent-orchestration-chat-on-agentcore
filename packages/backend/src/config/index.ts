@@ -162,6 +162,11 @@ const envSchema = z.object({
   /** Qualified (alias) ARN of the durable orchestrator; durable functions must be invoked qualified. */
   WORKFLOW_ORCHESTRATOR_ARN: z.string().optional(),
 
+  // Monthly token limits (optional — feature is off unless both are set)
+  USAGE_TABLE_NAME: z.string().optional(),
+  /** JSON `TokenLimitsConfig` (@moca/core) rendered by CDK from `tokenLimits` in environments.ts. */
+  TOKEN_LIMITS_CONFIG: z.string().optional(),
+
   // GitHub Webhook (optional — only required when the webhook endpoint is enabled)
   GITHUB_WEBHOOK_SECRET_NAME: z.string().optional(),
 

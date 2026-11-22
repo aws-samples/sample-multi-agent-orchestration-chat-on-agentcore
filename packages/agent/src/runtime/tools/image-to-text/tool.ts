@@ -15,6 +15,8 @@ import { getCurrentContext } from '../../../libs/context/request-context.js';
 import { loadImageSource, type ImageSource } from '../../../libs/utils/image-source.js';
 import type { ImageToTextResult } from './types.js';
 import { imageToTextDefinition } from '@moca/tool-definitions';
+import { recordUsageOutsideAgent } from '../../../services/usage/usage-recorder.js';
+import { checkTokenLimit } from '../../../services/usage/limit-check.js';
 
 // Create Bedrock Runtime client
 const bedrockClient = new BedrockRuntimeClient({ region: config.BEDROCK_REGION });
@@ -58,6 +60,7 @@ async function analyzeImage(
 
     const startTime = Date.now();
     const response = await bedrockClient.send(command);
+    if (config.TOKEN_LIMITS_ENABLED) recordUsageOutsideAgent(modelId, response.usage);
     const duration = Date.now() - startTime;
 
     // Extract text from response
@@ -125,6 +128,13 @@ export const imageToTextTool = tool({
     if (!context?.userId) {
       logger.error('[IMAGE_TO_TEXT] Failed to get user ID from context');
       return `❌ Error: User authentication information not found. Please log in again.`;
+    }
+
+    const refusal = config.TOKEN_LIMITS_ENABLED
+      ? await checkTokenLimit(context, modelId)
+      : undefined;
+    if (refusal) {
+      return `Error: the monthly ${refusal.dimension} token limit for ${modelId} is reached (resets at ${refusal.resetsAt}). Try another modelId.`;
     }
 
     try {

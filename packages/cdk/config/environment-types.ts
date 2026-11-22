@@ -312,6 +312,35 @@ export interface EnvironmentConfig {
    * Enforced server-side by the connector and invisible to the calling agent.
    */
   agentcoreWebSearch?: AgentCoreWebSearchConfig;
+
+  /**
+   * Monthly per-user, per-model token limits (optional). Omit to disable the
+   * feature entirely (no table, no checks). See docs/guides/token-limits.md.
+   *
+   * Mirrors `TokenLimitsConfigInput` in packages/libs/core/src/token-usage.ts —
+   * CDK does not import @moca/core, so keep the two in sync by hand.
+   */
+  tokenLimits?: TokenLimitsConfig;
+}
+
+/** Monthly input / output token caps for one model, or no cap. */
+export type TokenLimitValue = { input: number; output: number } | 'unlimited';
+
+/** Model id (any cross-region prefix) or `default` → limit. */
+export type ModelTokenLimits = Record<string, TokenLimitValue>;
+
+export interface TokenLimitsConfig {
+  /** IANA time zone defining the month boundary. @default 'Asia/Tokyo' */
+  timezone?: string;
+  /** Limits for users in none of the configured groups. Missing models fall back to `default`, else unlimited. */
+  limits?: ModelTokenLimits;
+  /**
+   * Cognito group → limits that REPLACE `limits` for its members (even when
+   * stricter). Across several groups the loosest value per dimension applies.
+   * Each key becomes a User Pool group; assign users with
+   * `aws cognito-idp admin-add-user-to-group`.
+   */
+  groups?: Record<string, ModelTokenLimits | 'unlimited'>;
 }
 
 export type WebSearchProvider = 'tavily' | 'agentcore';

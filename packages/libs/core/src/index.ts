@@ -85,3 +85,33 @@ export {
   parseAllowedModelIds,
   getBedrockEndpoint,
 } from './bedrock-models.js';
+
+// Monthly per-model token limits (shared contract)
+export type {
+  TokenLimitValue,
+  ModelLimitMap,
+  TokenLimitsConfigInput,
+  TokenLimitsConfig,
+  UsageStatus,
+  TokenDimension,
+  UsageDimension,
+  ModelUsage,
+  UsageSummary,
+  TokenLimitEventDetail,
+} from './token-usage.js';
+export {
+  DEFAULT_TOKEN_LIMIT_TIMEZONE,
+  DEFAULT_LIMIT_KEY,
+  OTHER_MODEL_KEY,
+  TOKEN_LIMIT_WARNING_RATIO,
+  TOKEN_LIMIT_EXCEEDED,
+  TOKEN_LIMIT_REACHED,
+  USAGE_METERING_UNAVAILABLE,
+  modelUsageKey,
+  usageMonth,
+  usageMonthResetsAt,
+  resolveModelLimit,
+  configuredModelKeys,
+  usageStatus,
+  exceededDimension,
+} from './token-usage.js';

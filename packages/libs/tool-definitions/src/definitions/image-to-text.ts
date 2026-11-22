@@ -2,8 +2,9 @@ import { z } from 'zod';
 import { zodToJsonSchema } from '../utils/schema-converter.js';
 import type { ToolDefinition } from '../types.js';
 
-// Vision models with global inference profile
-const VISION_MODELS = [
+// Vision models with global inference profile. Exported so token metering
+// accepts them even when they are not in the deployment's bedrockModels.
+export const IMAGE_TO_TEXT_MODEL_IDS = [
   'global.anthropic.claude-sonnet-4-6', // Claude Sonnet 4.6
   'global.anthropic.claude-sonnet-4-5-20250929-v1:0', // Claude Sonnet 4.5
   'global.anthropic.claude-haiku-4-5-20251001-v1:0', // Claude Haiku 4.5
@@ -28,7 +29,7 @@ export const imageToTextSchema = z.object({
     .default('Describe this image in detail.')
     .describe('Analysis prompt for the image (default: describe the image)'),
   modelId: z
-    .enum(VISION_MODELS)
+    .enum(IMAGE_TO_TEXT_MODEL_IDS)
     .optional()
     .default(DEFAULT_VISION_MODEL)
     .describe(

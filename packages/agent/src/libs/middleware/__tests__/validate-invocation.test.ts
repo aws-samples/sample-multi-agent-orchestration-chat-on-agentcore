@@ -6,9 +6,10 @@ import { describe, it, expect, jest, beforeEach } from '@jest/globals';
 
 const mockValidateImageData = jest.fn<any>().mockReturnValue({ valid: true });
 
+const mockConfig: { BEDROCK_MODEL_IDS?: string } = {};
 jest.unstable_mockModule('../../../config/index.js', () => ({
   logger: { info: jest.fn(), warn: jest.fn(), error: jest.fn(), debug: jest.fn() },
-  config: {},
+  config: mockConfig,
 }));
 
 jest.unstable_mockModule('../../../types/index.js', () => ({
@@ -87,5 +88,37 @@ describe('validateInvocationMiddleware', () => {
     validateInvocationMiddleware({ body: { prompt: 'Hello' } } as any, res, next as any);
     expect(next).toHaveBeenCalled();
     expect(res.status).not.toHaveBeenCalled();
+  });
+
+  describe('modelId', () => {
+    const body = (modelId: string) => ({ body: { prompt: 'hi', modelId } }) as any;
+
+    it('accepts a deployment model under any cross-region prefix', () => {
+      mockConfig.BEDROCK_MODEL_IDS = 'global.anthropic.claude-sonnet-4-6,openai.gpt-oss-120b-1:0';
+      validateInvocationMiddleware(body('jp.anthropic.claude-sonnet-4-6'), res, next as any);
+      expect(next).toHaveBeenCalled();
+    });
+
+    it('rejects a model outside the deployment', () => {
+      mockConfig.BEDROCK_MODEL_IDS = 'global.anthropic.claude-sonnet-4-6';
+      validateInvocationMiddleware(body('global.anthropic.claude-opus-5-5'), res, next as any);
+      expect(res.status).toHaveBeenCalledWith(400);
+      expect(next).not.toHaveBeenCalled();
+    });
+
+    it('rejects a non-string modelId with 400 instead of crashing', () => {
+      validateInvocationMiddleware(
+        { body: { prompt: 'hi', modelId: 42 } } as any,
+        res,
+        next as any
+      );
+      expect(res.status).toHaveBeenCalledWith(400);
+    });
+
+    it.each([null, ''])('treats %p as "use the default model"', (modelId) => {
+      mockConfig.BEDROCK_MODEL_IDS = 'global.anthropic.claude-sonnet-4-6';
+      validateInvocationMiddleware({ body: { prompt: 'hi', modelId } } as any, res, next as any);
+      expect(next).toHaveBeenCalled();
+    });
   });
 });

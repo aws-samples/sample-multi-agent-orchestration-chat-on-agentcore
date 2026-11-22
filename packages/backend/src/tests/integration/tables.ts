@@ -159,3 +159,25 @@ export async function deleteTable(client: DynamoDBClient, tableName: string): Pr
     // Table may already be gone; nothing to clean up.
   }
 }
+
+/**
+ * Create the Usage table with the CDK-matching schema
+ * (packages/cdk/lib/constructs/storage/usage-table.ts): userId (HASH) / sk (RANGE), no GSI.
+ */
+export async function createUsageTable(client: DynamoDBClient, tableName: string): Promise<void> {
+  await client.send(
+    new CreateTableCommand({
+      TableName: tableName,
+      BillingMode: 'PAY_PER_REQUEST',
+      AttributeDefinitions: [
+        { AttributeName: 'userId', AttributeType: 'S' },
+        { AttributeName: 'sk', AttributeType: 'S' },
+      ],
+      KeySchema: [
+        { AttributeName: 'userId', KeyType: 'HASH' },
+        { AttributeName: 'sk', KeyType: 'RANGE' },
+      ],
+    })
+  );
+  await waitUntilTableExists({ client, maxWaitTime: 30 }, { TableName: tableName });
+}

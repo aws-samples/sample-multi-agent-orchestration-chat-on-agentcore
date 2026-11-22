@@ -18,6 +18,7 @@ import { PageHeader } from '../components/ui/PageHeader';
 import { Button } from '../components/ui/Button';
 import { Toggle } from '../components/ui/Toggle';
 import { MemoryManagementModal } from '../components/MemoryManagementModal';
+import { UsageSection } from '../components/UsageSection';
 import { getMe, type MeResponse } from '../api/auth';
 
 /**
@@ -129,6 +130,8 @@ export function SettingsPage() {
             </div>
           )}
         </div>
+
+        <UsageSection />
 
         {/* Language section */}
         <div className="mb-8">

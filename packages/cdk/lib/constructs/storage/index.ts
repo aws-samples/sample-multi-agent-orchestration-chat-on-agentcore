@@ -6,5 +6,6 @@
 export { AgentsTable, AgentsTableProps } from './agents-table';
 export { SessionsTable, SessionsTableProps } from './sessions-table';
 export { TriggersTable, TriggersTableProps } from './triggers-table';
+export { UsageTable, UsageTableProps } from './usage-table';
 export { UserStorage, UserStorageProps } from './user-storage';
 export { WorkflowsTable, WorkflowsTableProps } from './workflows-table';

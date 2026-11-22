@@ -101,3 +101,35 @@ describe('streamAgentResponse failure classification', () => {
     expect(onError.mock.calls[0][0]).not.toBeInstanceOf(StreamDisconnectedError);
   });
 });
+
+describe('streamAgentResponse error events', () => {
+  it('passes the code and detail of a serverErrorEvent to onError', async () => {
+    const { ServerStreamError } = await import('../../utils/server-stream-error');
+    vi.mocked(agentClient.invoke).mockResolvedValue(
+      ndjsonResponse([
+        {
+          type: 'serverErrorEvent',
+          error: {
+            message: 'limit',
+            requestId: 'r',
+            code: 'tokenLimitExceeded',
+            modelKey: 'anthropic.claude-opus-5-5',
+            dimension: 'output',
+            used: 500_000,
+            limit: 500_000,
+            resetsAt: '2026-11-30T15:00:00Z',
+          },
+        },
+      ])
+    );
+    const onError = vi.fn();
+
+    await streamAgentResponse('hi', 'S'.repeat(33), { onError });
+
+    const error = onError.mock.calls[0]![0];
+    expect(error).toBeInstanceOf(ServerStreamError);
+    expect(error.message).toBe('limit');
+    expect(error.code).toBe('tokenLimitExceeded');
+    expect(error.detail).toMatchObject({ modelKey: 'anthropic.claude-opus-5-5', limit: 500_000 });
+  });
+});

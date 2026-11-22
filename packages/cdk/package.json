@@ -25,7 +25,8 @@
     "destroy": "cdk destroy",
     "destroy:all": "cdk destroy --all",
     "destroy:dev": "cdk destroy -c env=dev",
-    "destroy:stg": "cdk destroy -c env=stg"
+    "destroy:stg": "cdk destroy -c env=stg",
+    "test:coverage": "jest"
   },
   "devDependencies": {
     "@aws-sdk/client-bedrock-agentcore-control": "^3.1171.0",

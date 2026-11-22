@@ -20,6 +20,9 @@ const streamAgentResponse = jest.fn<() => Promise<void>>();
 
 jest.unstable_mockModule('../../agent.js', () => ({ createAgent }));
 jest.unstable_mockModule('../../libs/context/request-context.js', () => ({
+  // Imported (via the usage client) by invocations.ts; unused when TOKEN_LIMITS_ENABLED is off.
+  getCallerAuthorizationHeader: () => undefined,
+  getCallerIdToken: () => undefined,
   getCurrentContext: () => ({ requestId: currentRequestId, sessionId: SESSION }),
   requireUserId: () => 'test-user',
   requireIdentityId: () => 'test-identity',

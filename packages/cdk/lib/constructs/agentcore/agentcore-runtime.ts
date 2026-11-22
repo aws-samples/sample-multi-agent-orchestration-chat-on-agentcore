@@ -113,6 +113,12 @@ export interface AgentCoreRuntimeProps {
   readonly sessionsTableName?: string;
 
   /**
+   * Whether monthly token limits are configured. The Runtime only calls the
+   * Backend's /usage API when set, so deployments without limits pay no latency.
+   */
+  readonly tokenLimitsEnabled?: boolean;
+
+  /**
    * Cognito Identity Pool ID (optional)
    * Required for user-scoped S3/DynamoDB access via Identity Pool credentials.
    * When set, the Runtime execution role gains cognito-identity:GetId and
@@ -301,6 +307,10 @@ export class AgentCoreRuntime extends Construct {
     // Set Sessions Table name
     if (props.sessionsTableName) {
       environmentVariables.SESSIONS_TABLE_NAME = props.sessionsTableName;
+    }
+
+    if (props.tokenLimitsEnabled) {
+      environmentVariables.TOKEN_LIMITS_ENABLED = 'true';
     }
 
     // Set Backend API URL

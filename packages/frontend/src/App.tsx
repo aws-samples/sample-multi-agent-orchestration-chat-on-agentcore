@@ -16,6 +16,7 @@ import { EventsPage } from './pages/EventsPage';
 import { SettingsPage } from './pages/SettingsPage';
 import { authService } from './lib/auth';
 import { useAgentStore } from './stores/agentStore';
+import { useUsageStore } from './stores/usageStore';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { useAppSyncConnection } from './hooks/useAppSyncConnection';
 import { CommandPalette, useCommandPalette } from './components/ui/CommandPalette';
@@ -112,9 +113,11 @@ function App() {
     if (user) {
       logger.log('User authenticated, initializing AgentStore...');
       initializeStore();
+      void useUsageStore.getState().fetchUsage();
     } else {
       logger.log('User logged out, clearing AgentStore...');
       clearStore();
+      useUsageStore.getState().reset();
     }
   }, [user, initializeStore, clearStore]);
 

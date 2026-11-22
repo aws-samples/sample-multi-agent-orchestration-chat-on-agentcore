@@ -28,7 +28,10 @@
  */
 
 import type { Request, Response } from 'express';
-import { normalizeReasoningEffort } from '@moca/core';
+import { TOKEN_LIMIT_EXCEEDED, normalizeReasoningEffort } from '@moca/core';
+import { config } from '../config/index.js';
+import { checkTokenLimit } from '../services/usage/limit-check.js';
+import { drainUsage } from '../services/usage/usage-recorder.js';
 import type { InvocationRequest } from '../types/index.js';
 import { createAgent } from '../agent.js';
 import {
@@ -178,6 +181,15 @@ async function runAgentTurn(
     );
   }
 
+  // 0. Monthly token limit. Started now and awaited before createAgent so the
+  //    Backend round trip overlaps workspace / skills / session setup. Workflow
+  //    steps are refused inside the agent instead (TokenLimitHook), which keeps
+  //    their callback reporting on the normal path.
+  const limitCheck =
+    config.TOKEN_LIMITS_ENABLED && !workflowStep
+      ? checkTokenLimit(context, body.modelId || config.BEDROCK_MODEL_ID)
+      : undefined;
+
   // 1. Initialize workspace sync only when a storagePath is provided.
   //    Keeping the storagePath branch at the call site (rather than inside
   //    the helper) makes the side-effect boundary explicit here and mirrors
@@ -216,6 +228,28 @@ async function runAgentTurn(
         deps: createSessionPersistenceDeps(),
       })
     : null;
+
+  const refusal = await limitCheck;
+  if (refusal) {
+    logger.warn({ requestId, ...refusal }, 'Refused turn: monthly token limit reached');
+    res.setHeader('Content-Type', 'text/plain; charset=utf-8');
+    res.write(
+      `${JSON.stringify({
+        type: 'serverErrorEvent',
+        error: {
+          code: TOKEN_LIMIT_EXCEEDED,
+          message: `The monthly ${refusal.dimension} token limit for this model is reached.`,
+          requestId,
+          savedToHistory: false,
+          ...refusal,
+        },
+      })}\n`
+    );
+    res.end();
+    // A refused trigger turn must still release its microVM (see the end of this function).
+    if (sessionType === 'event' && sessionId) await stopOwnSession(sessionId);
+    return;
+  }
 
   // 3. Create and stream agent response. The Strands SDK opens its own
   // `invoke_agent` span (with `traceAttributes` injected by `agent.ts`),
@@ -288,6 +322,12 @@ async function runAgentTurn(
       logger.error({ err: error, requestId }, 'Final workspace sync to S3 failed');
     }
     conflicts = await workspaceSync.takeConflicts();
+  }
+
+  // Usage still being reported would die with the microVM (stopOwnSession
+  // below) or land after the orchestrator has moved on.
+  if (config.TOKEN_LIMITS_ENABLED && (workflowStep || sessionType === 'event')) {
+    await drainUsage();
   }
 
   if (workflowStep) {

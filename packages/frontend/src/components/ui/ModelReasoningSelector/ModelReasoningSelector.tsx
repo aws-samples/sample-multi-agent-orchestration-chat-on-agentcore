@@ -18,12 +18,15 @@
  * also clips overflow-y). The trigger form passes `position="bottom"`.
  */
 
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useId } from 'react';
+import { Link } from 'react-router-dom';
 import { ChevronDown, ChevronRight, ChevronLeft, Check } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { isReasoningCapable, type ReasoningDepth } from '@moca/core';
 import { AVAILABLE_MODELS, getModelById } from '../../../config/models';
 import { useSettingsStore } from '../../../stores/settingsStore';
+import { Badge } from '../Badge';
+import type { ModelUsageIndicator } from '../../../utils/usageFormat';
 import {
   shortModelName,
   availableDepthsFor,
@@ -43,11 +46,22 @@ export interface ModelReasoningSelectorProps {
   /** Dropdown direction: 'top' opens upward (chat, default), 'bottom' downward (modal). */
   position?: 'top' | 'bottom';
   disabled?: boolean;
+  /**
+   * Monthly token-limit state per model id, supplied by a store-connected
+   * parent. Only `warning` / `exceeded` models get a badge; `exceeded` ones
+   * are not selectable and expose `description` via aria-describedby.
+   */
+  usageFor?: (modelId: string) => ModelUsageIndicator | undefined;
+  /** Route of the usage page, linked from the menu footer while any badge shows. */
+  usageHref?: string;
 }
+
+export type { ModelUsageIndicator };
 
 export const ModelReasoningSelector: React.FC<ModelReasoningSelectorProps> = (props) => {
   const { t } = useTranslation();
-  const { position = 'top', disabled = false } = props;
+  const { position = 'top', disabled = false, usageFor, usageHref } = props;
+  const descriptionIdPrefix = useId();
 
   // Controlled iff an onModelChange handler was supplied.
   const controlled = props.onModelChange !== undefined;
@@ -126,6 +140,11 @@ export const ModelReasoningSelector: React.FC<ModelReasoningSelectorProps> = (pr
     close();
   };
 
+  const hasUsageBadge = AVAILABLE_MODELS.some((m) => {
+    const status = usageFor?.(m.id)?.status;
+    return status === 'warning' || status === 'exceeded';
+  });
+
   const panelPosition = position === 'bottom' ? 'top-full mt-1' : 'bottom-full mb-2';
 
   return (
@@ -159,23 +178,58 @@ export const ModelReasoningSelector: React.FC<ModelReasoningSelectorProps> = (pr
             <>
               {/* Model list (name only; checkmark on the active one). */}
               <div className="max-h-64 overflow-y-auto">
-                {AVAILABLE_MODELS.map((model) => (
-                  <button
-                    key={model.id}
-                    type="button"
-                    onClick={() => selectModel(model.id)}
-                    className={`w-full px-3 py-2 text-left text-sm hover:bg-surface-secondary transition-colors ${
-                      model.id === effectiveModelId ? 'bg-feedback-info-bg' : ''
-                    }`}
-                  >
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="font-medium text-fg-default truncate">{model.name}</span>
-                      {model.id === effectiveModelId && (
-                        <Check className="w-4 h-4 text-fg-link shrink-0" />
+                {AVAILABLE_MODELS.map((model) => {
+                  const usage = usageFor?.(model.id);
+                  const exceeded = usage?.status === 'exceeded';
+                  const selected = model.id === effectiveModelId;
+                  const descriptionId = `${descriptionIdPrefix}-${model.id}`;
+                  return (
+                    <button
+                      key={model.id}
+                      type="button"
+                      // aria-disabled (not disabled) keeps the row focusable so
+                      // keyboard and screen-reader users still hear why.
+                      aria-disabled={exceeded || undefined}
+                      aria-describedby={exceeded && usage?.description ? descriptionId : undefined}
+                      onClick={() => !exceeded && selectModel(model.id)}
+                      className={`group w-full px-3 py-2 text-left text-sm transition-colors ${
+                        exceeded ? 'cursor-not-allowed' : 'hover:bg-surface-secondary'
+                      } ${selected ? 'bg-feedback-info-bg' : ''}`}
+                    >
+                      <div className="flex items-center justify-between gap-2">
+                        <span
+                          className={`font-medium truncate ${
+                            exceeded ? 'text-fg-disabled' : 'text-fg-default'
+                          }`}
+                        >
+                          {model.name}
+                        </span>
+                        <span className="flex items-center gap-1.5 shrink-0">
+                          {usage?.status === 'warning' && (
+                            <Badge variant="warning" size="sm">
+                              {t('common.usageBadge.warning')}
+                            </Badge>
+                          )}
+                          {exceeded && (
+                            <Badge variant="danger" size="sm">
+                              {t('common.usageBadge.exceeded')}
+                            </Badge>
+                          )}
+                          {selected && <Check className="w-4 h-4 text-fg-link" />}
+                        </span>
+                      </div>
+                      {exceeded && usage?.description && (
+                        // Shown on hover / focus; always the row's accessible description.
+                        <span
+                          id={descriptionId}
+                          className="hidden group-hover:block group-focus-visible:block mt-1 text-xs text-fg-muted"
+                        >
+                          {usage.description}
+                        </span>
                       )}
-                    </div>
-                  </button>
-                ))}
+                    </button>
+                  );
+                })}
               </div>
 
               {/* Reasoning-depth entry row — only for capable models. */}
@@ -193,6 +247,19 @@ export const ModelReasoningSelector: React.FC<ModelReasoningSelectorProps> = (pr
                       <ChevronRight className="w-4 h-4 text-fg-disabled" />
                     </span>
                   </button>
+                </>
+              )}
+
+              {usageHref && hasUsageBadge && (
+                <>
+                  <div className="my-1 border-t border-border" />
+                  <Link
+                    to={usageHref}
+                    onClick={close}
+                    className="block px-3 py-2 text-xs text-fg-link hover:underline"
+                  >
+                    {t('common.usageBadge.viewUsage')}
+                  </Link>
                 </>
               )}
             </>

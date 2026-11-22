@@ -10,6 +10,9 @@ import { logger } from '../../libs/logger/index.js';
 import { getCurrentContext } from '../../libs/context/request-context.js';
 import { callAgentDefinition } from '@moca/tool-definitions';
 import type { ReasoningDepth } from '@moca/core';
+import { config } from '../../config/index.js';
+import { isAllowedModelId } from '../../libs/utils/allowed-models.js';
+import { checkTokenLimit } from '../../services/usage/limit-check.js';
 
 /**
  * Sleep utility for polling
@@ -63,6 +66,27 @@ async function handleStartTask(
       message: `Cannot invoke sub-agent at depth ${currentDepth}. Max depth is ${maxDepth}.`,
       currentDepth,
       maxDepth,
+    };
+  }
+
+  if (input.modelId && !isAllowedModelId(input.modelId, config.BEDROCK_MODEL_IDS)) {
+    return {
+      error: 'Model not available',
+      message: `Model "${input.modelId}" is not available in this deployment. Omit modelId to use the agent's model.`,
+    };
+  }
+
+  // Refuse up front when the requested model is already over its monthly limit.
+  // Without an explicit modelId the agent's model is only known inside the
+  // task; its TokenLimitHook refuses the turn there.
+  const refusal =
+    config.TOKEN_LIMITS_ENABLED && input.modelId
+      ? await checkTokenLimit(getCurrentContext(), input.modelId)
+      : undefined;
+  if (refusal) {
+    return {
+      error: 'Monthly token limit reached',
+      message: `The monthly ${refusal.dimension} token limit for ${input.modelId} is reached (${refusal.used} / ${refusal.limit}). It resets at ${refusal.resetsAt}. Use another model or stop.`,
     };
   }
 

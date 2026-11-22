@@ -19,7 +19,11 @@ export default {
   // Local. The legacy `services/__tests__/agents-service.integration.test.ts`
   // is intentionally excluded — it predates this harness, requires
   // real AWS credentials + SSM, and still self-gates via env vars.
-  testMatch: ['<rootDir>/src/repositories/**/*.integration.test.ts'],
+  testMatch: [
+    '<rootDir>/src/repositories/**/*.integration.test.ts',
+    // Service-level tests that need only DDB Local (not the legacy AWS one above).
+    '<rootDir>/src/services/__tests__/usage-service.integration.test.ts',
+  ],
   testPathIgnorePatterns: ['/node_modules/'],
   transform: {
     '^.+\\.ts$': [
@@ -40,6 +44,9 @@ export default {
     ],
   },
   moduleNameMapper: {
+    '^@moca/core$': '<rootDir>/../libs/core/src/index.ts',
+    '^@moca/tool-definitions$': '<rootDir>/../libs/tool-definitions/src/index.ts',
+    '^@moca/generative-ui-catalog$': '<rootDir>/../libs/generative-ui-catalog/src/index.ts',
     '^(\\.{1,2}/.*)\\.js$': '$1',
     // `uuid` is pure ESM (exports via `exports` map with no CJS
     // variant), so ts-jest's CommonJS transform can't `require` it.

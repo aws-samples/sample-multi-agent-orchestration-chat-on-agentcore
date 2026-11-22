@@ -11,18 +11,27 @@ import type {
   ImageAttachment,
 } from '../types/index';
 import { streamAgentResponse } from '../api/agent';
+import { ServerStreamError } from '../utils/server-stream-error';
+import {
+  TOKEN_LIMIT_EXCEEDED,
+  TOKEN_LIMIT_REACHED,
+  USAGE_METERING_UNAVAILABLE,
+  type TokenLimitEventDetail,
+} from '@moca/core';
 import type { ConversationMessage } from '../api/sessions';
 import { useAgentStore } from './agentStore';
 import { useStorageStore } from './storageStore';
 import { useSessionStore } from './sessionStore';
 import { useMemoryStore } from './memoryStore';
 import { useSettingsStore } from './settingsStore';
+import { useUsageStore } from './usageStore';
 import { logger } from '../utils/logger';
 import { StreamDisconnectedError } from '../utils/stream-idle-watchdog';
 import { isTurnRunning } from '../utils/turn-status';
 import toast from 'react-hot-toast';
 import i18n from '../i18n';
 import { mergeToolTurnMessages } from '../utils/tool-steps';
+import { formatResetAt, formatTokenCount, modelNameForUsageKey } from '../utils/usageFormat';
 
 // Helper function: Convert image to Base64
 const convertImageToBase64 = (file: File): Promise<string> => {
@@ -98,6 +107,21 @@ const updateToolUseStatus = (
     }
     return content;
   });
+};
+
+// Limit events carry no time zone; the summary's period has it (the month
+// boundary and the reset instant are both defined in it).
+const tokenLimitTexts = (detail: Partial<TokenLimitEventDetail>) => {
+  const timeZone = useUsageStore.getState().summary?.period.timezone ?? 'Asia/Tokyo';
+  return {
+    model: modelNameForUsageKey(detail.modelKey ?? ''),
+    dimension: i18n.t(
+      detail.dimension === 'output' ? 'common.usageDimension.output' : 'common.usageDimension.input'
+    ),
+    used: formatTokenCount(detail.used ?? 0),
+    limit: formatTokenCount(detail.limit ?? 0),
+    resetsAt: detail.resetsAt ? formatResetAt(detail.resetsAt, timeZone) : '',
+  };
 };
 
 // Helper function: Create default session state
@@ -537,6 +561,7 @@ export const useChatStore = create<ChatStore>()(
                 });
 
                 logger.log(`Message send complete (session: ${sessionId})`);
+                useUsageStore.getState().scheduleRefresh();
 
                 // For new sessions, update session list
                 if (isNewSession) {
@@ -570,6 +595,25 @@ export const useChatStore = create<ChatStore>()(
                 toast(i18n.t('chat.turnInProgress'), { id: `turn-in-progress-${sessionId}` });
               },
               onWarning: (warning) => {
+                if (
+                  warning.code === TOKEN_LIMIT_REACHED ||
+                  warning.code === USAGE_METERING_UNAVAILABLE
+                ) {
+                  // The runtime wraps the turn up (final answer, no more tools)
+                  // and then ends it; the note goes below whatever follows.
+                  const reached = warning.code === TOKEN_LIMIT_REACHED;
+                  updateMessage(sessionId, assistantMessageId, {
+                    isError: true,
+                    errorTitle: i18n.t(
+                      reached ? 'chat.tokenLimitReachedTitle' : 'chat.usageMeteringUnavailableTitle'
+                    ),
+                    notice: reached
+                      ? i18n.t('chat.tokenLimitReachedNote', tokenLimitTexts(warning))
+                      : i18n.t('chat.usageMeteringUnavailable'),
+                  });
+                  if (reached) useUsageStore.getState().scheduleRefresh();
+                  return;
+                }
                 if (warning.code === 'modelStopped') {
                   // The turn ends without an answer or an error; say why.
                   const current = get().sessions[sessionId]?.messages.find(
@@ -598,6 +642,43 @@ export const useChatStore = create<ChatStore>()(
                 }
               },
               onError: (error: Error) => {
+                if (error instanceof ServerStreamError && error.code === TOKEN_LIMIT_EXCEEDED) {
+                  // Refused before the turn started: nothing ran, so offer a
+                  // resend with another model instead of a generic error.
+                  const texts = tokenLimitTexts(error.detail as Partial<TokenLimitEventDetail>);
+                  updateMessage(sessionId, assistantMessageId, {
+                    contents: [{ type: 'text', text: i18n.t('chat.tokenLimitExceeded', texts) }],
+                    isStreaming: false,
+                    isError: true,
+                    errorTitle: i18n.t('chat.tokenLimitExceededTitle'),
+                    tokenLimitRetry: {
+                      prompt,
+                      sessionId,
+                      modelKey: String(error.detail.modelKey ?? ''),
+                    },
+                  });
+                  const latest = get().sessions;
+                  set({
+                    sessions: {
+                      ...latest,
+                      [sessionId]: {
+                        ...(latest[sessionId] || createDefaultSessionState()),
+                        isLoading: false,
+                      },
+                    },
+                  });
+                  // The bubble is invisible from another session; say it there.
+                  if (get().activeSessionId !== sessionId) {
+                    toast.error(i18n.t('chat.tokenLimitExceededToast', texts), {
+                      id: `token-limit-${sessionId}`,
+                    });
+                  }
+                  void useUsageStore.getState().fetchUsage();
+                  // Reconcile an optimistic sidebar entry for a session that never started.
+                  if (isNewSession) void useSessionStore.getState().refreshSessions();
+                  return;
+                }
+
                 const showError = (): void => {
                   // Add error message as assistant response (with isError flag)
                   const sessionState = get().sessions[sessionId];

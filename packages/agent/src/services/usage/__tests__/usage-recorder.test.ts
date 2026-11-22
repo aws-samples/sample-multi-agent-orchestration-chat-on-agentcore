@@ -1,0 +1,155 @@
+import { beforeEach, describe, expect, it, jest } from '@jest/globals';
+
+const postRecords = jest.fn<(r: unknown[]) => Promise<{ kind: string }>>();
+const invalidateSummary = jest.fn();
+jest.unstable_mockModule('../usage-client.js', () => ({ postRecords, invalidateSummary }));
+const logger = { info: jest.fn(), warn: jest.fn(), error: jest.fn(), debug: jest.fn() };
+jest.unstable_mockModule('../../../libs/logger/index.js', () => ({
+  logger,
+  createLogger: () => logger,
+}));
+
+const { UsageRecorder, BATCH_SIZE, THROTTLE_RETRY_MS, drainUsage, unacknowledgedFor } =
+  await import('../usage-recorder.js');
+const { isBusy, resetInFlight } = await import('../../../libs/health/in-flight.js');
+
+const usage = { inputTokens: 10, outputTokens: 2 };
+
+beforeEach(() => {
+  postRecords.mockReset();
+  logger.error.mockClear();
+  resetInFlight();
+});
+
+describe('UsageRecorder', () => {
+  it('batches records and sends on flush, staying busy until sent', async () => {
+    let release!: () => void;
+    postRecords.mockImplementationOnce(
+      () => new Promise((r) => (release = () => r({ kind: 'ok' })))
+    );
+    const rec = new UsageRecorder(undefined);
+    rec.record('global.anthropic.claude-sonnet-4-6', usage);
+    rec.record('global.anthropic.claude-sonnet-4-6', usage);
+    const done = rec.flush();
+    await Promise.resolve();
+    expect(isBusy()).toBe(true);
+    release();
+    await done;
+    expect(isBusy()).toBe(false);
+    expect(postRecords).toHaveBeenCalledTimes(1);
+    expect(postRecords.mock.calls[0][0]).toHaveLength(2);
+  });
+
+  it('sends as soon as BATCH_SIZE records are queued', async () => {
+    postRecords.mockResolvedValue({ kind: 'ok' });
+    const rec = new UsageRecorder(undefined);
+    for (let i = 0; i < BATCH_SIZE; i++) rec.record('m.x', usage);
+    await rec.flush();
+    expect(postRecords).toHaveBeenCalledTimes(1);
+  });
+
+  it('skips empty usage', async () => {
+    const rec = new UsageRecorder(undefined);
+    rec.record('m.x', {});
+    await rec.flush();
+    expect(postRecords).not.toHaveBeenCalled();
+  });
+
+  it('reports 401/403 to the caller and logs the dropped records', async () => {
+    postRecords.mockResolvedValue({ kind: 'unauthorized' });
+    const onUnauthorized = jest.fn();
+    const rec = new UsageRecorder(undefined, onUnauthorized);
+    rec.record('m.x', usage);
+    await rec.flush();
+    expect(onUnauthorized).toHaveBeenCalledTimes(1);
+    expect(postRecords).toHaveBeenCalledTimes(1);
+    expect(logger.error).toHaveBeenCalledWith(
+      expect.objectContaining({ reason: 'unauthorized' }),
+      'usage_record_dropped'
+    );
+  });
+
+  it('retries outages, then drops with a structured log', async () => {
+    jest.useFakeTimers({ doNotFake: ['queueMicrotask', 'nextTick'] });
+    postRecords.mockResolvedValue({ kind: 'unavailable' });
+    const rec = new UsageRecorder(undefined);
+    rec.record('m.x', usage);
+    const done = rec.flush();
+    await jest.runAllTimersAsync();
+    await done;
+    jest.useRealTimers();
+    expect(postRecords).toHaveBeenCalledTimes(3);
+    expect(logger.error).toHaveBeenCalledWith(
+      expect.objectContaining({ reason: 'unavailable' }),
+      'usage_record_dropped'
+    );
+  });
+
+  // Regression: 429 used to be retried twice then dropped, so heavy parallel
+  // users escaped metering.
+  it('re-queues a throttled batch and sends it later', async () => {
+    jest.useFakeTimers({ doNotFake: ['queueMicrotask', 'nextTick'] });
+    postRecords.mockResolvedValueOnce({ kind: 'throttled' }).mockResolvedValue({ kind: 'ok' });
+    const rec = new UsageRecorder({ userId: 'u-throttle' } as never);
+    rec.record('m.x', usage);
+    await rec.flush();
+    expect(postRecords).toHaveBeenCalledTimes(1);
+    expect(unacknowledgedFor('u-throttle')).toEqual({ input: 10, output: 2 });
+    await jest.advanceTimersByTimeAsync(THROTTLE_RETRY_MS);
+    await rec.flush();
+    jest.useRealTimers();
+    expect(postRecords).toHaveBeenCalledTimes(2);
+    expect(postRecords.mock.calls[1][0]).toHaveLength(1);
+    expect(unacknowledgedFor('u-throttle')).toEqual({ input: 0, output: 0 });
+    expect(logger.error).not.toHaveBeenCalled();
+  });
+
+  it('tracks unacknowledged usage per user across recorders until the Backend accepts it', async () => {
+    let release!: () => void;
+    postRecords.mockImplementation(() => new Promise((r) => (release = () => r({ kind: 'ok' }))));
+    const parent = new UsageRecorder({ userId: 'u-pend' } as never);
+    const subAgent = new UsageRecorder({ userId: 'u-pend' } as never);
+    parent.record('global.anthropic.claude-sonnet-4-6', { inputTokens: 100, outputTokens: 10 });
+    subAgent.record('global.anthropic.claude-sonnet-4-6', {
+      inputTokens: 5,
+      outputTokens: 1,
+      cacheReadInputTokens: 50,
+    });
+    expect(unacknowledgedFor('u-pend')).toEqual({ input: 155, output: 11 });
+    const done = parent.flush();
+    await Promise.resolve();
+    release();
+    await done;
+    expect(unacknowledgedFor('u-pend')).toEqual({ input: 55, output: 1 });
+    expect(unacknowledgedFor('someone-else')).toEqual({ input: 0, output: 0 });
+  });
+
+  it('invalidates the cached summary whenever usage is recorded', () => {
+    new UsageRecorder({ userId: 'u-inv' } as never).record('m.x', usage);
+    expect(invalidateSummary).toHaveBeenCalledWith('u-inv');
+  });
+
+  it('drainUsage waits for sends in flight (bounded)', async () => {
+    let release!: () => void;
+    postRecords.mockImplementationOnce(
+      () => new Promise((r) => (release = () => r({ kind: 'ok' })))
+    );
+    const rec = new UsageRecorder(undefined);
+    rec.record('m.x', usage);
+    void rec.flush();
+    let drained = false;
+    const d = drainUsage().then(() => (drained = true));
+    await Promise.resolve();
+    expect(drained).toBe(false);
+    release();
+    await d;
+    expect(drained).toBe(true);
+    // Bounded: a hung send does not block forever.
+    postRecords.mockImplementationOnce(() => new Promise(() => {}));
+    rec.record('m.x', usage);
+    void rec.flush();
+    const started = Date.now();
+    await drainUsage(50);
+    expect(Date.now() - started).toBeLessThan(1000);
+  });
+});

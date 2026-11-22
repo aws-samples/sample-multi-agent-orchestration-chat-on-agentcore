@@ -18,6 +18,7 @@ import { formatBytes } from '../utils/formatBytes';
 import { parseWorkflowNotification } from '../utils/session-workflows';
 import { WorkflowNotice } from './workflow/WorkflowNotice';
 import { createMarkdownComponents } from './markdown/markdownComponents';
+import { TokenLimitRetryButton } from './TokenLimitRetryButton';
 
 interface MessageProps {
   message: MessageType;
@@ -87,7 +88,9 @@ export const Message: React.FC<MessageProps> = ({ message, isInteractive = false
           {message.isError && (
             <div className="flex items-center gap-2 mb-2 text-feedback-error">
               <AlertTriangle className="w-5 h-5" />
-              <span className="text-sm font-medium">{t('common.errorOccurred')}</span>
+              <span className="text-sm font-medium">
+                {message.errorTitle ?? t('common.errorOccurred')}
+              </span>
             </div>
           )}
 
@@ -177,6 +180,13 @@ export const Message: React.FC<MessageProps> = ({ message, isInteractive = false
                 )}
             </div>
           </div>
+
+          {message.notice && (
+            <p className="mt-2 pt-2 border-t border-border text-xs text-fg-muted">
+              {message.notice}
+            </p>
+          )}
+          {message.tokenLimitRetry && <TokenLimitRetryButton retry={message.tokenLimitRetry} />}
         </div>
       </div>
     </div>

@@ -9,6 +9,7 @@ import type {
   Environment,
   EnvironmentConfig,
   EnvironmentConfigInput,
+  ModelTokenLimits,
 } from './environment-types';
 import { RUNTIME_MINIMUM_MEMORY_MIB_VALUES } from './environment-types';
 import { BASE_PREFIX, environments } from './environments';
@@ -509,6 +510,49 @@ export function validateWebSearchConfig(input: EnvironmentConfigInput, env: Envi
  */
 export const RUNTIME_MINIMUM_MEMORY_CFN_SUPPORTED = false;
 
+/** Cognito group names: 1-128 chars, no whitespace control characters. */
+const COGNITO_GROUP_NAME = /^[\p{L}\p{M}\p{S}\p{N}\p{P}]{1,128}$/u;
+
+function validateLimitMap(map: ModelTokenLimits, where: string, env: Environment): void {
+  for (const [id, value] of Object.entries(map)) {
+    if (id !== 'default' && !NAMESPACED_MODEL_ID.test(id)) {
+      throw new Error(`[${env}] tokenLimits${where}: invalid model id '${id}'`);
+    }
+    if (value === 'unlimited') continue;
+    for (const dim of ['input', 'output'] as const) {
+      const n = value?.[dim];
+      if (!Number.isSafeInteger(n) || n <= 0) {
+        throw new Error(`[${env}] tokenLimits${where}['${id}'].${dim} must be a positive integer`);
+      }
+    }
+  }
+}
+
+/**
+ * Validate `tokenLimits`: model ids, positive integer caps, a valid time zone,
+ * and Cognito-compatible group names.
+ */
+export function validateTokenLimits(input: EnvironmentConfigInput, env: Environment): void {
+  const tl = input.tokenLimits;
+  if (!tl) return;
+  if (tl.timezone !== undefined) {
+    try {
+      new Intl.DateTimeFormat('en-US', { timeZone: tl.timezone });
+    } catch {
+      throw new Error(
+        `[${env}] tokenLimits.timezone '${tl.timezone}' is not a valid IANA time zone`
+      );
+    }
+  }
+  if (tl.limits) validateLimitMap(tl.limits, '.limits', env);
+  for (const [group, value] of Object.entries(tl.groups ?? {})) {
+    if (!COGNITO_GROUP_NAME.test(group)) {
+      throw new Error(`[${env}] tokenLimits.groups: invalid Cognito group name '${group}'`);
+    }
+    if (value !== 'unlimited') validateLimitMap(value, `.groups['${group}']`, env);
+  }
+}
+
 /**
  * Reject Runtime sizing the service would refuse mid-deploy (UpdateAgentRuntime
  * ValidationException rolls the whole stack back).
@@ -560,6 +604,7 @@ function resolveConfig(env: Environment, input: EnvironmentConfigInput): Environ
   validateCognitoDomainPrefix(input.cognitoDomainPrefix, env);
   validateWebSearchConfig(input, env);
   validateRuntimeResources(input, env);
+  validateTokenLimits(input, env);
 
   return {
     // Spread input first so optional properties are automatically passed through.

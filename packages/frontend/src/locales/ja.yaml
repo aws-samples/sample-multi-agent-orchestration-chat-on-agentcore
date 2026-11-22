@@ -35,6 +35,16 @@ common:
   reasoningDepthLow: 低
   reasoningDepthHigh: 高
   reasoningDepthMax: 最大
+  usageBadge:
+    warning: 残りわずか
+    exceeded: 上限到達
+    viewUsage: 今月の利用状況を見る →
+    exceededDescription: '今月の{{dimension}}上限（{{limit}}）に達しました。{{resetsAt}} にリセットされます。'
+  usageDimension:
+    input: 入力
+    output: 出力
+  usageMeter:
+    unlimited: '{{used}} 使用 · 上限なし'
   yes: はい
   no: いいえ
   back: 戻る
@@ -193,6 +203,14 @@ chat:
   modelStopped: 'モデルの安全フィルタなどにより応答が途中で停止されました（理由: {{stopReason}}）。別のモデルで再試行するか、指示の内容を見直してください。'
   turnInProgress: 'このセッションでは前の指示をまだ実行中です。完了するまでお待ちください。'
   persistenceDegraded: 'サインインの有効期限が切れたため、この会話と作業ファイルを保存できなくなりました。エージェントの実行中はこのタブを開いたままにするか、再読み込みしてやり直してください。'
+  tokenLimitExceededTitle: 送信できませんでした
+  tokenLimitExceeded: '{{model}} は今月の{{dimension}}上限に達しています（{{used}} / {{limit}}）。{{resetsAt}} にリセットされます。'
+  tokenLimitExceededToast: '{{model}} は今月の上限に達しました'
+  tokenLimitRetryWith: '{{model}} で再送信'
+  tokenLimitReachedTitle: 利用上限により停止しました
+  tokenLimitReachedNote: '{{model}} の今月の{{dimension}}上限（{{limit}}）に達したため、ツールの実行を止めて回答をまとめました。{{resetsAt}} にリセットされます。'
+  usageMeteringUnavailableTitle: 実行を停止しました
+  usageMeteringUnavailable: 認証の有効期限が切れたため停止しました。ページを開き直して続けてください
   sessionName: セッション名
   sessionNameLabel: セッション名
   subAgentSessionLabel: サブエージェント
@@ -711,6 +729,17 @@ settings:
   sendOnEnter: メッセージを送信
   newlineOnEnter: 改行
   sendSuffix: で送信
+  usage:
+    title: 利用状況
+    period: '{{month}}（{{timezone}}）· {{resetsAt}} にリセット'
+    groups: '· 適用グループ:'
+    model: モデル
+    input: 入力
+    output: 出力
+    notConfigured: 上限は設定されていません
+    loadError: 利用状況を取得できませんでした
+    empty: 今月の利用はまだありません
+    footnote: 入力にはキャッシュ読み込み・書き込みを含みます。サブエージェント・トリガー・ワークフローの実行も、このアカウントの利用量に含まれます。数分の遅れで反映されることがあります。
 
 # エラー
 error:

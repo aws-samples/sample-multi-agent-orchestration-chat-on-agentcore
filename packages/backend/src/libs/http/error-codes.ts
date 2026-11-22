@@ -27,6 +27,8 @@ export enum ErrorCode {
   CONFLICT = 'CONFLICT',
   // 413 — payload too large.
   PAYLOAD_TOO_LARGE = 'PAYLOAD_TOO_LARGE',
+  // 429 — the caller exceeded a request rate limit.
+  RATE_LIMITED = 'RATE_LIMITED',
   // 500 — the server (or a server-owned invariant) failed.
   INTERNAL_ERROR = 'INTERNAL_ERROR',
   CONFIGURATION_ERROR = 'CONFIGURATION_ERROR',
@@ -44,6 +46,7 @@ export const ERROR_CODE_REASON: Record<ErrorCode, string> = {
   [ErrorCode.NOT_FOUND]: 'Not Found',
   [ErrorCode.CONFLICT]: 'Conflict',
   [ErrorCode.PAYLOAD_TOO_LARGE]: 'Payload Too Large',
+  [ErrorCode.RATE_LIMITED]: 'Too Many Requests',
   [ErrorCode.INTERNAL_ERROR]: 'Internal Server Error',
   [ErrorCode.CONFIGURATION_ERROR]: 'Configuration Error',
   [ErrorCode.UPSTREAM_ERROR]: 'Bad Gateway',
@@ -59,6 +62,7 @@ export const ERROR_CODE_STATUS: Record<ErrorCode, number> = {
   [ErrorCode.NOT_FOUND]: 404,
   [ErrorCode.CONFLICT]: 409,
   [ErrorCode.PAYLOAD_TOO_LARGE]: 413,
+  [ErrorCode.RATE_LIMITED]: 429,
   [ErrorCode.INTERNAL_ERROR]: 500,
   [ErrorCode.CONFIGURATION_ERROR]: 500,
   [ErrorCode.UPSTREAM_ERROR]: 502,

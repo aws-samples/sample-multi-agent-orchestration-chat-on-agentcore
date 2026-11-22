@@ -314,6 +314,12 @@ which correctly restricts access to items where the partition key equals the use
 
 `Scan` is intentionally excluded from allowed actions to prevent full-table reads.
 
+The usage table (`${prefix}-usage`, monthly token limits) is the exception to
+"user data is reachable with user-scoped credentials": neither the Identity
+Pool role nor the Runtime execution role may access it, because a user must not
+be able to lower their own usage. Only the Backend writes it. See
+`token-usage-limits.md`.
+
 ---
 
 ## Related Files

@@ -130,3 +130,19 @@ describe('RuntimeResourceConfig cdk-nag', () => {
     expect(errors).toEqual([]);
   });
 });
+
+describe('AgentCoreRuntime token limits', () => {
+  const env = (template: Template) =>
+    runtimeProps(template).EnvironmentVariables as Record<string, string>;
+
+  it('signals the Runtime only when limits are configured', () => {
+    expect(env(synth()).TOKEN_LIMITS_ENABLED).toBeUndefined();
+    expect(env(synth({ tokenLimitsEnabled: true })).TOKEN_LIMITS_ENABLED).toBe('true');
+  });
+
+  // The usage table is Backend-only; users must not be able to lower their usage.
+  it('grants the execution role no DynamoDB access', () => {
+    const policies = synth({ tokenLimitsEnabled: true }).findResources('AWS::IAM::Policy');
+    expect(JSON.stringify(policies)).not.toMatch(/dynamodb:/);
+  });
+});

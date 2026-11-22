@@ -5,6 +5,7 @@
 import { BedrockRuntimeClient, ConverseCommand } from '@aws-sdk/client-bedrock-runtime';
 import { config } from '../config/index.js';
 import { createLogger } from '../libs/logger/index.js';
+import { recordUsageOutsideAgent } from './usage/usage-recorder.js';
 
 const log = createLogger('TitleGenerator');
 /**
@@ -58,6 +59,8 @@ export class TitleGenerator {
           },
         })
       );
+
+      if (config.TOKEN_LIMITS_ENABLED) recordUsageOutsideAgent(this.modelId, response.usage);
 
       const title = this.parseResponse(response);
 

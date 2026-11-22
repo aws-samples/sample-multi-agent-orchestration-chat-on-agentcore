@@ -1,4 +1,4 @@
-import type { UserId } from '@moca/core';
+import type { TokenLimitEventDetail, UserId } from '@moca/core';
 
 // User types
 export interface User {
@@ -91,6 +91,12 @@ export interface Message {
   timestamp: Date;
   isStreaming?: boolean;
   isError?: boolean; // Flag to indicate this message contains an error
+  /** Heading shown instead of the generic error title when isError is set. */
+  errorTitle?: string;
+  /** Muted note rendered below the contents (e.g. why the turn stopped). */
+  notice?: string;
+  /** Set on a pre-turn token-limit refusal: lets the user resend with another model. */
+  tokenLimitRetry?: { prompt: string; sessionId: string; modelKey: string };
 }
 
 // Session-specific chat state
@@ -226,7 +232,9 @@ export interface ServerErrorEvent extends AgentStreamEvent {
     message: string;
     requestId: string;
     savedToHistory?: boolean; // Indicates if error was saved to session history
-  };
+    /** Machine-readable reason, e.g. `tokenLimitExceeded` (with its detail fields). */
+    code?: string;
+  } & Partial<TokenLimitEventDetail>;
 }
 
 export interface ServerWarning {
@@ -235,6 +243,12 @@ export interface ServerWarning {
   /** For `modelStopped`: the model's stop reason (e.g. contentFiltered). */
   stopReason?: string;
   message: string;
+  /** For `tokenLimitReached`: which limit stopped the turn. */
+  modelKey?: string;
+  dimension?: TokenLimitEventDetail['dimension'];
+  used?: number;
+  limit?: number;
+  resetsAt?: string;
 }
 
 /** Out-of-band warning about the running turn (the turn itself continues). */

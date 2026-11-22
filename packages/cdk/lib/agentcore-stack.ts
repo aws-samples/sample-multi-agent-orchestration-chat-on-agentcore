@@ -1,4 +1,5 @@
 import * as cdk from 'aws-cdk-lib';
+import { TokenLimitGroups } from './constructs/auth/token-limit-groups';
 import * as s3 from 'aws-cdk-lib/aws-s3';
 import { Construct } from 'constructs';
 import { NagSuppressions } from 'cdk-nag';
@@ -14,6 +15,7 @@ import {
   TriggersTable,
   UserStorage,
   WorkflowsTable,
+  UsageTable,
 } from './constructs/storage';
 import {
   TriggerLambda,
@@ -499,6 +501,46 @@ export class AgentCoreStack extends cdk.Stack {
     );
     // For setup-env.ts (local backend).
     new cdk.CfnOutput(this, 'WorkflowsTableName', { value: workflowsTable.table.tableName });
+
+    // Monthly token limits. Only the Backend role gets the table: the Runtime
+    // reports usage through POST /usage/records with the caller's JWT.
+    if (envConfig.tokenLimits) {
+      const usageTable = new UsageTable(this, 'UsageTable', {
+        tableNamePrefix: resourcePrefix,
+        removalPolicy: envConfig.s3RemovalPolicy,
+      });
+      this.backendApi.addEnvironmentVariable('USAGE_TABLE_NAME', usageTable.table.tableName);
+      this.backendApi.addEnvironmentVariable(
+        'TOKEN_LIMITS_CONFIG',
+        JSON.stringify(envConfig.tokenLimits)
+      );
+      // A dedicated policy, not the role's DefaultPolicy: the Backend's default
+      // policy is near the inline size limit, and growing it spills statements
+      // into an OverflowPolicy that the existing cdk-nag suppressions do not
+      // cover (synth fails). Least privilege: the repository only Queries and
+      // ADDs (no Get/Put/Delete/Scan), and nothing else may touch the table.
+      new cdk.aws_iam.Policy(this, 'TokenLimitsBackendPolicy', {
+        roles: [this.backendApi.role],
+        statements: [
+          new cdk.aws_iam.PolicyStatement({
+            sid: 'UsageTableReadAdd',
+            actions: ['dynamodb:Query', 'dynamodb:UpdateItem'],
+            resources: [usageTable.table.tableArn],
+          }),
+          // Machine-user (Trigger / Workflow) requests carry no user groups.
+          new cdk.aws_iam.PolicyStatement({
+            sid: 'TokenLimitGroupLookup',
+            actions: ['cognito-idp:ListUsers', 'cognito-idp:AdminListGroupsForUser'],
+            resources: [this.cognitoAuth.userPool.userPoolArn],
+          }),
+        ],
+      });
+      new TokenLimitGroups(this, 'TokenLimitGroups', {
+        userPoolId: this.cognitoAuth.userPoolId,
+        groupNames: Object.keys(envConfig.tokenLimits.groups ?? {}),
+      });
+      new cdk.CfnOutput(this, 'UsageTableName', { value: usageTable.table.tableName });
+    }
     new cdk.CfnOutput(this, 'WorkflowOrchestratorArn', {
       value: `${workflowOrchestratorArn}:${WorkflowOrchestrator.ALIAS}`,
     });
@@ -679,6 +721,7 @@ export class AgentCoreStack extends cdk.Stack {
       githubTokenBrokerLambdaArn: githubTokenBroker?.functionArn,
       userStorageBucketName: this.userStorage.bucketName, // Pass User Storage bucket name
       sessionsTableName: this.sessionsTable.tableName, // Pass Sessions Table name
+      tokenLimitsEnabled: !!envConfig.tokenLimits,
       identityPoolId: cognitoIdentityPool.identityPoolId, // Identity Pool for user-scoped credentials
       cognitoUserPoolId: this.cognitoAuth.userPoolId, // User Pool ID for GetCredentialsForIdentity Logins key
       backendApiUrl: this.backendApi.apiUrl, // Pass Backend API URL for call_agent tool

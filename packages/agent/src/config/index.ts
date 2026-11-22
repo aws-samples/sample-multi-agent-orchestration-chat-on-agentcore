@@ -109,6 +109,13 @@ const envSchema = z.object({
     .string()
     .default('true')
     .transform((val) => val === 'true'),
+
+  // Monthly token limits: set by CDK only when `tokenLimits` is configured, so
+  // deployments without limits never call the Backend's /usage API.
+  TOKEN_LIMITS_ENABLED: z
+    .string()
+    .default('false')
+    .transform((val) => val === 'true'),
 });
 
 /**

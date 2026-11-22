@@ -7,6 +7,7 @@ import {
   assertWebSearchProviderRegion,
   validateWebSearchConfig,
   validateRuntimeResources,
+  validateTokenLimits,
 } from './environment-utils';
 
 jest.mock('./environments', () => ({
@@ -794,5 +795,50 @@ describe('runtime platform version / sizing', () => {
     expect(() => validateRuntimeResources({ runtimePlatformVersion: 'V3' as 'V2' }, 'dev')).toThrow(
       /must be 'V1' or 'V2'/
     );
+  });
+});
+
+describe('validateTokenLimits', () => {
+  it('accepts a valid config and an absent one', () => {
+    expect(() => validateTokenLimits({}, 'dev')).not.toThrow();
+    expect(() =>
+      validateTokenLimits(
+        {
+          tokenLimits: {
+            timezone: 'Asia/Tokyo',
+            limits: {
+              default: { input: 100_000_000, output: 2_000_000 },
+              'global.anthropic.claude-opus-5-5': { input: 30_000_000, output: 500_000 },
+              'global.amazon.nova-2-lite-v1:0': 'unlimited',
+            },
+            groups: { admin: 'unlimited', power: { default: { input: 1, output: 1 } } },
+          },
+        },
+        'dev'
+      )
+    ).not.toThrow();
+  });
+
+  it.each([
+    ['a bad time zone', { timezone: 'Mars/Olympus' }, /timezone/],
+    [
+      'a zero cap',
+      { limits: { default: { input: 0, output: 1 } } },
+      /input must be a positive integer/,
+    ],
+    ['a fractional cap', { limits: { default: { input: 1, output: 1.5 } } }, /output must be/],
+    [
+      'a malformed model id',
+      { limits: { 'Claude Opus': { input: 1, output: 1 } } },
+      /invalid model id/,
+    ],
+    [
+      'a bad group name',
+      { groups: { 'has space': 'unlimited' as const } },
+      /invalid Cognito group name/,
+    ],
+    ['a bad group cap', { groups: { g: { default: { input: -1, output: 1 } } } }, /groups\['g'\]/],
+  ])('rejects %s', (_name, tokenLimits, message) => {
+    expect(() => validateTokenLimits({ tokenLimits }, 'dev')).toThrow(message);
   });
 });

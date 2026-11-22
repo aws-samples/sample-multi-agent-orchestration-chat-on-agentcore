@@ -43,6 +43,7 @@ interface StackOutputs {
   IdentityPoolId?: string;
   TriggersTableName?: string;
   WorkflowsTableName?: string;
+  UsageTableName?: string;
   WorkflowOrchestratorArn?: string;
   TriggerLambdaArn?: string;
   SchedulerRoleArn?: string;
@@ -205,6 +206,7 @@ SCHEDULE_GROUP_NAME=default
 
 # Multi-agent workflows (run_workflow)
 WORKFLOWS_TABLE_NAME=${outputs.WorkflowsTableName || ''}
+USAGE_TABLE_NAME=${outputs.UsageTableName || ''}
 WORKFLOW_ORCHESTRATOR_ARN=${outputs.WorkflowOrchestratorArn || ''}
 
 # Event Sources Configuration (JSON)

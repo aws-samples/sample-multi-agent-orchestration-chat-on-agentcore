@@ -33,6 +33,16 @@ common:
   reasoningDepthLow: Low
   reasoningDepthHigh: High
   reasoningDepthMax: Max
+  usageBadge:
+    warning: Running low
+    exceeded: Limit reached
+    viewUsage: View this month's usage →
+    exceededDescription: "You've reached this month's {{dimension}} limit ({{limit}}). It resets at {{resetsAt}}."
+  usageDimension:
+    input: input
+    output: output
+  usageMeter:
+    unlimited: '{{used}} used · No limit'
   yes: Yes
   no: No
   back: Back
@@ -195,6 +205,14 @@ chat:
   modelStopped: 'The model stopped this response, e.g. by a safety filter (reason: {{stopReason}}). Retry with a different model or rephrase the request.'
   turnInProgress: 'The previous request in this session is still running. Please wait for it to finish.'
   persistenceDegraded: 'Your sign-in expired, so this conversation and its workspace files are no longer being saved. Keep this tab open while the agent runs, or reload and retry.'
+  tokenLimitExceededTitle: Could not send
+  tokenLimitExceeded: '{{model}} has reached its monthly {{dimension}} limit ({{used}} / {{limit}}). It resets at {{resetsAt}}.'
+  tokenLimitExceededToast: '{{model}} has reached its monthly limit'
+  tokenLimitRetryWith: 'Resend with {{model}}'
+  tokenLimitReachedTitle: Stopped by usage limit
+  tokenLimitReachedNote: '{{model}} reached its monthly {{dimension}} limit ({{limit}}), so tools were stopped and the answer was wrapped up. It resets at {{resetsAt}}.'
+  usageMeteringUnavailableTitle: Stopped
+  usageMeteringUnavailable: Stopped because your sign-in expired. Reload the page to continue.
   sessionName: Session Name
   sessionNameLabel: Session
   subAgentSessionLabel: Sub Agent
@@ -718,6 +736,17 @@ settings:
   sendOnEnter: Send message
   newlineOnEnter: New line
   sendSuffix: ' to send'
+  usage:
+    title: Usage
+    period: '{{month}} ({{timezone}}) · Resets {{resetsAt}}'
+    groups: '· Groups:'
+    model: Model
+    input: Input
+    output: Output
+    notConfigured: No limits are configured
+    loadError: Could not load usage
+    empty: No usage this month yet
+    footnote: Input includes cache reads and writes. Sub-agent, trigger, and workflow runs count toward this account's usage. Figures may lag by a few minutes.
 
 # Error
 error:

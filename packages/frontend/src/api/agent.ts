@@ -16,6 +16,7 @@ import type {
 import { agentClient } from './client/agent-client';
 import { startAgentTokenRenewal } from './agent-token-renewal';
 import { logger } from '../utils/logger';
+import { ServerStreamError } from '../utils/server-stream-error';
 import {
   StreamDisconnectedError,
   StreamStalledError,
@@ -398,7 +399,7 @@ const handleStreamEvent = (event: AgentStreamEvent, callbacks: StreamingCallback
     case 'serverErrorEvent': {
       const errorEvent = event as ServerErrorEvent;
       if (callbacks.onError) {
-        callbacks.onError(new Error(errorEvent.error.message));
+        callbacks.onError(new ServerStreamError(errorEvent.error));
       }
       break;
     }
