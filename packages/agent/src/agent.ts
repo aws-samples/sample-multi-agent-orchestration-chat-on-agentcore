@@ -38,6 +38,7 @@ import { EmptyTextBlockHook } from './services/session/empty-text-block-hook.js'
 import { EmptyReasoningBlockHook } from './services/session/empty-reasoning-block-hook.js';
 import { ReasoningHistoryStripHook } from './services/session/reasoning-history-strip-hook.js';
 import { ToolResultImageBudgetHook } from './services/session/tool-result-image-budget-hook.js';
+import { MAIN_TURN_BUDGET, TurnBudgetHook } from './services/session/turn-budget-hook.js';
 
 import type { CreateAgentOptions, CreateAgentResult } from './runtime/agent/types.js';
 
@@ -146,6 +147,8 @@ export async function createAgent(options?: CreateAgentOptions): Promise<CreateA
     //     (see reasoning-history-strip-hook.ts).
     //   - ToolResultImageBudgetHook caps how many tool-returned images stay
     //     live in one turn (see tool-result-image-budget-hook.ts).
+    //   - TurnBudgetHook bounds model calls / time / tokens / repeated tool
+    //     calls per turn (see turn-budget-hook.ts).
     // The skills plugin (when present) injects `<available_skills>` into the
     // system prompt; it sits after the sanitizers and before caller plugins.
     plugins: [
@@ -153,6 +156,7 @@ export async function createAgent(options?: CreateAgentOptions): Promise<CreateA
       new EmptyReasoningBlockHook(),
       new ReasoningHistoryStripHook(modelId),
       new ToolResultImageBudgetHook(),
+      new TurnBudgetHook(options?.turnBudget ?? MAIN_TURN_BUDGET),
       ...(skillsPlugin ? [skillsPlugin] : []),
       ...(options?.plugins ?? []),
     ],

@@ -9,6 +9,6 @@ export function toolResultImagePlaceholder(image: ImageBlock): TextBlock {
   const size =
     image.source.type === 'imageSourceBytes' ? `, ${image.source.bytes.byteLength} bytes` : '';
   return new TextBlock(
-    `[image: ${image.format}${size}. Its pixels are not kept in the conversation history; view the image again to see it.]`
+    `[image: ${image.format}${size}. Already viewed; its pixels were dropped from the conversation to save context. Rely on what you observed then, and view it again only for a specific detail you did not note.]`
   );
 }

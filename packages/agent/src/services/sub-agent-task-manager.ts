@@ -30,6 +30,7 @@ import { RUNTIME_TOOL_NAMES } from '@moca/tool-definitions';
 import type { ReasoningDepth, SessionId, UserId } from '@moca/core';
 import type { Plugin } from '@strands-agents/sdk';
 import type { CreateAgentOptions } from '../types/agent-types.js';
+import { SUB_AGENT_TURN_BUDGET } from './session/turn-budget-hook.js';
 
 /**
  * Task status
@@ -329,6 +330,9 @@ class SubAgentTaskManager {
         // Wait for synced skill sources before construction (the plugin scans
         // them synchronously); see resolveSkillsPaths for order and rationale.
         skillsPaths: await resolveSkillsPaths(workspaceSync),
+        // Runs unattended in the background, so it gets a wall-clock limit
+        // that interactive turns do not.
+        turnBudget: SUB_AGENT_TURN_BUDGET,
       };
       const { agent } = await createAgent(agentOptions);
 
