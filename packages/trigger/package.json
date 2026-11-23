@@ -26,11 +26,11 @@
   "author": "AgentCore Trigger",
   "license": "MIT",
   "dependencies": {
-    "@aws-sdk/client-bedrock-agentcore": "^3.1156.0",
-    "@aws-sdk/client-cognito-identity": "^3.1156.0",
-    "@aws-sdk/client-dynamodb": "^3.1156.0",
-    "@aws-sdk/client-lambda": "^3.1156.0",
-    "@aws-sdk/client-ssm": "^3.1156.0",
+    "@aws-sdk/client-bedrock-agentcore": "^3.1169.0",
+    "@aws-sdk/client-cognito-identity": "^3.1169.0",
+    "@aws-sdk/client-dynamodb": "^3.1169.0",
+    "@aws-sdk/client-lambda": "^3.1169.0",
+    "@aws-sdk/client-ssm": "^3.1169.0",
     "@aws-sdk/util-dynamodb": "^3.996.9",
     "@aws/durable-execution-sdk-js": "^3.0.0",
     "@moca/core": "*",
@@ -43,7 +43,7 @@
     "@types/aws-lambda": "^8.10.164",
     "dotenv": "^17.2.3",
     "pino-pretty": "^13.2.0",
-    "testcontainers": "^12.2.1",
+    "testcontainers": "^12.2.2",
     "tsx": "^4.23.15"
   },
   "engines": {
