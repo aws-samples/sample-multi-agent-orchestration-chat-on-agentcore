@@ -20,6 +20,7 @@ import type { SessionPersistenceDeps } from '../../types/session-persistence-dep
 import { config } from '../../config/index.js';
 import { logger } from '../../libs/logger/index.js';
 import { createUserScopedBedrockAgentCoreClient } from '../../libs/utils/scoped-credentials.js';
+import type { TurnLock } from './turn-lock.js';
 
 /**
  * Result of session setup
@@ -61,6 +62,8 @@ export interface SessionSetupOptions {
    * Primarily used by sub-agent flows that construct the storage themselves.
    */
   storageOverride?: SessionStorage;
+  /** The turn lock /invocations holds (or will take when creating the item). */
+  turnLock?: TurnLock;
 }
 
 /**
@@ -109,7 +112,8 @@ export async function setupSession(options: SessionSetupOptions): Promise<Sessio
     sessionConfig,
     options.deps,
     options.agentId,
-    options.storagePath
+    options.storagePath,
+    options.turnLock
   );
 
   return { config: sessionConfig, hook, storage };

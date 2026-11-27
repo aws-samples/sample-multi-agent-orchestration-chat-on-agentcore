@@ -30,6 +30,8 @@ export interface SessionSummary {
   storagePath?: string;
   /** ISO start of the turn running server-side; absent when idle. */
   activeTurnStartedAt?: string;
+  /** Who runs that turn: a machine turn (trigger / workflow) gets no token renewal from here. */
+  activeTurnRunner?: 'user' | 'machine';
   /** Set on child sessions (workflow steps, call_agent sub-agents). */
   parent?: SessionParent;
 }

@@ -127,6 +127,32 @@ describe('SessionsRepository (DynamoDB Local)', () => {
     expect(sessions.find((s) => s.sessionId === 's-idle')?.activeTurnStartedAt).toBeUndefined();
   });
 
+  it('exposes the turn runner but not the lock internals', async () => {
+    const u = 'us-east-1:lock-user' as IdentityId;
+    await client.send(
+      new PutItemCommand({
+        TableName: tableName,
+        Item: marshall({
+          userId: u,
+          sessionId: 's-locked',
+          title: 'l',
+          activeTurnStartedAt: '2026-01-01T23:00:00.000Z',
+          activeTurnOwner: 'req-1',
+          activeTurnRunner: 'machine',
+          activeTurnLeaseUntil: 1_800_000_000_000,
+          createdAt: '2026-01-01T00:00:00.000Z',
+          updatedAt: '2026-01-02T00:00:00.000Z',
+        }),
+      })
+    );
+
+    const [session] = (await repo.listSessions(u)).sessions;
+
+    expect(session).toMatchObject({ activeTurnRunner: 'machine' });
+    expect(session).not.toHaveProperty('activeTurnOwner');
+    expect(session).not.toHaveProperty('activeTurnLeaseUntil');
+  });
+
   it('paginates with Limit and a round-trippable opaque nextToken', async () => {
     const u = 'us-east-1:page-user' as IdentityId;
     for (let i = 0; i < 5; i++) {

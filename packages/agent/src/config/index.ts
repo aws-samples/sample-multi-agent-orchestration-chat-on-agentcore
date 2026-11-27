@@ -49,8 +49,8 @@ const envSchema = z.object({
 
   // AgentCore Runtime self-identification.
   // Injected by the AgentCore Runtime platform into each container; absent in
-  // local development. Used by `services/session-terminator` to extract this
-  // container's own Runtime ARN (between `/runtimes/` and `/invocations`).
+  // local development. Used by `services/session-terminator` to derive this
+  // Runtime's `/stopruntimesession` endpoint.
   AGENTCORE_RUNTIME_URL: z.string().optional(),
 
   /** Comma-separated model ids this deployment allows; unset in local dev (falls back to the built-in list). */

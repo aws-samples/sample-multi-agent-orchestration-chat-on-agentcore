@@ -301,3 +301,89 @@ describe('requestContextMiddleware', () => {
     expect(getFreshestIdToken({ owner: 'victim-sub', sessionId }, undefined)).toBeUndefined();
   });
 });
+
+describe('requestContextMiddleware runtime session id', () => {
+  const USER_SUB = 'd7a41aa8-8031-70e8-4916-4c302e63588a';
+  const SESSION = 'S'.repeat(33);
+
+  function asUser(): void {
+    verifyAccessTokenMock.mockResolvedValueOnce({
+      sub: USER_SUB,
+      client_id: 'frontend-client',
+      token_use: 'access',
+      exp: 1,
+      iss: 'x',
+      username: USER_SUB,
+      raw: {},
+    });
+    verifyIdTokenMock.mockResolvedValueOnce({
+      sub: USER_SUB,
+      aud: 'frontend-client',
+      token_use: 'id',
+      exp: 1,
+      iss: 'x',
+      raw: {},
+    });
+  }
+
+  function asMachine(): void {
+    verifyAccessTokenMock.mockResolvedValueOnce({
+      sub: 'machine-client',
+      client_id: 'machine-client',
+      token_use: 'access',
+      exp: 1,
+      iss: 'x',
+      raw: {},
+    });
+  }
+
+  /** Resolves with the context seen by next(), or the 403 status. */
+  function run(runtimeSessionId: string) {
+    const req = createRequest({
+      headers: {
+        authorization: 'Bearer at',
+        'x-amzn-bedrock-agentcore-runtime-custom-id-token': 'id-token',
+        'x-amzn-bedrock-agentcore-runtime-session-id': runtimeSessionId,
+      },
+    });
+    const res = createResponse();
+    return new Promise<{ status?: number; ctx?: ReturnType<typeof getCurrentContext> }>(
+      (resolve) => {
+        res.status.mockImplementation((code: unknown) => {
+          resolve({ status: code as number });
+          return res;
+        });
+        requestContextMiddleware(req, res, (() =>
+          resolve({ ctx: getCurrentContext() })) as unknown as NextFunction);
+      }
+    );
+  }
+
+  it.each([
+    ['user', asUser, `${SESSION}u`, 'user'],
+    ['user', asUser, SESSION, 'plain'],
+    ['machine', asMachine, `${SESSION}m`, 'machine'],
+    ['machine', asMachine, SESSION, 'plain'],
+  ] as const)('%s caller with %s keeps the conversation id', async (_who, as, id, kind) => {
+    as();
+    const { ctx } = await run(id);
+    expect(ctx?.sessionId).toBe(SESSION);
+    expect(ctx?.runtimeSessionId).toBe(id);
+    expect(ctx?.runtimeSessionKind).toBe(kind);
+  });
+
+  it.each([
+    ['a human sending a machine id', asUser, `${SESSION}m`],
+    ['a machine sending a user id', asMachine, `${SESSION}u`],
+  ])('rejects %s with 403', async (_label, as, id) => {
+    as();
+    expect(await run(id)).toEqual({ status: 403 });
+  });
+
+  it('ignores an unknown suffix (sessionless)', async () => {
+    asUser();
+    const { ctx } = await run(`${SESSION}x`);
+    expect(ctx?.sessionId).toBeUndefined();
+    expect(ctx?.runtimeSessionId).toBeUndefined();
+  });
+});

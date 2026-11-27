@@ -149,19 +149,19 @@ export interface AgentCoreRuntimeProps {
   readonly bedrockModels: BedrockModelConfig[];
 
   /**
-   * Idle timeout for runtime sessions (defense-in-depth backstop).
+   * Idle timeout for runtime sessions.
    *
-   * Event-driven (trigger) invocations self-terminate their session after the
-   * response is sent (see packages/agent/src/services/session-terminator.ts),
-   * so the microVM is normally released immediately. This timeout reclaims any
-   * session that, for whatever reason, was left Idle without being stopped —
-   * bounding how long a leaked container can keep billing memory.
+   * Machine runtime sessions (triggers, workflows) stop themselves after the
+   * response is sent (see packages/agent/src/services/session-terminator.ts).
+   * Human runtime sessions are kept warm so a follow-up turn reuses the
+   * microVM, its workspace and its prompt cache; this bounds how long one
+   * keeps billing memory.
    *
    * Idle is measured from when the agent stops processing, so a shorter value
    * never interrupts an in-flight invocation. The timer resets on each new
    * invocation to the same session.
    *
-   * @default Duration.seconds(300) — 5 minutes, well under the platform default of 900s
+   * @default Duration.hours(8) — the platform maximum (equal to the default maxLifetime)
    */
   readonly idleRuntimeSessionTimeout?: cdk.Duration;
 
@@ -347,12 +347,10 @@ export class AgentCoreRuntime extends Construct {
         RUNTIME_MINIMUM_MEMORY_CFN_SUPPORTED && props.minimumMemoryMiB !== undefined
           ? cdk.Size.mebibytes(props.minimumMemoryMiB)
           : undefined,
-      // Defense-in-depth: bound how long an Idle (leaked) session keeps a
-      // microVM alive. Event-driven sessions self-terminate after responding,
-      // but this reclaims any session left dangling. Idle is measured from when
-      // the agent stops processing, so it never cuts off an active invocation.
+      // Idle is measured from when the agent stops processing, so it never cuts
+      // off an active invocation.
       lifecycleConfiguration: {
-        idleRuntimeSessionTimeout: props.idleRuntimeSessionTimeout ?? cdk.Duration.seconds(300),
+        idleRuntimeSessionTimeout: props.idleRuntimeSessionTimeout ?? cdk.Duration.hours(8),
       },
       // Enable Authorization header forwarding for JWT authentication
       // and Cognito ID Token forwarding for Identity Pool credential exchange.
@@ -546,20 +544,6 @@ export class AgentCoreRuntime extends Construct {
           `arn:aws:bedrock-agentcore:${region}:${account}:browser/*`,
           `arn:aws:bedrock-agentcore:${region}:aws:browser/*`, // AWS Managed Browser
         ],
-      })
-    );
-
-    // Self-termination: event-driven sessions stop their own microVM after
-    // responding (see packages/agent/src/services/session-terminator.ts) by
-    // calling StopRuntimeSession. Scoped to this account's runtimes; the ARN is
-    // a wildcard because the runtime cannot reference its own ARN at synth time
-    // without creating a CloudFormation circular dependency.
-    this.runtime.addToRolePolicy(
-      new iam.PolicyStatement({
-        sid: 'BedrockAgentCoreStopRuntimeSession',
-        effect: iam.Effect.ALLOW,
-        actions: ['bedrock-agentcore:StopRuntimeSession'],
-        resources: [`arn:aws:bedrock-agentcore:${region}:${account}:runtime/*`],
       })
     );
 

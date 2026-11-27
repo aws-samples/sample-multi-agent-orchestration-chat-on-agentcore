@@ -34,10 +34,19 @@ import type {
   SessionsRepository,
   CreateSessionOptions,
   SessionListResult,
+  TurnLockAcquireResult,
+  TurnLockClaim,
 } from '../sessions-repository.js';
 import type { SessionData, SessionSummary } from '../types.js';
 
 const logger = createLogger('SessionsRepository');
+
+// By name, like the rest of this file: a mocked client throws plain objects.
+function isConditionalCheckFailed(
+  error: unknown
+): error is { name: string; Item?: Record<string, AttributeValue> } {
+  return (error as { name?: string })?.name === 'ConditionalCheckFailedException';
+}
 
 /**
  * Name of the GSI used to list a user's sessions newest-first. Mirrors the
@@ -123,6 +132,12 @@ export class DynamoDBSessionsRepository implements SessionsRepository {
       sessionType: options.sessionType,
       channelUserId: options.channelUserId,
       parent: options.parent,
+      ...(options.turnLock && {
+        activeTurnStartedAt: options.turnLock.startedAt,
+        activeTurnOwner: options.turnLock.owner,
+        activeTurnRunner: options.turnLock.runner,
+        activeTurnLeaseUntil: options.turnLock.leaseUntil,
+      }),
       createdAt: now,
       updatedAt: now,
     };
@@ -211,6 +226,78 @@ export class DynamoDBSessionsRepository implements SessionsRepository {
         return;
       }
       logger.error({ error }, 'Error updating session active turn:');
+      throw error;
+    }
+  }
+
+  async acquireTurnLock(
+    sessionId: string,
+    claim: TurnLockClaim,
+    now: number
+  ): Promise<TurnLockAcquireResult> {
+    try {
+      await this.client.send(
+        new UpdateItemCommand({
+          TableName: this.tableName,
+          Key: marshall({ userId: this.partitionKey, sessionId }),
+          UpdateExpression:
+            'SET activeTurnOwner = :owner, activeTurnRunner = :runner, activeTurnLeaseUntil = :lease, activeTurnStartedAt = :startedAt, updatedAt = :updatedAt',
+          ConditionExpression:
+            'attribute_exists(sessionId) AND (attribute_not_exists(activeTurnOwner) OR activeTurnLeaseUntil < :now OR activeTurnOwner = :owner)',
+          ExpressionAttributeValues: marshall({
+            ':owner': claim.owner,
+            ':runner': claim.runner,
+            ':lease': claim.leaseUntil,
+            ':startedAt': claim.startedAt,
+            ':updatedAt': new Date(now).toISOString(),
+            ':now': now,
+          }),
+          ReturnValuesOnConditionCheckFailure: 'ALL_OLD',
+        })
+      );
+      return { status: 'acquired' };
+    } catch (error: unknown) {
+      if (isConditionalCheckFailed(error)) {
+        if (!error.Item) return { status: 'missing' };
+        const old = unmarshall(error.Item) as SessionData;
+        return { status: 'held', startedAt: old.activeTurnStartedAt, runner: old.activeTurnRunner };
+      }
+      throw error;
+    }
+  }
+
+  async renewTurnLock(sessionId: string, owner: string, leaseUntil: number): Promise<boolean> {
+    try {
+      await this.client.send(
+        new UpdateItemCommand({
+          TableName: this.tableName,
+          Key: marshall({ userId: this.partitionKey, sessionId }),
+          UpdateExpression: 'SET activeTurnLeaseUntil = :lease',
+          ConditionExpression: 'activeTurnOwner = :owner',
+          ExpressionAttributeValues: marshall({ ':owner': owner, ':lease': leaseUntil }),
+        })
+      );
+      return true;
+    } catch (error: unknown) {
+      if (isConditionalCheckFailed(error)) return false;
+      throw error;
+    }
+  }
+
+  async releaseTurnLock(sessionId: string, owner: string): Promise<void> {
+    try {
+      await this.client.send(
+        new UpdateItemCommand({
+          TableName: this.tableName,
+          Key: marshall({ userId: this.partitionKey, sessionId }),
+          UpdateExpression:
+            'REMOVE activeTurnOwner, activeTurnRunner, activeTurnLeaseUntil, activeTurnStartedAt',
+          ConditionExpression: 'activeTurnOwner = :owner',
+          ExpressionAttributeValues: marshall({ ':owner': owner }),
+        })
+      );
+    } catch (error: unknown) {
+      if (isConditionalCheckFailed(error)) return;
       throw error;
     }
   }

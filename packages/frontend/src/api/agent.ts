@@ -14,6 +14,7 @@ import type {
   ToolResult,
 } from '../types/index';
 import { agentClient } from './client/agent-client';
+import { invokeOnRuntimeSession } from './runtime-session';
 import { startAgentTokenRenewal } from './agent-token-renewal';
 import { logger } from '../utils/logger';
 import {
@@ -106,11 +107,6 @@ export const streamAgentResponse = async (
     'Content-Type': 'application/json',
   };
 
-  // Only set session ID header if provided
-  if (sessionId) {
-    headers['X-Amzn-Bedrock-AgentCore-Runtime-Session-Id'] = sessionId;
-  }
-
   const body = buildRequestBody(prompt, agentConfig);
 
   // Supply the turn with fresh tokens for as long as we are streaming it.
@@ -129,12 +125,11 @@ export const streamAgentResponse = async (
   }, STREAM_FIRST_BYTE_TIMEOUT_MS);
 
   try {
-    const response = await agentClient.invoke({
-      method: 'POST',
-      headers,
-      body,
-      signal: abort.signal,
-    });
+    const init: RequestInit = { method: 'POST', headers, body, signal: abort.signal };
+    // Sessionless without an id: the Runtime then runs without history.
+    const response = sessionId
+      ? await invokeOnRuntimeSession(sessionId, init)
+      : await agentClient.invoke(init);
     watchdog.touch();
 
     if (!response.ok) {
@@ -248,12 +243,9 @@ export const warmupAgentRuntime = async (
   warmedSessionIds.add(sessionId);
 
   try {
-    const response = await agentClient.invoke({
+    const response = await invokeOnRuntimeSession(sessionId, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-Amzn-Bedrock-AgentCore-Runtime-Session-Id': sessionId,
-      },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ warmup: true, storagePath }),
     });
     await response.body?.cancel();

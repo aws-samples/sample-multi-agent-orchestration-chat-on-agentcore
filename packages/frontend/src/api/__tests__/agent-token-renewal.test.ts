@@ -45,7 +45,7 @@ describe('renewAgentTokens', () => {
     expect(JSON.parse(options!.body as string)).toEqual({ action: 'renewTokens' });
     expect(
       (options!.headers as Record<string, string>)['X-Amzn-Bedrock-AgentCore-Runtime-Session-Id']
-    ).toBe(SESSION);
+    ).toBe(`${SESSION}u`);
   });
 
   it('forces a token refresh first when the current tokens are close to expiry', async () => {

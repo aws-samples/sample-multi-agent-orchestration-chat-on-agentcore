@@ -5,7 +5,7 @@
 
 import { AsyncLocalStorage } from 'async_hooks';
 import { v7 as uuidv7 } from 'uuid';
-import type { IdentityId, SessionId, UserId } from '@moca/core';
+import type { IdentityId, ParsedRuntimeSessionId, SessionId, UserId } from '@moca/core';
 import type { IWorkspaceSync, SessionType } from '../../types/index.js';
 import type { VerifiedAccessTokenPayload, VerifiedIdTokenPayload } from '../auth/jwt-verifier.js';
 import {
@@ -85,8 +85,12 @@ export interface RequestContext {
   emitClientEvent?: (event: Record<string, unknown>) => void;
   /** Set once persistence degradation has been surfaced for this turn. */
   persistenceDegradedReported?: boolean;
-  /** Session type (from x-amzn-bedrock-agentcore-runtime-session-type header) */
+  /** Session type of a machine caller's turn (request body); undefined for humans. */
   sessionType?: SessionType;
+  /** Runtime session id from the header; differs from `sessionId` by a kind suffix. */
+  runtimeSessionId?: string;
+  /** Who this runtime session belongs to (see `toRuntimeSessionId`); 'plain' from pre-split clients. */
+  runtimeSessionKind?: ParsedRuntimeSessionId['kind'];
   /** Agent / model of the current turn, so background work started by a tool can resume it. */
   agentId?: string;
   modelId?: string;

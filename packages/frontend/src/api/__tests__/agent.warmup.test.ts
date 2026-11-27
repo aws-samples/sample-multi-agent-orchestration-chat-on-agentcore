@@ -33,7 +33,7 @@ describe('warmupAgentRuntime', () => {
     expect(options.method).toBe('POST');
     expect(
       (options.headers as Record<string, string>)['X-Amzn-Bedrock-AgentCore-Runtime-Session-Id']
-    ).toBe(SESSION_ID);
+    ).toBe(`${SESSION_ID}u`);
     expect(JSON.parse(options.body as string)).toEqual({ warmup: true });
     expect(cancel).toHaveBeenCalledTimes(1);
   });

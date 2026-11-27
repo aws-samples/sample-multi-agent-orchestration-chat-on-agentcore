@@ -5,7 +5,7 @@
 
 import { describe, it, expect } from '@jest/globals';
 import type { DynamoDBRecord } from 'aws-lambda';
-import { parseRecord } from '../index.js';
+import { isLeaseOnlyUpdate, parseRecord } from '../index.js';
 
 function modify(newImage: Record<string, unknown>): DynamoDBRecord {
   return { eventName: 'MODIFY', dynamodb: { NewImage: newImage } } as DynamoDBRecord;
@@ -33,5 +33,60 @@ describe('parseRecord', () => {
       })
     );
     expect(event?.parent).toEqual({ sessionId: 'p', workflowId: 'w', stepId: 'a' });
+  });
+});
+
+describe('parseRecord turn lock fields', () => {
+  it('includes the turn runner', () => {
+    const event = parseRecord(
+      modify({
+        sessionId: { S: 's' },
+        activeTurnRunner: { S: 'machine' },
+      })
+    );
+    expect(event?.activeTurnRunner).toBe('machine');
+  });
+});
+
+describe('isLeaseOnlyUpdate', () => {
+  const base = {
+    sessionId: { S: 's' },
+    activeTurnOwner: { S: 'r1' },
+    activeTurnStartedAt: { S: '2026-11-01T00:00:00.000Z' },
+  };
+  const record = (
+    eventName: 'MODIFY' | 'INSERT',
+    oldImage: Record<string, unknown> | undefined,
+    newImage: Record<string, unknown>
+  ) => ({ eventName, dynamodb: { OldImage: oldImage, NewImage: newImage } }) as DynamoDBRecord;
+
+  it('is true when only the lease changed, regardless of key order', () => {
+    const { sessionId, ...rest } = base;
+    expect(
+      isLeaseOnlyUpdate(
+        record(
+          'MODIFY',
+          { ...base, activeTurnLeaseUntil: { N: '1' } },
+          { ...rest, activeTurnLeaseUntil: { N: '2' }, sessionId }
+        )
+      )
+    ).toBe(true);
+  });
+
+  it('is false when anything else changed', () => {
+    expect(
+      isLeaseOnlyUpdate(
+        record(
+          'MODIFY',
+          { ...base, activeTurnLeaseUntil: { N: '1' } },
+          { sessionId: { S: 's' }, title: { S: 'new' } }
+        )
+      )
+    ).toBe(false);
+  });
+
+  it('is false for inserts and records without an old image', () => {
+    expect(isLeaseOnlyUpdate(record('INSERT', undefined, base))).toBe(false);
+    expect(isLeaseOnlyUpdate(record('MODIFY', undefined, base))).toBe(false);
   });
 });

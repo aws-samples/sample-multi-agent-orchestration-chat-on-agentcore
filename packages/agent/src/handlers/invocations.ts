@@ -28,14 +28,18 @@
  */
 
 import type { Request, Response } from 'express';
-import { normalizeReasoningEffort } from '@moca/core';
+import { normalizeReasoningEffort, type SessionId } from '@moca/core';
 import type { InvocationRequest } from '../types/index.js';
 import { createAgent } from '../agent.js';
 import {
+  getCallerAuthorizationHeader,
   getCurrentContext,
   requireIdentityId,
   requireUserId,
+  type RequestContext,
 } from '../libs/context/request-context.js';
+import { getSessionsService } from '../services/sessions-service.js';
+import { TurnLock } from '../services/session/turn-lock.js';
 import { setupSession } from '../services/session/session-helper.js';
 
 import { initializeWorkspaceSync, resolveSkillsPaths } from '../services/workspace-sync-helper.js';
@@ -60,7 +64,12 @@ import type { StreamOutcome } from './stream-handler.js';
  * Creates an Agent per session and persists history.
  */
 export async function handleInvocation(req: Request, res: Response): Promise<void> {
-  const { sessionId, requestId } = getCurrentContext()!;
+  const context = getCurrentContext()!;
+  const { sessionId, requestId } = context;
+  // AgentCore drops the Session-Type header, so machine callers send it in the body.
+  const bodySessionType = (req.body as InvocationRequest).sessionType;
+  if (context.isMachineUser && bodySessionType) context.sessionType = bodySessionType;
+
   if (!sessionId) {
     await runTurn(req, res);
     return;
@@ -72,24 +81,75 @@ export async function handleInvocation(req: Request, res: Response): Promise<voi
       { requestId, sessionId, runningRequestId: running?.requestId },
       'Rejected prompt: a turn is already in progress for this session'
     );
-    // A typed stream event, not an HTTP error: the client treats it as
-    // "still running" rather than as a failed prompt.
-    res.setHeader('Content-Type', 'text/plain; charset=utf-8');
-    res.write(
-      `${JSON.stringify({
-        type: 'serverTurnInProgressEvent',
-        turn: { startedAt: running?.startedAt.toISOString() ?? new Date().toISOString() },
-      })}\n`
-    );
-    res.end();
+    writeTurnInProgress(res, running?.startedAt.toISOString());
     return;
   }
 
+  const lock = createTurnLock(context, sessionId);
   try {
-    await runTurn(req, res);
+    const acquired = lock ? await lock.acquire() : undefined;
+    if (acquired?.status === 'held') {
+      logger.warn(
+        { requestId, sessionId, runner: acquired.runner },
+        'Rejected prompt: another runtime session is running a turn for this conversation'
+      );
+      writeTurnInProgress(res, acquired.startedAt);
+      return;
+    }
+    // `unavailable` (DynamoDB error) runs unlocked, as before the lock existed.
+    await runTurn(req, res, acquired?.status === 'unavailable' ? undefined : lock);
   } finally {
+    // Before stopping, which kills this microVM.
+    await lock?.release();
+    // Also after a rejected or failed turn: nobody continues a machine runtime
+    // session, and it would otherwise linger until the idle timeout.
+    if (context.isMachineUser) await stopAfterResponse(res);
     endTurn(sessionId, requestId);
   }
+}
+
+/** A typed stream event, not an HTTP error: the client treats it as "still running". */
+function writeTurnInProgress(res: Response, startedAt: string | undefined): void {
+  res.setHeader('Content-Type', 'text/plain; charset=utf-8');
+  res.write(
+    `${JSON.stringify({
+      type: 'serverTurnInProgressEvent',
+      turn: { startedAt: startedAt ?? new Date().toISOString() },
+    })}\n`
+  );
+  res.end();
+}
+
+function createTurnLock(context: RequestContext, sessionId: SessionId): TurnLock | undefined {
+  const sessions = getSessionsService();
+  if (!sessions.isConfigured() || !context.identityId) return undefined;
+  return new TurnLock(
+    sessions,
+    context.identityId,
+    sessionId,
+    context.requestId,
+    context.isMachineUser ? 'machine' : 'user',
+    context.startTime
+  );
+}
+
+/**
+ * Every runtime session a machine user called is pinned to the machine user,
+ * so no human can continue it and stopping it is always safe.
+ *
+ * Stopping also cuts the response. A thrown turn has not answered yet (the
+ * error handler does that after us), so it stops once the response is out.
+ */
+async function stopAfterResponse(res: Response): Promise<void> {
+  const { runtimeSessionId } = getCurrentContext()!;
+  if (!runtimeSessionId) return;
+  const authorizationHeader = getCallerAuthorizationHeader();
+  const stop = () => stopOwnSession(runtimeSessionId, authorizationHeader);
+  if (res.writableEnded === false) {
+    res.once('close', () => void stop());
+    return;
+  }
+  await stop();
 }
 
 /**
@@ -115,7 +175,7 @@ function withConflicts(
   };
 }
 
-async function runTurn(req: Request, res: Response): Promise<void> {
+async function runTurn(req: Request, res: Response, turnLock?: TurnLock): Promise<void> {
   const body = req.body as InvocationRequest;
   const context = getCurrentContext()!;
   // Only the orchestrator (machine user) may run a step: the callback id
@@ -128,11 +188,11 @@ async function runTurn(req: Request, res: Response): Promise<void> {
     );
   }
   if (!workflowStep) {
-    await runAgentTurn(req, res);
+    await runAgentTurn(req, res, undefined, turnLock);
     return;
   }
   try {
-    await runAgentTurn(req, res, workflowStep);
+    await runAgentTurn(req, res, workflowStep, turnLock);
   } catch (error) {
     await completeStepCallback(workflowStep, {
       ok: false,
@@ -145,7 +205,8 @@ async function runTurn(req: Request, res: Response): Promise<void> {
 async function runAgentTurn(
   req: Request,
   res: Response,
-  workflowStep?: WorkflowStepInvocation
+  workflowStep?: WorkflowStepInvocation,
+  turnLock?: TurnLock
 ): Promise<void> {
   const body = req.body as InvocationRequest;
   const context = getCurrentContext()!;
@@ -154,8 +215,7 @@ async function runAgentTurn(
   const userId = requireUserId(); // UserId — populated by authResolverMiddleware
   const identityId = requireIdentityId(); // IdentityId — populated by identityResolverMiddleware
   const { sessionId, requestId } = context;
-  // AgentCore does not forward the Session-Type header (not allowlisted), so a
-  // workflow step is marked from the body to keep it out of the chat list.
+  // A workflow step is marked from its body to keep it out of the chat list.
   const sessionType = workflowStep ? 'subagent' : context.sessionType;
 
   logger.info(
@@ -214,6 +274,7 @@ async function runAgentTurn(
         agentId: body.agentId,
         storagePath: body.storagePath,
         deps: createSessionPersistenceDeps(),
+        turnLock,
       })
     : null;
 
@@ -299,19 +360,7 @@ async function runAgentTurn(
     );
   }
 
-  // Event-driven (trigger) invocations are fire-and-forget: nothing on the
-  // client side will tell the Runtime the session is done, so the microVM
-  // would otherwise linger (billing memory) until the idle timeout. Now that
-  // `streamAgentResponse` has fully written and ended the response, proactively
-  // stop our own session to release the microVM immediately.
-  //
-  // Restricted to `sessionType === 'event'`: interactive (chat) sessions are
-  // intentionally kept warm so follow-up turns reuse the same context, and the
-  // frontend's graceful stream close lets them go Idle on their own. Stopping
-  // also terminates any ongoing stream, so this must run AFTER the response is
-  // sent (which it is — `streamAgentResponse` calls `res.end()` before returning).
-  // Workflow steps are fire-and-forget too; a revision re-hydrates from Memory.
-  if ((sessionType === 'event' || workflowStep) && sessionId) {
-    await stopOwnSession(sessionId);
-  }
+  // Held through the final sync so another microVM never starts on stale
+  // files. `handleInvocation` then stops a machine runtime session.
+  await turnLock?.release();
 }

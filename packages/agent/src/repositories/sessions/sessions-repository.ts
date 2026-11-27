@@ -24,7 +24,7 @@
  */
 
 import type { AgentId, SessionParent, UserId } from '@moca/core';
-import type { SessionData, SessionSummary } from './types.js';
+import type { SessionData, SessionSummary, TurnRunner } from './types.js';
 
 // --- Method input/output types -----------------------------------------------
 // How you OPERATE on sessions, as opposed to the domain MODEL in `./types.ts`.
@@ -43,7 +43,24 @@ export interface CreateSessionOptions {
   /** Cognito User Pool sub — used for AppSync channel paths (no colons). */
   channelUserId?: UserId;
   parent?: SessionParent;
+  /** Written with the item, so creating a conversation also takes its turn lock. */
+  turnLock?: TurnLockClaim;
 }
+
+/** A claim on the per-conversation turn lock (see services/session/turn-lock.ts). */
+export interface TurnLockClaim {
+  owner: string;
+  runner: TurnRunner;
+  /** ISO; also drives the UI's "running" indicator. */
+  startedAt: string;
+  /** Epoch ms after which another caller may take the lock over. */
+  leaseUntil: number;
+}
+
+export type TurnLockAcquireResult =
+  | { status: 'acquired' }
+  | { status: 'held'; startedAt?: string; runner?: TurnRunner }
+  | { status: 'missing' };
 
 /**
  * Result of {@link SessionsRepository.listSessions}: a page of summaries plus an
@@ -93,4 +110,17 @@ export interface SessionsRepository {
 
   /** Mark (ISO startedAt) or clear (undefined) the running turn. */
   setActiveTurn(sessionId: string, startedAt: string | undefined): Promise<void>;
+
+  /** Take the turn lock if it is free, expired at `now`, or already ours. */
+  acquireTurnLock(
+    sessionId: string,
+    claim: TurnLockClaim,
+    now: number
+  ): Promise<TurnLockAcquireResult>;
+
+  /** @returns false when the lock is no longer ours. */
+  renewTurnLock(sessionId: string, owner: string, leaseUntil: number): Promise<boolean>;
+
+  /** Clear the lock and the running marker. No-op unless `owner` holds it. */
+  releaseTurnLock(sessionId: string, owner: string): Promise<void>;
 }

@@ -70,6 +70,7 @@ router.get(
             agentId: session.agentId,
             storagePath: session.storagePath,
             activeTurnStartedAt: session.activeTurnStartedAt,
+            activeTurnRunner: session.activeTurnRunner,
             createdAt: session.createdAt,
             updatedAt: session.updatedAt,
           })),

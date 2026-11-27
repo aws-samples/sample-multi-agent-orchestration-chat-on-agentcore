@@ -36,9 +36,10 @@ silently stopped saving history and workspace files.
 5. Event-driven turns have no client, so the Trigger Lambda requests an 8 h
    developer-auth token instead (see
    `event-driven-identity-pool-credentials.md`, Attack 4).
-6. One turn per session per process (`turn-registry`). A second prompt gets a
-   `serverTurnInProgressEvent`; the session row carries `activeTurnStartedAt`
-   so a reloaded UI shows the running turn.
+6. One turn per conversation: per process (`turn-registry`), and across
+   microVMs by a lease on the session row (see `runtime-session-pinning.md`).
+   A second prompt gets a `serverTurnInProgressEvent`; the session row carries
+   `activeTurnStartedAt` so a reloaded UI shows the running turn.
 
 ## Rejected alternatives
 
@@ -61,9 +62,9 @@ silently stopped saving history and workspace files.
   does not stop a cross-user plant: the session id is client-chosen and visible
   in the `/chat/{sessionId}` URL, so any signed-in user could name another
   user's session. Keying the store by the verified `sub` as well means a turn
-  only ever reads tokens of its own caller. Rejected: binding the session to
-  the first `sub` seen — it adds an ordering dependency (warmup, trigger
-  sessions continued from the UI) for no extra isolation.
+  only ever reads tokens of its own caller. On V2 the platform itself pins a
+  runtime session to its first `sub` (see `runtime-session-pinning.md`); the
+  `sub` key still protects V1.
 - If the tab that streams the turn is closed and no other tab reattaches,
   nothing renews the tokens. The turn keeps persisting until ~1 h after the
   token expired (decision 4), then reports `persistenceDegraded` once

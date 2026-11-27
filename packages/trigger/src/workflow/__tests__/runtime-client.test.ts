@@ -30,7 +30,7 @@ function ndjson(lines: string[]): Response {
 
 const params = {
   userId: 'u',
-  sessionId: 's',
+  sessionId: 'S'.repeat(33),
   sessionType: 'subagent',
   agentId: 'a',
   prompt: 'p',
@@ -58,6 +58,8 @@ describe('RuntimeClient.startTurn', () => {
     const headers = init!.headers as Record<string, string>;
     expect(headers.Authorization).toBe('Bearer m-token');
     expect(headers['X-Amzn-Bedrock-AgentCore-Runtime-Custom-Id-Token']).toBe('oid');
+    expect(headers['X-Amzn-Bedrock-AgentCore-Runtime-Session-Id']).toBe(`${'S'.repeat(33)}m`);
+    expect(body.sessionType).toBe('subagent');
   });
 
   it('keeps the agent tools for a non-step (parent) turn', async () => {
@@ -104,13 +106,27 @@ describe('RuntimeClient.startTurn', () => {
 });
 
 describe('RuntimeClient.stopSession', () => {
-  it('calls stopruntimesession with the bearer token and session header', async () => {
+  const SESSION = 'S'.repeat(33);
+  const sessionHeader = (call: number) =>
+    (fetchMock.mock.calls[call][1]!.headers as Record<string, string>)[
+      'X-Amzn-Bedrock-AgentCore-Runtime-Session-Id'
+    ];
+
+  it('stops the machine runtime session with the bearer token', async () => {
     fetchMock.mockResolvedValue(new Response('{}', { status: 200 }));
-    await expect(client().rc.stopSession('sess-1')).resolves.toEqual({ ok: true, status: 200 });
+    await expect(client().rc.stopSession(SESSION)).resolves.toEqual({ ok: true, status: 200 });
     const [url, init] = fetchMock.mock.calls[0];
     expect(String(url)).toMatch(/\/stopruntimesession\?qualifier=DEFAULT$/);
-    expect(
-      (init!.headers as Record<string, string>)['X-Amzn-Bedrock-AgentCore-Runtime-Session-Id']
-    ).toBe('sess-1');
+    expect((init!.headers as Record<string, string>).Authorization).toBe('Bearer m-token');
+    expect(sessionHeader(0)).toBe(`${SESSION}m`);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('falls back to the unsuffixed id for steps started before the split', async () => {
+    fetchMock
+      .mockResolvedValueOnce(new Response('{}', { status: 404 }))
+      .mockResolvedValueOnce(new Response('{}', { status: 200 }));
+    await expect(client().rc.stopSession(SESSION)).resolves.toEqual({ ok: true, status: 200 });
+    expect(sessionHeader(1)).toBe(SESSION);
   });
 });

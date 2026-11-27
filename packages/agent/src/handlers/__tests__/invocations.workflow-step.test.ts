@@ -10,8 +10,12 @@ const stopOwnSession = jest.fn<() => Promise<void>>();
 jest.unstable_mockModule('../../agent.js', () => ({ createAgent }));
 jest.unstable_mockModule('../../libs/context/request-context.js', () => ({
   getCurrentContext: () => context,
+  getCallerAuthorizationHeader: () => 'Bearer machine',
   requireUserId: () => 'test-user',
   requireIdentityId: () => 'test-identity',
+}));
+jest.unstable_mockModule('../../services/sessions-service.js', () => ({
+  getSessionsService: () => ({ isConfigured: () => false }),
 }));
 const setupSession = jest.fn<(args: Record<string, unknown>) => Promise<undefined>>();
 jest.unstable_mockModule('../../services/session/session-helper.js', () => ({ setupSession }));
@@ -25,6 +29,7 @@ jest.unstable_mockModule('../../services/session-persistence-deps-factory.js', (
 }));
 jest.unstable_mockModule('../../libs/logger/index.js', () => ({
   logger: { info: jest.fn(), warn: jest.fn(), error: jest.fn() },
+  createLogger: () => ({ info: jest.fn(), warn: jest.fn(), error: jest.fn(), debug: jest.fn() }),
 }));
 jest.unstable_mockModule('../stream-handler.js', () => ({ streamAgentResponse }));
 jest.unstable_mockModule('../../services/session-terminator.js', () => ({ stopOwnSession }));
@@ -173,6 +178,7 @@ describe('workflow step invocations', () => {
 
   it('persists step sessions as subagent sessions and releases the microVM', async () => {
     context.sessionId = 'step-session';
+    context.runtimeSessionId = 'step-sessionm';
     await invoke({ workflowStep: { ...workflowStep, parentSessionId: 'parent-1', goal: 'G' } });
     expect(setupSession.mock.calls[0][0]).toMatchObject({
       sessionId: 'step-session',
@@ -185,7 +191,7 @@ describe('workflow step invocations', () => {
         role: 'worker',
       },
     });
-    expect(stopOwnSession).toHaveBeenCalledWith('step-session');
+    expect(stopOwnSession).toHaveBeenCalledWith('step-sessionm', 'Bearer machine');
   });
 
   it('flushes the workspace to S3 before completing the callback and stopping the session', async () => {
@@ -207,6 +213,7 @@ describe('workflow step invocations', () => {
       order.push('stop');
     });
     context.sessionId = 'step-session';
+    context.runtimeSessionId = 'step-sessionm';
 
     await invoke({ workflowStep, storagePath: '/project' });
 

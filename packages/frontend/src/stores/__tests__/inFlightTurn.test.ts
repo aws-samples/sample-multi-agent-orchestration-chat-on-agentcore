@@ -35,6 +35,23 @@ describe('session active-turn marker', () => {
     expect(idle?.activeTurnStartedAt).toBeUndefined();
   });
 
+  it('MODIFY events carry the turn runner', () => {
+    applySessionEvent({
+      type: 'MODIFY',
+      sessionId: SESSION_ID,
+      turnActive: true,
+      activeTurnStartedAt: '2026-11-01T00:00:00.000Z',
+      activeTurnRunner: 'machine',
+    });
+    const session = useSessionStore.getState().sessions.find((s) => s.sessionId === SESSION_ID);
+    expect(session?.activeTurnRunner).toBe('machine');
+
+    applySessionEvent({ type: 'MODIFY', sessionId: SESSION_ID, turnActive: false });
+    expect(
+      useSessionStore.getState().sessions.find((s) => s.sessionId === SESSION_ID)?.activeTurnRunner
+    ).toBeUndefined();
+  });
+
   it('events from a stream handler that predates the marker leave it untouched', () => {
     useSessionStore.getState().updateSessionActiveTurn(SESSION_ID, '2026-11-01T00:00:00.000Z');
     applySessionEvent({ type: 'MODIFY', sessionId: SESSION_ID, title: 'renamed' });

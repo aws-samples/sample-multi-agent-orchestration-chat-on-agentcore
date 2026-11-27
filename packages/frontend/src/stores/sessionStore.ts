@@ -150,7 +150,8 @@ interface SessionActions {
   updateSessionActiveTurn: (
     sessionId: string,
     activeTurnStartedAt: string | undefined,
-    updatedAt?: string
+    updatedAt?: string,
+    activeTurnRunner?: 'user' | 'machine'
   ) => void;
 }
 
@@ -781,12 +782,18 @@ export const useSessionStore = create<SessionStore>()(
       updateSessionActiveTurn: (
         sessionId: string,
         activeTurnStartedAt: string | undefined,
-        updatedAt?: string
+        updatedAt?: string,
+        activeTurnRunner?: 'user' | 'machine'
       ) => {
         set({
           sessions: get().sessions.map((session) =>
             session.sessionId === sessionId
-              ? { ...session, activeTurnStartedAt, updatedAt: updatedAt ?? session.updatedAt }
+              ? {
+                  ...session,
+                  activeTurnStartedAt,
+                  activeTurnRunner: activeTurnStartedAt ? activeTurnRunner : undefined,
+                  updatedAt: updatedAt ?? session.updatedAt,
+                }
               : session
           ),
         });

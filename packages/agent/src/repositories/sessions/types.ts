@@ -22,6 +22,9 @@ import type { IdentityId, AgentId, SessionParent, UserId } from '@moca/core';
  */
 export type SessionType = 'user' | 'event' | 'subagent';
 
+/** Who runs the turn holding a conversation's turn lock. */
+export type TurnRunner = 'user' | 'machine';
+
 /**
  * Session data stored in DynamoDB
  */
@@ -45,6 +48,11 @@ export interface SessionData {
   parent?: SessionParent;
   /** ISO time the currently running turn started; absent when idle. */
   activeTurnStartedAt?: string;
+  /** Turn lock owner (request id). Two microVMs (user / machine runtime sessions) can serve one conversation. */
+  activeTurnOwner?: string;
+  activeTurnRunner?: TurnRunner;
+  /** Epoch ms; a crashed owner's lock is taken over after this. */
+  activeTurnLeaseUntil?: number;
   createdAt: string;
   updatedAt: string;
 }
