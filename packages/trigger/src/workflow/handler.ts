@@ -71,7 +71,7 @@ export function buildOps(
     step: (c, name, fn) => c.step(name, () => fn()),
     runAgent: async (c, name, turn) => {
       const submit = async (callbackId: string) => {
-        await runtime.startTurn({
+        const { inProgress } = await runtime.startTurn({
           userId,
           sessionId: turn.sessionId,
           sessionType: 'subagent',
@@ -88,6 +88,9 @@ export function buildOps(
             goal: record.spec.goal,
           },
         });
+        // A rejected turn never calls back; throwing lets the submitter retry
+        // instead of waiting out the heartbeat timeout.
+        if (inProgress) throw new Error(`A turn is already running in session ${turn.sessionId}`);
       };
       // waitForCallback's retryStrategy only covers the submitter (starting
       // the turn). A turn that fails or stops heartbeating rejects the

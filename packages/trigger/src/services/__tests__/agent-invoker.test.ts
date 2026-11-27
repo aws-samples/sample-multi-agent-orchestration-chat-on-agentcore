@@ -222,6 +222,20 @@ describe('AgentInvoker', () => {
       }
     );
 
+    it('sends the machine runtime session id and the event type in the body', async () => {
+      const service = makeAgentsService();
+      fetchMock.mockResolvedValue(new Response(null, { status: 200 }));
+      const sessionId = 'T'.repeat(33);
+      const invoker = new AgentInvoker('https://api.example.com/invocations', service);
+      await invoker.invokeAsync(makePayload({ sessionId }), 'token');
+      const init = fetchMock.mock.calls[0][1]!;
+      const headers = init.headers as Record<string, string>;
+      expect(headers['X-Amzn-Bedrock-AgentCore-Runtime-Session-Id']).toBe(`${sessionId}m`);
+      const body = JSON.parse(init.body as string);
+      expect(body.sessionId).toBe(sessionId);
+      expect(body.sessionType).toBe('event');
+    });
+
     it('omits reasoningEffort from the body when the payload has none', async () => {
       const service = makeAgentsService();
       fetchMock.mockResolvedValue(new Response(null, { status: 200 }));

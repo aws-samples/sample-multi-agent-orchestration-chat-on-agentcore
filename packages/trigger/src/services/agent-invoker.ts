@@ -8,6 +8,7 @@ import { SchedulerEventPayload, EventDrivenContext } from '../types/index.js';
 import { AgentsService, MCPConfig } from './agents-service.js';
 import { buildEventDrivenPrompt } from './prompt-builder.js';
 import { createLogger } from '../libs/logger/index.js';
+import { machineRuntimeSessionId } from '../libs/runtime-session/index.js';
 
 const log = createLogger('AgentInvoker');
 
@@ -39,6 +40,7 @@ interface AgentInvocationRequest {
   systemPrompt?: string;
   mcpConfig?: MCPConfig;
   agentId?: string;
+  sessionType?: 'event';
 }
 
 /**
@@ -129,6 +131,8 @@ export class AgentInvoker {
         enabledTools: agent.enabledTools,
         mcpConfig: agent.mcpConfig,
         agentId: payload.agentId,
+        // The Runtime drops the Session-Type header (not allowlisted).
+        sessionType: 'event',
       },
       sessionId,
     };
@@ -146,8 +150,7 @@ export class AgentInvoker {
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
       Authorization: `Bearer ${authToken}`,
-      'X-Amzn-Bedrock-AgentCore-Runtime-Session-Id': sessionId,
-      'X-Amzn-Bedrock-AgentCore-Runtime-Session-Type': 'event',
+      'X-Amzn-Bedrock-AgentCore-Runtime-Session-Id': machineRuntimeSessionId(sessionId),
       'X-Amzn-Trace-Id': `trigger-${Date.now()}`,
     };
 

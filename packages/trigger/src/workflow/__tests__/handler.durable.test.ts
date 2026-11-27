@@ -28,6 +28,7 @@ type Turn = {
 };
 const turns: Turn[] = [];
 let parentInProgress = 0;
+let stepInProgress = 0;
 const stopped: string[] = [];
 
 class FakeRuntimeClient {
@@ -35,6 +36,10 @@ class FakeRuntimeClient {
     turns.push(params);
     if (!params.workflowStep && parentInProgress > 0) {
       parentInProgress -= 1;
+      return { inProgress: true };
+    }
+    if (params.workflowStep && stepInProgress > 0) {
+      stepInProgress -= 1;
       return { inProgress: true };
     }
     return { inProgress: false };
@@ -154,6 +159,7 @@ beforeEach(() => {
   stopped.length = 0;
   statusLog.length = 0;
   parentInProgress = 0;
+  stepInProgress = 0;
   executions = [];
   stoppedExecutions.length = 0;
   headers.clear();
@@ -221,6 +227,24 @@ describe('orchestrator handler (durable)', () => {
     );
     expect(reportWorker[0].sessionId).toBe(reportWorker[1].sessionId);
     expect(reportWorker[1].prompt).toContain('add sources');
+  });
+
+  it('resubmits a step turn the Runtime rejected as already running', async () => {
+    seed({
+      goal: 'g',
+      notifyOnComplete: false,
+      steps: [{ id: 's', agentId: 'agent', prompt: 'p' }],
+    });
+    stepInProgress = 1;
+    const runner = new LocalDurableTestRunner({ handlerFunction: handler });
+    const execution = runner.run({ payload: runEvent });
+    await respond(runner, 's-r1-work0', done('ok'));
+    const result = await execution;
+
+    expect(result.getResult()).toEqual({ workflowId: 'wf-1', status: 'completed' });
+    // Same callback, submitted twice — not a second turn attempt.
+    expect(turns).toHaveLength(2);
+    expect(turns[0].workflowStep?.callbackId).toBe(turns[1].workflowStep?.callbackId);
   });
 
   it('retries a failed turn with a new callback and continues', async () => {

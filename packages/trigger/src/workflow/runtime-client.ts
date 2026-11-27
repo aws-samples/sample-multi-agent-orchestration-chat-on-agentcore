@@ -10,6 +10,7 @@ import { AuthService } from '../services/auth-service.js';
 import { AgentsService } from '../services/agents-service.js';
 import { encodeAgentUrl } from '../services/agent-invoker.js';
 import { createLogger } from '../libs/logger/index.js';
+import { machineRuntimeSessionId } from '../libs/runtime-session/index.js';
 
 const log = createLogger('WorkflowRuntimeClient');
 
@@ -77,10 +78,20 @@ export class RuntimeClient {
   }
 
   /**
+   * Stop the machine runtime session of a conversation, then the unsuffixed
+   * one a step started before runtime session ids were split may still run on.
+   */
+  async stopSession(sessionId: string): Promise<StopSessionResult> {
+    const result = await this.stopRuntimeSession(machineRuntimeSessionId(sessionId));
+    if (result.ok) return result;
+    return this.stopRuntimeSession(sessionId);
+  }
+
+  /**
    * StopRuntimeSession over HTTPS with the machine token: a JWT-authorized
    * runtime rejects the SigV4 SDK call ("Authorization method mismatch").
    */
-  async stopSession(sessionId: string): Promise<StopSessionResult> {
+  private async stopRuntimeSession(sessionId: string): Promise<StopSessionResult> {
     const accessToken = await this.getMachineToken();
     const url = encodeAgentUrl(this.agentApiUrl).replace('/invocations', '/stopruntimesession');
     const response = await fetchWithHeadersTimeout(
@@ -134,8 +145,7 @@ export class RuntimeClient {
         headers: {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${accessToken}`,
-          'X-Amzn-Bedrock-AgentCore-Runtime-Session-Id': params.sessionId,
-          'X-Amzn-Bedrock-AgentCore-Runtime-Session-Type': params.sessionType,
+          'X-Amzn-Bedrock-AgentCore-Runtime-Session-Id': machineRuntimeSessionId(params.sessionId),
           'X-Amzn-Bedrock-AgentCore-Runtime-Custom-Id-Token': openIdToken,
         },
         body: JSON.stringify({
@@ -148,6 +158,8 @@ export class RuntimeClient {
           enabledTools,
           mcpConfig: agent.mcpConfig,
           workflowStep: params.workflowStep,
+          // The Runtime drops the Session-Type header (not allowlisted).
+          sessionType: params.sessionType,
         }),
       },
       HEADERS_TIMEOUT_MS
