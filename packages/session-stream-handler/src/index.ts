@@ -47,8 +47,6 @@ interface SessionEvent {
   turnActive?: boolean;
   /** Who runs the current turn; the UI must not renew tokens for a machine turn. */
   activeTurnRunner?: 'user' | 'machine';
-  /** 'rescued': humans reach this conversation through the `u` runtime session. */
-  userRuntimeSessionKind?: 'rescued';
 }
 
 type Image = NonNullable<NonNullable<DynamoDBRecord['dynamodb']>['NewImage']>;
@@ -123,8 +121,6 @@ export function parseRecord(record: DynamoDBRecord): SessionEvent | null {
     turnActive: eventName !== 'REMOVE' && !!activeTurnStartedAt,
     activeTurnRunner: (image.activeTurnRunner as { S: string } | undefined)?.S as
       'user' | 'machine' | undefined,
-    userRuntimeSessionKind: (image.userRuntimeSessionKind as { S: string } | undefined)?.S as
-      'rescued' | undefined,
   };
 }
 

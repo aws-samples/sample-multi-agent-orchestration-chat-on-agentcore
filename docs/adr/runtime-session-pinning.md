@@ -2,6 +2,8 @@
 
 ![Runtime session pinning](../runtime-session-pinning.drawio.png)
 
+Per-request detail: [runtime-session-pinning-detail.drawio.png](../runtime-session-pinning-detail.drawio.png)
+
 ## Context
 
 On AgentCore Runtime platform version V2, a runtime session is pinned to the
@@ -29,16 +31,17 @@ locked each other out of a conversation, whichever side touched it first.
 
 1. **Runtime session id = conversation id + caller kind**
    (`toRuntimeSessionId` / `parseRuntimeSessionId` in `@moca/core`).
-   - Humans use the plain id. This keeps microVM reuse and V1 behaviour
-     unchanged.
-   - Machine callers append `m`.
-   - Humans append `u` (`rescued`) only for conversations whose plain id was
-     pinned to the machine user before the split.
+   - Humans always append `u`, machine callers always append `m`.
+   - Nobody sends the plain id any more. Before the split both sides used it,
+     so on an existing conversation it may be pinned to either. Abandoning it
+     lets both sides continue every existing conversation without knowing who
+     pinned it.
 
    Memory, DynamoDB, S3, Code Interpreter and Browser keep the conversation
    id. The container rejects a kind that does not match the caller (403). It
-   accepts a machine caller without a suffix, because Lambdas deployed before
-   the split may still be running.
+   accepts a plain id from either side, because clients deployed before the
+   split (open browser tabs, Lambdas, running durable executions) may still
+   send it.
 2. **Per-conversation turn lock on the moca-sessions item**
    (`activeTurnOwner` / `activeTurnRunner` / `activeTurnLeaseUntil`). Two
    microVMs can now serve one conversation, so the in-process `turn-registry`
@@ -53,20 +56,18 @@ locked each other out of a conversation, whichever side touched it first.
 3. **Machine runtime sessions stop themselves** after the response (HTTPS,
    with the caller's freshest bearer token). A machine-pinned session can
    never be continued by a human, so stopping it is always safe.
-4. **The rescue is recorded on the session row**
-   (`userRuntimeSessionKind: 'rescued'`), so every device starts on `u`. The
-   frontend retries once on `u` only on the platform's pin 403.
 
 ## Rejected alternatives
 
 - **Wait for the pin to expire / stop the session first.** Verified that the
   pin outlives both.
-- **Suffix the human side too (and leave machine ids unchanged).** Every
-  existing human conversation would move to a new microVM and lose its
-  pinned history routing. Machine sessions are short-lived and stop
-  themselves, so moving them costs nothing.
-- **Remember the rescue in `localStorage`.** Each device would pay the 403
-  round-trip, and a cleared browser would pay it again.
+- **Humans keep the plain id; only machine callers are suffixed.** A
+  conversation whose plain id was pinned to the machine user before the split
+  then needs a second human id, chosen either by retrying on the platform's
+  403 (an unintuitive client contract) or by a per-conversation flag on the
+  session row, which nobody can set before the first 403 without migrating
+  old data. Suffixing both sides costs one cold start per existing
+  conversation, on its first turn after the deploy.
 - **A separate IAM-authenticated Runtime for automation.** Doubles the Runtime
   and its config surface for what a suffix solves.
 - **Lock in the in-process registry only.** Human and machine turns now run
@@ -79,6 +80,8 @@ locked each other out of a conversation, whichever side touched it first.
   workspace diff from S3, which already happens on every turn.
 - `call_agent` sub-agents do not go through `/invocations` and still write only
   the display marker (`activeTurnStartedAt`).
+- The first human turn on each existing conversation after the deploy starts
+  a new microVM; its history and files are unaffected.
 - Rollout order: the container must ship before callers send suffixed ids. The
   current container treats a 34-char id as sessionless. CloudFormation updates
   the Runtime before the Lambdas and the frontend that reference its ARN.

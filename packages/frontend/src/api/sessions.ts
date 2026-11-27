@@ -32,8 +32,6 @@ export interface SessionSummary {
   activeTurnStartedAt?: string;
   /** Who runs that turn: a machine turn (trigger / workflow) gets no token renewal from here. */
   activeTurnRunner?: 'user' | 'machine';
-  /** 'rescued': humans continue this conversation on the `u` runtime session (see runtime-session.ts). */
-  userRuntimeSessionKind?: 'rescued';
   /** Set on child sessions (workflow steps, call_agent sub-agents). */
   parent?: SessionParent;
 }

@@ -20,7 +20,6 @@ import { logger } from '../utils/logger';
 import { extractErrorMessage } from '../utils/store-helpers';
 import { generateSessionId } from '../utils/sessionId';
 import { settleWithConcurrency } from '../utils/settleWithConcurrency';
-import { registerRescuedLookup } from '../api/runtime-session';
 import { isSessionId, isAgentId } from '@moca/core';
 import type { SessionParent } from '@moca/core';
 
@@ -154,7 +153,6 @@ interface SessionActions {
     updatedAt?: string,
     activeTurnRunner?: 'user' | 'machine'
   ) => void;
-  markUserRuntimeSessionRescued: (sessionId: string) => void;
 }
 
 /**
@@ -801,16 +799,6 @@ export const useSessionStore = create<SessionStore>()(
         });
       },
 
-      markUserRuntimeSessionRescued: (sessionId: string) => {
-        set({
-          sessions: get().sessions.map((session) =>
-            session.sessionId === sessionId
-              ? { ...session, userRuntimeSessionKind: 'rescued' as const }
-              : session
-          ),
-        });
-      },
-
       updateSessionAgentId: (sessionId: string, agentId: string) => {
         const { sessions } = get();
 
@@ -841,12 +829,6 @@ export const useSessionStore = create<SessionStore>()(
       enabled: import.meta.env.DEV,
     }
   )
-);
-
-registerRescuedLookup(
-  (sessionId) =>
-    useSessionStore.getState().sessions.find((s) => s.sessionId === sessionId)
-      ?.userRuntimeSessionKind === 'rescued'
 );
 
 /**

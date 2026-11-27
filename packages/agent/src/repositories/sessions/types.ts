@@ -53,11 +53,6 @@ export interface SessionData {
   activeTurnRunner?: TurnRunner;
   /** Epoch ms; a crashed owner's lock is taken over after this. */
   activeTurnLeaseUntil?: number;
-  /**
-   * 'rescued': the plain runtime session id was pinned to the machine user
-   * before runtime session ids were split, so humans use the `u` suffix.
-   */
-  userRuntimeSessionKind?: 'rescued';
   createdAt: string;
   updatedAt: string;
 }

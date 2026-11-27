@@ -302,23 +302,6 @@ export class DynamoDBSessionsRepository implements SessionsRepository {
     }
   }
 
-  async markUserRuntimeSessionRescued(sessionId: string): Promise<void> {
-    try {
-      await this.client.send(
-        new UpdateItemCommand({
-          TableName: this.tableName,
-          Key: marshall({ userId: this.partitionKey, sessionId }),
-          UpdateExpression: 'SET userRuntimeSessionKind = :kind',
-          ConditionExpression: 'attribute_exists(sessionId)',
-          ExpressionAttributeValues: marshall({ ':kind': 'rescued' }),
-        })
-      );
-    } catch (error: unknown) {
-      if (isConditionalCheckFailed(error)) return;
-      throw error;
-    }
-  }
-
   /**
    * Get session data, or null when absent.
    */

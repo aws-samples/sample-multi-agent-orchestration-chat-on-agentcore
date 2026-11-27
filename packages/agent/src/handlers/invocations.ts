@@ -98,8 +98,6 @@ export async function handleInvocation(req: Request, res: Response): Promise<voi
     }
     // `unavailable` (DynamoDB error) runs unlocked, as before the lock existed.
     await runTurn(req, res, acquired?.status === 'unavailable' ? undefined : lock);
-    // After the turn: a conversation's first turn creates its row.
-    if (context.runtimeSessionKind === 'rescued') await markRescued(sessionId);
   } finally {
     // Before stopping, which kills this microVM.
     await lock?.release();
@@ -133,15 +131,6 @@ function createTurnLock(context: RequestContext, sessionId: SessionId): TurnLock
     context.isMachineUser ? 'machine' : 'user',
     context.startTime
   );
-}
-
-/** So other devices pick the rescued runtime session without a 403 round-trip. */
-async function markRescued(sessionId: SessionId): Promise<void> {
-  try {
-    await getSessionsService().markUserRuntimeSessionRescued(requireIdentityId(), sessionId);
-  } catch (error) {
-    logger.warn({ err: error, sessionId }, 'Failed to record the rescued runtime session');
-  }
 }
 
 /**

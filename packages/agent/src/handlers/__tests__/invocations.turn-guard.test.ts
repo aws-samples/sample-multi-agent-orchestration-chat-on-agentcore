@@ -32,7 +32,6 @@ const sessions = {
   acquireTurnLock: jest.fn<() => Promise<unknown>>(),
   renewTurnLock: jest.fn<() => Promise<boolean>>().mockResolvedValue(true),
   releaseTurnLock: jest.fn<() => Promise<void>>().mockResolvedValue(undefined),
-  markUserRuntimeSessionRescued: jest.fn<() => Promise<void>>().mockResolvedValue(undefined),
 };
 jest.unstable_mockModule('../../services/sessions-service.js', () => ({
   getSessionsService: () => sessions,
@@ -73,7 +72,7 @@ function invoke(res: Response, overrides: Record<string, unknown> = {}): Promise
   ctx = {
     requestId: currentRequestId,
     sessionId: SESSION,
-    runtimeSessionId: SESSION,
+    runtimeSessionId: `${SESSION}u`,
     runtimeSessionKind: 'user',
     identityId: 'test-identity',
     startTime: new Date(),
@@ -211,14 +210,6 @@ describe('handleInvocation DynamoDB turn lock', () => {
   it('keeps a human runtime session running after the turn', async () => {
     await invoke(createResponse());
     expect(stopOwnSession).not.toHaveBeenCalled();
-  });
-
-  it('records a rescued runtime session on the conversation', async () => {
-    await invoke(createResponse(), {
-      runtimeSessionId: `${SESSION}u`,
-      runtimeSessionKind: 'rescued',
-    });
-    expect(sessions.markUserRuntimeSessionRescued).toHaveBeenCalledWith('test-identity', SESSION);
   });
 
   it('honours the body sessionType only for machine callers', async () => {

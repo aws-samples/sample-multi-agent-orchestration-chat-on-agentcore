@@ -35,19 +35,16 @@ describe('session active-turn marker', () => {
     expect(idle?.activeTurnStartedAt).toBeUndefined();
   });
 
-  it('MODIFY events carry the turn runner and the rescued runtime session kind', async () => {
-    const { runtimeSessionIdFor } = await import('../../api/runtime-session');
+  it('MODIFY events carry the turn runner', () => {
     applySessionEvent({
       type: 'MODIFY',
       sessionId: SESSION_ID,
       turnActive: true,
       activeTurnStartedAt: '2026-11-01T00:00:00.000Z',
       activeTurnRunner: 'machine',
-      userRuntimeSessionKind: 'rescued',
     });
     const session = useSessionStore.getState().sessions.find((s) => s.sessionId === SESSION_ID);
     expect(session?.activeTurnRunner).toBe('machine');
-    expect(runtimeSessionIdFor(SESSION_ID)).toBe(`${SESSION_ID}u`);
 
     applySessionEvent({ type: 'MODIFY', sessionId: SESSION_ID, turnActive: false });
     expect(

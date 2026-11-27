@@ -123,7 +123,4 @@ export interface SessionsRepository {
 
   /** Clear the lock and the running marker. No-op unless `owner` holds it. */
   releaseTurnLock(sessionId: string, owner: string): Promise<void>;
-
-  /** Record that humans reach this conversation through the `rescued` runtime session. */
-  markUserRuntimeSessionRescued(sessionId: string): Promise<void>;
 }

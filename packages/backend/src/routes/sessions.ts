@@ -71,7 +71,6 @@ router.get(
             storagePath: session.storagePath,
             activeTurnStartedAt: session.activeTurnStartedAt,
             activeTurnRunner: session.activeTurnRunner,
-            userRuntimeSessionKind: session.userRuntimeSessionKind,
             createdAt: session.createdAt,
             updatedAt: session.updatedAt,
           })),

@@ -360,10 +360,10 @@ describe('requestContextMiddleware runtime session id', () => {
   }
 
   it.each([
-    ['user', asUser, SESSION, 'user'],
-    ['user', asUser, `${SESSION}u`, 'rescued'],
+    ['user', asUser, `${SESSION}u`, 'user'],
+    ['user', asUser, SESSION, 'plain'],
     ['machine', asMachine, `${SESSION}m`, 'machine'],
-    ['machine', asMachine, SESSION, 'user'],
+    ['machine', asMachine, SESSION, 'plain'],
   ] as const)('%s caller with %s keeps the conversation id', async (_who, as, id, kind) => {
     as();
     const { ctx } = await run(id);
@@ -374,7 +374,7 @@ describe('requestContextMiddleware runtime session id', () => {
 
   it.each([
     ['a human sending a machine id', asUser, `${SESSION}m`],
-    ['a machine sending a rescued id', asMachine, `${SESSION}u`],
+    ['a machine sending a user id', asMachine, `${SESSION}u`],
   ])('rejects %s with 403', async (_label, as, id) => {
     as();
     expect(await run(id)).toEqual({ status: 403 });

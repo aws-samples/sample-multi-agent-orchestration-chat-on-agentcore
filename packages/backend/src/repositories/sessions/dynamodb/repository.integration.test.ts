@@ -127,7 +127,7 @@ describe('SessionsRepository (DynamoDB Local)', () => {
     expect(sessions.find((s) => s.sessionId === 's-idle')?.activeTurnStartedAt).toBeUndefined();
   });
 
-  it('exposes the turn runner and rescued kind but not the lock internals', async () => {
+  it('exposes the turn runner but not the lock internals', async () => {
     const u = 'us-east-1:lock-user' as IdentityId;
     await client.send(
       new PutItemCommand({
@@ -140,7 +140,6 @@ describe('SessionsRepository (DynamoDB Local)', () => {
           activeTurnOwner: 'req-1',
           activeTurnRunner: 'machine',
           activeTurnLeaseUntil: 1_800_000_000_000,
-          userRuntimeSessionKind: 'rescued',
           createdAt: '2026-01-01T00:00:00.000Z',
           updatedAt: '2026-01-02T00:00:00.000Z',
         }),
@@ -149,10 +148,7 @@ describe('SessionsRepository (DynamoDB Local)', () => {
 
     const [session] = (await repo.listSessions(u)).sessions;
 
-    expect(session).toMatchObject({
-      activeTurnRunner: 'machine',
-      userRuntimeSessionKind: 'rescued',
-    });
+    expect(session).toMatchObject({ activeTurnRunner: 'machine' });
     expect(session).not.toHaveProperty('activeTurnOwner');
     expect(session).not.toHaveProperty('activeTurnLeaseUntil');
   });

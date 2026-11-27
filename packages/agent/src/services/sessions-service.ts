@@ -162,12 +162,6 @@ export class SessionsService {
     return repo.releaseTurnLock(sessionId, owner);
   }
 
-  async markUserRuntimeSessionRescued(userId: string, sessionId: string): Promise<void> {
-    if (!this.isConfigured()) return;
-    const repo = await this.repositoryForUser(userId);
-    return repo.markUserRuntimeSessionRescued(sessionId);
-  }
-
   async getSession(userId: string, sessionId: string) {
     if (!this.isConfigured()) {
       return null;

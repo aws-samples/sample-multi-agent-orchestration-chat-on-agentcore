@@ -31,7 +31,12 @@
 import { NextFunction, Request, Response } from 'express';
 import { recordSessionTokens } from '../auth/session-token-store.js';
 
-import { isUserId, parseRuntimeSessionId, type RuntimeSessionKind, type UserId } from '@moca/core';
+import {
+  isUserId,
+  parseRuntimeSessionId,
+  type ParsedRuntimeSessionId,
+  type UserId,
+} from '@moca/core';
 import {
   classifyAccessToken,
   JwtVerificationError,
@@ -90,22 +95,19 @@ function looksLikeDeveloperAuthToken(token: string): boolean {
 
 /**
  * A runtime session is pinned to one identity on V2, so a kind only ever has
- * one kind of caller. Machine callers without a suffix are accepted while
- * Lambdas deployed before the split may still be running.
+ * one kind of caller. A plain id is accepted from clients deployed before the
+ * split (old browser tabs, Lambdas, running durable executions).
  */
 function isKindAllowed(
-  kind: RuntimeSessionKind,
+  kind: ParsedRuntimeSessionId['kind'],
   isMachineUser: boolean,
   requestId: string
 ): boolean {
-  if (isMachineUser) {
-    if (kind === 'rescued') return false;
-    if (kind === 'user') {
-      logger.warn({ requestId }, 'Machine caller used an unsuffixed runtime session id');
-    }
+  if (kind === 'plain') {
+    logger.warn({ requestId, isMachineUser }, 'Caller used an unsuffixed runtime session id');
     return true;
   }
-  return kind !== 'machine';
+  return kind === (isMachineUser ? 'machine' : 'user');
 }
 
 async function verifyTokens(

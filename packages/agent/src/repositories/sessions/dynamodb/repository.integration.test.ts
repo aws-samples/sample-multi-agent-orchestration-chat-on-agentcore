@@ -447,12 +447,4 @@ describe('SessionsRepository turn lock (DynamoDB Local)', () => {
     expect(item?.activeTurnStartedAt).toBeUndefined();
     expect(item?.activeTurnLeaseUntil).toBeUndefined();
   });
-
-  it('marks the rescued user runtime session only on an existing item', async () => {
-    const id = await newSession();
-    await repo.markUserRuntimeSessionRescued(id);
-    await repo.markUserRuntimeSessionRescued('lock-absent');
-    expect((await rawGet(id))?.userRuntimeSessionKind).toBe('rescued');
-    expect(await rawGet('lock-absent')).toBeUndefined();
-  });
 });

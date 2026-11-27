@@ -23,7 +23,7 @@ orch = d.icon("Workflow Orchestrator<br>(steps, completion notice)", CALLER_X - 
 # Runtime
 d.box("<b>AgentCore Runtime (V2)</b>", 330, 90, 520, 620, fill="none", stroke=C.ML, dashed=True,
       align="left", valign="top")
-vm_user = d.box("<b>microVM</b> — runtime session <b>&lt;id&gt;</b><br>pinned to the user's sub<br>"
+vm_user = d.box("<b>microVM</b> — runtime session <b>&lt;id&gt;u</b><br>pinned to the user's sub<br>"
                 "kept warm for the next turn", VM_X, ROW_USER - 45, VM_W, 90, fill="#FFFFFF", stroke=C.ML)
 vm_mach = d.box("<b>microVM</b> — runtime session <b>&lt;id&gt;m</b><br>pinned to the machine user<br>"
                 "stops itself after every turn<br>(also when rejected or failed)",
@@ -34,11 +34,11 @@ stop = d.box("POST /stopruntimesession<br>(caller's freshest bearer token)", VM_
 # 会話単位のロック
 ddb = d.box("<b>moca-sessions</b> (DynamoDB)<br>one item per conversation<br><br>"
             "activeTurnOwner — request id<br>activeTurnRunner — user / machine<br>"
-            "activeTurnLeaseUntil — renewed every 60 s to +180 s<br>userRuntimeSessionKind — rescued",
+            "activeTurnLeaseUntil — renewed every 60 s to +180 s",
             DDB_X, ROW_USER - 45, 320, 380, fill="#FBF0FC", stroke=C.DATABASE, align="left", valign="top")
 
 # 呼び出し
-d.edge(user, vm_user, "&lt;id&gt;  (&lt;id&gt;u if rescued)", color=C.BLUE, label_pos=-0.2,
+d.edge(user, vm_user, "&lt;id&gt;u", color=C.BLUE, label_pos=-0.2,
        label_offset=(0, -14))
 d.edge(trig, vm_mach, "&lt;id&gt;m", color=C.COMPUTE, into_at=d.frac_y(vm_mach, ROW_TRIG),
        label_pos=-0.2, label_offset=(0, -12))
@@ -58,9 +58,9 @@ d.edge(vm_mach, stop, "after the response", color=C.COMPUTE, out="B", into="T", 
 d.text("<b>Why:</b> on V2 a runtime session is pinned to the first caller's sub, and the pin outlives "
        "Stop and the idle timeout. Other identities get the platform's 403 AccessDeniedException.<br>"
        "<b>&lt;id&gt;</b> conversation id (33 chars) — Memory, S3 workspace, Code Interpreter and the "
-       "sessions item always use it.<br>"
-       "<b>&lt;id&gt;m</b> machine callers. <b>&lt;id&gt;u</b> humans on a conversation whose plain id "
-       "was pinned to the machine user before the split.<br>"
+       "sessions item always use it. Nobody sends it to the Runtime any more: before the split it may "
+       "have been pinned to either side.<br>"
+       "<b>&lt;id&gt;u</b> humans, <b>&lt;id&gt;m</b> machine callers — every conversation, old or new.<br>"
        "A second turn on the same conversation, from either microVM, gets serverTurnInProgressEvent.",
        40, 860, 1340, 110, size=12, color="#232F3E")
 

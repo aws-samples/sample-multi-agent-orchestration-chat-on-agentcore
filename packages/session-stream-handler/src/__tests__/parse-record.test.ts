@@ -37,16 +37,14 @@ describe('parseRecord', () => {
 });
 
 describe('parseRecord turn lock fields', () => {
-  it('includes the turn runner and the rescued runtime session kind', () => {
+  it('includes the turn runner', () => {
     const event = parseRecord(
       modify({
         sessionId: { S: 's' },
         activeTurnRunner: { S: 'machine' },
-        userRuntimeSessionKind: { S: 'rescued' },
       })
     );
     expect(event?.activeTurnRunner).toBe('machine');
-    expect(event?.userRuntimeSessionKind).toBe('rescued');
   });
 });
 

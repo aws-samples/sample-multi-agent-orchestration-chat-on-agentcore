@@ -35,8 +35,6 @@ export interface SessionData {
   activeTurnStartedAt?: string;
   /** Who runs the current turn (agent turn lock); absent when idle. */
   activeTurnRunner?: 'user' | 'machine';
-  /** 'rescued': humans reach this conversation through the `u` runtime session (see @moca/core). */
-  userRuntimeSessionKind?: 'rescued';
   createdAt: string;
   updatedAt: string;
 }
@@ -56,8 +54,6 @@ export interface SessionSummary {
   activeTurnStartedAt?: string;
   /** Who runs the current turn (agent turn lock); absent when idle. */
   activeTurnRunner?: 'user' | 'machine';
-  /** 'rescued': humans reach this conversation through the `u` runtime session (see @moca/core). */
-  userRuntimeSessionKind?: 'rescued';
   createdAt: string;
   updatedAt: string;
 }
