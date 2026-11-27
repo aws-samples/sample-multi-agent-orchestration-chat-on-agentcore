@@ -20,6 +20,7 @@ import { logger } from '../utils/logger';
 import { extractErrorMessage } from '../utils/store-helpers';
 import { generateSessionId } from '../utils/sessionId';
 import { settleWithConcurrency } from '../utils/settleWithConcurrency';
+import { registerRescuedLookup } from '../api/runtime-session';
 import { isSessionId, isAgentId } from '@moca/core';
 import type { SessionParent } from '@moca/core';
 
@@ -150,8 +151,10 @@ interface SessionActions {
   updateSessionActiveTurn: (
     sessionId: string,
     activeTurnStartedAt: string | undefined,
-    updatedAt?: string
+    updatedAt?: string,
+    activeTurnRunner?: 'user' | 'machine'
   ) => void;
+  markUserRuntimeSessionRescued: (sessionId: string) => void;
 }
 
 /**
@@ -781,12 +784,28 @@ export const useSessionStore = create<SessionStore>()(
       updateSessionActiveTurn: (
         sessionId: string,
         activeTurnStartedAt: string | undefined,
-        updatedAt?: string
+        updatedAt?: string,
+        activeTurnRunner?: 'user' | 'machine'
       ) => {
         set({
           sessions: get().sessions.map((session) =>
             session.sessionId === sessionId
-              ? { ...session, activeTurnStartedAt, updatedAt: updatedAt ?? session.updatedAt }
+              ? {
+                  ...session,
+                  activeTurnStartedAt,
+                  activeTurnRunner: activeTurnStartedAt ? activeTurnRunner : undefined,
+                  updatedAt: updatedAt ?? session.updatedAt,
+                }
+              : session
+          ),
+        });
+      },
+
+      markUserRuntimeSessionRescued: (sessionId: string) => {
+        set({
+          sessions: get().sessions.map((session) =>
+            session.sessionId === sessionId
+              ? { ...session, userRuntimeSessionKind: 'rescued' as const }
               : session
           ),
         });
@@ -822,6 +841,12 @@ export const useSessionStore = create<SessionStore>()(
       enabled: import.meta.env.DEV,
     }
   )
+);
+
+registerRescuedLookup(
+  (sessionId) =>
+    useSessionStore.getState().sessions.find((s) => s.sessionId === sessionId)
+      ?.userRuntimeSessionKind === 'rescued'
 );
 
 /**

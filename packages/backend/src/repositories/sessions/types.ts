@@ -33,6 +33,10 @@ export interface SessionData {
   parent?: SessionParent;
   /** ISO time the currently running turn started (written by the agent); absent when idle. */
   activeTurnStartedAt?: string;
+  /** Who runs the current turn (agent turn lock); absent when idle. */
+  activeTurnRunner?: 'user' | 'machine';
+  /** 'rescued': humans reach this conversation through the `u` runtime session (see @moca/core). */
+  userRuntimeSessionKind?: 'rescued';
   createdAt: string;
   updatedAt: string;
 }
@@ -50,6 +54,10 @@ export interface SessionSummary {
   parent?: SessionParent;
   /** ISO time the currently running turn started (written by the agent); absent when idle. */
   activeTurnStartedAt?: string;
+  /** Who runs the current turn (agent turn lock); absent when idle. */
+  activeTurnRunner?: 'user' | 'machine';
+  /** 'rescued': humans reach this conversation through the `u` runtime session (see @moca/core). */
+  userRuntimeSessionKind?: 'rescued';
   createdAt: string;
   updatedAt: string;
 }

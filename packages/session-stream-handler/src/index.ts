@@ -45,6 +45,40 @@ interface SessionEvent {
    * an event that predates the marker field.
    */
   turnActive?: boolean;
+  /** Who runs the current turn; the UI must not renew tokens for a machine turn. */
+  activeTurnRunner?: 'user' | 'machine';
+  /** 'rescued': humans reach this conversation through the `u` runtime session. */
+  userRuntimeSessionKind?: 'rescued';
+}
+
+type Image = NonNullable<NonNullable<DynamoDBRecord['dynamodb']>['NewImage']>;
+
+/** Key-order-independent, so two images with equal attributes compare equal. */
+function stableStringify(value: unknown): string {
+  if (Array.isArray(value)) return `[${value.map(stableStringify).join(',')}]`;
+  if (value && typeof value === 'object') {
+    const entries = Object.entries(value as Record<string, unknown>).sort(([a], [b]) =>
+      a < b ? -1 : a > b ? 1 : 0
+    );
+    return `{${entries.map(([k, v]) => `${JSON.stringify(k)}:${stableStringify(v)}`).join(',')}}`;
+  }
+  return JSON.stringify(value);
+}
+
+function withoutLease(image: Image): Image {
+  const rest = { ...image };
+  delete rest.activeTurnLeaseUntil;
+  return rest;
+}
+
+/**
+ * A running turn renews its lock lease every minute; those writes carry
+ * nothing a subscriber shows, so publishing them would only add traffic.
+ */
+export function isLeaseOnlyUpdate(record: DynamoDBRecord): boolean {
+  const { NewImage, OldImage } = record.dynamodb ?? {};
+  if (record.eventName !== 'MODIFY' || !NewImage || !OldImage) return false;
+  return stableStringify(withoutLease(NewImage)) === stableStringify(withoutLease(OldImage));
 }
 
 /**
@@ -87,6 +121,10 @@ export function parseRecord(record: DynamoDBRecord): SessionEvent | null {
     parent,
     activeTurnStartedAt,
     turnActive: eventName !== 'REMOVE' && !!activeTurnStartedAt,
+    activeTurnRunner: (image.activeTurnRunner as { S: string } | undefined)?.S as
+      'user' | 'machine' | undefined,
+    userRuntimeSessionKind: (image.userRuntimeSessionKind as { S: string } | undefined)?.S as
+      'rescued' | undefined,
   };
 }
 
@@ -188,6 +226,8 @@ export const handler = async (
         log.warn('No userId in record, skipping');
         continue;
       }
+
+      if (isLeaseOnlyUpdate(record)) continue;
 
       const sessionEvent = parseRecord(record);
       if (!sessionEvent) {

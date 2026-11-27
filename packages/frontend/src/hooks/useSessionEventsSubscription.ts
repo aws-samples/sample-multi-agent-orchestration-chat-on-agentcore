@@ -61,6 +61,8 @@ export interface SessionEvent {
   parent?: SessionParent;
   /** Absent from stream handlers that predate the active-turn marker. */
   turnActive?: boolean;
+  activeTurnRunner?: 'user' | 'machine';
+  userRuntimeSessionKind?: 'rescued';
 }
 
 // ============================================================
@@ -125,8 +127,12 @@ export function applySessionEvent(event: SessionEvent): void {
         store.updateSessionActiveTurn(
           event.sessionId,
           event.turnActive ? event.activeTurnStartedAt : undefined,
-          event.updatedAt
+          event.updatedAt,
+          event.activeTurnRunner
         );
+      }
+      if (event.userRuntimeSessionKind === 'rescued') {
+        store.markUserRuntimeSessionRescued(event.sessionId);
       }
       break;
     }

@@ -35,14 +35,17 @@ export function useInFlightTurn(sessionId: string | null): void {
   );
 
   const running = isTurnRunning(session, now, locallyCompletedAt);
+  // A machine turn runs on the machine runtime session with machine tokens; a
+  // renewal from here would only start an idle microVM on the user's one.
+  const machineTurn = session?.activeTurnRunner === 'machine';
 
   useEffect(() => {
     if (!sessionId || streamingHere) return;
     useChatStore.getState().setRemoteTurnRunning(sessionId, running);
     // The streaming tab renews tokens itself (streamAgentResponse).
-    if (!running) return;
+    if (!running || machineTurn) return;
     // Immediately: after a reload or a dropped stream nothing may have renewed
     // the turn's tokens for a while.
     return startAgentTokenRenewal(sessionId, { immediate: true });
-  }, [sessionId, running, streamingHere]);
+  }, [sessionId, running, streamingHere, machineTurn]);
 }

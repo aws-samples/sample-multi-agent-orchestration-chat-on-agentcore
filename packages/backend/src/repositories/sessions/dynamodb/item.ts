@@ -27,6 +27,8 @@ const SUMMARY_FIELDS: readonly (keyof SessionSummary)[] = [
   'sessionType',
   'parent',
   'activeTurnStartedAt',
+  'activeTurnRunner',
+  'userRuntimeSessionKind',
   'createdAt',
   'updatedAt',
 ];

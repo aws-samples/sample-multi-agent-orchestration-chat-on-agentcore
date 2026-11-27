@@ -10,7 +10,7 @@
  * an idle session would start a fresh microVM.
  */
 
-import { agentClient } from './client/agent-client';
+import { invokeOnRuntimeSession } from './runtime-session';
 import { authService } from '../lib/auth';
 import { logger } from '../utils/logger';
 
@@ -28,9 +28,8 @@ export async function renewAgentTokens(sessionId: string): Promise<void> {
     await authService.getTokens({ forceRefresh: true });
   }
 
-  const response = await agentClient.invoke({
+  const response = await invokeOnRuntimeSession(sessionId, {
     method: 'POST',
-    headers: { 'X-Amzn-Bedrock-AgentCore-Runtime-Session-Id': sessionId },
     body: JSON.stringify({ action: 'renewTokens' }),
   });
   if (!response.ok) {
