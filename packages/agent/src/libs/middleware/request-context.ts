@@ -31,7 +31,7 @@
 import { NextFunction, Request, Response } from 'express';
 import { recordSessionTokens } from '../auth/session-token-store.js';
 
-import { isSessionId, isUserId, type UserId } from '@moca/core';
+import { isUserId, parseRuntimeSessionId, type RuntimeSessionKind, type UserId } from '@moca/core';
 import {
   classifyAccessToken,
   JwtVerificationError,
@@ -42,7 +42,6 @@ import {
 } from '../auth/jwt-verifier.js';
 import { createRequestContext, runWithContext } from '../context/request-context.js';
 import { logger } from '../logger/index.js';
-import type { SessionType } from '../../types/index.js';
 
 /**
  * Case-insensitive header access. Express normalises headers to
@@ -87,6 +86,26 @@ function looksLikeDeveloperAuthToken(token: string): boolean {
   } catch {
     return false;
   }
+}
+
+/**
+ * A runtime session is pinned to one identity on V2, so a kind only ever has
+ * one kind of caller. Machine callers without a suffix are accepted while
+ * Lambdas deployed before the split may still be running.
+ */
+function isKindAllowed(
+  kind: RuntimeSessionKind,
+  isMachineUser: boolean,
+  requestId: string
+): boolean {
+  if (isMachineUser) {
+    if (kind === 'rescued') return false;
+    if (kind === 'user') {
+      logger.warn({ requestId }, 'Machine caller used an unsuffixed runtime session id');
+    }
+    return true;
+  }
+  return kind !== 'machine';
 }
 
 async function verifyTokens(
@@ -213,22 +232,25 @@ export function requestContextMiddleware(req: Request, res: Response, next: Next
         requestContext.idToken = idTokenRaw;
       }
 
-      // Session headers — validated with branded guards.
+      // The header carries the runtime session id; the conversation id is its
+      // first 33 chars. Downstream code keys everything by the conversation id.
       const rawSessionId = getHeader(req, 'x-amzn-bedrock-agentcore-runtime-session-id');
-      const sessionType = getHeader(req, 'x-amzn-bedrock-agentcore-runtime-session-type') as
-        SessionType | undefined;
-
       if (rawSessionId) {
-        if (isSessionId(rawSessionId)) {
-          requestContext.sessionId = rawSessionId;
-        } else {
+        const parsed = parseRuntimeSessionId(rawSessionId);
+        if (!parsed) {
           logger.warn(
             { requestId: requestContext.requestId, rawSessionId },
             'Invalid sessionId in header, ignoring'
           );
+        } else if (!isKindAllowed(parsed.kind, isMachineUser, requestContext.requestId)) {
+          res.status(403).json({ error: 'Runtime session kind does not match the caller' });
+          return;
+        } else {
+          requestContext.sessionId = parsed.sessionId;
+          requestContext.runtimeSessionId = rawSessionId;
+          requestContext.runtimeSessionKind = parsed.kind;
         }
       }
-      requestContext.sessionType = sessionType;
 
       // Tokens are verified at this point, so they may replace the copies a
       // still-running turn on this session captured at its own start.

@@ -30,6 +30,10 @@ export {
   SESSION_ID_PATTERN,
 } from './session-id.js';
 
+// Runtime session id (conversation id + caller kind)
+export type { RuntimeSessionKind, ParsedRuntimeSessionId } from './runtime-session-id.js';
+export { toRuntimeSessionId, parseRuntimeSessionId } from './runtime-session-id.js';
+
 // UserId
 export type { UserId } from './user-id.js';
 export { isUserId, parseUserId, USER_ID_PATTERN } from './user-id.js';

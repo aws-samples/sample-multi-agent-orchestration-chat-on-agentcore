@@ -24,4 +24,6 @@ export interface InvocationRequest {
   targetUserId?: string; // Optional: Target user ID for batch processing (machine user only)
   warmup?: boolean; // Optional: Pre-warm request; short-circuited before validation (no agent work)
   workflowStep?: WorkflowStepInvocation; // Optional: set by the workflow orchestrator (machine user only)
+  // AgentCore drops the Session-Type header (not allowlisted), so machine callers send it here.
+  sessionType?: 'user' | 'event' | 'subagent'; // Optional: honoured for machine users only
 }

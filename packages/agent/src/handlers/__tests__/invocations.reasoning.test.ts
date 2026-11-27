@@ -13,8 +13,12 @@ const createAgent = jest.fn<(options: CreateAgentOptions) => Promise<unknown>>()
 jest.unstable_mockModule('../../agent.js', () => ({ createAgent }));
 jest.unstable_mockModule('../../libs/context/request-context.js', () => ({
   getCurrentContext: () => ({ requestId: 'test-request' }),
+  getCallerAuthorizationHeader: () => 'Bearer machine',
   requireUserId: () => 'test-user',
   requireIdentityId: () => 'test-identity',
+}));
+jest.unstable_mockModule('../../services/sessions-service.js', () => ({
+  getSessionsService: () => ({ isConfigured: () => false }),
 }));
 jest.unstable_mockModule('../../services/session/session-helper.js', () => ({
   setupSession: jest.fn(),
@@ -28,6 +32,7 @@ jest.unstable_mockModule('../../services/session-persistence-deps-factory.js', (
 }));
 jest.unstable_mockModule('../../libs/logger/index.js', () => ({
   logger: { info: jest.fn(), warn },
+  createLogger: () => ({ info: jest.fn(), warn: jest.fn(), error: jest.fn(), debug: jest.fn() }),
 }));
 jest.unstable_mockModule('../stream-handler.js', () => ({ streamAgentResponse: jest.fn() }));
 jest.unstable_mockModule('../../services/session-terminator.js', () => ({

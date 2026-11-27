@@ -10,6 +10,7 @@
  */
 
 import type { SessionParent } from '@moca/core';
+import type { TurnLockClaim } from '../repositories/sessions/index.js';
 
 export interface ISessionsService {
   isConfigured(): boolean;
@@ -24,6 +25,7 @@ export interface ISessionsService {
     /** Cognito User Pool sub — used for AppSync channel paths (no colons). */
     channelUserId?: string;
     parent?: SessionParent;
+    turnLock?: TurnLockClaim;
   }): Promise<unknown>;
   updateSessionAgentAndStorage(
     userId: string,

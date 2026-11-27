@@ -89,7 +89,7 @@ export async function createAgent(options?: CreateAgentOptions): Promise<CreateA
   const requestContext = getCurrentContext()!;
   const storagePath = requestContext.storagePath;
   // Sub-agents carry their type on sessionConfig (their restored request
-  // context has none); triggers send it as the session-type header.
+  // context has none); machine callers send it in the request body.
   const sessionType = options?.sessionConfig?.sessionType ?? requestContext.sessionType;
   const systemPrompt = buildSystemPrompt({
     customPrompt: options?.systemPrompt,

@@ -17,7 +17,9 @@ export type {
   SessionsRepository,
   CreateSessionOptions,
   SessionListResult,
+  TurnLockClaim,
+  TurnLockAcquireResult,
 } from './sessions-repository.js';
 
 // The domain model: what a session IS.
-export type { SessionType, SessionData, SessionSummary } from './types.js';
+export type { SessionType, SessionData, SessionSummary, TurnRunner } from './types.js';

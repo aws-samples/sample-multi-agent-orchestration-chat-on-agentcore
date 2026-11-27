@@ -13,6 +13,7 @@ import type { SessionPersistenceDeps } from '../../types/session-persistence-dep
 import { createLogger } from '../../libs/logger/index.js';
 import { getCurrentContext } from '../../libs/context/request-context.js';
 import { reportPersistenceFailure } from './persistence-health.js';
+import type { TurnLock } from './turn-lock.js';
 import { contentBlockToWire } from '../../libs/codec/content-block-codec.js';
 
 const log = createLogger('SessionPersistenceHook');
@@ -79,7 +80,9 @@ export class SessionPersistenceHook implements Plugin {
     private readonly sessionConfig: SessionConfig,
     private readonly deps: SessionPersistenceDeps,
     agentId?: string,
-    storagePath?: string
+    storagePath?: string,
+    /** Held for this turn by /invocations; it then owns the running marker. */
+    private readonly turnLock?: TurnLock
   ) {
     this.agentId = agentId;
     this.storagePath = storagePath;
@@ -163,7 +166,9 @@ export class SessionPersistenceHook implements Plugin {
               // Store the User Pool sub so that session-stream-handler can
               // build AppSync channel paths without a colon (identityId has REGION:UUID).
               channelUserId: getCurrentContext()?.userId,
+              turnLock: this.turnLock?.claim(),
             });
+            await this.turnLock?.adoptCreated();
             // Note: SessionsService.createSession emits its own "Created session" log,
             // so we skip the duplicate here.
 
@@ -190,11 +195,13 @@ export class SessionPersistenceHook implements Plugin {
           }
 
           // After create/update so the row exists for the existence condition.
-          await sessionsService.setActiveTurn(
-            actorId,
-            sessionId,
-            (getCurrentContext()?.startTime ?? new Date()).toISOString()
-          );
+          if (!this.turnLock) {
+            await sessionsService.setActiveTurn(
+              actorId,
+              sessionId,
+              (getCurrentContext()?.startTime ?? new Date()).toISOString()
+            );
+          }
 
           this.isFirstUserMessage = false;
         } else {
@@ -328,6 +335,8 @@ export class SessionPersistenceHook implements Plugin {
   }
 
   private async clearActiveTurn(): Promise<void> {
+    // Released by /invocations after the final workspace sync instead.
+    if (this.turnLock) return;
     const { actorId, sessionId } = this.sessionConfig;
     const sessionsService = this.deps.getSessionsService();
     if (!sessionsService.isConfigured()) return;

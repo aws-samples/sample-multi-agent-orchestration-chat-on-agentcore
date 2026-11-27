@@ -23,7 +23,11 @@ import type { AgentId, SessionParent, UserId } from '@moca/core';
 import { config } from '../config/index.js';
 import { createLogger } from '../libs/logger/index.js';
 import { createUserScopedDynamoDBClient, getIdentityId } from '../libs/utils/scoped-credentials.js';
-import type { SessionsRepository } from '../repositories/sessions/index.js';
+import type {
+  SessionsRepository,
+  TurnLockAcquireResult,
+  TurnLockClaim,
+} from '../repositories/sessions/index.js';
 import { DynamoDBSessionsRepository } from '../repositories/sessions/dynamodb/index.js';
 
 export type {
@@ -48,6 +52,7 @@ export interface CreateSessionOptions {
   /** Cognito User Pool sub — used for AppSync channel paths (no colons). */
   channelUserId?: string;
   parent?: SessionParent;
+  turnLock?: TurnLockClaim;
 }
 
 /**
@@ -110,6 +115,7 @@ export class SessionsService {
       sessionType: options.sessionType,
       channelUserId: options.channelUserId as UserId | undefined,
       parent: options.parent,
+      turnLock: options.turnLock,
     });
   }
 
@@ -130,6 +136,36 @@ export class SessionsService {
     if (!this.isConfigured()) return;
     const repo = await this.repositoryForUser(userId);
     return repo.setActiveTurn(sessionId, startedAt);
+  }
+
+  async acquireTurnLock(
+    userId: string,
+    sessionId: string,
+    claim: TurnLockClaim
+  ): Promise<TurnLockAcquireResult> {
+    const repo = await this.repositoryForUser(userId);
+    return repo.acquireTurnLock(sessionId, claim, Date.now());
+  }
+
+  async renewTurnLock(
+    userId: string,
+    sessionId: string,
+    owner: string,
+    leaseUntil: number
+  ): Promise<boolean> {
+    const repo = await this.repositoryForUser(userId);
+    return repo.renewTurnLock(sessionId, owner, leaseUntil);
+  }
+
+  async releaseTurnLock(userId: string, sessionId: string, owner: string): Promise<void> {
+    const repo = await this.repositoryForUser(userId);
+    return repo.releaseTurnLock(sessionId, owner);
+  }
+
+  async markUserRuntimeSessionRescued(userId: string, sessionId: string): Promise<void> {
+    if (!this.isConfigured()) return;
+    const repo = await this.repositoryForUser(userId);
+    return repo.markUserRuntimeSessionRescued(sessionId);
   }
 
   async getSession(userId: string, sessionId: string) {

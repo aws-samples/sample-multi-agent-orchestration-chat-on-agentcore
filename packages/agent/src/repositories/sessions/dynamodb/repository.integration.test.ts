@@ -364,3 +364,95 @@ describe('SessionsRepository.listSessions — review hardening (DynamoDB Local)'
     expect(collected).toHaveLength(TIE);
   });
 });
+
+describe('SessionsRepository turn lock (DynamoDB Local)', () => {
+  const NOW = 1_800_000_000_000;
+  const claim = (owner: string, leaseUntil = NOW + 180_000) => ({
+    owner,
+    runner: 'user' as const,
+    startedAt: new Date(NOW).toISOString(),
+    leaseUntil,
+  });
+  let seq = 0;
+  const newSession = async (): Promise<string> => {
+    const sessionId = `lock-${++seq}`;
+    await repo.createSession({ sessionId, title: 't' });
+    return sessionId;
+  };
+
+  it('reports a missing item', async () => {
+    expect(await repo.acquireTurnLock('lock-none', claim('a'), NOW)).toEqual({
+      status: 'missing',
+    });
+  });
+
+  it('acquires a free lock and stores the claim', async () => {
+    const id = await newSession();
+    expect(await repo.acquireTurnLock(id, claim('a'), NOW)).toEqual({ status: 'acquired' });
+    expect(await rawGet(id)).toMatchObject({
+      activeTurnOwner: 'a',
+      activeTurnRunner: 'user',
+      activeTurnLeaseUntil: NOW + 180_000,
+      activeTurnStartedAt: new Date(NOW).toISOString(),
+    });
+  });
+
+  it('rejects another owner while the lease is live and reports the holder', async () => {
+    const id = await newSession();
+    await repo.acquireTurnLock(id, { ...claim('a'), runner: 'machine' }, NOW);
+    expect(await repo.acquireTurnLock(id, claim('b'), NOW + 1000)).toEqual({
+      status: 'held',
+      startedAt: new Date(NOW).toISOString(),
+      runner: 'machine',
+    });
+  });
+
+  it('lets another owner take over an expired lease', async () => {
+    const id = await newSession();
+    await repo.acquireTurnLock(id, claim('a', NOW + 10), NOW);
+    expect(await repo.acquireTurnLock(id, claim('b'), NOW + 11)).toEqual({ status: 'acquired' });
+    expect((await rawGet(id))?.activeTurnOwner).toBe('b');
+  });
+
+  it('re-acquires a lock it already holds', async () => {
+    const id = await newSession();
+    await repo.acquireTurnLock(id, claim('a'), NOW);
+    expect(await repo.acquireTurnLock(id, claim('a'), NOW + 1)).toEqual({ status: 'acquired' });
+  });
+
+  it('creates a session holding the lock', async () => {
+    await repo.createSession({ sessionId: 'lock-created', title: 't', turnLock: claim('a') });
+    expect(await repo.acquireTurnLock('lock-created', claim('b'), NOW + 1)).toMatchObject({
+      status: 'held',
+    });
+  });
+
+  it('renews only for the owner', async () => {
+    const id = await newSession();
+    await repo.acquireTurnLock(id, claim('a'), NOW);
+    expect(await repo.renewTurnLock(id, 'b', NOW + 999_999)).toBe(false);
+    expect(await repo.renewTurnLock(id, 'a', NOW + 500_000)).toBe(true);
+    expect((await rawGet(id))?.activeTurnLeaseUntil).toBe(NOW + 500_000);
+  });
+
+  it('releases only for the owner, and twice is a no-op', async () => {
+    const id = await newSession();
+    await repo.acquireTurnLock(id, claim('a'), NOW);
+    await repo.releaseTurnLock(id, 'b');
+    expect((await rawGet(id))?.activeTurnOwner).toBe('a');
+    await repo.releaseTurnLock(id, 'a');
+    await repo.releaseTurnLock(id, 'a');
+    const item = await rawGet(id);
+    expect(item?.activeTurnOwner).toBeUndefined();
+    expect(item?.activeTurnStartedAt).toBeUndefined();
+    expect(item?.activeTurnLeaseUntil).toBeUndefined();
+  });
+
+  it('marks the rescued user runtime session only on an existing item', async () => {
+    const id = await newSession();
+    await repo.markUserRuntimeSessionRescued(id);
+    await repo.markUserRuntimeSessionRescued('lock-absent');
+    expect((await rawGet(id))?.userRuntimeSessionKind).toBe('rescued');
+    expect(await rawGet('lock-absent')).toBeUndefined();
+  });
+});
